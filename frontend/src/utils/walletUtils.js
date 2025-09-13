@@ -1,5 +1,19 @@
 // Utility functions for wallet data processing and formatting
 
+// Normalize financials block into flat token fields (mutates the object for convenience)
+export function normalizeFinancials(token) {
+  if (!token || typeof token !== 'object') return token
+  const fin = token.financials
+  if (fin && typeof fin === 'object') {
+    if (token.balance === undefined && fin.amount !== undefined) token.balance = fin.amount
+    if (token.decimalPlaces === undefined && fin.decimalPlaces !== undefined) token.decimalPlaces = fin.decimalPlaces
+    if (token.balanceFormatted === undefined && fin.balanceFormatted !== undefined) token.balanceFormatted = fin.balanceFormatted
+    if (token.price === undefined && fin.price !== undefined) token.price = fin.price
+    if (token.totalPrice === undefined && fin.totalPrice !== undefined) token.totalPrice = fin.totalPrice
+  }
+  return token
+}
+
 // Constants for item types
 export const ITEM_TYPES = {
   WALLET: 1,
@@ -16,7 +30,12 @@ export function filterItemsByType(items, type) {
 
 // Get wallet tokens from unified data
 export function getWalletTokens(data) {
-  return filterItemsByType(data, ITEM_TYPES.WALLET)
+  const items = filterItemsByType(data, ITEM_TYPES.WALLET)
+  // Normalize nested token.financials for each wallet item
+  return items.map(item => {
+    if (item.token) normalizeFinancials(item.token)
+    return item
+  })
 }
 
 // Get liquidity pools from unified data
@@ -46,10 +65,14 @@ export function formatBalance(balance, isNative = false) {
 
 // Format native balance for tooltip
 export function formatNativeBalance(token) {
-  if (!token.balance || !token.totalPrice) return 'N/A'
+  // Normalize first (in case caller passed raw)
+  normalizeFinancials(token)
+  const totalPriceCandidate = token.totalPrice ?? token.financials?.totalPrice
+  const balanceFormattedCandidate = token.balanceFormatted ?? token.financials?.balanceFormatted
+  if (!balanceFormattedCandidate && (!token.balance || !totalPriceCandidate)) return 'N/A'
   
   const balanceNum = parseFloat(token.balance)
-  const totalPriceNum = parseFloat(token.totalPrice)
+  const totalPriceNum = parseFloat(totalPriceCandidate)
   
   // Use decimalPlaces from API if available
   if (token.decimalPlaces !== null && token.decimalPlaces !== undefined) {
@@ -173,7 +196,7 @@ export function getFilteredTokens(tokens, showOnlyPositiveBalance = true) {
   if (showOnlyPositiveBalance) {
     return tokens.filter(tokenData => {
       const token = tokenData.token || tokenData // Support both old and new structure
-      const totalPrice = parseFloat(token.totalPrice)
+      const totalPrice = parseFloat(token.totalPrice ?? token.financials?.totalPrice)
       return totalPrice > 0
     })
   }
@@ -192,6 +215,7 @@ export function groupTokensByType(positions) {
   positions.forEach(position => {
     if (position.tokens && Array.isArray(position.tokens)) {
       position.tokens.forEach(token => {
+        normalizeFinancials(token)
         const t = (token.type || '').toString().toLowerCase()
 
         const isSupplied = t === 'supplied' || t === 'supply' || t === 'deposit'
@@ -204,6 +228,35 @@ export function groupTokensByType(positions) {
         }
         if (isBorrowed) {
           grouped.borrowed.push(token)
+          return
+        }
+
+        // If token type is missing, infer from position label or other tokens
+        if (!t) {
+          const lbl = (position.position?.label || position.label || '').toString().toLowerCase()
+          if (lbl.includes('borrow')) {
+            grouped.borrowed.push(token)
+            return
+          }
+          if (lbl.includes('supply') || lbl.includes('supplied') || lbl.includes('deposit')) {
+            grouped.supplied.push(token)
+            return
+          }
+          // Fallback: infer by peers in same position
+          const hasBorrowedPeer = position.tokens.some(pt => {
+            const tt = (pt.type || '').toString().toLowerCase()
+            return tt === 'borrowed' || tt === 'borrow' || tt === 'debt'
+          })
+          const hasSuppliedPeer = position.tokens.some(pt => {
+            const tt = (pt.type || '').toString().toLowerCase()
+            return tt === 'supplied' || tt === 'supply' || tt === 'deposit'
+          })
+          if (hasBorrowedPeer && !hasSuppliedPeer) {
+            grouped.borrowed.push(token)
+            return
+          }
+          // Default to supplied
+          grouped.supplied.push(token)
           return
         }
 
@@ -246,6 +299,7 @@ export function groupStakingTokensByType(positions) {
   positions.forEach(position => {
     if (position.tokens && Array.isArray(position.tokens)) {
       position.tokens.forEach(token => {
+        normalizeFinancials(token)
         if (token.type === 'reward' || token.type === 'rewards') {
           grouped.rewards.push(token)
         } else {
@@ -289,6 +343,7 @@ export function groupTokensByPool(positions) {
     }
     
     const tokensArray = Array.isArray(position.tokens) ? position.tokens : []
+  tokensArray.forEach(normalizeFinancials)
     const suppliedTokens = tokensArray.filter(token => {
       const t = (token.type || '').toString().toLowerCase()
       return t === 'supplied' || t === 'supply' || t === 'deposit' || !t

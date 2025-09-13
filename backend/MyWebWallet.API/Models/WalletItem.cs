@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using MyWebWallet.API.Models;
 
 namespace MyWebWallet.API.Models;
 
@@ -24,25 +25,28 @@ public class Protocol {
 public class Position
 {
     public string Label { get; set; }
-    public decimal? Balance { get; set; }
-    public decimal? TotalUnclaimed { get; set; }
     public List<Token> Tokens { get; set; }
+}
+
+public class TokenFinancials
+{
+    public decimal? Amount { get; set; }
+    public decimal? DecimalPlaces { get; set; }
+    public decimal? BalanceFormatted { get; set; }
+    public decimal? Price { get; set; }
+    public decimal? TotalPrice { get; set; }
 }
 
 public class Token
 {
-    public string Type { get; set; }
+    public TokenType? Type { get; set; }
     public string Name { get; set; }
     public string Chain { get; set; }
     public string Symbol { get; set; }
     public string ContractAddress { get; set; }
     public string Logo { get; set; }
     public string Thumbnail { get; set; }
-    public decimal? Balance { get; set; }
-    public decimal? DecimalPlaces { get; set; }
-    public decimal? BalanceFormatted { get; set; }
-    public decimal? Price { get; set; }
-    public decimal? TotalPrice { get; set; }
+    public TokenFinancials Financials { get; set; } = new();
     public bool? Native { get; set; }
     public bool? PossibleSpam { get; set; }
 }
@@ -51,4 +55,6 @@ public class AdditionalData
 {
     //[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     //public decimal? HealthFactor { get; set; }
+    public bool? IsCollateral { get; set; }
+    public bool? CanBeCollateral { get; set; }
 }

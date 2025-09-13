@@ -5,7 +5,7 @@ namespace MyWebWallet.API.Services.Interfaces
 {
     public interface IMoralisService
     {
-        Task<GetERC20TokenMoralisResponse> GetERC20TokenBalanceAsync(string address, string chain);
-        Task<GetDeFiPositionsMoralisResponse> GetDeFiPositionsAsync(string address, string chain);
+        Task<MoralisGetERC20TokenResponse> GetERC20TokenBalanceAsync(string address, string chain);
+        Task<MoralisGetDeFiPositionsResponse> GetDeFiPositionsAsync(string address, string chain);
     }
 }

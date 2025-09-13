@@ -7,6 +7,7 @@
         LiquidityPool = 2,
         LendingAndBorrowing = 3,
         Staking = 4,
+        Token = 5,
         Other = 50
     }
 }

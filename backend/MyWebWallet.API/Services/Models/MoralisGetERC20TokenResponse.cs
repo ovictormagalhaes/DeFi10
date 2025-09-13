@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace MyWebWallet.API.Services.Models
 {
-    public class GetERC20TokenMoralisResponse
+    public class MoralisGetERC20TokenResponse
     {
         [JsonPropertyName("cursor")]
         public string? Cursor { get; set; } = null;

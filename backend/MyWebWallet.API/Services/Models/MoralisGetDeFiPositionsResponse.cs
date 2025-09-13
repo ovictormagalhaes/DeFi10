@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace MyWebWallet.API.Services.Models
 {
-    public class GetDeFiPositionsMoralisResponse : List<GetDeFiPositionsMoralisInfo>
+    public class MoralisGetDeFiPositionsResponse : List<GetDeFiPositionsMoralisInfo>
     {
 
     }

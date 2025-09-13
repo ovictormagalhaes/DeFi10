@@ -21,59 +21,67 @@ function CollapsibleMenu({
   level = 0 // Nova prop para indicar o nível hierárquico (0=root, 1=sub, 2=sub-sub, etc.)
 }) {
   const [optionsExpanded, setOptionsExpanded] = useState(false)
+  // Internal expand state when parent does not control
+  const isControlled = typeof isExpanded === 'boolean'
+  const [internalExpanded, setInternalExpanded] = useState(() => {
+    if (isControlled) return !!isExpanded
+    // Default: level 0 starts collapsed, deeper levels start expanded
+    return level === 0 ? false : true
+  })
+  const expanded = isControlled ? !!isExpanded : internalExpanded
 
   // Calcula o tamanho da fonte baseado no level
   const getFontSize = (level) => {
     switch(level) {
-      case 0: return '18px' // Root menu - maior
-      case 1: return '16px' // Sub menu 
-      case 2: return '14px' // Sub-sub menu
-      case 3: return '13px' // Sub-sub-sub menu
-      default: return '12px' // Níveis mais profundos
+      case 0: return '16px' // Root menu - mais compacto
+      case 1: return '14px'
+      case 2: return '13px'
+      case 3: return '12px'
+      default: return '11px'
     }
   }
 
   // Calcula o tamanho da fonte para labels baseado no level
   const getLabelFontSize = (level) => {
     switch(level) {
-      case 0: return '14px' // Root menu
-      case 1: return '13px' // Sub menu 
-      case 2: return '12px' // Sub-sub menu
-      case 3: return '11px' // Sub-sub-sub menu
-      default: return '10px' // Níveis mais profundos
+      case 0: return '12px'
+      case 1: return '11px'
+      case 2: return '10px'
+      case 3: return '10px'
+      default: return '9px'
     }
   }
 
   // Calcula o tamanho da fonte para valores baseado no level
   const getValueFontSize = (level, isHighlighted = false) => {
     const baseSize = {
-      0: isHighlighted ? '16px' : '15px', // Root menu
-      1: isHighlighted ? '15px' : '14px', // Sub menu 
-      2: isHighlighted ? '14px' : '13px', // Sub-sub menu
-      3: isHighlighted ? '13px' : '12px', // Sub-sub-sub menu
+      0: isHighlighted ? '15px' : '14px',
+      1: isHighlighted ? '14px' : '13px',
+      2: isHighlighted ? '13px' : '12px',
+      3: isHighlighted ? '12px' : '11px',
     }
-    return baseSize[level] || (isHighlighted ? '12px' : '11px') // Níveis mais profundos
+    return baseSize[level] || (isHighlighted ? '11px' : '10px')
   }
 
   // Calcula o padding baseado no level
   const getPadding = (level) => {
     switch(level) {
-      case 0: return '12px 20px' // Root menu - padding completo
-      case 1: return '10px 16px' // Sub menu - padding reduzido
-      case 2: return '8px 12px'  // Sub-sub menu - padding mais reduzido
-      case 3: return '6px 10px'  // Sub-sub-sub menu - padding ainda menor
-      default: return '4px 8px'  // Níveis mais profundos - padding mínimo
+      case 0: return '10px 14px'
+      case 1: return '8px 12px'
+      case 2: return '6px 10px'
+      case 3: return '5px 8px'
+      default: return '4px 6px'
     }
   }
 
   // Calcula o margin baseado no level
   const getMargin = (level) => {
     switch(level) {
-      case 0: return { marginTop: 20, marginBottom: 20 } // Root menu - margin completo
-      case 1: return { marginTop: 12, marginBottom: 12 } // Sub menu - margin reduzido
-      case 2: return { marginTop: 8, marginBottom: 8 }   // Sub-sub menu - margin mais reduzido
-      case 3: return { marginTop: 6, marginBottom: 6 }   // Sub-sub-sub menu - margin ainda menor
-      default: return { marginTop: 4, marginBottom: 4 }  // Níveis mais profundos - margin mínimo
+      case 0: return { marginTop: 12, marginBottom: 12 }
+      case 1: return { marginTop: 8, marginBottom: 8 }
+      case 2: return { marginTop: 6, marginBottom: 6 }
+      case 3: return { marginTop: 4, marginBottom: 4 }
+      default: return { marginTop: 3, marginBottom: 3 }
     }
   }
 
@@ -143,30 +151,24 @@ function CollapsibleMenu({
         style={{ 
           backgroundColor: 'white', 
           padding: getPadding(level), 
-          borderRadius: isExpanded ? '8px 8px 0 0' : '8px',
+          borderRadius: expanded ? '8px 8px 0 0' : '8px',
           border: '1px solid #dee2e6',
-          borderBottom: isExpanded ? 'none' : '1px solid #dee2e6',
+          borderBottom: expanded ? 'none' : '1px solid #dee2e6',
           cursor: 'pointer',
           userSelect: 'none',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
         }}
-        onClick={onToggle}
+        onClick={(e) => {
+          if (onToggle) {
+            onToggle(e)
+          } else {
+            setInternalExpanded(v => !v)
+          }
+        }}
       >
         <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-          {/* Título com ícone (lado esquerdo - cresce conforme necessário) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '200px' }}>
-            <svg 
-              style={{ 
-                width: '16px', 
-                height: '16px', 
-                transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                transition: 'transform 0.2s ease'
-              }} 
-              viewBox="0 0 16 16" 
-              fill="none"
-            >
-              <path d="M4 6L8 10L12 6" stroke="#333333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+          {/* Título (lado esquerdo - cresce conforme necessário). Removido indicador aberto/fechado */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '140px' }}>
             <span style={{ fontWeight: 'bold', fontSize: getFontSize(level), color: '#333333' }}>{title}</span>
           </div>
 
@@ -186,12 +188,12 @@ function CollapsibleMenu({
                   overflow: 'hidden',
                   minWidth: 0
                 }}>
-                  {column.label && (
+          {column.label && (
                     <div style={{ 
                       fontWeight: 'bold', 
                       color: isHighlighted ? '#333333' : '#555555', 
                       fontSize: getLabelFontSize(level), 
-                      marginBottom: '4px',
+            marginBottom: '2px',
                       textAlign: 'center',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
@@ -223,8 +225,8 @@ function CollapsibleMenu({
 
           {/* Coluna de Opções - largura fixa, sempre presente para manter alinhamento */}
           <div style={{ 
-            width: '40px', 
-            minWidth: '40px',
+            width: '28px', 
+            minWidth: '28px',
             display: 'flex', 
             justifyContent: 'right', 
             alignItems: 'right', 
@@ -237,7 +239,7 @@ function CollapsibleMenu({
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    padding: '4px',
+                    padding: '2px',
                     borderRadius: '4px',
                     display: 'flex',
                     alignItems: 'center',
@@ -251,7 +253,7 @@ function CollapsibleMenu({
                   onMouseEnter={(e) => e.target.style.backgroundColor = '#f0f0f0'}
                   onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                     <circle cx="12" cy="5" r="2" fill="#333333"/>
                     <circle cx="12" cy="12" r="2" fill="#333333"/>
                     <circle cx="12" cy="19" r="2" fill="#333333"/>
@@ -286,7 +288,7 @@ function CollapsibleMenu({
       </div>
       
       {/* Header Actions (como configurações) */}
-      {isExpanded && headerActions && (
+  {expanded && headerActions && (
         <div style={{ 
           backgroundColor: '#f8f9fa', 
           padding: getPadding(level), 
@@ -301,7 +303,7 @@ function CollapsibleMenu({
       )}
       
       {/* Collapsible Content */}
-      {isExpanded && (
+      {expanded && (
         <div style={{
           paddingLeft: isNested ? `${4 + (level * 4)}px` : '0',
           paddingRight: isNested ? `${4 + (level * 4)}px` : '0'

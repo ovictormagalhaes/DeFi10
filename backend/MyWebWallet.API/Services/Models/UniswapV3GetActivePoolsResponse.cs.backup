@@ -1,0 +1,125 @@
+using System.Text.Json.Serialization;
+
+namespace MyWebWallet.API.Services.Models;
+
+public class UniswapV3GetActivePoolsResponse
+{
+    [JsonPropertyName("data")]
+    public UniswapV3PositionsData Data { get; set; } = new();
+}
+
+public class UniswapV3PositionsData
+{
+    [JsonPropertyName("positions")]
+    public List<UniswapV3Position> Positions { get; set; } = new();
+}
+
+public class UniswapV3Position
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("liquidity")]
+    public string Liquidity { get; set; } = string.Empty;
+
+    [JsonPropertyName("pool")]
+    public UniswapV3Pool Pool { get; set; } = new();
+}
+
+public class UniswapV3Pool
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("createdAtTimestamp")]
+    public string CreatedAtTimestamp { get; set; } = string.Empty;
+
+    [JsonPropertyName("createdAtBlockNumber")]
+    public string CreatedAtBlockNumber { get; set; } = string.Empty;
+
+    [JsonPropertyName("feeTier")]
+    public string FeeTier { get; set; } = string.Empty;
+
+    [JsonPropertyName("liquidity")]
+    public string Liquidity { get; set; } = string.Empty;
+
+    [JsonPropertyName("sqrtPrice")]
+    public string SqrtPrice { get; set; } = string.Empty;
+
+    [JsonPropertyName("token0Price")]
+    public string Token0Price { get; set; } = string.Empty;
+
+    [JsonPropertyName("token1Price")]
+    public string Token1Price { get; set; } = string.Empty;
+
+    [JsonPropertyName("volumeToken0")]
+    public string VolumeToken0 { get; set; } = string.Empty;
+
+    [JsonPropertyName("volumeToken1")]
+    public string VolumeToken1 { get; set; } = string.Empty;
+
+    [JsonPropertyName("volumeUSD")]
+    public string VolumeUSD { get; set; } = string.Empty;
+
+    [JsonPropertyName("feesUSD")]
+    public string FeesUSD { get; set; } = string.Empty;
+
+    [JsonPropertyName("txCount")]
+    public string TxCount { get; set; } = string.Empty;
+
+    [JsonPropertyName("totalValueLockedToken0")]
+    public string TotalValueLockedToken0 { get; set; } = string.Empty;
+
+    [JsonPropertyName("totalValueLockedToken1")]
+    public string TotalValueLockedToken1 { get; set; } = string.Empty;
+
+    [JsonPropertyName("collectedFeesToken0")]
+    public string CollectedFeesToken0 { get; set; } = string.Empty;
+
+    [JsonPropertyName("collectedFeesToken1")]
+    public string CollectedFeesToken1 { get; set; } = string.Empty;
+    [JsonPropertyName("collectedFeesUSD")]
+    public string CollectedFeesUSD { get; set; } = string.Empty;
+
+    [JsonPropertyName("totalValueLockedUSD")]
+    public string TotalValueLockedUSD { get; set; } = string.Empty;
+
+    [JsonPropertyName("token0")]
+    public UniswapV3Token Token0 { get; set; } = new();
+
+    [JsonPropertyName("token1")]
+    public UniswapV3Token Token1 { get; set; } = new();
+}
+
+public class UniswapV3Token
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("symbol")]
+    public string Symbol { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("decimals")]
+    public string Decimals { get; set; } = string.Empty;
+
+    [JsonPropertyName("totalSupply")]
+    public string TotalSupply { get; set; } = string.Empty;
+
+    [JsonPropertyName("feesUSD")]
+    public string FeesUSD { get; set; } = string.Empty;
+
+    [JsonPropertyName("txCount")]
+    public string TxCount { get; set; } = string.Empty;
+
+    [JsonPropertyName("poolCount")]
+    public string PoolCount { get; set; } = string.Empty;
+
+    [JsonPropertyName("totalValueLocked")]
+    public string TotalValueLocked { get; set; } = string.Empty;
+
+    [JsonPropertyName("totalValueLockedUSD")]
+    public string TotalValueLockedUSD { get; set; } = string.Empty;
+}
