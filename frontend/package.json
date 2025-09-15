@@ -1,19 +1,43 @@
 {
-  "name": "mywebwallet-frontend",
+  "name": "defi10-frontend",
   "version": "0.1.0",
   "private": true,
+  "description": "Defi10 - Multi-chain DeFi Portfolio Tracker Frontend",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "vite preview --host 0.0.0.0 --port $PORT"
   },
   "dependencies": {
     "ethers": "^6.9.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "axios": "^1.6.0",
+    "react-router-dom": "^6.8.0"
   },
   "devDependencies": {
     "vite": "^5.0.0",
-    "@vitejs/plugin-react": "^4.0.0"
+    "@vitejs/plugin-react": "^4.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "defi",
+    "portfolio",
+    "blockchain",
+    "multi-chain",
+    "react",
+    "typescript"
+  ],
+  "author": "Defi10 Team",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ovictormagalhaes/Defi10"
   }
 }

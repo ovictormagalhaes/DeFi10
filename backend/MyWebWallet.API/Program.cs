@@ -19,9 +19,24 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        // Allow frontend domain in production
+        if (builder.Environment.IsProduction())
+        {
+            policy.WithOrigins(
+                "https://mywebwallet-frontend.onrender.com"
+            );
+        }
+        else
+        {
+            policy.WithOrigins(
+                "http://localhost:10002",
+                "https://localhost:10002"
+            );
+        }
+        
+        policy.AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -135,13 +150,12 @@ catch (Exception ex)
 // Add health check endpoint
 app.MapHealthChecks("/health");
 
-app.UseHttpsRedirection();
 app.UseCors();
 app.MapControllers();
 
 // Log startup information
 var environment = app.Environment.EnvironmentName;
-var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 Console.WriteLine($"INFO: MyWebWallet API starting in {environment} environment on port {port}");
 
 app.Run();

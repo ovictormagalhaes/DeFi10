@@ -1,0 +1,21 @@
+services:
+  # Frontend React App
+  - type: web
+    name: defi10-frontend
+    runtime: node
+    plan: starter
+    buildCommand: |
+      npm install
+      npm run build
+    startCommand: |
+      npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REACT_APP_API_URL
+        value: https://defi10-api.onrender.com
+      - key: REACT_APP_APP_NAME
+        value: Defi10
+      - key: PORT
+        value: 3000
+    healthCheckPath: /

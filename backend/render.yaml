@@ -1,0 +1,67 @@
+services:
+  # Backend API (.NET 9 with Docker)
+  - type: web
+    name: defi10-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:8080
+      - key: ASPNETCORE_HTTP_PORTS
+        value: 8080
+      # External API Keys - Configure in Render Dashboard
+      - key: Moralis__ApiKey
+        sync: false
+      - key: Alchemy__ApiKey
+        sync: false
+      - key: UniswapV3__ApiKey
+        sync: false
+      # API Base URLs (safe to include)
+      - key: Moralis__BaseUrl
+        value: https://deep-index.moralis.io/api/v2.2
+      - key: Aave__GraphQLEndpoint
+        value: https://api.v3.aave.com/graphql
+      - key: UniswapV3__GraphQLEndpoint
+        value: https://gateway.thegraph.com/api/subgraphs/id/HMuAwufqZ1YCRmzL2SfHTVkzZovC9VL2UAKhjvRqKiR1
+      - key: Base__RpcUrl
+        value: https://mainnet.base.org
+      # Alchemy URLs - Dynamic URLs that depend on API Key
+      - key: Ethereum__RpcUrl
+        sync: false
+      - key: Alchemy__NftUrl
+        sync: false
+      - key: Alchemy__BaseRpcUrl
+        sync: false
+      # Redis connection (auto-configured from service)
+      - key: Redis__ConnectionString
+        fromService:
+          type: redis
+          name: defi10-redis
+          property: connectionString
+      - key: Redis__User
+        value: default
+      - key: Redis__Password
+        fromService:
+          type: redis
+          name: defi10-redis
+          property: password
+      # Cache configuration (safe to include)
+      - key: Redis__DefaultExpiration
+        value: "00:30:00"
+      - key: Redis__WalletCacheKeyPrefix
+        value: "wallet:"
+      - key: Redis__TokenLogoKeyPrefix
+        value: "token_logo:"
+      - key: Redis__TokenLogoExpiration
+        value: "7.00:00:00"
+    healthCheckPath: /health
+
+  # Redis Cache Service
+  - type: redis
+    name: defi10-redis
+    plan: starter
+    ipAllowList: []
