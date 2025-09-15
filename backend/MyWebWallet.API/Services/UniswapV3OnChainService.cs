@@ -1,3 +1,4 @@
+using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using Nethereum.ABI.FunctionEncoding.Attributes;
 using Nethereum.Contracts;
@@ -114,11 +115,37 @@ namespace MyWebWallet.API.Services
     public class UniswapV3OnChainService : IUniswapV3OnChainService
     {
         private readonly Web3 _web3;
+        private readonly IConfiguration _configuration;
         private const string BASE_POSITION_MANAGER_ADDRESS = "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1";
+
         public UniswapV3OnChainService(IConfiguration configuration)
         {
-            var rpcUrl = configuration["Alchemy:BaseRpcUrl"];
+            _configuration = configuration;
+            // Use Base chain RPC URL by default for now
+            var alchemyApiKey = configuration["Alchemy:ApiKey"];
+            var rpcUrl = string.IsNullOrEmpty(alchemyApiKey) 
+                ? configuration["Alchemy:BaseRpcUrl"] 
+                : MyWebWallet.API.Models.Chain.Base.GetAlchemyRpcUrl(alchemyApiKey);
+            
             _web3 = new Web3(rpcUrl);
+        }
+
+        private Web3 GetWeb3ForChain(MyWebWallet.API.Models.Chain chain)
+        {
+            var alchemyApiKey = _configuration["Alchemy:ApiKey"];
+            
+            string rpcUrl = chain switch
+            {
+                MyWebWallet.API.Models.Chain.Base when !string.IsNullOrEmpty(alchemyApiKey) => 
+                    chain.GetAlchemyRpcUrl(alchemyApiKey),
+                MyWebWallet.API.Models.Chain.Base => 
+                    _configuration["Alchemy:BaseRpcUrl"] ?? chain.GetRpcUrl(),
+                MyWebWallet.API.Models.Chain.BNB => 
+                    chain.GetRpcUrl(), // BNB doesn't support Alchemy
+                _ => chain.GetRpcUrl()
+            };
+
+            return new Web3(rpcUrl);
         }
 
         public async Task<PositionDTO> GetPositionAsync(BigInteger tokenId)

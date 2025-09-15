@@ -32,9 +32,6 @@ public class AaveeService : IAaveeService
     {
         try
         {
-            Console.WriteLine($"DEBUG: AaveeService: Starting GetUserSupplies for address: {address}, chain: {chain}");
-            Console.WriteLine($"DEBUG: AaveeService: GraphQL Endpoint: {_graphqlEndpoint}");
-
             var requestBody = new
             {
                 query = @"
@@ -56,6 +53,7 @@ public class AaveeService : IAaveeService
                         currency {
                           symbol
                           name
+                          address
                         }
                         balance {
                           amount {
@@ -81,27 +79,17 @@ public class AaveeService : IAaveeService
                 }
             };
 
-            Console.WriteLine($"DEBUG: AaveeService: Making HTTP POST request to Aave GraphQL...");
-
             var response = await _httpClient.PostAsJsonAsync(_graphqlEndpoint, requestBody);
             
-            Console.WriteLine($"DEBUG: AaveeService: HTTP Response Status: {response.StatusCode}");
-
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"ERROR: AaveeService: HTTP Error - Status: {response.StatusCode}, Content: {errorContent}");
                 response.EnsureSuccessStatusCode();
             }
 
             var jsonResponse = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"DEBUG: AaveeService: Response received, length: {jsonResponse.Length} characters");
-
             var data = JsonSerializer.Deserialize<AaveGetUserSuppliesResponse>(jsonResponse);
             
-            Console.WriteLine($"SUCCESS: AaveeService: Successfully deserialized user supplies response");
-            Console.WriteLine($"DEBUG: AaveeService: Supplies found: {data?.Data?.UserBorrows?.Count ?? 0}");
-
             return data ?? new AaveGetUserSuppliesResponse();
         }
         catch (HttpRequestException ex)
@@ -126,8 +114,6 @@ public class AaveeService : IAaveeService
     {
         try
         {
-            Console.WriteLine($"DEBUG: AaveeService: Starting GetUserBorrows for address: {address}, chain: {chain}");
-
             var requestBody = new
             {
                 query = @"
@@ -149,6 +135,7 @@ public class AaveeService : IAaveeService
                         currency {
                           symbol
                           name
+                          address
                         }
                         debt {
                           amount {
@@ -172,27 +159,17 @@ public class AaveeService : IAaveeService
                 }
             };
 
-            Console.WriteLine($"DEBUG: AaveeService: Making HTTP POST request to Aave GraphQL...");
-
             var response = await _httpClient.PostAsJsonAsync(_graphqlEndpoint, requestBody);
             
-            Console.WriteLine($"DEBUG: AaveeService: HTTP Response Status: {response.StatusCode}");
-
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"ERROR: AaveeService: HTTP Error - Status: {response.StatusCode}, Content: {errorContent}");
                 response.EnsureSuccessStatusCode();
             }
 
             var jsonResponse = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"DEBUG: AaveeService: Response received, length: {jsonResponse.Length} characters");
-
             var data = JsonSerializer.Deserialize<AaveGetUserBorrowsResponse>(jsonResponse);
             
-            Console.WriteLine($"SUCCESS: AaveeService: Successfully deserialized user borrows response");
-            Console.WriteLine($"DEBUG: AaveeService: Borrows found: {data?.Data?.UserBorrows?.Count ?? 0}");
-
             return data ?? new AaveGetUserBorrowsResponse();
         }
         catch (HttpRequestException ex)

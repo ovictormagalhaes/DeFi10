@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTheme } from '../context/ThemeProvider'
 
 /**
  * TableSection
@@ -10,33 +11,43 @@ import React from 'react'
  * - getKey?: (row, index) => string
  * - emptyText?: string
  */
-export default function TableSection({ title, columns = [], rows = [], getKey, emptyText = 'No data' }) {
+export default function TableSection({
+  title = null,
+  columns = [],
+  rows = [],
+  getKey,
+  emptyMessage = 'No data',
+  actions = null
+}) {
+  const { theme } = useTheme()
+  const headerBg = theme.tableHeaderBg || theme.bgPanelAlt || theme.bgPanel
+  const bodyBg = theme.tableBg || theme.bgPanel
+  const stripeBg = theme.tableStripeBg || (theme.mode === 'light' ? '#f7f9fa' : '#24272f')
+  const hoverBg = theme.tableRowHoverBg || (theme.mode === 'light' ? '#ecf0f3' : '#2b2e37')
+
   return (
-    <div style={{ backgroundColor: '#fff', border: '1px solid #e9ecef', borderRadius: 8, overflow: 'hidden', margin: '12px 0' }}>
-      <div style={{ padding: '12px 16px' }}>
-        {title ? (
-          <div style={{
-            fontSize: 12,
-            color: '#6c757d',
-            fontWeight: 600,
-            marginBottom: 6,
-            textTransform: 'uppercase'
-          }}>{title}</div>
-        ) : null}
+    <div style={{ margin: '12px 0' }}>
+      {title && (
+        <div style={{ padding: '8px 4px 4px 4px' }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: theme.textPrimary }}>{title}</div>
+        </div>
+      )}
+      <div style={{ backgroundColor: bodyBg, borderRadius: 8, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+            <tr style={{ backgroundColor: headerBg }}>
               {columns.map((col) => (
                 <th key={col.key}
-                    style={{
-                      padding: '10px 14px',
-                      textAlign: col.align || 'left',
-                      fontWeight: 600,
-                      color: '#495057',
-                      fontSize: 12,
-                      letterSpacing: '0.4px',
-                      width: col.width
-                    }}>
+                  style={{
+                    padding: '10px 16px',
+                    textAlign: col.align || 'left',
+                    fontWeight: 400,
+                    color: theme.textSecondary,
+                    fontSize: 12,
+                    letterSpacing: '0.4px',
+                    width: col.width,
+                    borderBottom: 'none'
+                  }}>
                   {col.label}
                 </th>
               ))}
@@ -45,30 +56,37 @@ export default function TableSection({ title, columns = [], rows = [], getKey, e
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} style={{ padding: '14px', textAlign: 'center', color: '#868e96', fontSize: 12 }}>
-                  {emptyText}
+                <td colSpan={columns.length} style={{ padding: '14px 16px', textAlign: 'center', color: theme.textMuted, fontSize: 12 }}>
+                  {emptyMessage}
                 </td>
               </tr>
-            ) : rows.map((row, idx) => (
-              <tr key={getKey ? getKey(row, idx) : idx}
-                  style={{ borderBottom: idx === rows.length - 1 ? 'none' : '1px solid #e9ecef' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                {columns.map((col) => (
-                  <td key={col.key}
+            ) : rows.map((row, idx) => {
+              const isStriped = idx % 2 === 1
+              return (
+                <tr
+                  key={getKey ? getKey(row, idx) : idx}
+                  style={{ backgroundColor: isStriped ? stripeBg : 'transparent', transition: 'background-color 0.2s' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isStriped ? stripeBg : 'transparent'}
+                >
+                  {columns.map((col) => (
+                    <td key={col.key}
                       style={{
-                        padding: '12px 14px',
+                        padding: '12px 16px',
                         textAlign: col.align || 'left',
-                        fontFamily: col.align === 'right' ? 'monospace' : 'inherit',
-                        fontWeight: col.align === 'right' ? 600 : 500,
+                        fontFamily: 'inherit',
+                        fontWeight: 400,
                         fontSize: 13,
-                        color: '#212529'
-                      }}>
-                    {row[col.key]}
-                  </td>
-                ))}
-              </tr>
-            ))}
+                        color: theme.textPrimary,
+                        borderBottom: 'none'
+                      }}
+                    >
+                      {row[col.key]}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

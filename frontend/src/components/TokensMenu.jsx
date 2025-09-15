@@ -1,6 +1,9 @@
 import React from 'react'
 import CollapsibleMenu from './CollapsibleMenu'
 import { formatBalance, formatPrice, getFilteredTokens } from '../utils/walletUtils'
+import { useTheme } from '../context/ThemeProvider'
+import Chip from './Chip'
+import { useMaskValues } from '../context/MaskValuesContext'
 
 const TokensMenu = ({ 
   title, 
@@ -22,6 +25,7 @@ const TokensMenu = ({
   if (!tokens || tokens.length === 0) return null
 
   const filteredTokens = getFilteredTokens(tokens, searchTerm, selectedChains, selectedTokenTypes)
+  const { maskValue } = useMaskValues()
   
   const totalValue = filteredTokens.reduce((sum, token) => {
     const price = parseFloat(token.totalPrice) || 0
@@ -36,13 +40,13 @@ const TokensMenu = ({
     },
     balance: {
       label: "Balance",
-      value: formatPrice(totalValue),
+  value: maskValue(formatPrice(totalValue)),
       flex: 2,
       highlight: true
     },
     percentage: {
       label: "%",
-      value: calculatePercentage(totalValue, getTotalPortfolioValue()),
+  value: calculatePercentage(totalValue, getTotalPortfolioValue()),
       flex: 0.8
     }
   })
@@ -70,61 +74,41 @@ const TokensMenu = ({
   )
 }
 
-const TokenTable = ({ tokens }) => (
-  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-    <thead>
-      <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-        <th style={{ 
-          padding: '12px 20px', 
-          textAlign: 'left', 
-          fontWeight: '600', 
-          color: '#495057',
-          fontSize: '13px',
-          letterSpacing: '0.5px'
-        }}>
-          TOKEN
-        </th>
-        <th style={{ 
-          padding: '12px 20px', 
-          textAlign: 'right', 
-          fontWeight: '600', 
-          color: '#495057',
-          fontSize: '13px',
-          letterSpacing: '0.5px'
-        }}>
-          BALANCE
-        </th>
-        <th style={{ 
-          padding: '12px 20px', 
-          textAlign: 'right', 
-          fontWeight: '600', 
-          color: '#495057',
-          fontSize: '13px',
-          letterSpacing: '0.5px'
-        }}>
-          PRICE
-        </th>
-        <th style={{ 
-          padding: '12px 20px', 
-          textAlign: 'right', 
-          fontWeight: '600', 
-          color: '#495057',
-          fontSize: '13px',
-          letterSpacing: '0.5px'
-        }}>
-          VALUE
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      {tokens.map((token, index) => (
-        <TokenRow key={index} token={token} isLast={index === tokens.length - 1} />
-      ))}
-    </tbody>
-  </table>
-)
+const TokenTable = ({ tokens }) => {
+  const { theme } = useTheme(); const { maskValue } = useMaskValues()
+  const headerBg = theme.tableHeaderBg || theme.bgPanelAlt || theme.bgPanel
+  const stripeBg = theme.tableStripeBg || (theme.mode === 'light' ? '#f7f9fa' : '#24272f')
+  const hoverBg = theme.tableRowHoverBg || (theme.mode === 'light' ? '#ecf0f3' : '#2b2e37')
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead>
+        <tr style={{ backgroundColor: headerBg }}>
+          {['TOKEN','BALANCE','PRICE','VALUE'].map((h, i) => (
+            <th key={h}
+              style={{
+                padding: '10px 16px',
+                textAlign: i === 0 ? 'left' : 'right',
+                fontWeight: 400,
+                color: theme.textSecondary,
+                fontSize: 12,
+                letterSpacing: '0.4px'
+              }}
+            >
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {tokens.map((token, index) => (
+          <TokenRow key={index} token={token} index={index} stripeBg={stripeBg} hoverBg={hoverBg} />
+        ))}
+      </tbody>
+    </table>
+  )
+}
 
-const TokenRow = ({ token, isLast }) => {
+const TokenRow = ({ token, index, stripeBg, hoverBg }) => {
   // Extract token data based on structure (nested or direct)
   const tokenData = token.tokenData?.token || token
   const logo = tokenData.logo || tokenData.logoURI || token.logo || token.logoURI
@@ -135,13 +119,16 @@ const TokenRow = ({ token, isLast }) => {
   const price = token.price || token.tokenData?.price
   const totalPrice = token.totalPrice
 
+  const { theme } = useTheme()
+  const isStriped = index % 2 === 1
   return (
-    <tr style={{ 
-      borderBottom: isLast ? 'none' : '1px solid #e9ecef',
-      transition: 'background-color 0.15s ease'
-    }}
-    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+    <tr
+      style={{
+        backgroundColor: isStriped ? stripeBg : 'transparent',
+        transition: 'background-color 0.18s'
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isStriped ? stripeBg : 'transparent'}
     >
       <td style={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -154,52 +141,43 @@ const TokenRow = ({ token, isLast }) => {
                 height: 32, 
                 marginRight: 12,
                 borderRadius: '50%',
-                border: '1px solid #e0e0e0'
+                border: `1px solid ${theme.border}`
               }}
               onError={(e) => e.target.style.display = 'none'}
             />
           )}
           <div>
             <div style={{ 
-              fontWeight: '600', 
-              fontSize: '14px',
-              color: '#212529',
-              marginBottom: '2px'
+              fontWeight: 600, 
+              fontSize: 14,
+              color: theme.textPrimary,
+              marginBottom: 2
             }}>
               {symbol}
             </div>
             <div style={{ 
-              fontSize: '12px', 
-              color: '#6c757d',
+              fontSize: 12, 
+              color: theme.textSecondary,
               display: 'flex',
               alignItems: 'center',
               gap: '8px'
             }}>
               <span>{name}</span>
               {chain && (
-                <span style={{
-                  backgroundColor: '#e9ecef',
-                  color: '#495057',
-                  padding: '2px 6px',
-                  borderRadius: '10px',
-                  fontSize: '10px',
-                  fontWeight: '500'
-                }}>
-                  {chain}
-                </span>
+                <Chip variant="muted" size="xs" minimal>{chain}</Chip>
               )}
             </div>
           </div>
         </div>
       </td>
-      <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontSize: '13px', color: '#495057' }}>
-        {balance ? formatBalance(balance) : 'N/A'}
+      <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontSize: 13, color: theme.textPrimary }}>
+  {balance ? maskValue(formatBalance(balance), { short: true }) : 'N/A'}
       </td>
-      <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontSize: '13px', color: '#495057' }}>
-        {price ? formatPrice(price) : 'N/A'}
+      <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontSize: 13, color: theme.textPrimary }}>
+  {price ? maskValue(formatPrice(price), { short: true }) : 'N/A'}
       </td>
-      <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontSize: '14px', fontWeight: '600', color: '#212529' }}>
-        {formatPrice(totalPrice)}
+      <td style={{ padding: '16px 20px', textAlign: 'right', fontFamily: 'monospace', fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+  {maskValue(formatPrice(totalPrice))}
       </td>
     </tr>
   )

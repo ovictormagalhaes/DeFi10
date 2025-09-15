@@ -6,8 +6,6 @@ namespace MyWebWallet.API.Models;
 public class WalletItem
 {
     public WalletItemType Type { get; set; }
-    public Token Token { get; set; }
-
     //DeFi specific properties
     public Protocol Protocol { get; set; }
     public Position Position { get; set; }
@@ -32,6 +30,18 @@ public class TokenFinancials
 {
     public decimal? Amount { get; set; }
     public decimal? DecimalPlaces { get; set; }
+    public decimal? AmountFormatted
+    {
+        get
+        {
+            if (Amount > 0 && DecimalPlaces > 0)
+            {
+                var divisor = (decimal)Math.Pow(10, (double)DecimalPlaces.Value);
+                return Amount.Value / divisor;
+            }
+            return null;
+        }
+    }
     public decimal? BalanceFormatted { get; set; }
     public decimal? Price { get; set; }
     public decimal? TotalPrice { get; set; }
@@ -53,8 +63,8 @@ public class Token
 
 public class AdditionalData
 {
-    //[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    //public decimal? HealthFactor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? HealthFactor { get; set; }
     public bool? IsCollateral { get; set; }
     public bool? CanBeCollateral { get; set; }
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useTheme } from '../context/ThemeProvider'
 
 // A unified component that renders header (icon | title | right balance) and a table beneath it.
 // Optional: collapsible behavior if onToggle provided.
@@ -17,8 +18,10 @@ export default function SectionTable({
   infoBadges = null,
   optionsMenu = null,
   customContent = null,
-  level = 1
+  level = 1,
+  transparentBody = false
 }) {
+  const { theme } = useTheme()
   const [uncontrolledExpanded, setUncontrolledExpanded] = useState(true)
   const isControlled = typeof controlledExpanded === 'boolean'
   const expanded = isControlled ? controlledExpanded : uncontrolledExpanded
@@ -31,24 +34,25 @@ export default function SectionTable({
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
-      if (optionsExpanded) setOptionsExpanded(false)
-    }
-    if (optionsExpanded) {
-      document.addEventListener('click', handleClickOutside)
-    }
+    const handleClickOutside = () => { if (optionsExpanded) setOptionsExpanded(false) }
+    if (optionsExpanded) document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
   }, [optionsExpanded])
 
   const isLevel0 = level === 0
+  const headerBg = theme.tableHeaderBg || theme.bgPanelAlt || theme.bgPanel
+  const bodyBg = transparentBody ? 'transparent' : (theme.tableBg || theme.bgPanel)
+  const stripeBg = theme.tableStripeBg || (theme.mode === 'light' ? '#f7f9fa' : '#24272f')
+  const hoverBg = theme.tableRowHoverBg || (theme.mode === 'light' ? '#ecf0f3' : '#2b2e37')
+  const dividerColor = 'transparent' // borderless style
 
   return (
     <div style={{ margin: '12px 0' }}>
       <div
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          backgroundColor: isLevel0 ? 'transparent' : 'white',
-          border: isLevel0 ? 'none' : '1px solid #dee2e6',
+          backgroundColor: isLevel0 ? 'transparent' : bodyBg,
+          border: 'none',
           borderRadius: isLevel0 ? 0 : 8,
           padding: isLevel0 ? '6px 0' : '10px 16px',
           cursor: onToggle ? 'pointer' : 'default', userSelect: 'none'
@@ -57,7 +61,7 @@ export default function SectionTable({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {icon}
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#333' }}>{title}</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: theme.textPrimary }}>{title}</span>
         </div>
         {(infoBadges || rightPercent !== null || rightValue !== null || optionsMenu || actions) && (
           <div
@@ -79,10 +83,10 @@ export default function SectionTable({
           width: 100,
         textAlign: 'center',
       fontSize: 12,
-      fontWeight: 700,
-      color: '#374151',
-      background: '#f3f4f6',
-      border: '1px solid #e5e7eb',
+      fontWeight: 600,
+      color: theme.textSecondary,
+      background: theme.bgInteractive,
+      border: 'none',
       padding: '2px 6px',
       borderRadius: 6,
       fontFamily: 'monospace',
@@ -103,10 +107,10 @@ export default function SectionTable({
                     width: 72,
                     textAlign: 'center',
         fontSize: 12,
-        fontWeight: 700,
-        color: '#374151',
-        background: '#f3f4f6',
-        border: '1px solid #e5e7eb',
+        fontWeight: 600,
+        color: theme.textSecondary,
+        background: theme.bgInteractive,
+        border: 'none',
         padding: '2px 6px',
         borderRadius: 6,
         fontFamily: 'monospace'
@@ -117,7 +121,7 @@ export default function SectionTable({
               ) : null}
             </div>
             {/* Col 3: balance */}
-            <div style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, fontSize: 14, color: '#212529' }}>
+            <div style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, fontSize: 14, color: theme.textPrimary }}>
               {rightValue !== null ? rightValue : ''}
             </div>
             {/* Col 4: options (and optional actions) */}
@@ -126,37 +130,28 @@ export default function SectionTable({
                 <div style={{ position: 'relative' }}>
                   <button
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '2px',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'background-color 0.2s'
+                      background: 'none', border: 'none', cursor: 'pointer', padding: '2px', borderRadius: 4,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.2s'
                     }}
                     onClick={() => setOptionsExpanded(v => !v)}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = '#f0f0f0'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.bgInteractiveHover}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     title="Options"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="5" r="2" fill="#333333"/>
-                      <circle cx="12" cy="12" r="2" fill="#333333"/>
-                      <circle cx="12" cy="19" r="2" fill="#333333"/>
+                      <circle cx="12" cy="5" r="2" fill={theme.textSecondary}/>
+                      <circle cx="12" cy="12" r="2" fill={theme.textSecondary}/>
+                      <circle cx="12" cy="19" r="2" fill={theme.textSecondary}/>
                     </svg>
                   </button>
                   {optionsExpanded && (
                     <div
                       style={{
-                        position: 'absolute',
-                        top: '100%',
-                        right: 0,
-                        background: 'white',
-                        border: '1px solid #dee2e6',
+                        position: 'absolute', top: '100%', right: 0,
+                        background: bodyBg,
+                        border: `1px solid ${theme.border}`,
                         borderRadius: 8,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        boxShadow: 'none',
                         padding: '8px 0',
                         minWidth: 200,
                         zIndex: 1000
@@ -176,35 +171,36 @@ export default function SectionTable({
 
       {expanded && (
         customContent ? (
-          <div style={{ backgroundColor: '#fff', border: '1px solid #e9ecef', borderTop: isLevel0 ? '1px solid #e9ecef' : 'none', borderRadius: isLevel0 ? '8px' : '0 0 8px 8px', overflow: 'hidden' }}>
+          <div style={{ backgroundColor: bodyBg, border: 'none', borderTop: 'none', borderRadius: isLevel0 ? 8 : '0 0 8px 8px', overflow: 'hidden' }}>
             {customContent}
           </div>
         ) : (
-          <div style={{ backgroundColor: '#fff', border: '1px solid #e9ecef', borderTop: isLevel0 ? '1px solid #e9ecef' : 'none', borderRadius: isLevel0 ? '8px' : '0 0 8px 8px', overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px' }}>
+          <div style={{ backgroundColor: bodyBg, border: 'none', borderTop: 'none', borderRadius: isLevel0 ? 8 : '0 0 8px 8px', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 0' }}>
               {subtitle ? (
                 <div style={{
                   fontSize: 12,
-                  color: '#6c757d',
+                  color: theme.textSecondary,
                   fontWeight: 400,
-                  marginBottom: 6,
+                  margin: '0 16px 6px 16px',
                   textTransform: 'uppercase'
                 }}>{subtitle}</div>
               ) : null}
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                  <tr style={{ backgroundColor: headerBg }}>
                     {columns.map((col) => (
                       <th key={col.key}
-                          style={{
-                            padding: '10px 14px',
-                            textAlign: col.align || 'left',
-                            fontWeight: 400,
-                            color: '#495057',
-                            fontSize: 12,
-                            letterSpacing: '0.4px',
-                            width: col.width
-                          }}>
+                        style={{
+                          padding: '10px 16px',
+                          textAlign: col.align || 'left',
+                          fontWeight: 400,
+                          color: theme.textSecondary,
+                          fontSize: 12,
+                          letterSpacing: '0.4px',
+                          width: col.width,
+                          borderBottom: `1px solid ${dividerColor}`
+                        }}>
                         {col.label}
                       </th>
                     ))}
@@ -213,30 +209,41 @@ export default function SectionTable({
                 <tbody>
                   {rows.length === 0 ? (
                     <tr>
-                      <td colSpan={columns.length} style={{ padding: '14px', textAlign: 'center', color: '#868e96', fontSize: 12 }}>
+                      <td colSpan={columns.length} style={{ padding: '14px 16px', textAlign: 'center', color: theme.textMuted, fontSize: 12 }}>
                         No data
                       </td>
                     </tr>
-                  ) : rows.map((row, idx) => (
-                    <tr key={getKey ? getKey(row, idx) : idx}
-                        style={{ borderBottom: idx === rows.length - 1 ? 'none' : '1px solid #e9ecef' }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                      {columns.map((col) => (
-                        <td key={col.key}
+                  ) : rows.map((row, idx) => {
+                    const isStriped = idx % 2 === 1
+                    return (
+                      <tr
+                        key={getKey ? getKey(row, idx) : idx}
+                        style={{
+                          backgroundColor: isStriped ? stripeBg : 'transparent',
+                          transition: 'background-color 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = isStriped ? stripeBg : 'transparent'}
+                      >
+                        {columns.map((col) => (
+                          <td
+                            key={col.key}
                             style={{
-                              padding: '12px 14px',
+                              padding: '12px 16px',
                               textAlign: col.align || 'left',
                               fontFamily: 'inherit',
                               fontWeight: 400,
                               fontSize: 13,
-                              color: '#212529'
-                            }}>
-                          {row[col.key]}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                              color: theme.textPrimary,
+                              borderBottom: 'none'
+                            }}
+                          >
+                            {row[col.key]}
+                          </td>
+                        ))}
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

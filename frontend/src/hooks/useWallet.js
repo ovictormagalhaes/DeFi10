@@ -1,10 +1,41 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { STORAGE_KEY, EXPIRY_HOURS, API_BASE } from '../constants/config'
 
 // Custom hook for wallet connection and account management
 export function useWalletConnection() {
   const [account, setAccount] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [supportedChains, setSupportedChains] = useState([])
+  const [chainsLoading, setChainsLoading] = useState(false)
+  const chainsFetchedRef = useRef(false)
+
+  const fetchSupportedChains = useCallback(async ({ force } = {}) => {
+    if (chainsFetchedRef.current && !force) return
+    if (!chainsFetchedRef.current) chainsFetchedRef.current = true
+    try {
+      setChainsLoading(true)
+      const res = await fetch(`${API_BASE}/wallets/supported-chains`)
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          setSupportedChains(data)
+        } else if (data) {
+          if (Array.isArray(data.supportedChains)) setSupportedChains(data.supportedChains)
+          else if (Array.isArray(data.chains)) setSupportedChains(data.chains)
+          else if (Array.isArray(data.data)) setSupportedChains(data.data)
+        }
+      } else {
+        console.error('Failed to fetch supported chains', res.status)
+      }
+    } catch (err) {
+      console.error('Error fetching supported chains', err)
+    } finally {
+      setChainsLoading(false)
+    }
+  }, [])
+
+  // Stable wrapper so components can depend on a memoized function (prevents effect loops)
+  const refreshSupportedChains = useCallback((force = false) => fetchSupportedChains({ force }), [fetchSupportedChains])
 
   // Save account with expiry
   function saveAccount(addr) {
@@ -77,7 +108,8 @@ export function useWalletConnection() {
     if (savedAccount) {
       setAccount(savedAccount)
     }
-  }, [])
+    fetchSupportedChains()
+  }, [fetchSupportedChains])
 
   // Listen for account changes
   useEffect(() => {
@@ -102,6 +134,9 @@ export function useWalletConnection() {
     account,
     loading,
     setLoading,
+    supportedChains,
+    chainsLoading,
+    refreshSupportedChains,
     connectWallet,
     copyAddress,
     disconnect
@@ -142,10 +177,15 @@ export function useWalletData() {
     }
   }, [callAccountAPI])
 
+  const clearWalletData = useCallback(() => {
+    setWalletData(null)
+  }, [])
+
   return {
     walletData,
     callAccountAPI,
-    refreshWalletData
+    refreshWalletData,
+    clearWalletData
   }
 }
 

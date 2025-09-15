@@ -5,3 +5,9 @@ body{margin:0;padding:24px;background:#f7f9fc;color:#0f172a}
 button{background:#2563eb;color:#fff;border:none;padding:10px 14px;border-radius:6px;cursor:pointer}
 .info{margin-top:12px}
 .muted{color:#6b7280;margin-top:16px}
+
+/* Monochrome icon utility */
+.mono-icon{filter:grayscale(100%) contrast(1.05) saturate(0.3);opacity:0.85;transition:filter .25s,opacity .25s,transform .25s}
+.mono-icon:hover{filter:grayscale(40%) contrast(1.05) saturate(0.6);opacity:1;transform:translateY(-1px)}
+.mono-icon.mono-strong{filter:grayscale(80%) saturate(0.4);}
+.mono-icon.inactive{filter:grayscale(100%) opacity(0.5);opacity:0.5}

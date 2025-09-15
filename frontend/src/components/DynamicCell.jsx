@@ -1,38 +1,50 @@
 import React from 'react'
+import { useTheme } from '../context/ThemeProvider'
 
-const DynamicCell = ({ 
-  data, 
-  columns, 
-  onMouseEnter, 
-  onMouseLeave, 
+const DynamicCell = ({
+  data,
+  columns,
+  onMouseEnter,
+  onMouseLeave,
   style = {},
-  className = '' 
+  className = ''
 }) => {
+  const { theme } = useTheme()
   // Calcula o flex total para normalizar os tamanhos
   const totalFlex = Object.values(columns).reduce((sum, col) => sum + (col.flex || 1), 0)
-  
+
+  const baseBg = theme.tableBg || theme.bgPanel || 'transparent'
+  const hoverBg = theme.tableRowHoverBg || theme.bgPanelAlt || baseBg
+
   return (
-    <div 
+    <div
       style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '12px 16px',
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        border: '1px solid #e9ecef',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-        transition: 'all 0.2s ease',
+        backgroundColor: baseBg,
+        borderRadius: 8,
+        // removendo borda & sombra para design flat
+        border: 'none',
+        boxShadow: 'none',
+        transition: 'background-color 0.18s ease',
         ...style
       }}
       className={className}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = hoverBg
+        onMouseEnter?.(e)
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = baseBg
+        onMouseLeave?.(e)
+      }}
     >
       {Object.entries(columns).map(([key, column], index) => {
         const flexValue = (column.flex || 1) / totalFlex * 100
         const value = typeof column.getValue === 'function' ? column.getValue(data) : data[key]
-        
+
         return (
           <div
             key={key}
@@ -43,19 +55,19 @@ const DynamicCell = ({
             }}
           >
             {column.label && (
-              <div style={{ 
-                fontSize: '11px', 
-                color: '#6c757d', 
-                marginBottom: '2px' 
+              <div style={{
+                fontSize: 11,
+                color: theme.textMuted,
+                marginBottom: 2
               }}>
                 {column.label}
               </div>
             )}
             <div style={{
               fontFamily: column.monospace ? 'monospace' : 'inherit',
-              fontSize: column.fontSize || '14px',
-              fontWeight: column.fontWeight || (column.highlight ? '600' : 'normal'),
-              color: column.color || (column.highlight ? '#212529' : '#495057')
+              fontSize: column.fontSize || 14,
+              fontWeight: column.fontWeight || (column.highlight ? 600 : 'normal'),
+              color: column.color || (column.highlight ? theme.textPrimary : theme.textSecondary)
             }}>
               {value}
             </div>
@@ -67,14 +79,15 @@ const DynamicCell = ({
 }
 
 // Componente especializado para células de token
-const TokenCell = ({ 
-  token, 
-  showRewards = false, 
+const TokenCell = ({
+  token,
+  showRewards = false,
   showType = false,
   isLast = false,
   onMouseEnter,
   onMouseLeave
 }) => {
+  const { theme } = useTheme()
   const columns = {
     token: {
       flex: 3,
@@ -90,27 +103,27 @@ const TokenCell = ({
                 height: 20, 
                 marginRight: 10,
                 borderRadius: '50%',
-                border: '1px solid #e0e0e0'
+                border: `1px solid ${theme.border}`
               }}
               onError={(e) => e.target.style.display = 'none'}
             />
           )}
           <span style={{ 
-            fontWeight: '600', 
-            fontSize: '14px',
-            color: '#212529'
+            fontWeight: 600,
+            fontSize: 14,
+            color: theme.textPrimary
           }}>
             {data.symbol}
           </span>
           {showType && data.type && (
             <span style={{
-              marginLeft: '8px',
-              backgroundColor: data.type === 'supplied' ? '#d4edda' : '#f8d7da',
-              color: data.type === 'supplied' ? '#155724' : '#721c24',
-              padding: '2px 6px',
-              borderRadius: '12px',
-              fontSize: '11px',
-              fontWeight: '500'
+              marginLeft: 8,
+              // design flat: removendo fundo pesado; apenas cor do texto
+              color: data.type === 'supplied' ? theme.success : theme.danger,
+              padding: '0 4px',
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 500
             }}>
               {data.type}
             </span>
@@ -146,67 +159,61 @@ const TokenCell = ({
       data={token}
       columns={columns}
       style={{
-        marginBottom: isLast ? '0' : '6px'
+        marginBottom: isLast ? 0 : 6
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = '#f8f9fa'
-        e.currentTarget.style.transform = 'translateY(-1px)'
-        e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)'
-        onMouseEnter?.(e)
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'white'
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'
-        onMouseLeave?.(e)
-      }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     />
   )
 }
 
 // Componente para container de células
-const CellContainer = ({ 
-  children, 
+const CellContainer = ({
+  children,
   style = {},
   title,
-  subtitle 
-}) => (
-  <div style={{ 
-    backgroundColor: '#f8f9fa', 
-    padding: '16px 24px',
-    margin: '8px 0',
-    borderRadius: '8px',
-    border: '1px solid #e0e0e0',
-    ...style
-  }}>
-    {title && (
-      <div style={{ 
-        fontWeight: '600', 
-        marginBottom: subtitle ? '4px' : '12px', 
-        color: '#495057',
-        fontSize: '14px'
-      }}>
-        {title}
-      </div>
-    )}
-    {subtitle && (
-      <div style={{ 
-        fontSize: '12px', 
-        color: '#6c757d',
-        marginBottom: '12px'
-      }}>
-        {subtitle}
-      </div>
-    )}
+  subtitle
+}) => {
+  const { theme } = useTheme()
+  return (
     <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '6px'
+      backgroundColor: theme.bgPanel,
+      padding: '16px 24px',
+      margin: '8px 0',
+      borderRadius: 8,
+      // seguindo direção borderless
+      border: 'none',
+      ...style
     }}>
-      {children}
+      {title && (
+        <div style={{
+          fontWeight: 600,
+          marginBottom: subtitle ? 4 : 12,
+          color: theme.textPrimary,
+          fontSize: 14
+        }}>
+          {title}
+        </div>
+      )}
+      {subtitle && (
+        <div style={{
+          fontSize: 12,
+          color: theme.textSecondary,
+          marginBottom: 12
+        }}>
+          {subtitle}
+        </div>
+      )}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6
+      }}>
+        {children}
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export { DynamicCell, TokenCell, CellContainer }
 export default DynamicCell

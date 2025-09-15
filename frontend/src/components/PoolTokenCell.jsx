@@ -1,5 +1,6 @@
 import React from 'react'
-import colors from '../styles/colors'
+import { useTheme } from '../context/ThemeProvider'
+import TokenDisplay from './TokenDisplay'
 
 /**
  * PoolTokenCell
@@ -7,17 +8,18 @@ import colors from '../styles/colors'
  * Layout: | Token (icon + symbol) | Rewards | Balance |
  */
 export default function PoolTokenCell({ token, rewardText, balanceText, isLast = false }) {
+  const { theme } = useTheme()
   const baseContainerStyle = {
     display: 'grid',
     gridTemplateColumns: '1fr 0.7fr 0.7fr', // proportional columns
     gap: '24px',
     alignItems: 'center',
     padding: '12px 16px',
-    backgroundColor: colors.bgPanel,
+    backgroundColor: theme.bgPanel,
     borderRadius: '8px',
     marginBottom: isLast ? '0' : '6px',
-    border: `1px solid ${colors.border}`,
-    boxShadow: colors.shadowLight,
+    border: `1px solid ${theme.border}`,
+    boxShadow: theme.shadowLight,
     transition: 'all 0.2s ease'
   }
 
@@ -33,15 +35,15 @@ export default function PoolTokenCell({ token, rewardText, balanceText, isLast =
 
   const labelStyle = {
     fontSize: '11px',
-    color: colors.textSecondary,
+    color: theme.textSecondary,
     marginBottom: '2px'
   }
 
   const valueStyle = {
     fontFamily: 'monospace',
     fontSize: '14px',
-    fontWeight: 600,
-    color: colors.textPrimary
+    fontWeight: 400,
+    color: theme.textPrimary
   }
 
   const [hovered, setHovered] = React.useState(false)
@@ -49,39 +51,23 @@ export default function PoolTokenCell({ token, rewardText, balanceText, isLast =
   return (
     <div
       style={{
-        ...baseContainerStyle,
-  backgroundColor: hovered ? colors.bgPanelAlt : colors.bgPanel,
-        transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
-  boxShadow: hovered ? colors.shadowHover : colors.shadowLight
+  ...baseContainerStyle,
+	backgroundColor: hovered ? theme.bgPanelAlt : theme.bgPanel,
+  transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
+	boxShadow: hovered ? theme.shadowHover : theme.shadowLight
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       {/* Left: Token icon + symbol */}
       <div style={leftCellStyle}>
-        {token?.logo && (
-          <img
-            src={token.logo}
-            alt={token.symbol}
-            style={{
-              width: 20,
-              height: 20,
-              marginRight: 10,
-              borderRadius: '50%',
-              border: '1px solid #e0e0e0'
-            }}
-      onError={(e) => { e.currentTarget.style.display = 'none' }}
-          />
-        )}
-    <span style={{ fontWeight: 600, fontSize: '14px', color: colors.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {token?.symbol}
-        </span>
+  <TokenDisplay tokens={[token]} size={22} showChain={false} />
       </div>
 
       {/* Middle: Rewards */}
       <div style={rightCellStyle}>
         <div style={labelStyle}>Rewards</div>
-        <span style={{ ...valueStyle, fontSize: '13px', fontWeight: 500 }}>{rewardText}</span>
+  <span style={{ ...valueStyle, fontSize: '13px', fontWeight: 400 }}>{rewardText}</span>
       </div>
 
       {/* Right: Balance */}

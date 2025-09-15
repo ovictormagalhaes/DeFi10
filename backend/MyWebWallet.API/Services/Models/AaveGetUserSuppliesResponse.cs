@@ -57,6 +57,9 @@ public class Currency
 
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("address")]
+    public string Address { get; set; } = string.Empty;
 }
 
 public class Balance

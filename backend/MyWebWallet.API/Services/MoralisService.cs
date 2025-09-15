@@ -1,10 +1,12 @@
 using System.Text.Json;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Models;
+using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services
 {
-    public class MoralisService : IMoralisService
+    public class MoralisService : IMoralisService, IChainSupportService
     {
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
@@ -17,6 +19,26 @@ namespace MyWebWallet.API.Services
             _baseUrl = configuration["Moralis:BaseUrl"];
         }
 
+        public string GetProtocolName() => "Moralis";
+
+        public bool SupportsChain(ChainEnum chain)
+        {
+            return GetSupportedChains().Contains(chain);
+        }
+
+        public IEnumerable<ChainEnum> GetSupportedChains()
+        {
+            return new[] { ChainEnum.Base, ChainEnum.BNB };
+        }
+
+        public async Task<MoralisGetERC20TokenResponse> GetERC20TokenBalanceAsync(string address, ChainEnum chain)
+        {
+            if (!SupportsChain(chain))
+                throw new NotSupportedException($"Chain {chain} is not supported by {GetProtocolName()}");
+
+            return await GetERC20TokenBalanceAsync(address, chain.ToChainId());
+        }
+
         public async Task<MoralisGetERC20TokenResponse> GetERC20TokenBalanceAsync(string address, string chain)
         {
             try
@@ -26,7 +48,7 @@ namespace MyWebWallet.API.Services
                 Console.WriteLine($"DEBUG: MoralisService: API Key configured: {!string.IsNullOrEmpty(_apiKey)}");
 
                 // Construct the API URL
-                var url = $"{_baseUrl}/wallets/{address}/tokens?chain={chain}";
+                var url = $"{_baseUrl}/wallets/{address}/tokens?chain={chain}&exclude_spam=true";
                 Console.WriteLine($"DEBUG: MoralisService: Request URL: {url}");
 
                 // Configure the request headers

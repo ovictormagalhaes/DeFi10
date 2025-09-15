@@ -31,11 +31,22 @@ export function filterItemsByType(items, type) {
 // Get wallet tokens from unified data
 export function getWalletTokens(data) {
   const items = filterItemsByType(data, ITEM_TYPES.WALLET)
-  // Normalize nested token.financials for each wallet item
-  return items.map(item => {
-    if (item.token) normalizeFinancials(item.token)
-    return item
+  const collected = []
+  items.forEach(item => {
+    // Old shape: direct item.token
+    if (item.token) {
+      normalizeFinancials(item.token)
+      collected.push({ ...item, token: item.token })
+    }
+    // New shape: tokens array inside position.tokens
+    if (item.position && Array.isArray(item.position.tokens)) {
+      item.position.tokens.forEach(tok => {
+        normalizeFinancials(tok)
+        collected.push({ ...item, token: tok })
+      })
+    }
   })
+  return collected
 }
 
 // Get liquidity pools from unified data
@@ -133,6 +144,64 @@ export function formatPrice(price) {
   return isNegative ? `-$${formatted}` : `$${formatted}`
 }
 
+// Format raw token amount (prioritizing provided formatted fields) with maxDecimals (truncate, not round)
+export function formatTokenAmount(token, maxDecimals = 4) {
+  if (!token) return '-'
+  // Normalize first so financials.* are promoted
+  normalizeFinancials(token)
+
+  // 1. Direct formatted fields from backend (preferred base number)
+  // Backend rename: AmountFormatted (capital A) - keep backwards compatibility
+  let base = token.AmountFormatted
+  if (base === undefined || base === null) base = token.amountFormatted
+  if (base === undefined || base === null) base = token.formattedAmount
+  if (base === undefined || base === null) base = token.balanceFormatted
+  if ((base === undefined || base === null) && token.financials) {
+    base = token.financials.AmountFormatted ?? token.financials.amountFormatted ?? token.financials.formattedAmount ?? token.financials.balanceFormatted
+  }
+
+  // Convert string to number if needed
+  if (base !== undefined && base !== null) {
+    const num = Number(base)
+    if (!isNaN(num) && isFinite(num)) {
+      return truncateAndFormat(num, maxDecimals)
+    }
+  }
+
+  // 2. Raw balance + decimalPlaces
+  if (token.balance !== undefined && token.decimalPlaces !== undefined) {
+    const raw = Number(token.balance)
+    const decimals = Number(token.decimalPlaces)
+    if (!isNaN(raw) && isFinite(raw) && !isNaN(decimals) && decimals >= 0 && decimals < 80) {
+      const scaled = raw / Math.pow(10, decimals)
+      return truncateAndFormat(scaled, maxDecimals)
+    }
+  }
+
+  // 3. Derive from totalPrice / price
+  if ((token.totalPrice || token.totalPrice === 0) && token.price) {
+    const tp = Number(token.totalPrice)
+    const p = Number(token.price)
+    if (p > 0 && isFinite(tp) && isFinite(p)) {
+      const derived = tp / p
+      return truncateAndFormat(derived, maxDecimals)
+    }
+  }
+
+  return '-'
+}
+
+// Helper: truncate (not round) and format with up to maxDecimals, dropping trailing zeros
+function truncateAndFormat(value, maxDecimals) {
+  if (typeof value !== 'number' || !isFinite(value)) return '-'
+  const factor = Math.pow(10, maxDecimals)
+  const truncated = Math.trunc(value * factor) / factor
+  return truncated.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxDecimals
+  })
+}
+
 // Group DeFi positions by protocol
 export function groupDefiByProtocol(defiData) {
   if (!defiData || !Array.isArray(defiData)) return []
@@ -193,14 +262,19 @@ export function separateDefiByType(defiData) {
 
 // Filter tokens based on positive balance setting
 export function getFilteredTokens(tokens, showOnlyPositiveBalance = true) {
+  // When showOnlyPositiveBalance is TRUE we now hide very small dust positions (< $0.05)
+  // "Show Assets with no balance" disabled => only show tokens with total value >= 5 cents
+  const MIN_VISIBLE_VALUE_USD = 0.05
   if (showOnlyPositiveBalance) {
-    return tokens.filter(tokenData => {
+    return (tokens || []).filter(tokenData => {
       const token = tokenData.token || tokenData // Support both old and new structure
-      const totalPrice = parseFloat(token.totalPrice ?? token.financials?.totalPrice)
-      return totalPrice > 0
+      const totalPriceRaw = token.totalPrice ?? token.financials?.totalPrice
+      const totalPrice = parseFloat(totalPriceRaw)
+      if (isNaN(totalPrice)) return false
+      return totalPrice >= MIN_VISIBLE_VALUE_USD
     })
   }
-  return tokens
+  return tokens || []
 }
 
 // Group tokens by type for lending positions (supplied/borrowed)
@@ -324,13 +398,20 @@ export function groupTokensByPool(positions) {
     let poolKey = position.name || position.label || 'Unknown Pool'
     
     // Se não tem nome, cria baseado nos símbolos dos tokens supplied
-    if (poolKey === 'Unknown Pool' && position.tokens && Array.isArray(position.tokens)) {
-      const suppliedTokens = position.tokens.filter(token => token.type === 'supplied' || !token.type)
-      if (suppliedTokens.length > 0) {
-        const tokenSymbols = suppliedTokens.map(token => token.symbol).filter(symbol => symbol)
-        if (tokenSymbols.length > 0) {
-          poolKey = tokenSymbols.join(' / ')
-        }
+    const canDeriveFromTokens = position.tokens && Array.isArray(position.tokens) && position.tokens.length > 0
+    if (canDeriveFromTokens) {
+      const candidateTokens = position.tokens.filter(token => {
+        const t = (token.type || '').toLowerCase()
+        // Exclui reward / borrowed tokens da composição do nome
+        return !['reward','rewards','borrowed','borrow','debt'].includes(t)
+      })
+      const tokenSymbols = candidateTokens
+        .map(token => token.symbol)
+        .filter(sym => sym && typeof sym === 'string')
+        .slice(0, 4) // evita nomes gigantes, normalmente 2
+      const isGenericLabel = /liquidity|pool|position|lp/i.test(poolKey)
+      if ((poolKey === 'Unknown Pool' || isGenericLabel) && tokenSymbols.length >= 2) {
+        poolKey = tokenSymbols.join(' / ')
       }
     }
     
