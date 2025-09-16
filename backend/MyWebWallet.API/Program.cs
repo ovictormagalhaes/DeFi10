@@ -7,16 +7,15 @@ using StackExchange.Redis;
 // Definir portas/URLs ANTES de criar o builder para impedir que Kestrel leia HTTPS pré-configurado
 var detectedPort = Environment.GetEnvironmentVariable("PORT") ?? "10000"; // Render normalmente usa 10000
 // Remover possíveis variáveis de HTTPS herdadas do container base
-Environment.SetEnvironmentVariable("HTTPS_PORTS", null);
-Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", null);
-Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORT", null);
+//Environment.SetEnvironmentVariable("HTTPS_PORTS", null);
+//Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", null);
+//Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORT", null);
 // Definir somente HTTP
 Environment.SetEnvironmentVariable("HTTP_PORTS", detectedPort);
 Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{detectedPort}");
 
 Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "0");
 Environment.SetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER", "true");
-Environment.SetEnvironmentVariable("ASPNETCORE_Kestrel__Endpoints__Https__Url", "");
 
 // Agora criar o builder (Kestrel já verá apenas HTTP)
 var builder = WebApplication.CreateBuilder(args);
@@ -26,7 +25,7 @@ if (builder.Environment.IsProduction())
     builder.WebHost.ConfigureKestrel(o =>
     {
         o.ListenAnyIP(int.Parse(detectedPort)); // só HTTP
-        o.ConfigureEndpointDefaults(lo => lo.UseHttps(httpsOptions => { }));
+        //o.ConfigureEndpointDefaults(lo => lo.UseHttps(httpsOptions => { }));
     });
 }
 
