@@ -11,8 +11,14 @@ services:
         value: Production
       - key: ASPNETCORE_HTTPS_PORT
         value: ""
+      - key: ASPNETCORE_HTTPS_PORTS
+        value: ""
       - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
         value: "true"
+      - key: Kestrel__Certificates__Default__Path
+        value: ""
+      - key: Kestrel__Certificates__Default__Password
+        value: ""
       # External API Keys - Configure in Render Dashboard
       - key: Moralis__ApiKey
         sync: false

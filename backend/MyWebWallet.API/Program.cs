@@ -13,23 +13,18 @@ if (builder.Environment.IsProduction())
     // Get the port from environment variable (Render sets PORT=10000)
     var renderPort = int.Parse(Environment.GetEnvironmentVariable("PORT") ?? "8080");
     
+    // Completely override any configuration with UseUrls - this takes precedence
+    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
+    
+    // Also configure Kestrel to be absolutely sure
     builder.WebHost.ConfigureKestrel(options =>
     {
-        // Clear all endpoints first
-        options.ConfigureEndpointDefaults(endpointOptions =>
-        {
-            endpointOptions.Protocols = HttpProtocols.Http1;
-        });
-        
-        // Listen only on HTTP
+        // Clear all existing endpoints
         options.ListenAnyIP(renderPort, listenOptions =>
         {
             listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
         });
     });
-    
-    // Clear the server URLs to prevent any HTTPS configuration
-    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
 }
 
 // Add services to the container
