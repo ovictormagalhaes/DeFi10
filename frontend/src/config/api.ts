@@ -26,9 +26,6 @@ let explicit = getEnv(['REACT_APP_API_URL','VITE_API_URL'])
 // Normalize explicit (remove trailing slashes)
 if (explicit) explicit = explicit.replace(/\/+$/,'')
 
-// Decide final base:
-// production: prefer explicit non-localhost value, else default backend (updated to defi10-1 per your backend host info)
-// non-production: explicit or localhost dev
 let _normalizedApiBase = ''
 if (_env === 'production') {
   if (explicit && !/localhost|127\.0\.0\.1/i.test(explicit)) {

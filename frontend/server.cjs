@@ -31,5 +31,5 @@ app.get('*', (req, res) => {
 
 const port = process.env.PORT || 5173; // Render provides PORT, local fallback 5173
 app.listen(port, () => {
-  console.log(`MyWebWallet static server running on port ${port}`);
+  console.log(`Defi10 static server running on port ${port}`);
 });
