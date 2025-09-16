@@ -4,23 +4,24 @@ using MyWebWallet.API.Services.Mappers;
 using MyWebWallet.API.Services.Models;
 using StackExchange.Redis;
 
+// Criar o builder com configuração mínima
 var builder = WebApplication.CreateBuilder(args);
 
-// FORÇA HTTP-ONLY COMPLETAMENTE para produção
+// Para produção, forçar HTTP-only usando abordagem mais simples
 if (builder.Environment.IsProduction())
 {
-    // Limpa todas as configurações de URL
-    builder.Configuration["Urls"] = null;
-    builder.Configuration["ASPNETCORE_URLS"] = null;
+    // Obter a porta do ambiente
+    var renderPort = Environment.GetEnvironmentVariable("PORT") ?? "8080";
     
-    // Get the port from environment variable (Render sets PORT=10000)
-    var renderPort = int.Parse(Environment.GetEnvironmentVariable("PORT") ?? "8080");
+    // Configurar URLs diretamente
+    Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{renderPort}");
+    Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORT", "");
+    Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", "");
     
-    // Usar CreateDefaultBuilder com configuração mínima
+    // Configurar Kestrel para HTTP apenas
     builder.WebHost.UseKestrel(options =>
     {
-        // Limpar todos os endpoints
-        options.ListenAnyIP(renderPort);
+        options.ListenAnyIP(int.Parse(renderPort));
     });
 }
 
@@ -173,7 +174,7 @@ app.MapControllers();
 
 // Log startup information
 var environment = app.Environment.EnvironmentName;
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-Console.WriteLine($"INFO: MyWebWallet API starting in {environment} environment on port {port} (HTTP-only)");
+var currentPort = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+Console.WriteLine($"INFO: MyWebWallet API starting in {environment} environment on port {currentPort} (HTTP-only)");
 
 app.Run();

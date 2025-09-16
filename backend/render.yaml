@@ -19,6 +19,10 @@ services:
         value: ""
       - key: Kestrel__Certificates__Default__Password
         value: ""
+      - key: DOTNET_RUNNING_IN_CONTAINER
+        value: "true"
+      - key: ASPNETCORE_PREVENTHOSTINGSTARTUP
+        value: "true"
       # External API Keys - Configure in Render Dashboard
       - key: Moralis__ApiKey
         sync: false
