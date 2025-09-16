@@ -23,6 +23,8 @@ services:
         value: "true"
       - key: ASPNETCORE_PREVENTHOSTINGSTARTUP
         value: "true"
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:10000
       # External API Keys - Configure in Render Dashboard
       - key: Moralis__ApiKey
         sync: false

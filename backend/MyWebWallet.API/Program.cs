@@ -17,10 +17,12 @@ Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{detected
 // Agora criar o builder (Kestrel já verá apenas HTTP)
 var builder = WebApplication.CreateBuilder(args);
 
-// Em produção reforçar escuta explícita (idempotente)
 if (builder.Environment.IsProduction())
 {
-    builder.WebHost.UseKestrel(o => o.ListenAnyIP(int.Parse(detectedPort)));
+    builder.WebHost.ConfigureKestrel(o =>
+    {
+        o.ListenAnyIP(int.Parse(detectedPort)); // só HTTP
+    });
 }
 
 // Services
