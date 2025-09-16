@@ -3,27 +3,24 @@ using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Mappers;
 using MyWebWallet.API.Services.Models;
 using StackExchange.Redis;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel for production to force HTTP-only
+// FORÇA HTTP-ONLY COMPLETAMENTE para produção
 if (builder.Environment.IsProduction())
 {
+    // Limpa todas as configurações de URL
+    builder.Configuration["Urls"] = null;
+    builder.Configuration["ASPNETCORE_URLS"] = null;
+    
     // Get the port from environment variable (Render sets PORT=10000)
     var renderPort = int.Parse(Environment.GetEnvironmentVariable("PORT") ?? "8080");
     
-    // Completely override any configuration with UseUrls - this takes precedence
-    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
-    
-    // Also configure Kestrel to be absolutely sure
-    builder.WebHost.ConfigureKestrel(options =>
+    // Usar CreateDefaultBuilder com configuração mínima
+    builder.WebHost.UseKestrel(options =>
     {
-        // Clear all existing endpoints
-        options.ListenAnyIP(renderPort, listenOptions =>
-        {
-            listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-        });
+        // Limpar todos os endpoints
+        options.ListenAnyIP(renderPort);
     });
 }
 
