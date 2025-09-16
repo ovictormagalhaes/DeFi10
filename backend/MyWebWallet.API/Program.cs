@@ -11,23 +11,16 @@ var detectedPort = Environment.GetEnvironmentVariable("PORT") ?? "10000"; // Ren
 //Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORTS", null);
 //Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORT", null);
 // Definir somente HTTP
-Environment.SetEnvironmentVariable("HTTP_PORTS", detectedPort);
-Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{detectedPort}");
+//Environment.SetEnvironmentVariable("HTTP_PORTS", detectedPort);
+//Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{detectedPort}");
 
-Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "0");
-Environment.SetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER", "true");
+//Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "0");
+//Environment.SetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER", "true");
 
 // Agora criar o builder (Kestrel já verá apenas HTTP)
 var builder = WebApplication.CreateBuilder(args);
-
-if (builder.Environment.IsProduction())
-{
-    builder.WebHost.ConfigureKestrel(o =>
-    {
-        o.ListenAnyIP(int.Parse(detectedPort)); // só HTTP
-        //o.ConfigureEndpointDefaults(lo => lo.UseHttps(httpsOptions => { }));
-    });
-}
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 // Services
 builder.Services.AddControllers();
