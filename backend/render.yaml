@@ -9,7 +9,10 @@ services:
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
-      # Remove ASPNETCORE_URLS to let Render set the PORT automatically
+      - key: ASPNETCORE_HTTPS_PORT
+        value: ""
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
       # External API Keys - Configure in Render Dashboard
       - key: Moralis__ApiKey
         sync: false

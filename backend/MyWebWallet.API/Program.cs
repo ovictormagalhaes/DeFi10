@@ -3,6 +3,7 @@ using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Mappers;
 using MyWebWallet.API.Services.Models;
 using StackExchange.Redis;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,14 +15,21 @@ if (builder.Environment.IsProduction())
     
     builder.WebHost.ConfigureKestrel(options =>
     {
-        options.ListenAnyIP(renderPort); // Use the port set by Render
+        // Clear all endpoints first
+        options.ConfigureEndpointDefaults(endpointOptions =>
+        {
+            endpointOptions.Protocols = HttpProtocols.Http1;
+        });
+        
+        // Listen only on HTTP
+        options.ListenAnyIP(renderPort, listenOptions =>
+        {
+            listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+        });
     });
     
-    // Explicitly disable HTTPS redirection
-    builder.Services.Configure<Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionOptions>(options =>
-    {
-        options.HttpsPort = null;
-    });
+    // Clear the server URLs to prevent any HTTPS configuration
+    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
 }
 
 // Add services to the container
