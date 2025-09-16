@@ -1,26 +1,22 @@
-// Environment configuration for Defi10 Frontend
-// Helper to safely read env vars across build systems (CRA style REACT_APP_*, Vite style import.meta.env.VITE_*)
-// At runtime after build only the inlined values remain.
-const readEnv = (keys: string[], fallback?: string) => {
-  for (const k of keys) {
-    // CRA / Node style
+// Configuração simples: se NODE_ENV === 'production' usa rota de produção, senão localhost.
+// Mantemos compatibilidade lendo tanto process.env quanto import.meta.env.
+const detectEnv = () => {
+  // @ts-ignore
+  if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV) return process.env.NODE_ENV
+  try {
     // @ts-ignore
-    if (typeof process !== 'undefined' && process?.env?.[k]) return process.env[k] as string
-    // Vite style (import.meta.env) - optional chaining to avoid runtime errors in other bundlers
-    try {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE) {
       // @ts-ignore
-      if (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.[k]) {
-        // @ts-ignore
-        return (import.meta as any).env[k] as string
-      }
-    } catch {}
-  }
-  return fallback
+      return (import.meta as any).env.MODE
+    }
+  } catch {}
+  return 'production'
 }
 
-// Normalize base URL (remove trailing slashes)
-const _rawApiBase = readEnv(['REACT_APP_API_URL','VITE_API_URL'], 'http://localhost:10001') || 'http://localhost:10001'
-const _normalizedApiBase = _rawApiBase.replace(/\/+$/,'')
+const _env = (detectEnv() || 'production').toLowerCase()
+const _normalizedApiBase = (_env === 'production'
+  ? 'https://defi10-api.onrender.com'
+  : 'http://localhost:10001').replace(/\/+$/,'')
 
 export const config = {
   // API Base URL - tries multiple prefixes, defaults to local dev port 10001 (normalized without trailing slash)
@@ -39,10 +35,10 @@ export const config = {
   DEFAULT_CHAIN: 'Base',
   SUPPORTED_CHAINS: ['Base', 'BNB'],
   
-  // UI Configuration
-  APP_NAME: readEnv(['REACT_APP_APP_NAME','VITE_APP_NAME'], 'Defi10'),
+  // UI Configuration (simplified)
+  APP_NAME: 'Defi10',
   VERSION: '1.0.0',
-  ENVIRONMENT: readEnv(['NODE_ENV','VITE_MODE','MODE'], 'production')
+  ENVIRONMENT: _env
 };
 
 // API Helper functions

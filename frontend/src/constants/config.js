@@ -2,7 +2,11 @@
 
 export const STORAGE_KEY = 'wallet_account'
 export const EXPIRY_HOURS = 48
-export const API_BASE = 'https://localhost:10001/api/v1'
+// Central API base path should come from `config/api.ts` now; keep a fallback
+// Import lazily where needed instead of hardcoding here. Retain legacy export for minimal disruption.
+export const API_BASE = (typeof window !== 'undefined' && window.__DEF10_API_BASE__)
+  ? window.__DEF10_API_BASE__
+  : '/api/v1'
 
 // Default state configurations
 export const DEFAULT_COLUMN_VISIBILITY = {

@@ -8,6 +8,9 @@ var builder = WebApplication.CreateBuilder(args);
 var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
 builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
+// Read allowed origins from configuration (env or appsettings) e.g. Cors:AllowedOrigins:0
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+
 // Services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -17,10 +20,13 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        if (builder.Environment.IsProduction())
-            policy.WithOrigins("http://mywebwallet-frontend.onrender.com");
+        if (allowedOrigins.Length > 0)
+            policy.WithOrigins(allowedOrigins);
         else
-            policy.WithOrigins("http://localhost:10002");
+        {
+            // fallback: allow localhost dev
+            policy.WithOrigins("http://localhost:10002", "https://localhost:10002");
+        }
         policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
     });
 });
@@ -103,6 +109,7 @@ app.MapHealthChecks("/health");
 app.UseCors();
 app.MapControllers();
 
-Console.WriteLine($"INFO: MyWebWallet API starting in {app.Environment.EnvironmentName} environment on port {port} (HTTP-only, HTTPS disabled at source)");
+Console.WriteLine($"INFO: MyWebWallet API starting in {app.Environment.EnvironmentName} environment on port {port} (HTTP-only)");
+Console.WriteLine("INFO: CORS allowed origins: " + (allowedOrigins.Length > 0 ? string.Join(",", allowedOrigins) : "(fallback localhost)"));
 
 app.Run();
