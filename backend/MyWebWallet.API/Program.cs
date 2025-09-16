@@ -14,6 +14,10 @@ Environment.SetEnvironmentVariable("ASPNETCORE_HTTPS_PORT", null);
 Environment.SetEnvironmentVariable("HTTP_PORTS", detectedPort);
 Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{detectedPort}");
 
+Environment.SetEnvironmentVariable("DOTNET_USE_POLLING_FILE_WATCHER", "0");
+Environment.SetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER", "true");
+Environment.SetEnvironmentVariable("ASPNETCORE_Kestrel__Endpoints__Https__Url", "");
+
 // Agora criar o builder (Kestrel já verá apenas HTTP)
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,9 +40,9 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
     {
         if (builder.Environment.IsProduction())
-            policy.WithOrigins("https://mywebwallet-frontend.onrender.com");
+            policy.WithOrigins("http://mywebwallet-frontend.onrender.com");
         else
-            policy.WithOrigins("http://localhost:10002", "https://localhost:10002");
+            policy.WithOrigins("http://localhost:10002");
         policy.AllowAnyHeader().AllowAnyMethod().AllowCredentials();
     });
 });
