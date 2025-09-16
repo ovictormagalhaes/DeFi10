@@ -22,6 +22,7 @@ if (builder.Environment.IsProduction())
     builder.WebHost.ConfigureKestrel(o =>
     {
         o.ListenAnyIP(int.Parse(detectedPort)); // só HTTP
+        o.ConfigureEndpointDefaults(lo => lo.UseHttps(httpsOptions => { }));
     });
 }
 
