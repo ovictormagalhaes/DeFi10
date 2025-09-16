@@ -18,9 +18,13 @@ const readEnv = (keys: string[], fallback?: string) => {
   return fallback
 }
 
+// Normalize base URL (remove trailing slashes)
+const _rawApiBase = readEnv(['REACT_APP_API_URL','VITE_API_URL'], 'http://localhost:10001') || 'http://localhost:10001'
+const _normalizedApiBase = _rawApiBase.replace(/\/+$/,'')
+
 export const config = {
-  // API Base URL - tries multiple prefixes, defaults to local dev port 10001
-  API_BASE_URL: readEnv(['REACT_APP_API_URL','VITE_API_URL'], 'http://localhost:10001'),
+  // API Base URL - tries multiple prefixes, defaults to local dev port 10001 (normalized without trailing slash)
+  API_BASE_URL: _normalizedApiBase,
   
   // API Endpoints
   API_ENDPOINTS: {

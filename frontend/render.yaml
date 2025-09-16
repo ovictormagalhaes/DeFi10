@@ -13,7 +13,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: REACT_APP_API_URL
-        value: https://defi10-api.onrender.com
+        value: https://defi10-1.onrender.com
+      - key: VITE_API_URL
+        value: https://defi10-1.onrender.com
       - key: REACT_APP_APP_NAME
         value: Defi10
       - key: PORT
