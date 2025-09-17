@@ -56,7 +56,6 @@ const TokensMenu = ({
       title={title}
       isExpanded={isExpanded}
       onToggle={onToggle}
-      level={0}
       columns={getTokenColumns()}
       showOptionsMenu={showOptionsMenu}
       optionsExpanded={optionsExpanded}

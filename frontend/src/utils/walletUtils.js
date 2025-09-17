@@ -277,13 +277,14 @@ export function getFilteredTokens(tokens, showOnlyPositiveBalance = true) {
   return tokens || []
 }
 
-// Group tokens by type for lending positions (supplied/borrowed)
+// Group tokens by type for lending positions (supplied/borrowed/rewards)
 export function groupTokensByType(positions) {
   if (!positions || !Array.isArray(positions)) return {}
   
   const grouped = {
     supplied: [],
-    borrowed: []
+    borrowed: [],
+    rewards: []
   }
   
   positions.forEach(position => {
@@ -294,8 +295,13 @@ export function groupTokensByType(positions) {
 
         const isSupplied = t === 'supplied' || t === 'supply' || t === 'deposit'
         const isBorrowed = t === 'borrowed' || t === 'borrow' || t === 'debt'
+        const isReward = t === 'reward' || t === 'rewards'
         const isInternal = t === 'defi-token' || t === 'internal' || token.isInternal || token.internal || token.category === 'internal'
 
+        if (isReward) {
+          grouped.rewards.push(token)
+          return
+        }
         if (isSupplied) {
           grouped.supplied.push(token)
           return
@@ -308,6 +314,20 @@ export function groupTokensByType(positions) {
         // If token type is missing, infer from position label or other tokens
         if (!t) {
           const lbl = (position.position?.label || position.label || '').toString().toLowerCase()
+          const sym = (token.symbol || '').toLowerCase()
+          const name = (token.name || '').toLowerCase()
+          
+          // Check if this could be a reward token based on symbol/name patterns
+          const isLikelyReward = sym.includes('reward') || name.includes('reward') || 
+                                sym.includes('comp') || sym.includes('crv') || 
+                                sym.includes('cake') || sym.includes('uni') ||
+                                lbl.includes('reward') || lbl.includes('incentive')
+          
+          if (isLikelyReward) {
+            grouped.rewards.push(token)
+            return
+          }
+          
           if (lbl.includes('borrow')) {
             grouped.borrowed.push(token)
             return
@@ -336,6 +356,18 @@ export function groupTokensByType(positions) {
 
         // For internal tokens, infer bucket from the position context
         if (isInternal) {
+          // First check if this internal token is actually a reward token
+          const sym = (token.symbol || '').toLowerCase()
+          const name = (token.name || '').toLowerCase()
+          const isLikelyReward = sym.includes('reward') || name.includes('reward') || 
+                                sym.includes('comp') || sym.includes('crv') || 
+                                sym.includes('cake') || sym.includes('uni')
+          
+          if (isLikelyReward) {
+            grouped.rewards.push(token)
+            return
+          }
+          
           const hasSuppliedInPos = position.tokens.some(pt => {
             const tt = (pt.type || '').toString().toLowerCase()
             return tt === 'supplied' || tt === 'supply' || tt === 'deposit'
@@ -349,7 +381,6 @@ export function groupTokensByType(positions) {
           if (hasBorrowedInPos && !hasSuppliedInPos) bucket = 'borrowed'
           if (hasSuppliedInPos && hasBorrowedInPos) {
             // Heuristic: names containing 'debt' -> borrowed, otherwise supplied
-            const sym = (token.symbol || '').toLowerCase()
             bucket = (sym.includes('debt') || sym.includes('vdebt') || sym.includes('variabledebt')) ? 'borrowed' : 'supplied'
           }
           grouped[bucket].push(token)
@@ -431,7 +462,18 @@ export function groupTokensByPool(positions) {
     })
     const rewardTokensFromTokens = tokensArray.filter(token => {
       const t = (token.type || '').toString().toLowerCase()
-      return t === 'reward' || t === 'rewards'
+      const sym = (token.symbol || '').toLowerCase()
+      const name = (token.name || '').toLowerCase()
+      
+      // Check explicit type
+      if (t === 'reward' || t === 'rewards') return true
+      
+      // Check by symbol/name patterns
+      const isLikelyReward = sym.includes('reward') || name.includes('reward') ||
+                            sym.includes('comp') || sym.includes('crv') ||
+                            sym.includes('cake') || sym.includes('uni')
+      
+      return isLikelyReward
     })
     const rewardsArray = rewardTokensFromTokens.length > 0
       ? rewardTokensFromTokens

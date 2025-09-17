@@ -642,18 +642,18 @@ function App() {
           >
             {mode === 'dark' ? (
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-              </svg>
-            ) : (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
 <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
               </svg>
+            ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
             )}
           </button>
           <button
             onClick={toggleMaskValues}
-            title={maskValues ? 'Mostrar valores' : 'Ocultar valores'}
-            aria-label={maskValues ? 'Mostrar valores' : 'Ocultar valores'}
+            title={maskValues ? 'Show values' : 'Hide values'}
+            aria-label={maskValues ? 'Show Values' : 'Hide values'}
             style={{
               background: 'transparent',
               border: 'none',
@@ -679,13 +679,13 @@ function App() {
           >
             {maskValues ? (
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a19.07 19.07 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.76 18.76 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24" />
-                <line x1="1" y1="1" x2="23" y2="23" />
-              </svg>
-            ) : (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
                 <circle cx="12" cy="12" r="3" />
+              </svg>           
+              ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a19.07 19.07 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.76 18.76 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                <line x1="1" y1="1" x2="23" y2="23" />
               </svg>
             )}
           </button>
@@ -1041,7 +1041,6 @@ function App() {
             return (
               <SectionTable
                 title="Wallet"
-                level={0}
                 icon={(
                   <div
                     style={{
@@ -1068,6 +1067,7 @@ function App() {
                 rightValue={maskValue(formatPrice(walletValue))}
                 isExpanded={tokensExpanded}
                 onToggle={() => setTokensExpanded(!tokensExpanded)}
+                transparentBody={true}
                 infoBadges={infoBadges}
                 optionsMenu={optionsMenu}
                 customContent={
@@ -1182,21 +1182,44 @@ function App() {
                   const tables = []
 
                   let poolsGrouped = null
+                  let liquidityRewardsValue = 0
                   if (liqPositions.length > 0) {
                     poolsGrouped = groupTokensByPool(liqPositions)
+                    // Calculate total rewards value from liquidity positions
+                    liqPositions.forEach(pos => {
+                      if (pos.tokens && Array.isArray(pos.tokens)) {
+                        pos.tokens.forEach(token => {
+                          const t = (token.type || '').toLowerCase()
+                          const sym = (token.symbol || '').toLowerCase()
+                          const name = (token.name || '').toLowerCase()
+                          const isReward = t === 'reward' || t === 'rewards' ||
+                                          sym.includes('reward') || name.includes('reward') ||
+                                          sym.includes('comp') || sym.includes('crv') ||
+                                          sym.includes('cake') || sym.includes('uni')
+                          if (isReward) {
+                            liquidityRewardsValue += parseFloat(token.totalPrice) || 0
+                          }
+                        })
+                      }
+                    })
                   }
 
                   let lendingGroup = null
+                  let lendingRewardsValue = 0
                   if (lendingPositions.length > 0) {
                     const filtered = lendingPositions.map(p => ({ ...p, tokens: Array.isArray(p.tokens) ? filterLendingDefiTokens(p.tokens, showLendingDefiTokens) : [] }))
                     const grouped = groupTokensByType(filtered)
                     lendingGroup = {
                       supplied: grouped.supplied || [],
-                      borrowed: grouped.borrowed || []
+                      borrowed: grouped.borrowed || [],
+                      rewards: grouped.rewards || []
                     }
+                    // Calculate total rewards value from lending positions
+                    lendingRewardsValue = lendingGroup.rewards.reduce((sum, token) => sum + (parseFloat(token.totalPrice) || 0), 0)
                   }
 
                   let stakingGroup = null
+                  let stakingRewardsValue = 0
                   if (stakingPositions.length > 0) {
                     const filtered = stakingPositions.map(p => ({ ...p, tokens: Array.isArray(p.tokens) ? filterStakingDefiTokens(p.tokens, showStakingDefiTokens) : [] }))
                     const grouped = groupStakingTokensByType(filtered)
@@ -1204,6 +1227,8 @@ function App() {
                       staked: grouped.staked || [],
                       rewards: grouped.rewards || []
                     }
+                    // Calculate total rewards value from staking positions
+                    stakingRewardsValue = stakingGroup.rewards.reduce((sum, token) => sum + (parseFloat(token.totalPrice) || 0), 0)
                   }
 
                   const icon = (protocolGroup.protocol.logoURI || protocolGroup.protocol.logo)
@@ -1218,8 +1243,9 @@ function App() {
                     : null
 
                   const protocolPercent = calculatePercentage(protocolTotal, getTotalPortfolioValue())
+                  const totalRewardsValue = liquidityRewardsValue + lendingRewardsValue + stakingRewardsValue
                   const infoBadges = [
-                    liqPositions.length > 0 ? `Pools: ${Object.keys(groupTokensByPool(liqPositions)).length}` : null,
+                    liqPositions.length > 0 ? `Pools: ${Object.keys(poolsGrouped || {}).length}` : null,
                     lendingPositions.length > 0 ? `Lending: ${lendingPositions.length}` : null,
                     stakingPositions.length > 0 ? `Staking: ${stakingPositions.length}` : null
                   ].filter(Boolean).join('  •  ')
@@ -1240,10 +1266,11 @@ function App() {
                       key={protocolGroup.protocol.name}
                       icon={icon}
                       title={protocolGroup.protocol.name}
-                      level={0}
                       transparentBody={true}
+                      metricsRatio={[2,1,1,1]}
                       rightPercent={protocolPercent}
                       rightValue={maskValue(formatPrice(protocolTotal))}
+                      rewardsValue={totalRewardsValue > 0 ? maskValue(formatPrice(totalRewardsValue)) : null}
                       isExpanded={protocolExpansions[protocolGroup.protocol.name] !== undefined ? protocolExpansions[protocolGroup.protocol.name] : true}
                       onToggle={() => toggleProtocolExpansion(protocolGroup.protocol.name)}
                       infoBadges={infoBadges}
@@ -1253,8 +1280,8 @@ function App() {
                           {poolsGrouped && Object.keys(poolsGrouped).length > 0 && (
                             <PoolTables pools={poolsGrouped} />
                           )}
-                          {lendingGroup && (lendingGroup.supplied.length > 0 || lendingGroup.borrowed.length > 0) && (
-                            <LendingTables supplied={lendingGroup.supplied} borrowed={lendingGroup.borrowed} />
+                          {lendingGroup && (lendingGroup.supplied.length > 0 || lendingGroup.borrowed.length > 0 || lendingGroup.rewards.length > 0) && (
+                            <LendingTables supplied={lendingGroup.supplied} borrowed={lendingGroup.borrowed} rewards={lendingGroup.rewards} />
                           )}
                           {stakingGroup && (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0) && (
                             <StakingTables staked={stakingGroup.staked} rewards={stakingGroup.rewards} />
@@ -1264,7 +1291,7 @@ function App() {
                               icon={null}
                               title={null}
                               rightValue={null}
-                              tables={tables.filter(t => !['Supplied','Borrowed'].includes(t.subtitle))}
+                              tables={tables.filter(t => !['Supplied','Borrowed','Rewards'].includes(t.subtitle))}
                             />
                           )}
                         </>

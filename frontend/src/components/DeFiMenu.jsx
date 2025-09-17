@@ -142,7 +142,6 @@ const DeFiMenu = ({
       title={title}
       isExpanded={isExpanded}
       onToggle={onToggle}
-      level={0}
       columns={getMenuColumns()}
     >
       <div style={{ backgroundColor: theme.bgPanel, borderRadius: '0 0 12px 12px', overflow: 'hidden' }}>

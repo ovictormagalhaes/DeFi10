@@ -3,6 +3,7 @@ import { formatPrice, formatTokenAmount } from '../utils/walletUtils'
 import { useTheme } from '../context/ThemeProvider'
 import { useMaskValues } from '../context/MaskValuesContext'
 import TokenDisplay from './TokenDisplay'
+import { ratioToColGroup } from '../utils/tableLayout'
 
 // Generate a stable unique key for a token row, combining address + chain when available.
 function deriveTokenKey(token, index) {
@@ -22,28 +23,18 @@ export default function WalletTokensTable({ tokens = [], showBalanceColumn = tru
   const { theme } = useTheme()
   const { maskValue, maskValues } = useMaskValues()
 
-  // Decide proportional widths based on visible columns
+  // Build a proportional ratio array: token column weight 2, each metric column weight 1.
   const hasAmount = !!showBalanceColumn
   const hasUnitPrice = !!showUnitPriceColumn
-  const totalCols = 1 + (hasAmount ? 1 : 0) + (hasUnitPrice ? 1 : 0) + 1 // token + optional + value
-  let nameWidth = '46%'
-  let otherWidth = '18%'
-  if (totalCols === 3) { // name + one optional + value
-    nameWidth = '50%'
-    otherWidth = '25%'
-  } else if (totalCols === 2) { // name + value
-    nameWidth = '60%'
-    otherWidth = '40%'
-  }
+  const ratio = [2] // token col
+  if (hasAmount) ratio.push(1)
+  if (hasUnitPrice) ratio.push(1)
+  ratio.push(1) // value col
+  // We'll build the colgroup directly from ratio using helper
 
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', background: theme.tableBg, color: theme.textPrimary }}>
-      <colgroup>
-        <col style={{ width: nameWidth }} />
-        {hasAmount && <col style={{ width: otherWidth }} />}
-        {hasUnitPrice && <col style={{ width: otherWidth }} />}
-        <col style={{ width: otherWidth }} />
-      </colgroup>
+      {ratioToColGroup(ratio)}
       <thead>
         <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `2px solid ${theme.tableBorder}` }}>
           <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 500, letterSpacing: 0.5, fontSize: 11, textTransform: 'uppercase', color: theme.textSecondary }}>Token</th>

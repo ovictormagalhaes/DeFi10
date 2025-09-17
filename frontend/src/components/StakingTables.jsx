@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeProvider'
 import { formatPrice, formatTokenAmount } from '../utils/walletUtils'
 import { useMaskValues } from '../context/MaskValuesContext'
 import TokenDisplay from './TokenDisplay'
+import { ratioToColGroup } from '../utils/tableLayout'
 
 // Styled staking tables (Staked / Rewards) similar to PoolTables / LendingTables
 export default function StakingTables({ staked = [], rewards = [] }) {
@@ -14,11 +15,7 @@ export default function StakingTables({ staked = [], rewards = [] }) {
     return (
   <div style={{ background: theme.tableBg, border: `1px solid ${theme.tableBorder}`, borderRadius: 10, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', color: theme.textPrimary }}>
-          <colgroup>
-            <col style={{ width: '46%' }} />
-            <col style={{ width: '27%' }} />
-            <col style={{ width: '27%' }} />
-          </colgroup>
+          {ratioToColGroup([2,1,1])}
           <thead>
             <tr style={{ backgroundColor: theme.tableHeaderBg, borderBottom: `2px solid ${theme.tableBorder}` }}>
               <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 500, fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: theme.textSecondary }}>{title}</th>

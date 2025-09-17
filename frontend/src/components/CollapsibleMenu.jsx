@@ -6,9 +6,9 @@ function CollapsibleMenu({
   title, 
   isExpanded, 
   onToggle, 
-  // Nova prop flexível para múltiplas colunas
+  // Colunas (mantidas para compat) agora renderizadas como linha de resumo dentro do card
   columns = {},
-  // Props antigas mantidas para compatibilidade (opcionais)
+  // Props antigas (fallback)
   leftValue, 
   leftLabel,
   middleValue = '', 
@@ -18,7 +18,11 @@ function CollapsibleMenu({
   children,
   headerActions = null,
   optionsMenu = null,
-  isNested = false // Nova prop para indicar se é um menu aninhado
+  isNested = false,
+  // Novo: permitir desabilitar a barra de resumo
+  showSummary = true,
+  // Novo: estilo do card (p/ futuras variações)
+  variant = 'card'
 }) {
   const [optionsExpanded, setOptionsExpanded] = useState(false)
   // Internal expand state when parent does not control
@@ -85,192 +89,172 @@ function CollapsibleMenu({
   }, [optionsExpanded])
 
   const basePadding = '10px 14px'
-  const labelFontSize = '12px'
   const titleFontSize = '16px'
-  const valueFontSize = '14px'
-  const valueFontSizeHighlight = '15px'
+
+  // Helper para montar segmentos inline a partir das colunas
+  const buildSummarySegments = () => {
+    const entries = Object.entries(finalColumns)
+    if (!entries.length) return []
+    return entries.map(([key, col]) => {
+      const pieces = []
+      if (col.label && col.value !== undefined && col.value !== null && col.value !== '') {
+        pieces.push(`${col.label}: ${col.value}`)
+      } else if (col.label && (col.value === undefined || col.value === null || col.value === '')) {
+        pieces.push(col.label)
+      } else if (!col.label && col.value !== undefined && col.value !== null && col.value !== '') {
+        pieces.push(String(col.value))
+      }
+      return { key, text: pieces.join(' '), highlight: !!col.highlight }
+    }).filter(s => s.text)
+  }
+
+  const summarySegments = buildSummarySegments()
+
+  // Reordena segmentos (sem alterar valores) para: % | Tokens | $ | outros (sem separadores visuais automáticos)
+  const orderedSummarySegments = (() => {
+    if (!summarySegments.length) return []
+    const percent = []
+    const tokens = []
+    const dollars = []
+    const others = []
+    summarySegments.forEach(seg => {
+      const txt = seg.text || ''
+      if (/%/.test(txt) && !/tokens?/i.test(txt)) percent.push(seg)
+      else if (/tokens?/i.test(txt)) tokens.push(seg)
+      else if (/\$/.test(txt)) dollars.push(seg)
+      else others.push(seg)
+    })
+    return [...percent, ...tokens, ...dollars, ...others]
+  })()
 
   return (
     <div style={{ marginTop: 12, marginBottom: 12 }}>
-      {/* Collapsible Header */}
-      <div 
-        style={{ 
-          backgroundColor: expanded ? (theme.bgPanelAlt || theme.tableHeaderBg || theme.bgPanel) : 'transparent',
-          padding: basePadding, 
-          borderRadius: expanded ? '8px 8px 0 0' : '8px',
-          border: `1px solid ${theme.tableBorder || theme.border}`,
-          borderBottom: expanded ? 'none' : `1px solid ${theme.tableBorder || theme.border}`,
-          cursor: 'pointer',
-          userSelect: 'none',
-          transition: 'background-color 0.25s, border-color 0.25s'
-        }}
-        onClick={(e) => {
-          if (onToggle) {
-            onToggle(e)
-          } else {
-            setInternalExpanded(v => !v)
-          }
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = expanded
-            ? (theme.tableHeaderBg || theme.bgPanelAlt || e.currentTarget.style.backgroundColor)
-            : (theme.tableHeaderBg || theme.bgPanelAlt || e.currentTarget.style.backgroundColor)
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = expanded
-            ? (theme.bgPanelAlt || theme.tableHeaderBg || theme.bgPanel)
-            : (theme.bgPanel || theme.tableBg)
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-          {/* Título (lado esquerdo - cresce conforme necessário). Removido indicador aberto/fechado */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '140px' }}>
-            <span style={{ fontWeight: 'bold', fontSize: titleFontSize, color: theme.textPrimary }}>{title}</span>
-          </div>
+      {/* Card Container */}
+      <div style={{
+        border: `1px solid ${theme.tableBorder || theme.border}`,
+        borderRadius: 10,
+        background: theme.bgPanelAlt || theme.bgPanel,
+        overflow: 'hidden',
+        transition: 'border-color .25s, background-color .25s'
+      }}>
+        {/* Header apenas com título + toggle */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: basePadding,
+            cursor: 'pointer',
+            userSelect: 'none'
+          }}
+          onClick={(e) => {
+            if (onToggle) onToggle(e)
+            else setInternalExpanded(v => !v)
+          }}
+        >
+          <span style={{ fontWeight: 'bold', fontSize: titleFontSize, color: theme.textPrimary }}>{title}</span>
+          <span style={{ fontSize: 13, fontFamily: 'monospace', color: theme.textSecondary }}>
+            {expanded ? 'Hide -' : 'Show +'}
+          </span>
+        </div>
 
-          {/* Container dos valores - flexível baseado no número de colunas */}
-          <div style={{ display: 'flex', flex: 1, minWidth: 0 }}>
-            {Object.entries(finalColumns).map(([key, column]) => {
-              const isHighlighted = column.highlight || false
-              const flexValue = column.flex || 1
-              
-              return (
-                <div key={key} style={{ 
-                  flex: `${flexValue} 1 0%`, 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  padding: '0 8px',
-                  overflow: 'hidden',
-                  minWidth: 0
-                }}>
-                  {column.label && (
-                    <div style={{ 
-                      fontWeight: 'bold', 
-                      color: isHighlighted ? theme.textPrimary : theme.textSecondary, 
-                      fontSize: labelFontSize, 
-                      marginBottom: '2px',
-                      textAlign: 'center',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      width: '100%'
-                    }}>
-                      {column.label}
-                    </div>
-                  )}
-                  {column.value !== undefined && column.value !== null && column.value !== '' && (
-                    <div style={{ 
-                      fontFamily: 'monospace', 
-                      fontWeight: isHighlighted ? 'bold' : 600, 
-                      fontSize: isHighlighted ? valueFontSizeHighlight : valueFontSize, 
-                      color: isHighlighted ? theme.textPrimary : theme.textSecondary,
-                      textAlign: 'center',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      width: '100%',
-                      background: isHighlighted ? (theme.primarySubtle || 'transparent') : 'transparent',
-                      borderRadius: 6,
-                      padding: isHighlighted ? '2px 6px' : '0'
-                    }}>
-                      {column.value}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Coluna de Opções - largura fixa, sempre presente para manter alinhamento */}
-          <div style={{ 
-            width: '28px', 
-            minWidth: '28px',
-            display: 'flex', 
-            justifyContent: 'right', 
-            alignItems: 'right', 
-            position: 'relative' 
+        {/* Linha de resumo (sempre visível para dar cara de card) */}
+        {showSummary && orderedSummarySegments.length > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'nowrap',
+            gap: 12,
+            padding: '4px 14px 8px 14px',
+            borderTop: `1px solid ${theme.tableBorder || theme.border}`,
+            fontSize: 13,
+            background: expanded ? 'transparent' : (theme.bgPanel || 'transparent'),
+            opacity: expanded ? 1 : 0.8
           }}>
+            <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 12, alignItems: 'center', flex: 1, minWidth: 0 }}>
+              {orderedSummarySegments.map((seg, idx) => (
+                <span key={seg.key} style={{
+                  color: seg.highlight ? theme.textPrimary : theme.textSecondary,
+                  fontWeight: seg.highlight ? 600 : 500,
+                  background: seg.highlight ? (theme.primarySubtle || 'transparent') : 'transparent',
+                  padding: seg.highlight ? '2px 6px' : 0,
+                  borderRadius: 6,
+                  whiteSpace: 'nowrap'
+                }}>
+                  {idx === 0 ? `-${seg.text}` : seg.text}
+                </span>
+              ))}
+            </div>
             {optionsMenu && (
-              <>
+              <div style={{ position: 'relative' }}>
                 <button
                   style={{
                     background: 'none',
                     border: 'none',
+                    color: theme.textSecondary,
                     cursor: 'pointer',
-                    padding: '2px',
-                    borderRadius: '6px',
+                    padding: '2px 6px',
+                    fontSize: 12,
+                    borderRadius: 6,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'background-color 0.2s'
+                    gap: 4
                   }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setOptionsExpanded(!optionsExpanded)
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = theme.bgInteractiveHover
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                  }}
+                  onClick={(e) => { e.stopPropagation(); setOptionsExpanded(o => !o) }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  Options
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
                     <circle cx="12" cy="5" r="2" fill={theme.textSecondary}/>
                     <circle cx="12" cy="12" r="2" fill={theme.textSecondary}/>
                     <circle cx="12" cy="19" r="2" fill={theme.textSecondary}/>
                   </svg>
                 </button>
-
-                {/* Dropdown Menu */}
                 {optionsExpanded && (
-                  <div 
+                  <div
                     style={{
                       position: 'absolute',
                       top: '100%',
                       right: 0,
-                      backgroundColor: theme.bgPanel,
+                      background: theme.bgPanel,
                       border: `1px solid ${theme.border}`,
-                      borderRadius: '8px',
-                      // shadow removed per request
-                      boxShadow: 'none',
+                      borderRadius: 8,
                       padding: '8px 0',
-                      minWidth: '200px',
-                      zIndex: 1000
+                      minWidth: 200,
+                      zIndex: 50
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
                     {optionsMenu}
                   </div>
                 )}
-              </>
+              </div>
             )}
-            {/* Espaço vazio quando não há optionsMenu, mantém o layout consistente */}
           </div>
-        </div>
+        )}
+
+        {/* Header actions posicionados após resumo (se houver) */}
+        {expanded && headerActions && (
+          <div style={{
+            padding: '4px 14px 8px 14px',
+            borderTop: `1px solid ${theme.tableBorder || theme.border}`,
+            display: 'flex',
+            justifyContent: 'flex-end'
+          }}>
+            {headerActions}
+          </div>
+        )}
+
+        {/* Conteúdo colapsável */}
+        {expanded && (
+          <div style={{
+            padding: isNested ? '0 8px 8px 8px' : '0 14px 14px 14px',
+            background: 'transparent'
+          }}>
+            {children}
+          </div>
+        )}
       </div>
       
-      {/* Header Actions (como configurações) */}
-  {expanded && headerActions && (
-        <div style={{ 
-          backgroundColor: 'transparent', 
-          padding: basePadding, 
-          display: 'flex', 
-          justifyContent: 'flex-end', 
-          alignItems: 'center',
-          transition: 'background-color 0.25s'
-        }}>
-          {headerActions}
-        </div>
-      )}
-      
-      {/* Collapsible Content */}
-      {expanded && (
-        <div style={{ paddingLeft: isNested ? '8px' : '0', paddingRight: isNested ? '8px' : '0', background: 'transparent' }}>
-          {children}
-        </div>
-      )}
     </div>
   )
 }

@@ -34,7 +34,7 @@ if (_env === 'production') {
     _normalizedApiBase = 'https://defi10-1.onrender.com'
   }
 } else {
-  _normalizedApiBase = explicit || 'http://localhost:10001'
+  _normalizedApiBase = explicit || 'http://localhost:10000'
 }
 
 // Safety: strip trailing slashes again
