@@ -454,7 +454,7 @@ export function groupTokensByPool(positions) {
       counter++
     }
     
-    const tokensArray = Array.isArray(position.tokens) ? position.tokens : []
+  const tokensArray = Array.isArray(position.tokens) ? position.tokens : []
   tokensArray.forEach(normalizeFinancials)
     const suppliedTokens = tokensArray.filter(token => {
       const t = (token.type || '').toString().toLowerCase()
@@ -479,12 +479,29 @@ export function groupTokensByPool(positions) {
       ? rewardTokensFromTokens
       : (Array.isArray(position.rewards) ? position.rewards : [])
 
+    // Extract Uniswap V3 style range if present on the position
+    const positionRange =
+      position.range ||
+      position.position?.range ||
+      position.meta?.range ||
+      position.extra?.range ||
+      position.additionalData?.range ||
+      position.position?.additionalData?.range
+
+    // Enrich supplied tokens with range when applicable (non-destructive clone)
+    const suppliedTokensEnriched = suppliedTokens.map(tok => ({
+      ...tok,
+      range: tok.range || positionRange
+    }))
+
     grouped[finalPoolKey] = {
       label: finalPoolKey,
-      tokens: suppliedTokens,
+      tokens: suppliedTokensEnriched,
       rewards: rewardsArray,
       totalValue: 0,
-      totalRewards: 0
+      totalRewards: 0,
+      // Attach range at pool level as well
+      range: positionRange
     }
     
     // Calcula valores totais

@@ -2,6 +2,7 @@ using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Interfaces;
 using System.Numerics;
+using System.Globalization;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services.Mappers;
@@ -36,7 +37,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
 
         if (response?.Data?.Positions == null) return new List<WalletItem>();
 
-        decimal.TryParse(response.Data.Bundles?.FirstOrDefault()?.NativePriceUSD, out var nativePriceUSD);
+        decimal.TryParse(response.Data.Bundles?.FirstOrDefault()?.NativePriceUSD, NumberStyles.Float, CultureInfo.InvariantCulture, out var nativePriceUSD);
         var walletItems = new List<WalletItem>();
 
         foreach (var position in response.Data.Positions)
@@ -55,19 +56,19 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     {
         try
         {
-            int.TryParse(position.Token0.Decimals, out var token0Decimals);
-            int.TryParse(position.Token1.Decimals, out var token1Decimals);
+            int.TryParse(position.Token0.Decimals, NumberStyles.Integer, CultureInfo.InvariantCulture, out var token0Decimals);
+            int.TryParse(position.Token1.Decimals, NumberStyles.Integer, CultureInfo.InvariantCulture, out var token1Decimals);
 
-            decimal.TryParse(position.DepositedToken0, out var depositedToken0);
-            decimal.TryParse(position.WithdrawnToken0, out var withdrawnToken0);
-            decimal.TryParse(position.DepositedToken1, out var depositedToken1);
-            decimal.TryParse(position.WithdrawnToken1, out var withdrawnToken1);
+            decimal.TryParse(position.DepositedToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var depositedToken0);
+            decimal.TryParse(position.WithdrawnToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var withdrawnToken0);
+            decimal.TryParse(position.DepositedToken1, NumberStyles.Float, CultureInfo.InvariantCulture, out var depositedToken1);
+            decimal.TryParse(position.WithdrawnToken1, NumberStyles.Float, CultureInfo.InvariantCulture, out var withdrawnToken1);
 
             var currentSupplyToken0 = depositedToken0 - withdrawnToken0;
             var currentSupplyToken1 = depositedToken1 - withdrawnToken1;
 
-            decimal.TryParse(position.Token0.DerivedNative, out var token0DerivedNative);
-            decimal.TryParse(position.Token1.DerivedNative, out var token1DerivedNative);
+            decimal.TryParse(position.Token0.DerivedNative, NumberStyles.Float, CultureInfo.InvariantCulture, out var token0DerivedNative);
+            decimal.TryParse(position.Token1.DerivedNative, NumberStyles.Float, CultureInfo.InvariantCulture, out var token1DerivedNative);
 
             var token0PriceUSD = nativePriceUSD * token0DerivedNative;
             var token1PriceUSD = nativePriceUSD * token1DerivedNative;
@@ -75,7 +76,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             var positionToken0ValueUSD = currentSupplyToken0 * token0PriceUSD;
             var positionToken1ValueUSD = currentSupplyToken1 * token1PriceUSD;
 
-            if (!BigInteger.TryParse(position.Id, out var tokenId)) return null;
+            if (!BigInteger.TryParse(position.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tokenId)) return null;
 
             // Execute blockchain calls in parallel using Task.WhenAll
             var chainInformationTask = _uniswapV3OnChainService.GetPositionAsync(tokenId);
@@ -101,17 +102,17 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                 lowerTickInfo,
                 upperTickInfo);
 
-            // Map on-chain extras into AdditionalData
-            int? tickSpacing = null; if (int.TryParse(position.Pool?.TickSpacing, out var ts)) tickSpacing = ts;
-            long? createdAt = null; if (long.TryParse(position.Pool?.CreatedAtUnix, out var ca)) createdAt = ca;
+            // On-chain extras into AdditionalData
+            int? tickSpacing = null; if (int.TryParse(position.Pool?.TickSpacing, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ts)) tickSpacing = ts;
+            long? createdAt = null; if (long.TryParse(position.Pool?.CreatedAtUnix, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ca)) createdAt = ca;
             var sqrtPriceX96 = string.IsNullOrEmpty(position.Pool?.SqrtPriceX96) ? null : position.Pool!.SqrtPriceX96;
-            var rangeStatus = string.IsNullOrEmpty(position.RangeStatus) ? null : position.RangeStatus;
 
+            // Range values
             decimal? lower = null, upper = null, current = null; bool? inRange = null;
-            if (decimal.TryParse(position.MinPriceToken1PerToken0, out var minP)) lower = minP;
-            if (decimal.TryParse(position.MaxPriceToken1PerToken0, out var maxP)) upper = maxP;
-            if (decimal.TryParse(position.CurrentPriceToken1PerToken0, out var curP)) current = curP;
-            if (!string.IsNullOrEmpty(rangeStatus)) inRange = rangeStatus.Equals("in-range", StringComparison.OrdinalIgnoreCase);
+            if (decimal.TryParse(position.MinPriceToken1PerToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var minP)) lower = minP;
+            if (decimal.TryParse(position.MaxPriceToken1PerToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var maxP)) upper = maxP;
+            if (decimal.TryParse(position.CurrentPriceToken1PerToken0, NumberStyles.Float, CultureInfo.InvariantCulture, out var curP)) current = curP;
+            if (!string.IsNullOrEmpty(position.RangeStatus)) inRange = position.RangeStatus.Equals("in-range", StringComparison.OrdinalIgnoreCase);
 
             return new WalletItem
             {
