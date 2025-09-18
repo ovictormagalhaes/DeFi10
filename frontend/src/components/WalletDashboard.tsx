@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { api } from '../config/api';
+import { useMaskValues } from '../context/MaskValuesContext';
 
 interface HealthStatus {
   status: string;
@@ -32,6 +33,7 @@ const WalletDashboard: React.FC = () => {
   const [walletData, setWalletData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { maskValues } = useMaskValues();
 
   // Check API health on component mount
   useEffect(() => {
@@ -85,6 +87,10 @@ const WalletDashboard: React.FC = () => {
         : [...prev, chainName]
     );
   };
+
+  // Helper to mask address
+  // Always return a fixed number of dots for mask mode
+  const maskAddress = (_addr: string) => '••••••••••••••••••••••••••••••••••••••••';
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -188,7 +194,17 @@ const WalletDashboard: React.FC = () => {
       {walletData && (
         <div style={{ padding: '15px', backgroundColor: '#d4edda', border: '1px solid #c3e6cb', borderRadius: '8px' }}>
           <h3>?? Portfolio Summary</h3>
-          <p><strong>Account:</strong> {walletData.account}</p>
+          <p><strong>Account:</strong> {
+            maskValues ? (
+              <span style={{ fontSize: 13, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', flex: '1 1 0%' }}>
+                {maskAddress(walletData.account)}
+              </span>
+            ) : (
+              <span style={{ fontSize: 13, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', flex: '1 1 0%' }}>
+                {walletData.account}
+              </span>
+            )
+          }</p>
           <p><strong>Network:</strong> {walletData.network}</p>
           <p><strong>Positions:</strong> {walletData.items.length}</p>
           <p><strong>Last Updated:</strong> {new Date(walletData.lastUpdated).toLocaleString()}</p>

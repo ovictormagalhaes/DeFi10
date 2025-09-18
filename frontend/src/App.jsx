@@ -745,7 +745,9 @@ function App() {
                           boxShadow: `0 0 0 0px ${theme.bgPanel}`
                         }} />
                       </div>
-                      <span style={{ fontSize: 13, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{account.slice(0,6)}...{account.slice(-4)}</span>
+                      <span style={{ fontSize: 13, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                        {maskValues ? '••••••...••••' : `${account.slice(0,6)}...${account.slice(-4)}`}
+                      </span>
                       {(() => {
                         const baseBtn = {
                           background: 'none',
