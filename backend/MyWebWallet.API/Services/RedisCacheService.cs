@@ -29,9 +29,7 @@ public class RedisCacheService : ICacheService
     public async Task<T?> GetAsync<T>(string key) where T : class
     {
         try
-        {
-            Console.WriteLine($"DEBUG: RedisCacheService: Getting cache for key: {key}");
-            
+        {            
             var value = await _database.StringGetAsync(key);
             
             if (!value.HasValue)
@@ -40,7 +38,6 @@ public class RedisCacheService : ICacheService
                 return null;
             }
 
-            Console.WriteLine($"SUCCESS: RedisCacheService: Cache hit for key: {key}");
             return JsonSerializer.Deserialize<T>(value!);
         }
         catch (Exception ex)
@@ -56,12 +53,8 @@ public class RedisCacheService : ICacheService
         {
             var expirationToUse = expiration ?? _defaultExpiration;
             var serializedValue = JsonSerializer.Serialize(value);
-            
-            Console.WriteLine($"DEBUG: RedisCacheService: Setting cache for key: {key} with expiration: {expirationToUse}");
-            
-            await _database.StringSetAsync(key, serializedValue, expirationToUse);
-            
-            Console.WriteLine($"SUCCESS: RedisCacheService: Cache set successfully for key: {key}");
+                        
+            await _database.StringSetAsync(key, serializedValue, expirationToUse);            
         }
         catch (Exception ex)
         {
@@ -74,11 +67,7 @@ public class RedisCacheService : ICacheService
     {
         try
         {
-            Console.WriteLine($"DEBUG: RedisCacheService: Removing cache for key: {key}");
-            
-            await _database.KeyDeleteAsync(key);
-            
-            Console.WriteLine($"SUCCESS: RedisCacheService: Cache removed for key: {key}");
+            await _database.KeyDeleteAsync(key);            
         }
         catch (Exception ex)
         {
@@ -94,7 +83,6 @@ public class RedisCacheService : ICacheService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ERROR: RedisCacheService: Failed to check if key exists {key}: {ex.Message}");
             return false;
         }
     }
@@ -104,11 +92,8 @@ public class RedisCacheService : ICacheService
         var key = $"{_walletCacheKeyPrefix}{address.ToLowerInvariant()}";
         
         if (chain.HasValue)
-        {
             key += $":{chain.Value.ToChainId()}";
-        }
         
-        Console.WriteLine($"DEBUG: RedisCacheService: Generated cache key: {key}");
         return key;
     }
 
@@ -118,7 +103,6 @@ public class RedisCacheService : ICacheService
         var chainIds = string.Join(",", chainList.Select(c => c.ToChainId()));
         var key = $"{_walletCacheKeyPrefix}{address.ToLowerInvariant()}:multi:{chainIds}";
         
-        Console.WriteLine($"DEBUG: RedisCacheService: Generated multi-chain cache key: {key}");
         return key;
     }
 }

@@ -2,13 +2,13 @@ using System.Text.Json.Serialization;
 
 namespace MyWebWallet.API.Services.Models;
 
-public class UniswapV3GetActivePoolsResponse
+public class UniswapV3GetActivePoolsResponseOld
 {
     [JsonPropertyName("data")]
     public UniswapV3PositionsData Data { get; set; } = new();
 }
 
-public class UniswapV3PositionsData
+public class UniswapV3PositionsDataOld
 {
     [JsonPropertyName("bundles")]
     public List<UniswapV3Bundle> Bundles { get; set; } = new();
@@ -17,13 +17,13 @@ public class UniswapV3PositionsData
     public List<UniswapV3Position> Positions { get; set; } = new();
 }
 
-public class UniswapV3Bundle
+public class UniswapV3BundleOld
 {
     [JsonPropertyName("nativePriceUSD")]
     public string NativePriceUSD { get; set; } = string.Empty;
 }
 
-public class UniswapV3Position
+public class UniswapV3PositionOld
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -61,19 +61,6 @@ public class UniswapV3Position
     [JsonPropertyName("tickUpper")]
     public long TickUpper { get; set; } = 0;
 
-    // Position range status and prices
-    [JsonPropertyName("rangeStatus")]
-    public string RangeStatus { get; set; } = string.Empty;
-
-    [JsonPropertyName("minPriceToken1PerToken0")]
-    public string MinPriceToken1PerToken0 { get; set; } = string.Empty;
-
-    [JsonPropertyName("maxPriceToken1PerToken0")]
-    public string MaxPriceToken1PerToken0 { get; set; } = string.Empty;
-
-    [JsonPropertyName("currentPriceToken1PerToken0")]
-    public string CurrentPriceToken1PerToken0 { get; set; } = string.Empty;
-
     [JsonPropertyName("token0")]
     public UniswapV3Token Token0 { get; set; } = new();
 
@@ -84,7 +71,7 @@ public class UniswapV3Position
     public UniswapV3Pool Pool { get; set; } = new();
 }
 
-public class UniswapV3Pool
+public class UniswapV3PoolOld
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -103,19 +90,9 @@ public class UniswapV3Pool
 
     [JsonPropertyName("tick")]
     public string Tick { get; set; } = string.Empty;
-
-    // On-chain extras
-    [JsonPropertyName("tickSpacing")]
-    public string TickSpacing { get; set; } = string.Empty;
-
-    [JsonPropertyName("sqrtPriceX96")]
-    public string SqrtPriceX96 { get; set; } = string.Empty;
-
-    [JsonPropertyName("createdAtUnix")]
-    public string CreatedAtUnix { get; set; } = string.Empty;
 }
 
-public class UniswapV3Token
+public class UniswapV3TokenOld
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;

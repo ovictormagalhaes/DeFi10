@@ -3,6 +3,8 @@ using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Mappers;
 using System.Text.RegularExpressions;
+using System.Text.Json;
+using System.Numerics;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services;
@@ -11,7 +13,8 @@ public class EthereumService : IBlockchainService
 {
     private readonly IMoralisService _moralisService;
     private readonly IAaveeService _aaveeService;
-    private readonly IUniswapV3Service _uniswapV3Service;
+    private readonly IUniswapV3Service _uniswapV3Service; // kept for DI compatibility (not used)
+    private readonly IUniswapV3OnChainService _uniswapV3OnChainService;
     private readonly IWalletItemMapperFactory _mapperFactory;
     private readonly IConfiguration _configuration;
 
@@ -25,12 +28,14 @@ public class EthereumService : IBlockchainService
         IConfiguration configuration,
         IAaveeService aaveeService,
         IUniswapV3Service uniswapV3Service,
+        IUniswapV3OnChainService uniswapV3OnChainService,
         IWalletItemMapperFactory mapperFactory)
     {
         _moralisService = moralisService;
         _configuration = configuration;
         _aaveeService = aaveeService;
-        _uniswapV3Service = uniswapV3Service;
+        _uniswapV3Service = uniswapV3Service; // intentionally unused (subgraph disabled)
+        _uniswapV3OnChainService = uniswapV3OnChainService;
         _mapperFactory = mapperFactory;
     }
 
@@ -99,55 +104,54 @@ public class EthereumService : IBlockchainService
 
     private void ValidateChainSupport(ChainEnum chain)
     {
-        var mappers = _mapperFactory.GetAllMappers();
-        var supportedProtocols = mappers.Where(m => m.SupportsChain(chain)).ToList();
-        
-        Console.WriteLine($"DEBUG: EthereumService: Chain {chain} is supported by {supportedProtocols.Count} protocols: " +
-                         $"{string.Join(", ", supportedProtocols.Select(p => p.GetProtocolName()))}");
-
+        var supportedProtocols = _mapperFactory.GetAllMappers().Where(m => m.SupportsChain(chain)).ToList();
         if (!supportedProtocols.Any())
-        {
             throw new NotSupportedException($"Chain {chain} is not supported by any configured protocols");
-        }
     }
 
     private async Task<(
         UniswapV3GetActivePoolsResponse? Uniswap,
+        UniswapV3GetActivePoolsResponse? UniswapOnChain,
         MoralisGetERC20TokenResponse? Tokens,
         AaveGetUserSuppliesResponse? AaveSupplies,
         AaveGetUserBorrowsResponse? AaveBorrows
     )> FetchAllDataAsync(string account, ChainEnum chain)
     {
-        // Execute all independent API calls in parallel, but only for supported protocols
-        var uniswapTask = SafeExecuteAsync(() => 
-            _mapperFactory.CreateUniswapV3Mapper().SupportsChain(chain) 
-                ? _uniswapV3Service.GetActivePoolsAsync(account) 
-                : Task.FromResult<UniswapV3GetActivePoolsResponse?>(null), 
-            "UniswapV3");
+        // Subgraph disabled: keep a placeholder null task
+        var uniswapTask = Task.FromResult<UniswapV3GetActivePoolsResponse?>(null);
+        Console.WriteLine("INFO: EthereumService: UniswapV3 (subgraph) disabled. Using on-chain only.");
 
-        var tokensTask = SafeExecuteAsync(() => 
+        var tokensTask = SafeExecuteAsync(() =>
             _mapperFactory.CreateMoralisTokenMapper().SupportsChain(chain)
                 ? _moralisService.GetERC20TokenBalanceAsync(account, chain.ToChainId())
-                : Task.FromResult<MoralisGetERC20TokenResponse?>(null), 
+                : Task.FromResult<MoralisGetERC20TokenResponse?>(null),
             "Moralis ERC20");
 
-        var aaveSuppliesTask = SafeExecuteAsync(() => 
+        var aaveSuppliesTask = SafeExecuteAsync(() =>
             _mapperFactory.CreateAaveSuppliesMapper().SupportsChain(chain)
                 ? _aaveeService.GetUserSupplies(account, chain.ToChainId())
-                : Task.FromResult<AaveGetUserSuppliesResponse?>(null), 
+                : Task.FromResult<AaveGetUserSuppliesResponse?>(null),
             "Aave Supplies");
 
-        var aaveBorrowsTask = SafeExecuteAsync(() => 
+        var aaveBorrowsTask = SafeExecuteAsync(() =>
             _mapperFactory.CreateAaveBorrowsMapper().SupportsChain(chain)
                 ? _aaveeService.GetUserBorrows(account, chain.ToChainId())
-                : Task.FromResult<AaveGetUserBorrowsResponse?>(null), 
+                : Task.FromResult<AaveGetUserBorrowsResponse?>(null),
             "Aave Borrows");
 
-        // Wait for all API calls to complete
-        await Task.WhenAll(uniswapTask, tokensTask, aaveSuppliesTask, aaveBorrowsTask);
+        // Only open pools/positions option (true to hide closed positions)
+        var onlyOpen = true;
+
+        // On-chain Uniswap directly from owner as parallel task
+        var uniswapOnChainTask = SafeExecuteAsync(() =>
+            _uniswapV3OnChainService.GetActivePoolsOnChainAsync(account, onlyOpen),
+            "Uniswap On-Chain");
+
+        await Task.WhenAll(uniswapTask, tokensTask, aaveSuppliesTask, aaveBorrowsTask, uniswapOnChainTask);
 
         return (
             await uniswapTask,
+            await uniswapOnChainTask,
             await tokensTask,
             await aaveSuppliesTask,
             await aaveBorrowsTask
@@ -156,6 +160,7 @@ public class EthereumService : IBlockchainService
 
     private async Task<List<Task<List<WalletItem>>>> MapAllDataAsync(
         (UniswapV3GetActivePoolsResponse? Uniswap,
+         UniswapV3GetActivePoolsResponse? UniswapOnChain,
          MoralisGetERC20TokenResponse? Tokens,
          AaveGetUserSuppliesResponse? AaveSupplies,
          AaveGetUserBorrowsResponse? AaveBorrows) data,
@@ -163,13 +168,15 @@ public class EthereumService : IBlockchainService
     {
         var mappingTasks = new List<Task<List<WalletItem>>>();
 
-        // Map UniswapV3 positions if data available and chain supported
-        if (data.Uniswap != null)
+        // Subgraph mapping removed (disabled)
+
+        // Map on-chain Uniswap positions if data available and chain supported
+        if (data.UniswapOnChain != null)
         {
             var mapper = _mapperFactory.CreateUniswapV3Mapper();
             if (mapper.SupportsChain(chain))
             {
-                mappingTasks.Add(mapper.MapAsync(data.Uniswap, chain));
+                mappingTasks.Add(mapper.MapAsync(data.UniswapOnChain, chain));
             }
         }
 
@@ -211,14 +218,9 @@ public class EthereumService : IBlockchainService
         try
         {
             var result = await operation();
-            if (result != null)
-            {
-                Console.WriteLine($"SUCCESS: EthereumService: {operationName} data fetched successfully");
-            }
-            else
-            {
-                Console.WriteLine($"INFO: EthereumService: {operationName} skipped (chain not supported)");
-            }
+            Console.WriteLine(result != null
+                ? $"SUCCESS: EthereumService: {operationName} data fetched successfully"
+                : $"INFO: EthereumService: {operationName} skipped (chain not supported)");
             return result;
         }
         catch (Exception ex)

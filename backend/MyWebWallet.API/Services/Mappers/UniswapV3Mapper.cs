@@ -101,6 +101,18 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                 lowerTickInfo,
                 upperTickInfo);
 
+            // Map on-chain extras into AdditionalData
+            int? tickSpacing = null; if (int.TryParse(position.Pool?.TickSpacing, out var ts)) tickSpacing = ts;
+            long? createdAt = null; if (long.TryParse(position.Pool?.CreatedAtUnix, out var ca)) createdAt = ca;
+            var sqrtPriceX96 = string.IsNullOrEmpty(position.Pool?.SqrtPriceX96) ? null : position.Pool!.SqrtPriceX96;
+            var rangeStatus = string.IsNullOrEmpty(position.RangeStatus) ? null : position.RangeStatus;
+
+            decimal? lower = null, upper = null, current = null; bool? inRange = null;
+            if (decimal.TryParse(position.MinPriceToken1PerToken0, out var minP)) lower = minP;
+            if (decimal.TryParse(position.MaxPriceToken1PerToken0, out var maxP)) upper = maxP;
+            if (decimal.TryParse(position.CurrentPriceToken1PerToken0, out var curP)) current = curP;
+            if (!string.IsNullOrEmpty(rangeStatus)) inRange = rangeStatus.Equals("in-range", StringComparison.OrdinalIgnoreCase);
+
             return new WalletItem
             {
                 Type = WalletItemType.LiquidityPool,
@@ -176,7 +188,19 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                         }
                     }
                 },
-                AdditionalData = new AdditionalData()
+                AdditionalData = new AdditionalData
+                {
+                    TickSpacing = tickSpacing,
+                    SqrtPriceX96 = sqrtPriceX96,
+                    CreatedAt = createdAt,
+                    Range = new RangeInfo
+                    {
+                        Lower = lower,
+                        Upper = upper,
+                        Current = current,
+                        InRange = inRange
+                    }
+                }
             };
         }
         catch (Exception ex)

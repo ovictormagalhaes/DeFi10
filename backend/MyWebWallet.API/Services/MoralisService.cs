@@ -43,35 +43,22 @@ namespace MyWebWallet.API.Services
         {
             try
             {
-                Console.WriteLine($"DEBUG: MoralisService: Starting GetERC20TokenBalanceAsync for address: {address}, chain: {chain}");
-                Console.WriteLine($"DEBUG: MoralisService: Base URL: {_baseUrl}");
-                Console.WriteLine($"DEBUG: MoralisService: API Key configured: {!string.IsNullOrEmpty(_apiKey)}");
-
                 // Construct the API URL
                 var url = $"{_baseUrl}/wallets/{address}/tokens?chain={chain}&exclude_spam=true";
-                Console.WriteLine($"DEBUG: MoralisService: Request URL: {url}");
 
                 // Configure the request headers
                 _httpClient.DefaultRequestHeaders.Clear();
                 _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
                 _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
 
-                Console.WriteLine($"DEBUG: MoralisService: Making HTTP GET request...");
-
                 // Make the HTTP request
                 var response = await _httpClient.GetAsync(url);
-
-                Console.WriteLine($"DEBUG: MoralisService: HTTP Response Status: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
                     var responseJson = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"DEBUG: MoralisService: Response received, length: {responseJson.Length} characters");
 
                     var moralisResponse = JsonSerializer.Deserialize<MoralisGetERC20TokenResponse>(responseJson);
-                    Console.WriteLine($"SUCCESS: MoralisService: Successfully deserialized ERC20 token response");
-                    Console.WriteLine($"DEBUG: MoralisService: Tokens found: {moralisResponse?.Result?.Count ?? 0}");
-
                     return moralisResponse ?? new MoralisGetERC20TokenResponse();
                 }
                 else
@@ -103,31 +90,22 @@ namespace MyWebWallet.API.Services
         {
             try
             {
-                Console.WriteLine($"DEBUG: MoralisService: Starting GetDeFiPositionsAsync for address: {address}, chain: {chain}");
-
                 // Construct the API URL
                 var url = $"{_baseUrl}/wallets/{address}/defi/positions?chain={chain}";
-                Console.WriteLine($"DEBUG: MoralisService: Request URL: {url}");
-
+                
                 // Configure the request headers
                 _httpClient.DefaultRequestHeaders.Clear();
                 _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
                 _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
 
-                Console.WriteLine($"DEBUG: MoralisService: Making HTTP GET request...");
-
                 // Make the HTTP request
                 var response = await _httpClient.GetAsync(url);
-
-                Console.WriteLine($"DEBUG: MoralisService: HTTP Response Status: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
                     var responseJson = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"DEBUG: MoralisService: Response received, length: {responseJson.Length} characters");
 
                     var moralisResponse = JsonSerializer.Deserialize<MoralisGetDeFiPositionsResponse>(responseJson);
-                    Console.WriteLine($"SUCCESS: MoralisService: Successfully deserialized DeFi positions response");
 
                     return moralisResponse ?? new MoralisGetDeFiPositionsResponse();
                 }
@@ -151,7 +129,6 @@ namespace MyWebWallet.API.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"ERROR: MoralisService: Unexpected error in GetDeFiPositionsAsync - {ex.Message}");
-                Console.WriteLine($"ERROR: MoralisService: Stack trace - {ex.StackTrace}");
                 throw new Exception($"MoralisService unexpected error: {ex.Message}", ex);
             }
         }

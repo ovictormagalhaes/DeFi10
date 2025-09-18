@@ -23,10 +23,6 @@ public class UniswapV3Service : IUniswapV3Service
     {
         try
         {
-            Console.WriteLine($"DEBUG: UniswapV3Service: Starting GetActivePoolsAsync for account: {account}");
-            Console.WriteLine($"DEBUG: UniswapV3Service: GraphQL Endpoint: {_graphqlEndpoint}");
-            Console.WriteLine($"DEBUG: UniswapV3Service: API Key configured: {!string.IsNullOrEmpty(_apiKey)}");
-
             var request = new { 
                 query = @"
                     {
@@ -79,15 +75,10 @@ public class UniswapV3Service : IUniswapV3Service
                 }".Replace("$owner", $"\"{account}\"")
             };
 
-            Console.WriteLine($"DEBUG: UniswapV3Service: GraphQL Query prepared");
-
             _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey);
 
-            Console.WriteLine($"DEBUG: UniswapV3Service: Making HTTP POST request...");
             var response = await _httpClient.PostAsJsonAsync(_graphqlEndpoint, request);
-            
-            Console.WriteLine($"DEBUG: UniswapV3Service: HTTP Response Status: {response.StatusCode}");
-            
+                        
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
@@ -96,13 +87,8 @@ public class UniswapV3Service : IUniswapV3Service
             }
 
             var jsonResponse = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"DEBUG: UniswapV3Service: Response received, length: {jsonResponse.Length} characters");
-
             var data = JsonSerializer.Deserialize<UniswapV3GetActivePoolsResponse>(jsonResponse);
             
-            Console.WriteLine($"SUCCESS: UniswapV3Service: Successfully deserialized response");
-            Console.WriteLine($"DEBUG: UniswapV3Service: Positions found: {data?.Data?.Positions?.Count ?? 0}");
-
             return data ?? new UniswapV3GetActivePoolsResponse();
         }
         catch (HttpRequestException ex)
@@ -118,7 +104,6 @@ public class UniswapV3Service : IUniswapV3Service
         catch (Exception ex)
         {
             Console.WriteLine($"ERROR: UniswapV3Service: Unexpected error - {ex.Message}");
-            Console.WriteLine($"ERROR: UniswapV3Service: Stack trace - {ex.StackTrace}");
             throw new Exception($"UniswapV3Service unexpected error: {ex.Message}", ex);
         }
     }
