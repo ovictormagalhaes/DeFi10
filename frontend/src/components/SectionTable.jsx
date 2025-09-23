@@ -161,7 +161,7 @@ const PercentBadge = ({ value, fontStyles, theme, style = {}, showTooltip = fals
         {value}
         {showTooltip && (
           <CircleAlertIcon 
-            color={theme.textSecondary} 
+            color={showDialog ? theme.info : theme.textSecondary} 
             width={12} 
             height={12}
             style={{ cursor: 'pointer' }}
@@ -271,7 +271,7 @@ const CondensedPercentBadge = ({ value, fontStyles, theme, style = {}, showToolt
         {value}
         {showTooltip && (
           <CircleAlertIcon 
-            color={theme.textSecondary} 
+            color={showDialog ? theme.info : theme.textSecondary} 
             width={12} 
             height={12}
             style={{ cursor: 'pointer' }}
@@ -365,7 +365,15 @@ export default function SectionTable({
   customContent = null,
   transparentBody = false,
   variant = 'card', // 'card' | 'plain'
-  metricsRatio = [2,1,1,1] // allows adapting header / subtitle metrics layout (e.g. [2,1,1] for lending 3-col tables)
+  metricsRatio = [2,1,1,1], // allows adapting header / subtitle metrics layout (e.g. [2,1,1] for lending 3-col tables)
+  // New: let consumers fully control metrics content and layout.
+  // If provided, these take precedence over rightValue/rightPercent/rewardsValue/infoBadges/actions.
+  // Each renderer should return: { ratio: number[], cells: React.ReactNode[] }
+  renderHeaderMetrics = null,
+  renderMetricsRow = null,
+  // Simpler API: a summary row that mirrors a provided columns[] definition (exact count/order)
+  summaryColumns = null,
+  renderSummaryCell = null
 }) {
   const { theme } = useTheme()
   const fontStyles = getFontStyles(theme)
@@ -416,6 +424,35 @@ export default function SectionTable({
   const isThreeColMetrics = metricsCols.length === 3
   const hasRewardsValue = rewardsValue !== null
 
+  const renderMetricsTable = (descriptor) => {
+    if (!descriptor || !Array.isArray(descriptor.ratio) || !Array.isArray(descriptor.cells)) return null
+    const ratio = descriptor.ratio
+    const cells = descriptor.cells
+    return (
+      <table style={createTableStyle()}>
+        {ratioToColGroup(ratio)}
+        <tbody>
+          <tr>
+            {cells.map((cell, i) => (
+              <td key={i} style={{ padding: '0px' }}>{cell}</td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    )
+  }
+
+  const colGroupFromColumns = (cols = []) => {
+    if (!Array.isArray(cols) || cols.length === 0) return null
+    return (
+      <colgroup>
+        {cols.map((c, i) => (
+          <col key={i} style={c && c.width ? { width: c.width } : undefined} />
+        ))}
+      </colgroup>
+    )
+  }
+
   return (
     <div style={{ margin: '12px 0px' }}>
       <div
@@ -443,10 +480,19 @@ export default function SectionTable({
             <span style={fontStyles.menuHeader}>{title}</span>
           </div>
           <div style={createFlexRow(12)} onClick={(e) => e.stopPropagation()}>
-            {/* Optional legacy subtitle metrics (only if subtitle provided) */}
-            {(subtitle && (infoBadges || rightPercent !== null || rightValue !== null)) && (
+            {/* Header metrics: prefer renderHeaderMetrics if provided; fallback to legacy props */}
+            {(subtitle && (renderHeaderMetrics || infoBadges || rightPercent !== null || rightValue !== null)) && (
               <div style={{ minWidth: isThreeColMetrics ? 360 : 420, flex: '0 0 auto' }}>
-                <table style={createTableStyle()}>
+                {renderHeaderMetrics ? (
+                  renderMetricsTable(
+                    renderHeaderMetrics({
+                      theme,
+                      fontStyles,
+                      helpers: { createFlexRow, createFlexCenter, createBadgeStyle, createCondensedBadgeStyle, createCellStyle, createTableStyle, ratioToColGroup }
+                    })
+                  )
+                ) : (
+                  <table style={createTableStyle()}>
                   {ratioToColGroup(metricsCols)}
                   <tbody>
                     <tr>
@@ -506,7 +552,8 @@ export default function SectionTable({
                       )}
                     </tr>
                   </tbody>
-                </table>
+                  </table>
+                )}
               </div>
             )}
             <div style={createFlexRow(8)}>
@@ -621,75 +668,102 @@ export default function SectionTable({
                   textTransform: 'uppercase'
                 }}>{subtitle}</div>
               ) : null}
-              {(!subtitle && (rightPercent !== null || infoBadges || rightValue !== null)) && (
+              {/* Body summary/metrics strip */}
+              {(!subtitle && (summaryColumns && renderSummaryCell)) ? (
                 <div style={{ padding: '6px 14px 4px 14px' }}>
                   <table style={createTableStyle()}>
-                    {ratioToColGroup(metricsCols)}
+                    {colGroupFromColumns(summaryColumns)}
                     <tbody>
                       <tr>
-                        {isThreeColMetrics ? (
-                          <>
-                            {/* 3-col condensed metrics row with total forced to last column */}
-                            <td style={{ padding: '0 0px' }}>
-                              <div style={createFlexRow(8)}>
-                                {optionsMenu ? (
-                                  <button
-                                    style={{
-                                      background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6,
-                                      ...createFlexCenter()
-                                    }}
-                                    onClick={(e) => { e.stopPropagation(); setOptionsExpanded(v => !v) }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.bgInteractiveHover}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                    title="Options"
-                                  >
-                                    <SettingsIcon color={theme.textSecondary} />
-                                  </button>
-                                ) : null}
-                                {rightPercent !== null && (
-                                  <CondensedPercentBadge value={rightPercent} fontStyles={fontStyles} theme={theme} showTooltip={true} />
-                                )}
-                                {infoBadges && (
-                                  <span style={createCondensedBadgeStyle(fontStyles.secondary, theme, { maxWidth: '100%' })}>{infoBadges}</span>
-                                )}
-                                {optionsExpanded && optionsMenu && (
-                                  <div
-                                    style={{ position: 'absolute', background: bodyBg, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0 8px', minWidth: 200, zIndex: 1000, marginTop: 30 }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >{optionsMenu}</div>
-                                )}
-                              </div>
-                            </td>
-                            <td style={{ padding: '0px' }} />
-                            <td style={createCellStyle(fontStyles.monospace, { fontSize: 14 })}>
-                              {rightValue !== null ? rightValue : ''}
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            {/* 4-col metrics row with total forced last */}
-                            <td style={{ padding: '0px' }}>
-                              <div style={createFlexRow(8)}>
-                                {rightPercent !== null && (
-                                  <CondensedPercentBadge value={rightPercent} fontStyles={fontStyles} theme={theme} showTooltip={true} />
-                                )}
-                                {infoBadges && (
-                                  <span style={createCondensedBadgeStyle(fontStyles.secondary, theme, { maxWidth: '100%' })}>{infoBadges}</span>
-                                )}
-                              </div>
-                            </td>
-                            <td style={{ padding: '0 6px' }} />
-                            <td style={createCellStyle(fontStyles.monospace, { fontSize: 14, paddingRight: 6})}>
-                              {rewardsValue !== null ? rewardsValue : ''}
-                            </td>
-                            <td style={createCellStyle(fontStyles.monospace, { fontSize: 14 })}>
-                              {rightValue !== null ? rightValue : ''}
-                            </td>
-                          </>
-                        )}
+                        {summaryColumns.map((col, i) => (
+                          <td key={col?.key || i} style={{ padding: '0px', textAlign: col?.align || 'left' }}>
+                            {renderSummaryCell(col, i)}
+                          </td>
+                        ))}
                       </tr>
                     </tbody>
                   </table>
+                </div>
+              ) : (!subtitle && (renderMetricsRow || rightPercent !== null || infoBadges || rightValue !== null)) && (
+                <div style={{ padding: '6px 14px 4px 14px' }}>
+                  {renderMetricsRow ? (
+                    renderMetricsTable(
+                      renderMetricsRow({
+                        theme,
+                        fontStyles,
+                        context: { subtitle, columns, rows },
+                        helpers: { createFlexRow, createFlexCenter, createBadgeStyle, createCondensedBadgeStyle, createCellStyle, createTableStyle, ratioToColGroup }
+                      })
+                    )
+                  ) : (
+                    <table style={createTableStyle()}>
+                      {ratioToColGroup(metricsCols)}
+                      <tbody>
+                        <tr>
+                          {isThreeColMetrics ? (
+                            <>
+                              {/* 3-col condensed metrics row with total forced to last column */}
+                              <td style={{ padding: '0 0px' }}>
+                                <div style={createFlexRow(8)}>
+                                  {optionsMenu ? (
+                                    <button
+                                      style={{
+                                        background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6,
+                                        ...createFlexCenter()
+                                      }}
+                                      onClick={(e) => { e.stopPropagation(); setOptionsExpanded(v => !v) }}
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.bgInteractiveHover}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                      title="Options"
+                                    >
+                                      <SettingsIcon color={theme.textSecondary} />
+                                    </button>
+                                  ) : null}
+                                  {rightPercent !== null && (
+                                    <CondensedPercentBadge value={rightPercent} fontStyles={fontStyles} theme={theme} showTooltip={true} />
+                                  )}
+                                  {infoBadges && (
+                                    <span style={createCondensedBadgeStyle(fontStyles.secondary, theme, { maxWidth: '100%' })}>{infoBadges}</span>
+                                  )}
+                                  {optionsExpanded && optionsMenu && (
+                                    <div
+                                      style={{ position: 'absolute', background: bodyBg, border: `1px solid ${theme.border}`, borderRadius: 8, padding: '0 8px', minWidth: 200, zIndex: 1000, marginTop: 30 }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >{optionsMenu}</div>
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ padding: '0px' }} />
+                              <td style={createCellStyle(fontStyles.monospace, { fontSize: 14 })}>
+                                {rightValue !== null ? rightValue : ''}
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              {/* 4-col metrics row with total forced last */}
+                              <td style={{ padding: '0px' }}>
+                                <div style={createFlexRow(8)}>
+                                  {rightPercent !== null && (
+                                    <CondensedPercentBadge value={rightPercent} fontStyles={fontStyles} theme={theme} showTooltip={true} />
+                                  )}
+                                  {infoBadges && (
+                                    <span style={createCondensedBadgeStyle(fontStyles.secondary, theme, { maxWidth: '100%' })}>{infoBadges}</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ padding: '0 6px' }} />
+                              <td style={createCellStyle(fontStyles.monospace, { fontSize: 14, paddingRight: 6})}>
+                                {rewardsValue !== null ? rewardsValue : ''}
+                              </td>
+                              <td style={createCellStyle(fontStyles.monospace, { fontSize: 14 })}>
+                                {rightValue !== null ? rightValue : ''}
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               )}
               {customContent ? (

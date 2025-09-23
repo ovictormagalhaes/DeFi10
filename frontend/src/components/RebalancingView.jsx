@@ -3,6 +3,7 @@ import { useTheme } from '../context/ThemeProvider'
 import { ITEM_TYPES } from '../utils/walletUtils'
 import TokenDisplay from './TokenDisplay'
 import { config } from '../config/api'
+import { getFontStyles } from '../styles/fontStyles'
 
 // Frontend mirror of backend enum
 const RebalanceReferenceType = {
@@ -32,6 +33,7 @@ const GROUP_OPTIONS = [
 export default function RebalancingView({ walletTokens = [], getLiquidityPoolsData, getLendingAndBorrowingData, getStakingData, theme: themeProp, account, initialSavedKey, initialSavedCount, initialSavedItems }) {
   const { theme: themeCtx } = useTheme()
   const theme = themeProp || themeCtx
+  const fontStyles = getFontStyles(theme)
 
   // Lightweight chain key resolver for uniqueness in IDs
   const getChainKey = React.useCallback((obj) => {
@@ -122,6 +124,106 @@ export default function RebalancingView({ walletTokens = [], getLiquidityPoolsDa
       return { id, label, raw: item }
     })
   }, [getStakingData])
+
+  // Reusable Info icon with click-to-toggle tooltip (matches SectionTable style)
+  const CircleAlertIcon = ({ color, width = 14, height = 14, style = {}, onClick }) => (
+    <svg
+      width={width}
+      height={height}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={style}
+      onClick={onClick}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  )
+
+  const InfoIconWithTooltip = ({ content }) => {
+    const [open, setOpen] = React.useState(false)
+    const [pos, setPos] = React.useState({ top: 0, left: 0 })
+    const ref = React.useRef(null)
+
+    React.useEffect(() => {
+      if (!open) return
+      const onDocClick = (ev) => {
+        if (!ref.current) return setOpen(false)
+        if (!(ev.target instanceof Element)) return setOpen(false)
+        if (!ev.target.closest('.rebalance-info-icon')) setOpen(false)
+      }
+      document.addEventListener('click', onDocClick)
+      return () => document.removeEventListener('click', onDocClick)
+    }, [open])
+
+    const handleClick = (e) => {
+      e.stopPropagation()
+      if (ref.current) {
+        const r = ref.current.getBoundingClientRect()
+        setPos({ top: r.bottom + 4, left: r.left + r.width / 2 })
+      }
+      setOpen((v) => !v)
+    }
+
+    return (
+      <span className="rebalance-info-icon" ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18 }}>
+        <CircleAlertIcon color={open ? theme.info : theme.textSecondary} width={12} height={12} style={{ cursor: 'pointer' }} onClick={handleClick} />
+        {open && (
+          <div
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              left: pos.left,
+              transform: 'translateX(-50%)',
+              backgroundColor: theme.bgPanel,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 8,
+              padding: '10px 12px',
+              boxShadow: theme.shadowHover || '0 4px 12px rgba(0,0,0,0.25)',
+              zIndex: 10000,
+              minWidth: 160,
+              maxWidth: 320,
+              ...fontStyles.secondary
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {content}
+            <div
+              style={{
+                position: 'absolute',
+                top: -6,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 0,
+                height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderBottom: `6px solid ${theme.border}`
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: -5,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 0,
+                height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderBottom: `6px solid ${theme.bgPanel}`
+              }}
+            />
+          </div>
+        )}
+      </span>
+    )
+  }
 
   const allDefi = React.useMemo(() => {
     return [
@@ -256,41 +358,7 @@ export default function RebalancingView({ walletTokens = [], getLiquidityPoolsDa
     if (!t || typeof t !== 'object') return ''
     return t.logo || t.logoURI || t.image || t.icon || t.logoUrl || t.logo_url || t.iconUrl || t.icon_url || ''
   }, [])
-  const BUILTIN_TOKEN_LOGOS = React.useMemo(() => ({
-    eth: 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
-    weth: 'https://assets.coingecko.com/coins/images/2518/small/weth.png',
-    wbtc: 'https://assets.coingecko.com/coins/images/7598/small/wrapped_bitcoin_wbtc.png',
-    usdc: 'https://assets.coingecko.com/coins/images/6319/small/usdc.png',
-    usdt: 'https://assets.coingecko.com/coins/images/325/small/Tether-logo.png',
-    dai: 'https://assets.coingecko.com/coins/images/9956/small/coin.png',
-    cbeth: 'https://assets.coingecko.com/coins/images/27008/small/cbeth.png',
-    cb_btc: 'https://assets.coingecko.com/coins/images/32417/small/cbbtc.png',
-    cbbtc: 'https://assets.coingecko.com/coins/images/32417/small/cbbtc.png'
-  }), [])
-  const getBuiltinLogoForSymbolTop = React.useCallback((sym) => {
-    if (!sym) return ''
-    const key = sym.toString().toLowerCase().replace(/[^a-z0-9]/g, '_')
-    return BUILTIN_TOKEN_LOGOS[key] || ''
-  }, [BUILTIN_TOKEN_LOGOS])
-  const enrichBySymbolTop = React.useCallback((tok) => {
-    const hasLogo = !!getLogoFromAnyTop(tok)
-    if (hasLogo) return tok
-    const sym = (tok?.symbol || tok?.name || '').toString().toLowerCase()
-    if (!sym) return tok
-    const found = tokensList.find(x => {
-      const rt = x.raw || {}
-      const s = (rt.symbol || rt.name || '').toString().toLowerCase()
-      return s && s === sym && !!getLogoFromAnyTop(rt)
-    })
-    if (found) {
-      const rt = found.raw
-      const logo = getLogoFromAnyTop(rt)
-      return { ...tok, logo }
-    }
-    const builtin = getBuiltinLogoForSymbolTop(sym)
-    if (builtin) return { ...tok, logo: builtin }
-    return tok
-  }, [tokensList, getLogoFromAnyTop, getBuiltinLogoForSymbolTop])
+  // No token logo fallbacks: rely only on provided logo fields
 
   const inputBase = {
     background: theme.bgPanel,
@@ -710,7 +778,7 @@ export default function RebalancingView({ walletTokens = [], getLiquidityPoolsDa
                   if (t0) toks.push((t0 && t0.token) ? t0.token : t0)
                   if (t1) toks.push((t1 && t1.token) ? t1.token : t1)
                 }
-                toks = toks.filter(Boolean).map(enrichBySymbolTop)
+                toks = toks.filter(Boolean)
                 if (toks.length >= 2) return <TokenDisplay tokens={[toks[0], toks[1]]} showName={false} showText={false} size={18} gap={6} showChain={true} />
                 if (toks.length === 1) return <TokenDisplay tokens={[toks[0]]} showName={false} showText={false} size={18} gap={6} showChain={true} />
                 return <div style={{ width: 18, height: 18, borderRadius: '50%', background: theme.bgPanel, border: `1px solid ${theme.border}` }} />
@@ -767,30 +835,15 @@ export default function RebalancingView({ walletTokens = [], getLiquidityPoolsDa
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     {fmtPct(Math.max(0, pctCurrent))}
-                    <span title={`Current: ${fmtUSD(curVal)}`} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, color: theme.textSecondary }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-                        <path d="M12 8.5h.01M11 11h1v5h1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </span>
+                    <InfoIconWithTooltip content={`Current: ${fmtUSD(curVal)}`} />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     {fmtPct(Math.max(0, pctTarget))}
-                    <span title={`Target: ${fmtUSD(targetVal)}`} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, color: theme.textSecondary }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-                        <path d="M12 8.5h.01M11 11h1v5h1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </span>
+                    <InfoIconWithTooltip content={`Target: ${fmtUSD(targetVal)}`} />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: (pctTarget - pctCurrent) > 0 ? (theme.successText || '#16a34a') : ((pctTarget - pctCurrent) < 0 ? (theme.dangerText || '#dc2626') : theme.textPrimary) }}>
                     {((pctTarget - pctCurrent) >= 0 ? '+' : '') + (pctTarget - pctCurrent).toFixed(2) + '%'}
-                    <span title={`Diff: ${fmtUSD(diffVal)}`} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-                        <path d="M12 8.5h.01M11 11h1v5h1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </span>
+                    <InfoIconWithTooltip content={`Diff: ${fmtUSD(diffVal)}`} />
                   </div>
                    <div>{row.note}</div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
@@ -972,44 +1025,6 @@ function AssetDropdown({ theme, assetType, value, options, onChange, tokensList 
     return t.logo || t.logoURI || t.image || t.icon || t.logoUrl || t.logo_url || t.iconUrl || t.icon_url || ''
   }
 
-  const BUILTIN_TOKEN_LOGOS = {
-    eth: 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
-    weth: 'https://assets.coingecko.com/coins/images/2518/small/weth.png',
-    wbtc: 'https://assets.coingecko.com/coins/images/7598/small/wrapped_bitcoin_wbtc.png',
-    usdc: 'https://assets.coingecko.com/coins/images/6319/small/usdc.png',
-    usdt: 'https://assets.coingecko.com/coins/images/325/small/Tether-logo.png',
-    dai: 'https://assets.coingecko.com/coins/images/9956/small/coin.png',
-    cbeth: 'https://assets.coingecko.com/coins/images/27008/small/cbeth.png',
-    cb_btc: 'https://assets.coingecko.com/coins/images/32417/small/cbbtc.png',
-    cbbtc: 'https://assets.coingecko.com/coins/images/32417/small/cbbtc.png'
-  }
-
-  const getBuiltinLogoForSymbol = (sym) => {
-    if (!sym) return ''
-    const key = sym.toString().toLowerCase().replace(/[^a-z0-9]/g, '_')
-    return BUILTIN_TOKEN_LOGOS[key] || ''
-  }
-
-  const enrichBySymbol = (tok) => {
-    const hasLogo = !!getLogoFromAny(tok)
-    if (hasLogo) return tok
-    const sym = (tok?.symbol || tok?.name || '').toString().toLowerCase()
-    if (!sym) return tok
-    const found = tokensList.find(x => {
-      const rt = x.raw || {}
-      const s = (rt.symbol || rt.name || '').toString().toLowerCase()
-      return s && s === sym && !!getLogoFromAny(rt)
-    })
-    if (found) {
-      const rt = found.raw
-      const logo = getLogoFromAny(rt)
-      return { ...tok, logo }
-    }
-    const builtin = getBuiltinLogoForSymbol(sym)
-    if (builtin) return { ...tok, logo: builtin }
-    return tok
-  }
-
   const renderAssetIcon = (type, opt) => {
     const raw = opt.raw || {}
     if (type === ITEM_TYPES.WALLET) {
@@ -1043,7 +1058,7 @@ function AssetDropdown({ theme, assetType, value, options, onChange, tokensList 
       if (t1) toks.push((t1 && t1.token) ? t1.token : t1)
     }
     toks = toks.filter(Boolean)
-    toks = toks.map(enrichBySymbol)
+  // No token logo fallbacks: rely only on provided logo fields
     if (toks.length >= 2) {
       return <TokenDisplay tokens={[toks[0], toks[1]]} showName={false} showText={false} size={18} gap={6} showChain={true} />
     }

@@ -32,12 +32,7 @@ public class WalletService : IWalletService
         var cachedResult = await _cacheService.GetAsync<WalletResponse>(cacheKey);
         
         if (cachedResult != null)
-        {
-            Console.WriteLine($"SUCCESS: WalletService: Cache hit for account {account} on chain {chain}");
             return cachedResult;
-        }
-
-        Console.WriteLine($"DEBUG: WalletService: Cache miss for account {account} on chain {chain}, fetching from services");
 
         var blockchainService = _blockchainServices.FirstOrDefault(s => s.IsValidAddress(account));
         
@@ -48,21 +43,13 @@ public class WalletService : IWalletService
 
         // Check if the service supports chain-specific calls
         if (blockchainService is EthereumService ethereumService)
-        {
             result = await ethereumService.GetWalletTokensAsync(account, chain);
-        }
         else
-        {
-            // Fallback to default method for other blockchain services
             result = await blockchainService.GetWalletTokensAsync(account);
-        }
 
-        // ?? BATCH TOKEN HYDRATION - Single operation for all tokens
         await HydrateTokenLogosInBatch(result.Items, chain);
 
-        // Cache the successful result (after hydration)
         await _cacheService.SetAsync(cacheKey, result);
-        Console.WriteLine($"SUCCESS: WalletService: Result cached for account {account} on chain {chain}");
 
         return result;
     }
@@ -76,10 +63,7 @@ public class WalletService : IWalletService
         var cachedResult = await _cacheService.GetAsync<WalletResponse>(cacheKey);
         
         if (cachedResult != null)
-        {
-            Console.WriteLine($"SUCCESS: WalletService: Multi-chain cache hit for account {account} with {chainList.Count} chains");
             return cachedResult;
-        }
 
         Console.WriteLine($"DEBUG: WalletService: Multi-chain cache miss for account {account}, fetching from services");
 

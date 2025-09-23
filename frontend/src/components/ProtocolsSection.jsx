@@ -256,16 +256,76 @@ const ProtocolsSection = ({
             </label>
           </div>
         )
+        // Decide layout AFTER we know which table(s) will render
+        const hasPools = !!(poolsGrouped && Object.keys(poolsGrouped).length > 0)
+        const hasLending = !!(lendingGroup && (lendingGroup.supplied.length > 0 || lendingGroup.borrowed.length > 0 || lendingGroup.rewards.length > 0))
+        const hasStaking = !!(stakingGroup && (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0))
+        // Pools: 5 cols (Pool|Range|Amount|Rewards|Value), Lending/Staking: 3 cols ([2,1,1])
+        const metricsRatio = hasPools ? [2,1,1,1,1] : [2,1,1]
+
+        // Summary row schema mirrors the visible table for pools
+        const poolSummaryColumns = hasPools
+          ? [
+              { key: 'pool', label: 'Pool', align: 'left', width: '33.333%' },
+              { key: 'range', label: 'Range', align: 'center', width: '16.667%' },
+              { key: 'amount', label: 'Amount', align: 'right', width: '16.667%' },
+              { key: 'rewards', label: 'Rewards', align: 'right', width: '16.667%' },
+              { key: 'value', label: 'Value', align: 'right', width: '16.667%' }
+            ]
+          : null
+        const renderPoolSummaryCell = (col) => {
+          if (col.key === 'pool') {
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ border: `1px solid ${theme.border}`, padding: '2px 6px', borderRadius: 6, fontSize: 12 }}>{protocolPercent}</span>
+                {infoBadges && (
+                  <span style={{ border: `1px solid ${theme.border}`, padding: '2px 6px', borderRadius: 6, fontSize: 12 }}>{infoBadges}</span>
+                )}
+              </div>
+            )
+          }
+          if (col.key === 'rewards') {
+            return totalRewardsValue > 0 ? maskValue(formatPrice(totalRewardsValue)) : null
+          }
+          if (col.key === 'value') {
+            return maskValue(formatPrice(protocolTotal))
+          }
+          return null
+        }
+
+        // Lending/Staking summary (no Rewards column): [2,1,1]
+        const lendingSummaryColumns = (!hasPools && (hasLending || hasStaking))
+          ? [
+              { key: 'title', label: 'Title', align: 'left', width: '66.667%' },
+              { key: 'amount', label: 'Amount', align: 'right', width: '16.667%' },
+              { key: 'value', label: 'Value', align: 'right', width: '16.667%' }
+            ]
+          : null
+        const renderLendingSummaryCell = (col) => {
+          if (col.key === 'title') {
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ border: `1px solid ${theme.border}`, padding: '2px 6px', borderRadius: 6, fontSize: 12 }}>{protocolPercent}</span>
+                {infoBadges && (
+                  <span style={{ border: `1px solid ${theme.border}`, padding: '2px 6px', borderRadius: 6, fontSize: 12 }}>{infoBadges}</span>
+                )}
+              </div>
+            )
+          }
+          if (col.key === 'value') {
+            return maskValue(formatPrice(protocolTotal))
+          }
+          return null
+        }
+
         return (
           <SectionTable
             key={protocolGroup.protocol.name}
             icon={icon}
             title={protocolGroup.protocol.name}
             transparentBody={true}
-            metricsRatio={[2,1,1,1]}
-            rightPercent={protocolPercent}
-            rightValue={maskValue(formatPrice(protocolTotal))}
-            rewardsValue={totalRewardsValue > 0 ? maskValue(formatPrice(totalRewardsValue)) : null}
+            summaryColumns={poolSummaryColumns || lendingSummaryColumns}
+            renderSummaryCell={(poolSummaryColumns ? renderPoolSummaryCell : (lendingSummaryColumns ? renderLendingSummaryCell : undefined))}
             isExpanded={protocolExpansions[protocolGroup.protocol.name] !== undefined ? protocolExpansions[protocolGroup.protocol.name] : true}
             onToggle={() => toggleProtocolExpansion(protocolGroup.protocol.name)}
             infoBadges={infoBadges}

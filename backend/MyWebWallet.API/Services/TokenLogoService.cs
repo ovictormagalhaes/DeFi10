@@ -10,8 +10,8 @@ public class TokenLogoService : ITokenLogoService
     private readonly IDatabase _database;
     private readonly IConfiguration _configuration;
     
-    // In-memory cache using ConcurrentDictionary for thread safety
-    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, string>> _memoryCache;
+    // In-memory cache (global by token address)
+    private readonly ConcurrentDictionary<string, string> _memoryCache;
     private readonly SemaphoreSlim _loadingSemaphore;
     private readonly string _tokenLogoKeyPrefix;
     private readonly TimeSpan _tokenLogoExpiration;
@@ -21,7 +21,7 @@ public class TokenLogoService : ITokenLogoService
     {
         _database = redis.GetDatabase();
         _configuration = configuration;
-        _memoryCache = new ConcurrentDictionary<string, ConcurrentDictionary<string, string>>();
+        _memoryCache = new ConcurrentDictionary<string, string>();
         _loadingSemaphore = new SemaphoreSlim(1, 1);
         _tokenLogoKeyPrefix = configuration["Redis:TokenLogoKeyPrefix"] ?? "token_logo:";
         
@@ -35,31 +35,21 @@ public class TokenLogoService : ITokenLogoService
     public async Task<string?> GetTokenLogoAsync(string tokenAddress, Chain chain)
     {
         if (!_isInitialized)
-        {
             await LoadAllTokensIntoMemoryAsync();
-        }
 
-        var chainKey = GetChainKey(chain);
         var normalizedAddress = NormalizeAddress(tokenAddress);
 
-        // Try memory cache first (fastest)
-        if (_memoryCache.TryGetValue(chainKey, out var chainCache) && 
-            chainCache.TryGetValue(normalizedAddress, out var logoUrl))
-        {
+        if (_memoryCache.TryGetValue(normalizedAddress, out var logoUrl))
             return logoUrl;
-        }
 
-        // Try Redis if not in memory (fallback)
         try
         {
-            var redisKey = GenerateRedisKey(tokenAddress, chain);
+            var redisKey = GenerateRedisKey(tokenAddress);
             var redisValue = await _database.StringGetAsync(redisKey);
             
             if (redisValue.HasValue)
             {
-                // Add to memory cache for future requests
-                EnsureChainCache(chainKey);
-                _memoryCache[chainKey][normalizedAddress] = redisValue!;
+                _memoryCache[normalizedAddress] = redisValue!;
                 return redisValue!;
             }
         }
@@ -73,20 +63,16 @@ public class TokenLogoService : ITokenLogoService
 
     public async Task SetTokenLogoAsync(string tokenAddress, Chain chain, string logoUrl)
     {
-        var chainKey = GetChainKey(chain);
         var normalizedAddress = NormalizeAddress(tokenAddress);
         
         try
         {
-            // Save to Redis first with configurable expiration for token logos
-            var redisKey = GenerateRedisKey(tokenAddress, chain);
+            // Save to Redis (global, without chain)
+            var redisKey = GenerateRedisKey(tokenAddress);
             await _database.StringSetAsync(redisKey, logoUrl, _tokenLogoExpiration);
             
             // Update memory cache
-            EnsureChainCache(chainKey);
-            _memoryCache[chainKey][normalizedAddress] = logoUrl;
-            
-            Console.WriteLine($"INFO: TokenLogoService: Added new token logo - {normalizedAddress} on {chain}");
+            _memoryCache[normalizedAddress] = logoUrl;            
         }
         catch (Exception ex)
         {
@@ -98,18 +84,10 @@ public class TokenLogoService : ITokenLogoService
     public async Task<Dictionary<string, string>> GetAllTokenLogosAsync(Chain chain)
     {
         if (!_isInitialized)
-        {
             await LoadAllTokensIntoMemoryAsync();
-        }
 
-        var chainKey = GetChainKey(chain);
-        
-        if (_memoryCache.TryGetValue(chainKey, out var chainCache))
-        {
-            return new Dictionary<string, string>(chainCache);
-        }
-        
-        return new Dictionary<string, string>();
+        // Return global cache (chain ignored)
+        return new Dictionary<string, string>(_memoryCache);
     }
 
     public async Task LoadAllTokensIntoMemoryAsync()
@@ -121,7 +99,7 @@ public class TokenLogoService : ITokenLogoService
         {
             if (_isInitialized) return; // Double-check after acquiring semaphore
 
-            Console.WriteLine("INFO: TokenLogoService: Loading all tokens into memory...");
+            Console.WriteLine("INFO: TokenLogoService: Loading all tokens into memory (global cache)...");
             
             var server = _database.Multiplexer.GetServer(_database.Multiplexer.GetEndPoints().First());
             var pattern = $"{_tokenLogoKeyPrefix}*";
@@ -135,14 +113,11 @@ public class TokenLogoService : ITokenLogoService
                     var logoUrl = await _database.StringGetAsync(key);
                     if (logoUrl.HasValue)
                     {
-                        var (tokenAddress, chain) = ParseRedisKey(key!);
-                        if (tokenAddress != null && chain.HasValue)
+                        var (address, _) = ParseRedisKey(key!);
+                        if (!string.IsNullOrEmpty(address))
                         {
-                            var chainKey = GetChainKey(chain.Value);
-                            var normalizedAddress = NormalizeAddress(tokenAddress);
-                            
-                            EnsureChainCache(chainKey);
-                            _memoryCache[chainKey][normalizedAddress] = logoUrl!;
+                            var normalizedAddress = NormalizeAddress(address);
+                            _memoryCache[normalizedAddress] = logoUrl!;
                             totalLoaded++;
                         }
                     }
@@ -154,7 +129,7 @@ public class TokenLogoService : ITokenLogoService
             }
 
             _isInitialized = true;
-            Console.WriteLine($"SUCCESS: TokenLogoService: Loaded {totalLoaded} token logos into memory");
+            Console.WriteLine($"SUCCESS: TokenLogoService: Loaded {totalLoaded} token logos into memory (global cache)");
         }
         catch (Exception ex)
         {
@@ -174,45 +149,44 @@ public class TokenLogoService : ITokenLogoService
             await LoadAllTokensIntoMemoryAsync();
         }
 
-        var chainKey = GetChainKey(chain);
-        return _memoryCache.TryGetValue(chainKey, out var chainCache) ? chainCache.Count : 0;
+        return _memoryCache.Count;
     }
-
-    private void EnsureChainCache(string chainKey)
-    {
-        _memoryCache.TryAdd(chainKey, new ConcurrentDictionary<string, string>());
-    }
-
-    private string GetChainKey(Chain chain) => chain.ToChainId();
 
     private string NormalizeAddress(string address) => address.ToLowerInvariant();
 
-    private string GenerateRedisKey(string tokenAddress, Chain chain)
+    // New: key without chain (global)
+    private string GenerateRedisKey(string tokenAddress)
     {
-        return $"{_tokenLogoKeyPrefix}{chain.ToChainId()}:{NormalizeAddress(tokenAddress)}";
+        return $"{_tokenLogoKeyPrefix}{NormalizeAddress(tokenAddress)}";
     }
 
+    // Parse key to address (supports old and new formats)
     private (string? tokenAddress, Chain? chain) ParseRedisKey(string redisKey)
     {
         try
         {
             var keyWithoutPrefix = redisKey.Substring(_tokenLogoKeyPrefix.Length);
-            var parts = keyWithoutPrefix.Split(':', 2);
-            
-            if (parts.Length == 2)
+            // Old format: {prefix}{chainId}:{address}
+            if (keyWithoutPrefix.Contains(':'))
             {
-                var chainId = parts[0];
-                var tokenAddress = parts[1];
-                
-                // Find chain by chainId
-                foreach (Chain chain in Enum.GetValues<Chain>())
+                var parts = keyWithoutPrefix.Split(':', 2);
+                if (parts.Length == 2)
                 {
-                    if (chain.ToChainId() == chainId)
+                    var chainId = parts[0];
+                    var tokenAddr = parts[1];
+                    foreach (Chain c in Enum.GetValues<Chain>())
                     {
-                        return (tokenAddress, chain);
+                        if (c.ToChainId() == chainId)
+                        {
+                            return (tokenAddr, c);
+                        }
                     }
+                    // Unknown chain; still return address
+                    return (tokenAddr, null);
                 }
             }
+            // New format: {prefix}{address}
+            return (keyWithoutPrefix, null);
         }
         catch (Exception ex)
         {
@@ -229,17 +203,15 @@ public class TokenLogoService : ITokenLogoService
             await LoadAllTokensIntoMemoryAsync();
         }
 
-        var chainKey = GetChainKey(chain);
         var result = new Dictionary<string, string?>();
         var missingTokens = new List<string>();
 
-        // Check memory cache for all tokens first
+        // Check memory cache for all tokens first (global)
         foreach (var tokenAddress in tokenAddresses)
         {
             var normalizedAddress = NormalizeAddress(tokenAddress);
             
-            if (_memoryCache.TryGetValue(chainKey, out var chainCache) && 
-                chainCache.TryGetValue(normalizedAddress, out var logoUrl))
+            if (_memoryCache.TryGetValue(normalizedAddress, out var logoUrl))
             {
                 result[normalizedAddress] = logoUrl;
             }
@@ -250,15 +222,13 @@ public class TokenLogoService : ITokenLogoService
             }
         }
 
-        // Batch fetch missing tokens from Redis
+        // Batch fetch missing tokens from Redis (global)
         if (missingTokens.Any())
         {
             try
             {
-                var redisKeys = missingTokens.Select(address => (RedisKey)GenerateRedisKey(address, chain)).ToArray();
+                var redisKeys = missingTokens.Select(address => (RedisKey)GenerateRedisKey(address)).ToArray();
                 var redisValues = await _database.StringGetAsync(redisKeys);
-                
-                EnsureChainCache(chainKey);
                 
                 for (int i = 0; i < missingTokens.Count; i++)
                 {
@@ -268,7 +238,7 @@ public class TokenLogoService : ITokenLogoService
                         var logoUrl = redisValues[i]!;
                         
                         // Update memory cache
-                        _memoryCache[chainKey][tokenAddress] = logoUrl;
+                        _memoryCache[tokenAddress] = logoUrl;
                         result[tokenAddress] = logoUrl;
                     }
                 }
@@ -286,12 +256,9 @@ public class TokenLogoService : ITokenLogoService
     {
         if (!tokenLogos.Any()) return;
 
-        var chainKey = GetChainKey(chain);
-        EnsureChainCache(chainKey);
-
         try
         {
-            // Prepare batch Redis operations
+            // Prepare batch Redis operations (global)
             var redisBatch = _database.CreateBatch();
             var tasks = new List<Task>();
 
@@ -299,20 +266,19 @@ public class TokenLogoService : ITokenLogoService
             {
                 var normalizedAddress = NormalizeAddress(kvp.Key);
                 var logoUrl = kvp.Value;
-                var redisKey = GenerateRedisKey(normalizedAddress, chain);
+                var redisKey = GenerateRedisKey(normalizedAddress);
                 
-                // Add to batch with configurable expiration for token logos
                 tasks.Add(redisBatch.StringSetAsync(redisKey, logoUrl, _tokenLogoExpiration));
                 
                 // Update memory cache immediately
-                _memoryCache[chainKey][normalizedAddress] = logoUrl;
+                _memoryCache[normalizedAddress] = logoUrl;
             }
 
             // Execute batch
             redisBatch.Execute();
             await Task.WhenAll(tasks);
             
-            Console.WriteLine($"INFO: TokenLogoService: Batch updated {tokenLogos.Count} token logos on {chain}");
+            Console.WriteLine($"INFO: TokenLogoService: Batch updated {tokenLogos.Count} token logos (global)");
         }
         catch (Exception ex)
         {
