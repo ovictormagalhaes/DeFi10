@@ -89,9 +89,6 @@ public class MoralisDeFiMapper : IWalletItemMapper<IEnumerable<GetDeFiPositionsM
         {
             "supplied" => TokenType.Supplied,
             "borrowed" => TokenType.Borrowed,
-            "reward" => TokenType.Reward,
-            "native" => TokenType.Native,
-            "staked" => TokenType.Staked,
             _ => null
         };
     }

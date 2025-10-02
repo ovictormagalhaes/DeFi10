@@ -1,4 +1,11 @@
 // Utility functions for wallet data processing and formatting
+import { 
+  filterSuppliedTokens, 
+  filterBorrowedTokens, 
+  filterRewardTokens,
+  isRewardToken,
+  normalizeTokenPrice
+} from './tokenFilters';
 
 // Normalize financials block into flat token fields (mutates the object for convenience)
 export function normalizeFinancials(token) {
@@ -23,6 +30,7 @@ export const ITEM_TYPES = {
   LIQUIDITY_POOL: 2,
   LENDING_AND_BORROWING: 3,
   STAKING: 4,
+  GROUP: 98, // virtual grouping type (frontend only)
 };
 
 // Filter items by type from a unified data array
@@ -201,11 +209,15 @@ export function formatTokenAmount(token, maxDecimals = 4) {
 // Helper: truncate (not round) and format with up to maxDecimals, dropping trailing zeros
 function truncateAndFormat(value, maxDecimals) {
   if (typeof value !== 'number' || !isFinite(value)) return '-';
-  const factor = Math.pow(10, maxDecimals);
+  // Sanitize maxDecimals: must be an integer between 0 and 20 for toLocaleString
+  let md = Number(maxDecimals);
+  if (isNaN(md) || !isFinite(md)) md = 4; // fallback default
+  md = Math.min(20, Math.max(0, Math.trunc(md)));
+  const factor = Math.pow(10, md);
   const truncated = Math.trunc(value * factor) / factor;
   return truncated.toLocaleString('en-US', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: maxDecimals,
+    maximumFractionDigits: md,
   });
 }
 
@@ -545,29 +557,10 @@ export function groupTokensByPool(positions) {
 
     const tokensArray = Array.isArray(position.tokens) ? position.tokens : [];
     tokensArray.forEach(normalizeFinancials);
-    const suppliedTokens = tokensArray.filter((token) => {
-      const t = (token.type || '').toString().toLowerCase();
-      return t === 'supplied' || t === 'supply' || t === 'deposit' || !t;
-    });
-    const rewardTokensFromTokens = tokensArray.filter((token) => {
-      const t = (token.type || '').toString().toLowerCase();
-      const sym = (token.symbol || '').toLowerCase();
-      const name = (token.name || '').toLowerCase();
-
-      // Check explicit type
-      if (t === 'reward' || t === 'rewards') return true;
-
-      // Check by symbol/name patterns
-      const isLikelyReward =
-        sym.includes('reward') ||
-        name.includes('reward') ||
-        sym.includes('comp') ||
-        sym.includes('crv') ||
-        sym.includes('cake') ||
-        sym.includes('uni');
-
-      return isLikelyReward;
-    });
+    // Use unified filtering utilities
+    const suppliedTokens = filterSuppliedTokens(tokensArray);
+    const rewardTokensFromTokens = filterRewardTokens(tokensArray);
+    
     const rewardsArray =
       rewardTokensFromTokens.length > 0
         ? rewardTokensFromTokens
@@ -611,4 +604,305 @@ export function groupTokensByPool(positions) {
   });
 
   return grouped;
+}
+
+// Unified portfolio breakdown utility to ensure consistent math across Summary, Analytics, Protocols.
+// Params are arrays already fetched by getters in App: walletTokens (flat token objects),
+// liquidityGroups (groupDefiByProtocol(getLiquidityPoolsData())), lendingGroups (groupDefiByProtocol(...)), stakingPositions (raw staking positions array)
+// filterLendingDefiTokens / filterStakingDefiTokens to respect user toggles for internal tokens.
+export function computePortfolioBreakdown({
+  walletTokens = [],
+  liquidityGroups = [],
+  lendingGroups = [],
+  stakingPositions = [],
+  filterLendingDefiTokens = (toks) => toks || [],
+  filterStakingDefiTokens = (toks) => toks || [],
+  showLendingDefiTokens = true,
+  showStakingDefiTokens = true,
+}) {
+  // Wallet gross
+  const walletValue = walletTokens.reduce((sum, td) => {
+    const tok = td.token || td;
+    const v = parseFloat(tok.totalPrice) || 0;
+    return sum + (isFinite(v) ? v : 0);
+  }, 0);
+
+  // Liquidity gross (supplied side only) – rewards not counted here (already inside tokens if priced)
+  const liquidityValue = liquidityGroups.reduce((total, group) => {
+    return (
+      total +
+      group.positions.reduce(
+        (sum, pos) =>
+          sum +
+          (pos.tokens?.reduce((tokenSum, t) => tokenSum + (parseFloat(t.totalPrice) || 0), 0) || 0),
+        0
+      )
+    );
+  }, 0);
+
+  // Lending supplied & borrowed separated (classify using groupTokensByType so internal aTokens contam)
+  let lendingSupplied = 0;
+  let lendingBorrowed = 0;
+  lendingGroups.forEach((group) => {
+    group.positions.forEach((pos) => {
+      const rawTokens = Array.isArray(pos.tokens) ? pos.tokens : [];
+      const filteredTokens = filterLendingDefiTokens(rawTokens, showLendingDefiTokens);
+      // Se filtro removeu tudo (ex: internos ocultos), ainda classificamos base bruta para não perder supply real
+      const classificationBase = filteredTokens.length > 0 ? filteredTokens : rawTokens;
+      if (classificationBase.length === 0) return;
+      const tempGrouped = groupTokensByType([
+        { position: pos.position || pos, tokens: classificationBase },
+      ]);
+      (tempGrouped.supplied || []).forEach((t) => {
+        const v = Math.abs(parseFloat(t.totalPrice) || 0);
+        if (isFinite(v)) lendingSupplied += v;
+      });
+      (tempGrouped.borrowed || []).forEach((t) => {
+        const v = Math.abs(parseFloat(t.totalPrice) || 0);
+        if (isFinite(v)) lendingBorrowed += v;
+      });
+      // rewards ignorados
+    });
+  });
+  const lendingNet = lendingSupplied - lendingBorrowed; // can be negative
+
+  // Staking total (treat balances as positive assets)
+  const stakingValue = stakingPositions.reduce((sum, pos) => {
+    // Primary numeric field is balance (already USD) or totalPrice inside tokens
+    const balance = parseFloat(pos.balance) || 0;
+    if (balance) return sum + balance;
+    if (Array.isArray(pos.tokens)) {
+      const toks = filterStakingDefiTokens(pos.tokens, showStakingDefiTokens);
+      const val = toks.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0);
+      return sum + val;
+    }
+    return sum;
+  }, 0);
+
+  const defiGross = liquidityValue + lendingSupplied + stakingValue; // borrowed excluded from gross
+  const defiNet = liquidityValue + lendingNet + stakingValue; // borrowed subtracts
+  const totalNet = walletValue + defiNet;
+
+  return {
+    walletValue,
+    liquidityValue,
+    lendingSupplied,
+    lendingBorrowed,
+    lendingNet,
+    stakingValue,
+    defiGross,
+    defiNet,
+    totalNet,
+  };
+}
+
+/**
+ * extractRewards
+ * Heurística compartilhada para extrair uma lista plana de possíveis reward/incentive tokens
+ * de um objeto de posição heterogêneo (evita duplicar lógica em múltiplas views como PoolsView).
+ * Retorna array (não deduplica) mantendo referência original dos objetos.
+ */
+export function extractRewards(positionLike){
+  const pos = positionLike?.position || positionLike;
+  if(!pos || typeof pos !== 'object') return [];
+  const rewards = [];
+  const candidateArrays = [
+    pos.rewards, pos.position?.rewards,
+    pos.incentives, pos.position?.incentives,
+    pos.rewardTokens, pos.position?.rewardTokens,
+    pos.distributions, pos.emissions,
+    pos.farmingRewards, pos.gaugeRewards,
+    pos.bribes, pos.bribeRewards,
+    pos.stakingRewards, pos.uncollectedRewards,
+    pos.unclaimedRewards,
+  ];
+  candidateArrays.forEach(arr => {
+    if(Array.isArray(arr)) arr.forEach(r=> { if(r) rewards.push(r?.token || r); });
+  });
+  const nested = [pos.meta, pos.extra, pos.additionalData, pos.additionalInfo];
+  const keys = ['rewards','incentives','rewardTokens','distributions','emissions','farmingRewards','gaugeRewards','bribeRewards','unclaimedRewards'];
+  nested.forEach(container => {
+    if(!container || typeof container !== 'object') return;
+    keys.forEach(k => {
+      const arr = container[k];
+      if(Array.isArray(arr)) arr.forEach(r=> { if(r) rewards.push(r?.token || r); });
+    });
+  });
+  return rewards.filter(Boolean);
+}
+
+// -------------------------------------------------------------
+// Percentage & Portfolio Total Helpers (centralized exports)
+// -------------------------------------------------------------
+// Some components (e.g. SummaryProtocolsCard, TokensMenu) previously relied on
+// global inline helpers. We expose a shared implementation here.
+
+let __portfolioTotalValue = 0; // module-scoped cached total (net) in USD
+
+/**
+ * setTotalPortfolioValue
+ * Allows the app shell (e.g. after computePortfolioBreakdown) to register the
+ * current total net portfolio value so that leaf components which only import
+ * utils (and not the full breakdown object) can derive percentages.
+ */
+export function setTotalPortfolioValue(value){
+  const num = Number(value);
+  if(!isNaN(num) && isFinite(num)) {
+    __portfolioTotalValue = num;
+  }
+}
+
+/**
+ * getTotalPortfolioValue
+ * Returns the last registered portfolio total. If never set, returns 0.
+ */
+export function getTotalPortfolioValue(){
+  return __portfolioTotalValue;
+}
+
+/**
+ * calculatePercentage
+ * Consistent percentage formatting with tiny value handling.
+ * value: part value (>= 0), total: denominator (> 0)
+ * options.decimals: number of fraction digits (default 2)
+ * options.minDisplay: minimal non-zero shown threshold (default 0.01 => '<0.01%')
+ */
+export function calculatePercentage(value, total, options = {}){
+  const { decimals = 2, minDisplay = 0.01 } = options;
+  const v = Number(value);
+  const t = Number(total);
+  if(!t || isNaN(v) || !isFinite(v) || v <= 0) return '0%';
+  const pct = (v / t) * 100;
+  if(pct > 0 && pct < minDisplay) return `<${minDisplay.toFixed(decimals)}%`;
+  return `${pct.toFixed(decimals)}%`;
+}
+
+/**
+ * extractPoolRange
+ * Função unificada para extrair informações de range de pools de liquidez
+ * de um objeto de posição heterogêneo de forma consistente
+ */
+export function extractPoolRange(positionLike) {
+  const pos = positionLike?.position || positionLike;
+  if (!pos || typeof pos !== 'object') return null;
+
+  // Try direct range objects first
+  const rangeCandidates = [
+    pos.range,
+    positionLike.range, // check original object too  
+    positionLike.additionalData?.range, // check additionalData on root object
+    pos.position?.range,
+    pos.meta?.range,
+    pos.extra?.range,
+    pos.priceRange,
+    pos.additionalData?.range,
+    pos.additionalInfo?.range
+  ].filter(Boolean);
+
+  let range = rangeCandidates[0] || null;
+
+  // If no direct range object, try to construct from individual fields
+  if (!range) {
+    const lower = pos.lower ?? pos.tickLower ?? pos.min ?? pos.minPrice ?? pos.priceMin ?? pos.lowerPrice;
+    const upper = pos.upper ?? pos.tickUpper ?? pos.max ?? pos.maxPrice ?? pos.priceMax ?? pos.upperPrice;
+    const current = pos.current ?? pos.spotPrice ?? pos.price ?? pos.currentPrice ?? pos.midPrice;
+
+    if (lower != null && upper != null) {
+      const lNum = parseFloat(lower);
+      const uNum = parseFloat(upper);
+      const cNum = parseFloat(current);
+      
+      if (isFinite(lNum) && isFinite(uNum)) {
+        range = {
+          lower: lNum,
+          upper: uNum,
+          current: isFinite(cNum) ? cNum : (lNum + uNum) / 2,
+          inRange: isFinite(cNum) ? (cNum >= lNum && cNum <= uNum) : true
+        };
+      }
+    }
+  }
+
+  // Normalize range object if it has different field names
+  if (range && (typeof range.lower === 'undefined') && (range.min != null || range.max != null)) {
+    const lNum = parseFloat(range.min ?? range.lower ?? range.low);
+    const uNum = parseFloat(range.max ?? range.upper ?? range.high);
+    const cNum = parseFloat(range.current ?? range.mid ?? range.price ?? range.spot);
+    
+    if (isFinite(lNum) && isFinite(uNum)) {
+      range = {
+        lower: lNum,
+        upper: uNum,
+        current: isFinite(cNum) ? cNum : (lNum + uNum) / 2,
+        inRange: isFinite(cNum) ? (cNum >= lNum && cNum <= uNum) : true
+      };
+    }
+  }
+
+  return range;
+}
+
+/**
+ * extractPoolFees24h
+ * Função unificada para extrair informações de fees 24h de pools de liquidez
+ */
+export function extractPoolFees24h(positionLike) {
+  console.log('🔍 extractPoolFees24h - objeto completo:', positionLike);
+  
+  const pos = positionLike?.position || positionLike;
+  if (!pos || typeof pos !== 'object') {
+    console.log('❌ extractPoolFees24h - pos inválido:', pos);
+    return null;
+  }
+
+  // Check additional data first (common in Uniswap V3 data)
+  const additionalData = positionLike.additionalData || pos.additionalData;
+  console.log('📊 extractPoolFees24h - additionalData:', additionalData);
+  
+  if (additionalData && additionalData.fees24h != null) {
+    const fees = parseFloat(additionalData.fees24h);
+    console.log('✅ extractPoolFees24h - fees24h encontrado:', additionalData.fees24h, '→', fees);
+    return isFinite(fees) ? fees : null;
+  } else {
+    console.log('⚠️ extractPoolFees24h - fees24h não encontrado no additionalData');
+  }
+
+  // Try various fee field candidates
+  const feeCandidates = [
+    pos.fees24h,
+    pos.fees24H,
+    pos.fees_24h,
+    pos.fees_last_24h,
+    pos.volumeFees24h,
+    pos.dailyFees,
+    pos.daily_fees,
+    pos.feeVolume,
+    pos.fee_volume,
+    pos.feesEarned,
+    pos.fees_earned,
+    pos.feesUSD,
+    pos.fees_usd,
+    pos.feesGenerated,
+    pos.fees_generated,
+    pos.tradingFees,
+    pos.trading_fees,
+    pos.protocolFees,
+    pos.protocol_fees,
+    pos.lpFees,
+    pos.lp_fees
+  ];
+
+  for (const candidate of feeCandidates) {
+    if (candidate != null) {
+      const fees = parseFloat(candidate);
+      console.log('🔄 extractPoolFees24h - testando candidato:', candidate, '→', fees);
+      if (isFinite(fees) && fees >= 0) {
+        console.log('✅ extractPoolFees24h - candidato válido encontrado:', fees);
+        return fees;
+      }
+    }
+  }
+
+  console.log('❌ extractPoolFees24h - nenhum fees24h encontrado, retornando null');
+  return null;
 }

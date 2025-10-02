@@ -75,17 +75,22 @@ const AdvancedAnalytics = ({
   const totalValue = getTotalPortfolioValue();
 
   // Dados para o gráfico de distribuição
-  const distributionData = [
+  // Causa raiz do bug (>100%): totalValue pode estar menor que a soma das categorias
+  // por tratar passivos (ex: borrowed) como negativos ou usar lógica diferente para pools.
+  // Para o gráfico de composição queremos a participação relativa entre categorias positivas.
+  const distributionItems = [
     { label: 'Wallet Assets', value: walletValue, color: '#3b82f6' },
     { label: 'Liquidity Pools', value: liquidityValue, color: '#10b981' },
     { label: 'Lending/Borrowing', value: lendingValue, color: '#8b5cf6' },
     { label: 'Staking', value: stakingValue, color: '#f59e0b' },
-  ]
-    .filter((item) => item.value > 0)
-    .map((item) => ({
-      ...item,
-      percentage: ((item.value / totalValue) * 100).toFixed(1),
-    }));
+  ].filter((item) => item.value > 0);
+
+  const distributionTotal = distributionItems.reduce((sum, i) => sum + i.value, 0) || 1;
+
+  const distributionData = distributionItems.map((item) => ({
+    ...item,
+    percentage: ((item.value / distributionTotal) * 100).toFixed(1),
+  }));
 
   // Top tokens por valor (agregando todos os protocolos)
   const getAllTokensAggregated = () => {

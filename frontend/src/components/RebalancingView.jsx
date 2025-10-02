@@ -4,10 +4,11 @@ import { config } from '../config/api';
 import { useTheme } from '../context/ThemeProvider';
 // import { getFontStyles } from '../styles/fontStyles'; // (Unused after refactor)
 import { ITEM_TYPES } from '../utils/walletUtils';
+import { RebalanceAssetType, RebalanceReferenceTypeEnum, getAssetTypeLabel } from '../constants/rebalanceEnums';
 
 import TokenDisplay from './TokenDisplay';
-import ValueWithTooltip from './ValueWithTooltip';
 import { formatPercent, formatUsd } from '../utils/formatting';
+import { useMaskValues } from '../context/MaskValuesContext';
 import IconButton from './IconButton';
 import StandardHeader from './table/StandardHeader';
 import Skeleton from './Skeleton';
@@ -25,18 +26,21 @@ const RebalanceReferenceType = {
 // Unified control height for selects and dropdowns
 const CONTROL_HEIGHT = 38;
 
+// Asset type select now uses backend numeric enums (migrating from ITEM_TYPES for persistence)
 const ASSET_TYPE_OPTIONS = [
-  { value: ITEM_TYPES.WALLET, label: 'Wallet' },
-  { value: ITEM_TYPES.LIQUIDITY_POOL, label: 'Liquidity Pools' },
-  { value: ITEM_TYPES.LENDING_AND_BORROWING, label: 'Lending & Borrowing' },
-  { value: ITEM_TYPES.STAKING, label: 'Staking' },
+  { value: RebalanceAssetType.Wallet, label: 'Wallet' },
+  { value: RebalanceAssetType.LiquidityPool, label: 'Liquidity Pools' },
+  { value: RebalanceAssetType.LendingAndBorrowing, label: 'Lending Position' },
+  { value: RebalanceAssetType.Staking, label: 'Staking Position' },
+  { value: RebalanceAssetType.Group, label: 'Group' },
 ];
 
 const GROUP_OPTIONS = [
-  { value: ITEM_TYPES.WALLET, label: 'Wallet' },
-  { value: ITEM_TYPES.LIQUIDITY_POOL, label: 'Liquidity Pools' },
-  { value: ITEM_TYPES.LENDING_AND_BORROWING, label: 'Lending & Borrowing' },
-  { value: ITEM_TYPES.STAKING, label: 'Staking' },
+  { value: RebalanceAssetType.Wallet, label: 'Wallet' },
+  { value: RebalanceAssetType.LiquidityPool, label: 'Liquidity Pools' },
+  { value: RebalanceAssetType.LendingAndBorrowing, label: 'Lending Position' },
+  { value: RebalanceAssetType.Staking, label: 'Staking Position' },
+  { value: RebalanceAssetType.Group, label: 'Group' },
 ];
 
 export default function RebalancingView({
@@ -53,6 +57,7 @@ export default function RebalancingView({
   // Theme (allow override via prop, else context)
   const { theme: themeCtx } = useTheme();
   const theme = themeProp || themeCtx;
+  const { maskValue } = useMaskValues();
 
   // Normalize chain identifier for token grouping / id composition
   const getChainKey = React.useCallback((tok) => {
@@ -107,6 +112,19 @@ export default function RebalancingView({
       return { id, label, raw: tok };
     });
   }, [walletTokens, getChainKey]);
+
+  // Virtual group definitions (can be extended or sourced from config later)
+  const virtualGroups = React.useMemo(() => [
+    { id: 'group:stablecoins', label: 'Stablecoins', members: ['USDC','USDT','DAI','FRAX','LUSD'] },
+    { id: 'group:lending', label: 'Lending Positions', members: [] },
+    { id: 'group:liquidity', label: 'Liquidity Pools', members: [] },
+    { id: 'group:staking', label: 'Staking Positions', members: [] },
+    { id: 'group:defi', label: 'DeFi Positions', members: [] },
+  ], []);
+
+  const groupList = React.useMemo(() => {
+    return virtualGroups.map(g => ({ id: g.id, label: g.label, raw: g }));
+  }, [virtualGroups]);
 
   // Simple loading heuristic: if no tokens yet but account exists, show skeleton placeholders
   const isLoadingPrimary = (!walletTokens || walletTokens.length === 0) && !!account;
@@ -164,7 +182,6 @@ export default function RebalancingView({
     });
   }, [getStakingData]);
 
-  // (Tooltip logic moved to shared InfoIconWithTooltip component used by ValueWithTooltip)
 
   const allDefi = React.useMemo(() => {
     return [
@@ -218,24 +235,36 @@ export default function RebalancingView({
   const [entries, setEntries] = React.useState([]);
   const [saving, setSaving] = React.useState(false);
   const [saveResult, setSaveResult] = React.useState(null);
+  const [saveError, setSaveError] = React.useState(null);
+  const [didInitialLoad, setDidInitialLoad] = React.useState(false);
+
+  // Map reference type to backend enum numeric values (Token=0, Protocol=1, Group=2, TotalWallet=3)
+  const REF_ENUM_MAP = React.useMemo(() => ({
+    [RebalanceReferenceType.Token]: RebalanceReferenceTypeEnum.Token,
+    [RebalanceReferenceType.Protocol]: RebalanceReferenceTypeEnum.Protocol,
+    [RebalanceReferenceType.Group]: RebalanceReferenceTypeEnum.Group,
+    [RebalanceReferenceType.TotalWallet]: RebalanceReferenceTypeEnum.TotalWallet,
+  }), []);
   const [showDialog, setShowDialog] = React.useState(false);
   const [editingId, setEditingId] = React.useState(null);
 
   // Options based on selections
   const assetOptions = React.useMemo(() => {
     switch (assetType) {
-      case ITEM_TYPES.WALLET:
+      case RebalanceAssetType.Wallet:
         return tokensList;
-      case ITEM_TYPES.LIQUIDITY_POOL:
+      case RebalanceAssetType.LiquidityPool:
         return poolsList;
-      case ITEM_TYPES.LENDING_AND_BORROWING:
+      case RebalanceAssetType.LendingAndBorrowing:
         return lendingList;
-      case ITEM_TYPES.STAKING:
+      case RebalanceAssetType.Staking:
         return stakingList;
+      case RebalanceAssetType.Group:
+        return groupList;
       default:
         return [];
     }
-  }, [assetType, tokensList, poolsList, lendingList, stakingList]);
+  }, [assetType, tokensList, poolsList, lendingList, stakingList, groupList]);
 
   const referenceOptions = React.useMemo(() => {
     switch (referenceType) {
@@ -266,16 +295,35 @@ export default function RebalancingView({
     referenceType !== '' &&
     (referenceType === RebalanceReferenceType.TotalWallet || referenceValue);
 
+  // Legacy migration: convert any in-memory entries using old virtual GROUP=98 to backend enum 6
+  React.useEffect(() => {
+    setEntries(prev => {
+      let changed = false;
+      const mapped = prev.map(e => {
+        if (e.assetType === 98) { // old group value
+          changed = true;
+          const newType = RebalanceAssetType.Group;
+            return {
+              ...e,
+              assetType: newType,
+              id: e.id.replace(/^98-/, `${newType}-`),
+            };
+        }
+        return e;
+      });
+      return changed ? mapped : prev;
+    });
+  }, []);
+
   const handleAdd = () => {
     if (!canAdd) return;
-    const atLabel =
-      ASSET_TYPE_OPTIONS.find((a) => a.value === assetType)?.label || String(assetType);
+    const atLabel = ASSET_TYPE_OPTIONS.find((a) => a.value === assetType)?.label || getAssetTypeLabel(assetType);
     const assetLabel = assetOptions.find((a) => a.id === assetId)?.label || assetId;
     const refLabel =
       referenceType === RebalanceReferenceType.TotalWallet
         ? 'Total Wallet'
         : referenceOptions.find((r) => r.id === referenceValue)?.label || referenceValue;
-    const newId = `${assetType}-${assetId}-${referenceType}-${referenceValue || 'total'}`;
+  const newId = `${assetType}-${assetId}-${referenceType}-${referenceValue || 'total'}`;
     setEntries((prev) => {
       if (prev.some((e) => e.id === newId)) return prev; // prevent duplicates
       return [
@@ -406,22 +454,22 @@ export default function RebalancingView({
     const map = new Map();
     entries.forEach((e) => {
       let cur = 0;
-      if (e.assetType === ITEM_TYPES.WALLET) {
+      if (e.assetType === RebalanceAssetType.Wallet) {
         const tok = tokensList.find((o) => o.id === e.assetId)?.raw;
         cur = tokenTotalPrice(tok);
-      } else if (e.assetType === ITEM_TYPES.LIQUIDITY_POOL) {
+      } else if (e.assetType === RebalanceAssetType.LiquidityPool) {
         const raw = poolsList.find((o) => o.id === e.assetId)?.raw;
         const pos = raw?.position || raw;
         const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
         if (toks.length) cur = toks.reduce((s, t) => s + tokenTotalPrice(t), 0);
         else cur = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
-      } else if (e.assetType === ITEM_TYPES.LENDING_AND_BORROWING) {
+      } else if (e.assetType === RebalanceAssetType.LendingAndBorrowing) {
         const raw = lendingList.find((o) => o.id === e.assetId)?.raw;
         const pos = raw?.position || raw;
         const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
         if (toks.length) cur = toks.reduce((s, t) => s + signedTokenValue(t, pos), 0);
         else cur = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
-      } else if (e.assetType === ITEM_TYPES.STAKING) {
+      } else if (e.assetType === RebalanceAssetType.Staking) {
         const raw = stakingList.find((o) => o.id === e.assetId)?.raw;
         const pos = raw?.position || raw;
         // Prefer explicit totalPrice/value; else sum tokens; else use balance (already USD?)
@@ -431,6 +479,70 @@ export default function RebalancingView({
           const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
           if (toks.length) cur = toks.reduce((s, t) => s + tokenTotalPrice(t), 0);
           else cur = toNumber(pos?.balance);
+        }
+      } else if (e.assetType === RebalanceAssetType.Group) {
+        // Aggregate based on virtual group id
+        const gid = e.assetId; // e.g., group:liquidity, group:lending, group:staking, group:defi, group:stablecoins
+        if (gid === 'group:liquidity') {
+          cur = poolsList.reduce((s, o) => {
+            const pos = o.raw?.position || o.raw;
+            const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
+            if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
+            const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+            return s + explicit;
+          }, 0);
+        } else if (gid === 'group:lending') {
+          cur = lendingList.reduce((s, o) => {
+            const pos = o.raw?.position || o.raw;
+            const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
+            if (toks.length) return s + toks.reduce((ss, t) => ss + signedTokenValue(t, pos), 0);
+            const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+            return s + explicit;
+          }, 0);
+        } else if (gid === 'group:staking') {
+          cur = stakingList.reduce((s, o) => {
+            const pos = o.raw?.position || o.raw;
+            const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+            if (explicit) return s + explicit;
+            const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
+            if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
+            return s + toNumber(pos?.balance);
+          }, 0);
+        } else if (gid === 'group:defi') {
+          // Defi = liquidity + lending + staking
+          const liq = poolsList.reduce((s, o) => {
+            const pos = o.raw?.position || o.raw;
+            const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
+            if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
+            const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+            return s + explicit;
+          }, 0);
+          const lend = lendingList.reduce((s, o) => {
+            const pos = o.raw?.position || o.raw;
+            const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
+            if (toks.length) return s + toks.reduce((ss, t) => ss + signedTokenValue(t, pos), 0);
+            const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+            return s + explicit;
+          }, 0);
+            const stake = stakingList.reduce((s, o) => {
+              const pos = o.raw?.position || o.raw;
+              const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+              if (explicit) return s + explicit;
+              const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
+              if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
+              return s + toNumber(pos?.balance);
+            }, 0);
+          cur = liq + lend + stake;
+        } else if (gid === 'group:stablecoins') {
+          // Sum wallet tokens whose symbol is in the stablecoin group definition
+          const stableGroup = virtualGroups.find(v => v.id === 'group:stablecoins');
+          const syms = new Set((stableGroup?.members || []).map(s => s.toUpperCase()));
+          cur = tokensList.reduce((s, o) => {
+            const tok = o.raw?.token || o.raw;
+            const sym = (tok?.symbol || tok?.name || '').toUpperCase();
+            if (syms.has(sym)) return s + tokenTotalPrice(tok);
+            return s;
+          }, 0);
         }
       }
       map.set(e.id, cur);
@@ -445,6 +557,7 @@ export default function RebalancingView({
     getPositionTokens,
     tokenTotalPrice,
     signedTokenValue,
+    virtualGroups,
   ]);
 
   // Total portfolio current value (Wallet + Liquidity + Lending net + Staking)
@@ -526,24 +639,22 @@ export default function RebalancingView({
     const protoById = new Map(protocolsList.map((p) => [p.id, p]));
 
     const mapRefType = (n) => {
-      if (n === 0) return RebalanceReferenceType.Token;
-      if (n === 1) return RebalanceReferenceType.Protocol;
-      if (n === 2) return RebalanceReferenceType.Group;
-      if (n === 3) return RebalanceReferenceType.TotalWallet;
+      if (n === RebalanceReferenceTypeEnum.Token) return RebalanceReferenceType.Token;
+      if (n === RebalanceReferenceTypeEnum.Protocol) return RebalanceReferenceType.Protocol;
+      if (n === RebalanceReferenceTypeEnum.Group) return RebalanceReferenceType.Group;
+      if (n === RebalanceReferenceTypeEnum.TotalWallet) return RebalanceReferenceType.TotalWallet;
       return RebalanceReferenceType.Protocol;
     };
 
     const makeAssetLabel = (assetId, type) => {
+      const groupById = new Map(groupList.map(g => [g.id, g]));
       const src =
-        type === ITEM_TYPES.WALLET
-          ? tokenById
-          : type === ITEM_TYPES.LIQUIDITY_POOL
-            ? poolById
-            : type === ITEM_TYPES.LENDING_AND_BORROWING
-              ? lendById
-              : type === ITEM_TYPES.STAKING
-                ? stakeById
-                : null;
+        type === RebalanceAssetType.Wallet ? tokenById
+        : type === RebalanceAssetType.LiquidityPool ? poolById
+        : type === RebalanceAssetType.LendingAndBorrowing ? lendById
+        : type === RebalanceAssetType.Staking ? stakeById
+        : type === RebalanceAssetType.Group ? groupById
+        : null;
       return src?.get(assetId)?.label || assetId;
     };
 
@@ -561,11 +672,13 @@ export default function RebalancingView({
 
     const mapped = initialSavedItems.map((it) => {
       const refType = mapRefType(it.byGroupType);
+      // Legacy migration: frontend previously sent GROUP=98; map to backend enum 6
+      const migratedType = (it.type === 98) ? RebalanceAssetType.Group : it.type;
       const entry = {
-        id: `${it.type}-${it.asset}-${refType}-${refType === RebalanceReferenceType.TotalWallet ? 'total' : it.value || ''}`,
-        assetType: it.type,
+        id: `${migratedType}-${it.asset}-${refType}-${refType === RebalanceReferenceType.TotalWallet ? 'total' : it.value || ''}`,
+        assetType: migratedType,
         assetId: it.asset,
-        assetLabel: makeAssetLabel(it.asset, it.type),
+        assetLabel: makeAssetLabel(it.asset, migratedType),
         referenceType: refType,
         referenceValue: it.value,
         referenceLabel: makeRefLabel(refType, it.value),
@@ -584,6 +697,107 @@ export default function RebalancingView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSavedItems, tokensList, poolsList, lendingList, stakingList, protocolsList]);
 
+  // Mark initial load done (for auto-save skip)
+  React.useEffect(() => {
+    if (!didInitialLoad) setDidInitialLoad(true);
+  }, [entries, didInitialLoad]);
+
+  const saveRebalance = React.useCallback(async () => {
+    if (entries.length === 0) {
+      setSaveResult(null);
+      return;
+    }
+    try {
+      setSaving(true);
+      setSaveError(null);
+      const findLogosForEntry = (entry) => {
+        const type = entry.assetType;
+        let logos = [];
+        const pickFromTokens = (tokens) => {
+          tokens.forEach(t => {
+            if (logos.length >= 2) return;
+            const tok = t?.token || t;
+            const lg = tok?.logo || tok?.logoURI || tok?.image || tok?.icon || tok?.logoUrl || tok?.logo_url || tok?.iconUrl || tok?.icon_url;
+            if (lg && !logos.includes(lg)) logos.push(lg);
+          });
+        };
+        if (type === RebalanceAssetType.Wallet) {
+          const tok = tokensList.find(x => x.id === entry.assetId)?.raw || {};
+          const lg = tok?.logo || tok?.logoURI || tok?.image || tok?.icon || tok?.logoUrl || tok?.logo_url || tok?.iconUrl || tok?.icon_url;
+          if (lg) logos.push(lg);
+        } else if (type === RebalanceAssetType.LiquidityPool) {
+          const pool = poolsList.find(x => x.id === entry.assetId)?.raw?.position || poolsList.find(x => x.id === entry.assetId)?.raw;
+          if (pool) {
+            if (Array.isArray(pool.tokens) && pool.tokens.length) pickFromTokens(pool.tokens);
+            if (logos.length === 0) {
+              const lg = pool.logo || pool.logoURI || pool.image || pool.icon || pool.logoUrl || pool.logo_url || pool.iconUrl || pool.icon_url;
+              if (lg) logos.push(lg);
+            }
+          }
+        } else if (type === RebalanceAssetType.LendingAndBorrowing) {
+          const lend = lendingList.find(x => x.id === entry.assetId)?.raw?.position || lendingList.find(x => x.id === entry.assetId)?.raw;
+          if (lend && Array.isArray(lend.tokens)) pickFromTokens(lend.tokens);
+        } else if (type === RebalanceAssetType.Staking) {
+          const stake = stakingList.find(x => x.id === entry.assetId)?.raw?.position || stakingList.find(x => x.id === entry.assetId)?.raw;
+          if (stake && Array.isArray(stake.tokens)) pickFromTokens(stake.tokens);
+        }
+        return { Logo1: logos[0], Logo2: logos[1] };
+      };
+      const payload = {
+        AccountId: account || undefined,
+        Items: entries.map((e) => {
+          const logos = saveResult?.entriesHash ? null : findLogosForEntry(e); // Always recalc (could hash later)
+          return {
+            Version: '1',
+            Asset: e.assetId,
+            Type: e.assetType,
+            Note: e.note,
+            ByGroupType: REF_ENUM_MAP[e.referenceType] ?? 0,
+            Value: e.referenceType === RebalanceReferenceType.TotalWallet ? null : e.referenceValue || e.referenceLabel,
+            AdditionalInfo: logos,
+          };
+        }),
+      };
+      const res = await fetch(`${config.API_BASE_URL}/api/v1/rebalances`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        let msg = `Save failed: ${res.status} ${res.statusText}`;
+        try {
+          const errJson = await res.json();
+          if (errJson?.title || errJson?.error) msg += ` - ${errJson.title || errJson.error}`;
+          if (errJson?.errors) msg += `\n${JSON.stringify(errJson.errors)}`;
+        } catch {
+          const text = await res.text();
+          if (text) msg += ` - ${text}`;
+        }
+        throw new Error(msg);
+      }
+      const data = await res.json();
+      setSaveResult({ key: data.key, itemsCount: data.itemsCount, accounts: data.accounts, savedAt: new Date() });
+    } catch (err) {
+      console.error('Auto-save error', err);
+      setSaveError(err.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }, [entries, account, REF_ENUM_MAP, RebalanceReferenceType.TotalWallet, tokensList, poolsList, lendingList, stakingList]);
+
+  // Auto-save: debounce minimal (300ms) after changes, skip initial population
+  const saveTimerRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!didInitialLoad) return; // skip first population
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    if (entries.length === 0) {
+      setSaveResult(null);
+      return;
+    }
+    saveTimerRef.current = setTimeout(() => { saveRebalance(); }, 300);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [entries, didInitialLoad, saveRebalance]);
+
   // Duplicate detection for current selection (used to disable Add in dialog)
   const candidateId =
     assetType !== '' && assetId && referenceType !== ''
@@ -593,13 +807,7 @@ export default function RebalancingView({
     ? entries.some((e) => e.id === candidateId && e.id !== editingId)
     : false;
 
-  // Map reference type to backend enum numeric values (Token=0, Protocol=1, Group=2, TotalWallet=3)
-  const REF_ENUM_MAP = {
-    [RebalanceReferenceType.Token]: 0,
-    [RebalanceReferenceType.Protocol]: 1,
-    [RebalanceReferenceType.Group]: 2,
-    [RebalanceReferenceType.TotalWallet]: 3,
-  };
+  // (REF_ENUM_MAP declared earlier)
 
   return (
     <div className="panel rebalance-panel pad-16 text-primary">
@@ -650,10 +858,11 @@ export default function RebalancingView({
       {entries.length > 0 && (
         <div className="mt-20 flex column gap-20">
           {[
-            { type: ITEM_TYPES.WALLET, label: 'Wallet' },
-            { type: ITEM_TYPES.LIQUIDITY_POOL, label: 'Liquidity Pools' },
-            { type: ITEM_TYPES.LENDING_AND_BORROWING, label: 'Lending & Borrowing' },
-            { type: ITEM_TYPES.STAKING, label: 'Staking' },
+            { type: RebalanceAssetType.Wallet, label: 'Wallet' },
+            { type: RebalanceAssetType.LiquidityPool, label: 'Liquidity Pools' },
+            { type: RebalanceAssetType.LendingAndBorrowing, label: 'Lending Position' },
+            { type: RebalanceAssetType.Staking, label: 'Staking Position' },
+            { type: RebalanceAssetType.Group, label: 'Group' },
           ].map(group => {
             const groupEntries = entries.filter(e => e.assetType === group.type);
             if (!groupEntries.length && !isLoadingPrimary) return null;
@@ -668,9 +877,9 @@ export default function RebalancingView({
                   <StandardHeader
                     columnDefs={[
                       // Icon + name are merged in the first (token) column; remaining metric/action columns follow
-                      { key: 'current', label: '% Current', align: 'right' },
-                      { key: 'target', label: '% Target', align: 'right' },
-                      { key: 'diff', label: '% Diff', align: 'right' },
+                      { key: 'current', label: 'Current', align: 'right' },
+                      { key: 'target', label: 'Target', align: 'right' },
+                      { key: 'diff', label: 'Diff', align: 'right' },
                       { key: 'note', label: 'Note', align: 'left' },
                       { key: 'actions', label: '', align: 'right', className: 'col-actions' },
                     ]}
@@ -695,19 +904,19 @@ export default function RebalancingView({
                       ))
                       : groupEntries.map((row, idx) => {
                         let assetOpt = null;
-                        if (row.assetType === ITEM_TYPES.WALLET)
+                        if (row.assetType === RebalanceAssetType.Wallet)
                           assetOpt = tokensList.find((o) => o.id === row.assetId);
-                        else if (row.assetType === ITEM_TYPES.LIQUIDITY_POOL)
+                        else if (row.assetType === RebalanceAssetType.LiquidityPool)
                           assetOpt = poolsList.find((o) => o.id === row.assetId);
-                        else if (row.assetType === ITEM_TYPES.LENDING_AND_BORROWING)
+                        else if (row.assetType === RebalanceAssetType.LendingAndBorrowing)
                           assetOpt = lendingList.find((o) => o.id === row.assetId);
-                        else if (row.assetType === ITEM_TYPES.STAKING)
+                        else if (row.assetType === RebalanceAssetType.Staking)
                           assetOpt = stakingList.find((o) => o.id === row.assetId);
 
                         const renderAssetIcons = () => {
                           if (!assetOpt) return null;
                           const raw = assetOpt.raw || {};
-                          if (row.assetType === ITEM_TYPES.WALLET) {
+                          if (row.assetType === RebalanceAssetType.Wallet) {
                             return (
                               <TokenDisplay
                                 tokens={[raw]}
@@ -718,6 +927,9 @@ export default function RebalancingView({
                                 showChain={true}
                               />
                             );
+                          }
+                          if (row.assetType === RebalanceAssetType.Group) {
+                            return null; // groups no icon
                           }
                           const pos = raw.position || raw;
                           let toks = [];
@@ -764,7 +976,7 @@ export default function RebalancingView({
                         const pctCurrent = curSum > 0 ? (curVal / curSum) * 100 : 0;
                         const pctTarget = noteSum > 0 ? ((Number(row.note) || 0) / noteSum) * 100 : 0;
                         const fmtPct = (n) => formatPercent(n, { decimals: 2 });
-                        const fmtUSD = (n) => formatUsd(n, { decimals: 2 });
+                        const fmtUSD = (n) => maskValue(formatUsd(n, { decimals: 2 }));
                         const targetVal = noteSum > 0 ? ((Number(row.note) || 0) / noteSum) * curSum : 0;
                         const diffVal = targetVal - curVal;
 
@@ -777,28 +989,39 @@ export default function RebalancingView({
                               </span>
                             </td>
                             <td className="td td-right td-mono tabular-nums text-primary col-current">
-                              <ValueWithTooltip
-                                value={fmtPct(Math.max(0, pctCurrent))}
-                                tooltip={`Current: ${fmtUSD(curVal)}`}
-                              />
+                              {(() => {
+                                const pctStr = fmtPct(Math.max(0, pctCurrent));
+                                return (
+                                  <div className="flex column align-end" style={{ lineHeight: '14px' }}>
+                                    <span style={{ fontSize: 12 }}>{pctStr}</span>
+                                    <span className="text-secondary" style={{ fontSize: 11 }}>{fmtUSD(curVal)}</span>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="td td-right td-mono tabular-nums text-primary col-target">
-                              <ValueWithTooltip
-                                value={fmtPct(Math.max(0, pctTarget))}
-                                tooltip={`Target: ${fmtUSD(targetVal)}`}
-                              />
+                              {(() => {
+                                const pctStr = fmtPct(Math.max(0, pctTarget));
+                                return (
+                                  <div className="flex column align-end" style={{ lineHeight: '14px' }}>
+                                    <span style={{ fontSize: 12 }}>{pctStr}</span>
+                                    <span className="text-secondary" style={{ fontSize: 11 }}>{fmtUSD(targetVal)}</span>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="td td-right td-mono tabular-nums text-primary col-diff">
                               {(() => {
                                 const diffPct = pctTarget - pctCurrent;
-                                const cls = diffPct > 0 ? 'text-positive' : diffPct < 0 ? 'text-negative' : 'text-secondary';
                                 const arrow = diffPct > 0 ? '▲' : diffPct < 0 ? '▼' : '•';
+                                const cls = diffPct > 0 ? 'text-positive' : diffPct < 0 ? 'text-negative' : 'text-secondary';
+                                const pctStr = `${arrow} ${formatPercent(diffPct, { decimals: 2, sign: true })}`;
+                                const valStr = fmtUSD(diffVal);
                                 return (
-                                  <ValueWithTooltip
-                                    value={`${arrow} ${formatPercent(diffPct, { decimals: 2, sign: true })}`}
-                                    tooltip={`Diff: ${fmtUSD(diffVal)}`}
-                                    className={cls}
-                                  />
+                                  <div className={`flex column align-end`} style={{ lineHeight: '14px' }}>
+                                    <span className={cls} style={{ fontSize: 12 }}>{pctStr}</span>
+                                    <span className="text-secondary" style={{ fontSize: 11 }}>{valStr}</span>
+                                  </div>
                                 );
                               })()}
                             </td>
@@ -853,73 +1076,19 @@ export default function RebalancingView({
           })}
         </div>
       )}
-      {/* Save bar */}
-      <div className="save-bar mt-20">
+      {/* Auto-save status bar (no manual button) */}
+      <div className="save-bar mt-20" style={{ justifyContent: 'space-between' }}>
         <div>
-          {saveResult ? (
+          {entries.length === 0 && <span>Adicione items para iniciar configuração.</span>}
+          {entries.length > 0 && !saveResult && saving && <span>Saving…</span>}
+          {entries.length > 0 && !saving && saveResult && (
             <span>
-              Saved: key {saveResult.key} • items {saveResult.itemsCount} • accounts{' '}
-              {Array.isArray(saveResult.accounts) ? saveResult.accounts.join(', ') : ''}
+              Auto-saved: key {saveResult.key} • {saveResult.itemsCount} items{saveResult.savedAt ? ` • ${saveResult.savedAt.toLocaleTimeString()}` : ''}
             </span>
-          ) : (
-            <span>{entries.length ? 'Add more items or save your configuration' : 'Add items and click Save to persist'}</span>
           )}
+          {saveError && <span className="text-negative">Erro ao salvar: {saveError}</span>}
         </div>
-        <button
-          disabled={saving || entries.length === 0}
-          className="btn btn--primary"
-          onClick={async () => {
-            try {
-              setSaving(true);
-              setSaveResult(null);
-              const payload = {
-                AccountId: account || undefined,
-                Items: entries.map((e) => ({
-                  Version: '1',
-                  Asset: e.assetId,
-                  Type: e.assetType,
-                  Note: e.note,
-                  ByGroupType: REF_ENUM_MAP[e.referenceType] ?? 0,
-                  Value:
-                    e.referenceType === RebalanceReferenceType.TotalWallet
-                      ? null
-                      : e.referenceValue || e.referenceLabel,
-                })),
-              };
-              const res = await fetch(`${config.API_BASE_URL}/api/v1/rebalances`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-              });
-              if (!res.ok) {
-                let msg = `Save failed: ${res.status} ${res.statusText}`;
-                try {
-                  const errJson = await res.json();
-                  if (errJson?.title || errJson?.error)
-                    msg += ` - ${errJson.title || errJson.error}`;
-                  if (errJson?.errors) msg += `\n${JSON.stringify(errJson.errors)}`;
-                } catch {
-                  const text = await res.text();
-                  if (text) msg += ` - ${text}`;
-                }
-                throw new Error(msg);
-              }
-              const data = await res.json();
-              setSaveResult({
-                key: data.key,
-                itemsCount: data.itemsCount,
-                accounts: data.accounts,
-              });
-            } catch (err) {
-              console.error('Save error', err);
-              alert(err.message || 'Save failed');
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        {saving && <span className="text-secondary" style={{ fontSize: 12 }}>sync…</span>}
       </div>
     </div>
   );
@@ -980,7 +1149,7 @@ function AssetDropdown({
       );
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {renderAssetIcon(assetType, selected)}
+  {assetType === RebalanceAssetType.Group ? null : renderAssetIcon(assetType, selected)}
         <span style={{ color: theme.textPrimary }}>{selected.label}</span>
       </div>
     );
@@ -1002,7 +1171,8 @@ function AssetDropdown({
   };
 
   const renderAssetIcon = (type, opt) => {
-    const raw = opt.raw || {};
+  if (type === RebalanceAssetType.Group) return null;
+  const raw = opt.raw || {};
     if (type === ITEM_TYPES.WALLET) {
       const tok = raw;
       return (
@@ -1127,7 +1297,7 @@ function AssetDropdown({
                   setOpen(false);
                 }}
               >
-                {renderAssetIcon(assetType, opt)}
+                {assetType === RebalanceAssetType.Group ? null : renderAssetIcon(assetType, opt)}
                 <span className="text-ellipsis-sm">{opt.label}</span>
               </button>
             ))}

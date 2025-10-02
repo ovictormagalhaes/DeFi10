@@ -7,7 +7,7 @@ public interface ITokenFactory
 {
     Token CreateSupplied(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd);
     Token CreateBorrowed(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd);
-    Token CreateReward(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd);
+    Token CreateUncollectedReward(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd);
 }
 
 public sealed class TokenFactory : ITokenFactory
@@ -18,8 +18,8 @@ public sealed class TokenFactory : ITokenFactory
     public Token CreateBorrowed(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd)
         => Build(TokenType.Borrowed, name, symbol, contract, chain, decimals, formattedAmount, unitPriceUsd);
 
-    public Token CreateReward(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd)
-        => Build(TokenType.Reward, name, symbol, contract, chain, decimals, formattedAmount, unitPriceUsd);
+    public Token CreateUncollectedReward(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd)
+        => Build(TokenType.LiquidityUncollectedFee, name, symbol, contract, chain, decimals, formattedAmount, unitPriceUsd);
 
     private static Token Build(TokenType type, string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd)
     {

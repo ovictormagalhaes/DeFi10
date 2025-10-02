@@ -126,232 +126,7 @@ const CircleAlertIcon = ({ color, width = 14, height = 14, style = {}, onClick =
   </svg>
 );
 
-// Percentage badge with tooltip component
-const PercentBadge = ({ value, fontStyles, theme, style = {}, showTooltip = false }) => {
-  const [showDialog, setShowDialog] = useState(false);
-  const [dialogPosition, setDialogPosition] = useState({ top: 0, left: 0 });
-  const containerRef = React.useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showDialog && !event.target.closest('.percent-badge-container')) {
-        setShowDialog(false);
-      }
-    };
-
-    if (showDialog) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [showDialog]);
-
-  const handleIconClick = (e) => {
-    e.stopPropagation();
-
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setDialogPosition({
-        top: rect.bottom + 4,
-        left: rect.left + rect.width / 2,
-      });
-    }
-
-    setShowDialog(!showDialog);
-  };
-
-  return (
-    <div className="percent-badge-container" style={{ position: 'relative' }} ref={containerRef}>
-      <span
-        className="badge badge-secondary"
-        style={{
-          minWidth: 60,
-          gap: 4,
-          paddingRight: showTooltip ? '6px' : '8px',
-          cursor: 'default',
-          fontFamily: 'monospace',
-          ...style,
-        }}
-      >
-        {value}
-        {showTooltip && (
-          <CircleAlertIcon
-            color={showDialog ? theme.info : theme.textSecondary}
-            width={12}
-            height={12}
-            style={{ cursor: 'pointer' }}
-            onClick={handleIconClick}
-          />
-        )}
-      </span>
-
-      {/* Dialog */}
-      {showDialog && showTooltip && (
-        <div
-          style={{
-            position: 'fixed',
-            top: dialogPosition.top,
-            left: dialogPosition.left,
-            transform: 'translateX(-50%)',
-            backgroundColor: theme.bgPanel,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 8,
-            padding: '12px 16px',
-            boxShadow: theme.shadowHover || '0 4px 12px rgba(0,0,0,0.25)',
-            zIndex: 10000,
-            minWidth: 250,
-            maxWidth: 300,
-            ...fontStyles.secondary,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          This percentage represents the proportion of the total portfolio value held in this
-          category.
-          <div
-            style={{
-              position: 'absolute',
-              top: -6,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 0,
-              height: 0,
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderBottom: `6px solid ${theme.border}`,
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: -5,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 0,
-              height: 0,
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderBottom: `6px solid ${theme.bgPanel}`,
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Condensed percentage badge with tooltip component
-const CondensedPercentBadge = ({ value, fontStyles, theme, style = {}, showTooltip = false }) => {
-  const [showDialog, setShowDialog] = useState(false);
-  const [dialogPosition, setDialogPosition] = useState({ top: 0, left: 0 });
-  const containerRef = React.useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showDialog && !event.target.closest('.condensed-percent-badge-container')) {
-        setShowDialog(false);
-      }
-    };
-
-    if (showDialog) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [showDialog]);
-
-  const handleIconClick = (e) => {
-    e.stopPropagation();
-
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setDialogPosition({
-        top: rect.bottom + 4,
-        left: rect.left + rect.width / 2,
-      });
-    }
-
-    setShowDialog(!showDialog);
-  };
-
-  return (
-    <div
-      className="condensed-percent-badge-container"
-      style={{ position: 'relative' }}
-      ref={containerRef}
-    >
-      <span
-        style={createCondensedBadgeStyle(fontStyles.secondary, theme, {
-          minWidth: 70,
-          textAlign: 'center',
-          gap: 4,
-          paddingRight: showTooltip ? '6px' : '8px',
-          cursor: 'default',
-          ...style,
-        })}
-      >
-        {value}
-        {showTooltip && (
-          <CircleAlertIcon
-            color={showDialog ? theme.info : theme.textSecondary}
-            width={12}
-            height={12}
-            style={{ cursor: 'pointer' }}
-            onClick={handleIconClick}
-          />
-        )}
-      </span>
-
-      {/* Dialog */}
-      {showDialog && showTooltip && (
-        <div
-          style={{
-            position: 'fixed',
-            top: dialogPosition.top,
-            left: dialogPosition.left,
-            transform: 'translateX(-50%)',
-            backgroundColor: theme.bgPanel,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 8,
-            padding: '12px 16px',
-            boxShadow: theme.shadowHover || '0 4px 12px rgba(0,0,0,0.25)',
-            zIndex: 10000,
-            minWidth: 250,
-            maxWidth: 300,
-            ...fontStyles.secondary,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          This percentage represents the proportion of the total portfolio value held in this
-          category.
-          <div
-            style={{
-              position: 'absolute',
-              top: -6,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 0,
-              height: 0,
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderBottom: `6px solid ${theme.border}`,
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: -5,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 0,
-              height: 0,
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderBottom: `6px solid ${theme.bgPanel}`,
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-};
+import MiniMetric from './MiniMetric';
 
 const createMenuOption = (
   checked,
@@ -556,11 +331,7 @@ export default function SectionTable({
                               <td style={{ padding: '0px' }}>
                                 <div style={createFlexRow(6)}>
                                   {infoBadges && (
-                                    <span
-                                      style={createBadgeStyle(fontStyles.monospaceSmall, theme)}
-                                    >
-                                      {infoBadges}
-                                    </span>
+                                    <div className="mini-metric-pill">{infoBadges}</div>
                                   )}
                                 </div>
                               </td>
@@ -568,12 +339,7 @@ export default function SectionTable({
                               <td style={{ padding: '0px', textAlign: 'center' }}>
                                 <div style={createFlexCenter(6)}>
                                   {rightPercent !== null && (
-                                    <PercentBadge
-                                      value={rightPercent}
-                                      fontStyles={fontStyles}
-                                      theme={theme}
-                                      showTooltip={true}
-                                    />
+                                    <MiniMetric value={rightPercent} />
                                   )}
                                   {actions}
                                 </div>
@@ -588,20 +354,13 @@ export default function SectionTable({
                               {/* 4-col: badges */}
                               <td style={{ padding: '0px' }}>
                                 {infoBadges && (
-                                  <span style={createBadgeStyle(fontStyles.monospaceSmall, theme)}>
-                                    {infoBadges}
-                                  </span>
+                                  <div className="mini-metric-pill">{infoBadges}</div>
                                 )}
                               </td>
                               {/* 4-col: percent */}
                               <td style={{ padding: '0px', textAlign: 'center' }}>
                                 {rightPercent !== null && (
-                                  <PercentBadge
-                                    value={rightPercent}
-                                    fontStyles={fontStyles}
-                                    theme={theme}
-                                    showTooltip={true}
-                                  />
+                                  <MiniMetric value={rightPercent} />
                                 )}
                               </td>
                               {/* 4-col: actions/options */}
@@ -813,23 +572,10 @@ export default function SectionTable({
                                 <td style={{ padding: '0 0px' }}>
                                   <div style={createFlexRow(8)}>
                                     {rightPercent !== null && (
-                                      <CondensedPercentBadge
-                                        value={rightPercent}
-                                        fontStyles={fontStyles}
-                                        theme={theme}
-                                        showTooltip={true}
-                                      />
+                                      <MiniMetric value={rightPercent} />
                                     )}
                                     {infoBadges && (
-                                      <span
-                                        style={createCondensedBadgeStyle(
-                                          fontStyles.secondary,
-                                          theme,
-                                          { maxWidth: '100%' }
-                                        )}
-                                      >
-                                        {infoBadges}
-                                      </span>
+                                      <div className="mini-metric-pill">{infoBadges}</div>
                                     )}
                                     {optionsExpanded && optionsMenu && (
                                       <div
@@ -861,23 +607,10 @@ export default function SectionTable({
                                 <td style={{ padding: '0px' }}>
                                   <div style={createFlexRow(8)}>
                                     {rightPercent !== null && (
-                                      <CondensedPercentBadge
-                                        value={rightPercent}
-                                        fontStyles={fontStyles}
-                                        theme={theme}
-                                        showTooltip={true}
-                                      />
+                                      <MiniMetric value={rightPercent} />
                                     )}
                                     {infoBadges && (
-                                      <span
-                                        style={createCondensedBadgeStyle(
-                                          fontStyles.secondary,
-                                          theme,
-                                          { maxWidth: '100%' }
-                                        )}
-                                      >
-                                        {infoBadges}
-                                      </span>
+                                      <div className="mini-metric-pill">{infoBadges}</div>
                                     )}
                                   </div>
                                 </td>

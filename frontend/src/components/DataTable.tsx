@@ -4,6 +4,7 @@ export interface DataTableColumn<T extends Record<string, unknown>> {
   id: string; // data key fallback
   label?: string;
   align?: 'left' | 'center' | 'right';
+  width?: number | string; // optional fixed width (px or any css unit)
   headerClassName?: string;
   cellClassName?: string;
   render?: (row: T, rowIndex: number) => React.ReactNode;
@@ -34,16 +35,24 @@ export function DataTable<T extends Record<string, unknown>>({
     <div className={`data-table w-full ${className}`.trim()}>
       <div className={`table ${headerRowClassName}`.trim()}>
         <div className="table-row">
-          {columns.map((col) => (
-            <div
-              key={col.id}
-              className={`table-cell table-header-cell ${col.headerClassName || ''} ${
-                col.align ? `text-${col.align}` : ''
-              }`.trim()}
-            >
-              {col.label || ''}
-            </div>
-          ))}
+          {columns.map((col) => {
+            const style: React.CSSProperties = {};
+            if (col.width !== undefined) {
+              style.width = typeof col.width === 'number' ? `${col.width}px` : col.width;
+              style.flex = '0 0 auto';
+            }
+            return (
+              <div
+                key={col.id}
+                className={`table-cell table-header-cell ${col.headerClassName || ''} ${
+                  col.align ? `text-${col.align}` : ''
+                }`.trim()}
+                style={style}
+              >
+                {col.label || ''}
+              </div>
+            );
+          })}
         </div>
       </div>
       <div className="table">
@@ -63,12 +72,18 @@ export function DataTable<T extends Record<string, unknown>>({
                 if (col.render) content = col.render(row, rIdx);
                 else if (col.accessor) content = col.accessor(row);
                 else content = (row as Record<string, unknown>)[col.id] as React.ReactNode;
+                const style: React.CSSProperties = {};
+                if (col.width !== undefined) {
+                  style.width = typeof col.width === 'number' ? `${col.width}px` : col.width;
+                  style.flex = '0 0 auto';
+                }
                 return (
                   <div
                     key={col.id}
                     className={`table-cell ${col.cellClassName || ''} ${
                       col.align ? `text-${col.align}` : ''
                     }`.trim()}
+                    style={style}
                   >
                     {content}
                   </div>

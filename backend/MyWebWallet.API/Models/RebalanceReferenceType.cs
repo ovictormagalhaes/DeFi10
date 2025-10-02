@@ -2,8 +2,9 @@ namespace MyWebWallet.API.Models;
 
 public enum RebalanceReferenceType
 {
-    Token,
-    Protocol,
-    Group,
-    TotalWallet
+    Unknown = 0,
+    Token = 1,
+    Protocol = 2,
+    Group = 3,
+    TotalWallet = 4
 }

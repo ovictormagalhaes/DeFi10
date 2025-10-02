@@ -1,8 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net;
 using System.Text.Json;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
 using MyWebWallet.API.Services.Interfaces;
 using ChainEnum = MyWebWallet.API.Models.Chain;
@@ -44,64 +43,116 @@ public class CoinMarketCapService : ICoinMarketCapService
         }
     }
 
-    public async Task<decimal?> GetPriceUsdAsync(string symbol, ChainEnum? chain = null, CancellationToken ct = default)
-    {
-        if (!_opts.Enabled || string.IsNullOrWhiteSpace(symbol)) return null;
-        var res = await GetPricesUsdAsync(new[] { symbol }, ct);
-        return res.TryGetValue(symbol, out var price) ? price : null;
-    }
-
-    public async Task<IDictionary<string, decimal?>> GetPricesUsdAsync(IEnumerable<string> symbols, CancellationToken ct = default)
+    public async Task<CmcQuotesLatestV2Response?> GetQuotesLatestV2Async(IEnumerable<string> symbols, CancellationToken ct = default)
     {
         var list = symbols.Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         if (!_opts.Enabled || list.Length == 0)
-            return list.ToDictionary(s => s, _ => (decimal?)null, StringComparer.OrdinalIgnoreCase);
-
+        {
+            return new CmcQuotesLatestV2Response();
+        }
         var joined = string.Join(',', list.Select(s => s.ToUpperInvariant()));
-        var url = $"{_opts.BaseUrl}/cryptocurrency/quotes/latest?symbol={joined}";
+        var url = $"{_opts.BaseUrl}/cryptocurrency/quotes/latest?symbol={joined}"; // v2 uses same endpoint with multiple symbols
         try
         {
             using var resp = await _http.GetAsync(url, ct);
             if (resp.StatusCode == (HttpStatusCode)429)
             {
-                _logger.LogWarning("CMC rate limited 429 symbols={Count}", list.Length);
-                return list.ToDictionary(s => s, _ => (decimal?)null, StringComparer.OrdinalIgnoreCase);
+                _logger.LogWarning("CMC v2 rate limited 429 symbols={Count}", list.Length);
+                return new CmcQuotesLatestV2Response();
             }
             if (!resp.IsSuccessStatusCode)
             {
-                _logger.LogWarning("CMC failure status={Status} symbols={Count}", resp.StatusCode, list.Length);
-                return list.ToDictionary(s => s, _ => (decimal?)null, StringComparer.OrdinalIgnoreCase);
+                _logger.LogWarning("CMC v2 failure status={Status} symbols={Count}", resp.StatusCode, list.Length);
+                return new CmcQuotesLatestV2Response();
             }
-            await using var stream = await resp.Content.ReadAsStreamAsync(ct);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-            if (!doc.RootElement.TryGetProperty("data", out var data))
-                return list.ToDictionary(s => s, _ => (decimal?)null, StringComparer.OrdinalIgnoreCase);
-            var result = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
-            foreach (var s in list)
+            var json = await resp.Content.ReadAsStringAsync(ct);
+            var node = JsonNode.Parse(json);
+            if (node == null) return new CmcQuotesLatestV2Response();
+            var result = new CmcQuotesLatestV2Response();
+            var statusNode = node["status"];
+            if (statusNode != null)
             {
-                decimal? price = null;
-                if (data.TryGetProperty(s.ToUpperInvariant(), out var sym) &&
-                    sym.TryGetProperty("quote", out var quote) &&
-                    quote.TryGetProperty("USD", out var usd) &&
-                    usd.TryGetProperty("price", out var priceEl) && priceEl.TryGetDecimal(out var p))
+                result.Status = new CmcStatus
                 {
-                    price = p;
+                    Timestamp = TryParseDate(statusNode["timestamp"]?.GetValue<string>()),
+                    ErrorCode = statusNode["error_code"]?.GetValue<int?>() ?? 0,
+                    ErrorMessage = statusNode["error_message"]?.GetValue<string>(),
+                    Elapsed = statusNode["elapsed"]?.GetValue<int?>() ?? 0,
+                    CreditCount = statusNode["credit_count"]?.GetValue<int?>() ?? 0,
+                    Notice = statusNode["notice"]?.GetValue<string>()
+                };
+            }
+            var dataNode = node["data"] as JsonObject;
+            if (dataNode != null)
+            {
+                foreach (var kv in dataNode)
+                {
+                    if (kv.Value is not JsonObject assetObj) continue;
+                    var asset = new CmcAssetQuote
+                    {
+                        Id = assetObj["id"]?.GetValue<int?>() ?? 0,
+                        Name = assetObj["name"]?.GetValue<string>() ?? string.Empty,
+                        Symbol = assetObj["symbol"]?.GetValue<string>() ?? kv.Key,
+                        Slug = assetObj["slug"]?.GetValue<string>() ?? string.Empty,
+                        IsActive = assetObj["is_active"]?.GetValue<int?>() ?? 0,
+                        IsFiat = assetObj["is_fiat"]?.GetValue<int?>() ?? 0,
+                        CirculatingSupply = assetObj["circulating_supply"]?.GetValue<decimal?>(),
+                        TotalSupply = assetObj["total_supply"]?.GetValue<decimal?>(),
+                        MaxSupply = assetObj["max_supply"]?.GetValue<decimal?>(),
+                        DateAdded = TryParseDate(assetObj["date_added"]?.GetValue<string>()),
+                        NumMarketPairs = assetObj["num_market_pairs"]?.GetValue<int?>(),
+                        CmcRank = assetObj["cmc_rank"]?.GetValue<int?>(),
+                        LastUpdated = TryParseDate(assetObj["last_updated"]?.GetValue<string>())
+                    };
+                    if (assetObj["tags"] is JsonArray tagArr)
+                    {
+                        asset.Tags = tagArr.Select(t => t?.GetValue<string>() ?? string.Empty).Where(t => !string.IsNullOrEmpty(t)).ToList();
+                    }
+                    if (assetObj["quote"] is JsonObject quoteObj)
+                    {
+                        foreach (var qkv in quoteObj)
+                        {
+                            if (qkv.Value is not JsonObject fiatObj) continue;
+                            var fq = new CmcFiatQuote
+                            {
+                                Price = fiatObj["price"]?.GetValue<decimal?>(),
+                                Volume24h = fiatObj["volume_24h"]?.GetValue<decimal?>(),
+                                VolumeChange24h = fiatObj["volume_change_24h"]?.GetValue<decimal?>(),
+                                PercentChange1h = fiatObj["percent_change_1h"]?.GetValue<decimal?>(),
+                                PercentChange24h = fiatObj["percent_change_24h"]?.GetValue<decimal?>(),
+                                PercentChange7d = fiatObj["percent_change_7d"]?.GetValue<decimal?>(),
+                                PercentChange30d = fiatObj["percent_change_30d"]?.GetValue<decimal?>(),
+                                MarketCap = fiatObj["market_cap"]?.GetValue<decimal?>(),
+                                MarketCapDominance = fiatObj["market_cap_dominance"]?.GetValue<decimal?>(),
+                                FullyDilutedMarketCap = fiatObj["fully_diluted_market_cap"]?.GetValue<decimal?>(),
+                                LastUpdated = TryParseDate(fiatObj["last_updated"]?.GetValue<string>())
+                            };
+                            asset.Quote[qkv.Key] = fq;
+                        }
+                    }
+                    result.Data[kv.Key] = asset;
                 }
-                result[s] = price;
             }
             return result;
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
         {
-            _logger.LogInformation("CMC request canceled symbols={Count}", list.Length);
+            _logger.LogInformation("CMC v2 request canceled symbols={Count}", symbols.Count());
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CMC exception symbols={Count}", list.Length);
-            return list.ToDictionary(s => s, _ => (decimal?)null, StringComparer.OrdinalIgnoreCase);
+            _logger.LogError(ex, "CMC v2 exception symbols={Count}", symbols.Count());
+            return null;
         }
+    }
+
+    private static DateTime? TryParseDate(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        if (DateTime.TryParse(s, out var dt)) return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+        return null;
     }
 }

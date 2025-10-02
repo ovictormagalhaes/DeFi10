@@ -13,14 +13,16 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     private readonly IUniswapV3OnChainService _uniswapV3OnChainService;
     private readonly ILogger<UniswapV3Mapper> _logger;
     private readonly ITokenFactory _tokenFactory;
+    private readonly IUniswapV3FeesService _feesService;
 
     private static readonly HashSet<ChainEnum> Supported = new() { ChainEnum.Base, ChainEnum.Arbitrum };
 
-    public UniswapV3Mapper(IUniswapV3OnChainService uniswapV3OnChainService, ILogger<UniswapV3Mapper> logger, ITokenFactory tokenFactory)
+    public UniswapV3Mapper(IUniswapV3OnChainService uniswapV3OnChainService, ILogger<UniswapV3Mapper> logger, ITokenFactory tokenFactory, IUniswapV3FeesService feesService)
     {
         _uniswapV3OnChainService = uniswapV3OnChainService;
         _logger = logger;
         _tokenFactory = tokenFactory;
+        _feesService = feesService;
     }
 
     public string ProtocolName => "UniswapV3";
@@ -42,7 +44,25 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
         foreach (var position in response.Data.Positions)
         {
             var item = ProcessPosition(position, chain, nativePriceUSD);
-            if (item != null) walletItems.Add(item);
+            if (item != null)
+            {
+                try
+                {
+                    var token0PriceUsd = item.Position?.Tokens?.FirstOrDefault(t => t.Symbol == position.Token0.Symbol)?.Financials?.Price ?? 0m;
+                    var token1PriceUsd = item.Position?.Tokens?.FirstOrDefault(t => t.Symbol == position.Token1.Symbol)?.Financials?.Price ?? 0m;
+                    var fees24h = await _feesService.GetFees24hUsdAsync(position, chain, token0PriceUsd, token1PriceUsd);
+                    if (fees24h.HasValue && fees24h.Value > 0)
+                    {
+                        item.AdditionalData ??= new AdditionalData();
+                        item.AdditionalData.Fees24h = fees24h.Value;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Fees24h calculation failed pos={Id}", position.Id);
+                }
+                walletItems.Add(item);
+            }
         }
         return await Task.FromResult(walletItems);
     }
@@ -104,9 +124,6 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             if (token0PriceUSD < 0) token0PriceUSD = 0;
             if (token1PriceUSD < 0) token1PriceUSD = 0;
 
-            var positionToken0ValueUSD = currentSupplyToken0 * token0PriceUSD;
-            var positionToken1ValueUSD = currentSupplyToken1 * token1PriceUSD;
-
             var lower = TryParseInvariant(position.MinPriceToken1PerToken0);
             var upper = TryParseInvariant(position.MaxPriceToken1PerToken0);
             var current = TryParseInvariant(position.CurrentPriceToken1PerToken0);
@@ -118,8 +135,8 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
 
             var supplied0 = _tokenFactory.CreateSupplied(position.Token0.Name, position.Token0.Symbol, position.Token0.Id, chain, token0Decimals, currentSupplyToken0, token0PriceUSD);
             var supplied1 = _tokenFactory.CreateSupplied(position.Token1.Name, position.Token1.Symbol, position.Token1.Id, chain, token1Decimals, currentSupplyToken1, token1PriceUSD);
-            var reward0 = _tokenFactory.CreateReward(position.Token0.Name, position.Token0.Symbol, position.Token0.Id, chain, token0Decimals, feesToken0, token0PriceUSD);
-            var reward1 = _tokenFactory.CreateReward(position.Token1.Name, position.Token1.Symbol, position.Token1.Id, chain, token1Decimals, feesToken1, token1PriceUSD);
+            var reward0 = _tokenFactory.CreateUncollectedReward(position.Token0.Name, position.Token0.Symbol, position.Token0.Id, chain, token0Decimals, feesToken0, token0PriceUSD);
+            var reward1 = _tokenFactory.CreateUncollectedReward(position.Token1.Name, position.Token1.Symbol, position.Token1.Id, chain, token1Decimals, feesToken1, token1PriceUSD);
 
             return new WalletItem
             {

@@ -16,10 +16,12 @@ import { useTheme } from './context/ThemeProvider';
 import { useWalletConnection, useTooltip } from './hooks/useWallet';
 import useWalletMenus from './hooks/useWalletMenus';
 import colors from './styles/colors';
-import WalletTokensTable from './components/WalletTokensTable';
+import { WalletTokensTable } from './components/tables';
 import SummaryView from './components/SummaryView';
-import RebalancingView from './components/RebalancingView';
+import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
+import PoolsView from './components/PoolsView';
 import AggregationPanel from './components/AggregationPanel';
+import SegmentedNav from './components/SegmentedNav';
 import { useAggregationJob } from './hooks/useAggregationJob';
 import { api } from './config/api';
 import {
@@ -35,6 +37,9 @@ import {
   getLiquidityPools,
   getLendingAndBorrowingPositions,
   getStakingPositions,
+  computePortfolioBreakdown,
+  setTotalPortfolioValue,
+  calculatePercentage,
 } from './utils/walletUtils';
 import {
   DEFAULT_COLUMN_VISIBILITY,
@@ -164,7 +169,7 @@ function App() {
   // Chain selection (null or Set of canonical keys). Default: all selected
   const [selectedChains, setSelectedChains] = useState(null);
   // View mode toggle state
-  const [viewMode, setViewMode] = useState('Default');
+  // (legacy viewMode state removed; sidebar navigation provides viewMode further below)
 
   const [defaultStates, setDefaultStates] = useState({});
   const [protocolExpansions, setProtocolExpansions] = useState({});
@@ -285,10 +290,7 @@ function App() {
     })();
     return () => { cancelled = true; };
   }, [account, aggCompleted]);
-  // Garantir Default antes de completar agregação (efeito precisa vir após aggCompleted existir)
-  useEffect(() => {
-    if (account && !aggCompleted && viewMode !== 'Default') setViewMode('Default');
-  }, [account, aggCompleted, viewMode]);
+  // (Removed legacy effect that forced 'Default' view before aggregation completion.)
   // TEMP: Force aggregation overlay always visible for visual review.
   // Debug/QA: ativar overlay forçado via variável de ambiente VITE_FORCE_AGG_OVERLAY=1
   const DEV_FORCE_AGG_OVERLAY = (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_FORCE_AGG_OVERLAY === '1' || import.meta.env?.VITE_FORCE_AGG_OVERLAY === 'true'));
@@ -460,65 +462,28 @@ function App() {
     return walletData.staking || [];
   };
 
-  const getTotalPortfolioValue = () => {
-    const signedTokenValue = (t, pos) => {
-      const ty = (t.type || '').toLowerCase();
-      const val = Math.abs(parseFloat(t.totalPrice) || 0);
-      if (ty === 'borrowed' || ty === 'borrow' || ty === 'debt') return -val;
-      if (!ty) {
-        const lbl = (pos?.position?.label || pos?.label || '').toLowerCase();
-        if (lbl.includes('borrow') || lbl.includes('debt')) return -val;
-      }
-      return val;
-    };
-    const walletValue = getFilteredTokens(getWalletTokensData(), showOnlyPositiveBalance).reduce(
-      (sum, tokenData) => {
-        const token = tokenData.token || tokenData;
-        return sum + (parseFloat(token.totalPrice) || 0);
-      },
-      0
-    );
-
-    const liquidityValue = groupDefiByProtocol(getLiquidityPoolsData()).reduce(
-      (total, group) =>
-        total +
-        group.positions.reduce(
-          (sum, pos) =>
-            sum +
-            (pos.tokens?.reduce(
-              (tokenSum, token) => tokenSum + (parseFloat(token.totalPrice) || 0),
-              0
-            ) || 0),
-          0
-        ),
-      0
-    );
-
-    const lendingNet = groupDefiByProtocol(getLendingAndBorrowingData()).reduce((grand, group) => {
-      const groupSum = group.positions.reduce((sum, pos) => {
-        const tokens = Array.isArray(pos.tokens)
-          ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens)
-          : [];
-        const net = tokens.reduce((s, t) => s + signedTokenValue(t, pos), 0);
-        return sum + net;
-      }, 0);
-      return grand + groupSum;
-    }, 0);
-
-    const stakingValue = getStakingData().reduce((total, position) => {
-      const balance = parseFloat(position.balance) || 0;
-      return total + (isNaN(balance) ? 0 : balance);
-    }, 0);
-
-    return walletValue + liquidityValue + lendingNet + stakingValue;
+  // Unified portfolio breakdown (memoized by snapshot + toggles)
+  const getPortfolioBreakdown = () => {
+    const walletTokens = getFilteredTokens(getWalletTokensData(), showOnlyPositiveBalance);
+    const liquidityGroups = groupDefiByProtocol(getLiquidityPoolsData());
+    const lendingGroups = groupDefiByProtocol(getLendingAndBorrowingData());
+    const stakingPositions = getStakingData();
+    const breakdown = computePortfolioBreakdown({
+      walletTokens,
+      liquidityGroups,
+      lendingGroups,
+      stakingPositions,
+      filterLendingDefiTokens,
+      filterStakingDefiTokens,
+      showLendingDefiTokens,
+      showStakingDefiTokens,
+    });
+    try { setTotalPortfolioValue(breakdown.totalNet); } catch {}
+    return breakdown;
   };
+  const getTotalPortfolioValue = () => getPortfolioBreakdown().totalNet;
 
-  const calculatePercentage = (value, total) => {
-    const v = parseFloat(value) || 0;
-    const t = parseFloat(total) || 0;
-    if (t <= 0) return '0%';
-    return `${((v / t) * 100).toFixed(2)}%`;
-  };
+  // Using shared calculatePercentage from utils (imported above)
 
   // Mascara para valores financeiros quando maskValues ativo
   const maskValue = (formatted, opts = {}) => {
@@ -755,7 +720,16 @@ function App() {
       rawWalletTokens.forEach((tkData) => {
         const token = tkData.token || tkData;
         const chainKey = resolveChainKey(token) || resolveChainKey(tkData);
-        if (chainKey !== undefined) addVal(chainKey, token.totalPrice);
+        if (chainKey === undefined) return;
+        let v = token.totalPrice;
+        if (v === undefined && token.financials) v = token.financials.totalPrice;
+        if (v === undefined && token.financials && token.financials.price != null && token.financials.amount != null) {
+          v = parseFloat(token.financials.price) * parseFloat(token.financials.amount);
+        }
+        if (v === undefined && token.price != null && token.amount != null) {
+          v = parseFloat(token.price) * parseFloat(token.amount);
+        }
+        addVal(chainKey, v);
       });
     } catch {
       /* silent */
@@ -785,17 +759,31 @@ function App() {
         const tokensArr = Array.isArray(base?.tokens) ? base.tokens : [];
         tokensArr.forEach((tok) => {
           const chainKey = resolveChainKey(tok) || posChain;
-          const val = parseFloat(tok.totalPrice) || 0;
-          if (chainKey === undefined) unmatchedDebug.liquidity += val;
-          else addVal(chainKey, val);
+          let v = tok.totalPrice;
+          if (v === undefined && tok.financials) v = tok.financials.totalPrice;
+          if (v === undefined && tok.financials && tok.financials.price != null && tok.financials.amount != null) {
+            v = parseFloat(tok.financials.price) * parseFloat(tok.financials.amount);
+          }
+            if (v === undefined && tok.price != null && tok.amount != null) {
+            v = parseFloat(tok.price) * parseFloat(tok.amount);
+          }
+          const val = parseFloat(v) || 0;
+          if (chainKey === undefined) unmatchedDebug.liquidity += val; else addVal(chainKey, val);
         });
         // rewards may be inside base.rewards
         if (Array.isArray(base?.rewards)) {
           base.rewards.forEach((rw) => {
             const chainKey = resolveChainKey(rw) || posChain;
-            const val = parseFloat(rw.totalPrice) || 0;
-            if (chainKey === undefined) unmatchedDebug.liquidity += val;
-            else addVal(chainKey, val);
+            let v = rw.totalPrice;
+            if (v === undefined && rw.financials) v = rw.financials.totalPrice;
+            if (v === undefined && rw.financials && rw.financials.price != null && rw.financials.amount != null) {
+              v = parseFloat(rw.financials.price) * parseFloat(rw.financials.amount);
+            }
+            if (v === undefined && rw.price != null && rw.amount != null) {
+              v = parseFloat(rw.price) * parseFloat(rw.amount);
+            }
+            const val = parseFloat(v) || 0;
+            if (chainKey === undefined) unmatchedDebug.liquidity += val; else addVal(chainKey, val);
           });
         }
       });
@@ -847,9 +835,17 @@ function App() {
             });
         tokens.forEach((tok) => {
           const chainKey = resolveChainKey(tok) || posChain;
-          const val = signedTokenValue(tok, base);
-          if (chainKey === undefined) unmatchedDebug.lending += val;
-          else addVal(chainKey, val);
+          let v = tok.totalPrice;
+          if (v === undefined && tok.financials) v = tok.financials.totalPrice;
+          if (v === undefined && tok.financials && tok.financials.price != null && tok.financials.amount != null) {
+            v = parseFloat(tok.financials.price) * parseFloat(tok.financials.amount);
+          }
+          if (v === undefined && tok.price != null && tok.amount != null) {
+            v = parseFloat(tok.price) * parseFloat(tok.amount);
+          }
+          // Signed after computing absolute underlying value
+          const signed = signedTokenValue({ ...tok, totalPrice: v }, base);
+          if (chainKey === undefined) unmatchedDebug.lending += signed; else addVal(chainKey, signed);
         });
       });
     } catch {
@@ -888,9 +884,16 @@ function App() {
         tokens.forEach((tok) => {
           any = true;
           const chainKey = resolveChainKey(tok) || posChain;
-          const val = parseFloat(tok.totalPrice) || 0;
-          if (chainKey === undefined) unmatchedDebug.staking += val;
-          else addVal(chainKey, val);
+          let v = tok.totalPrice;
+          if (v === undefined && tok.financials) v = tok.financials.totalPrice;
+          if (v === undefined && tok.financials && tok.financials.price != null && tok.financials.amount != null) {
+            v = parseFloat(tok.financials.price) * parseFloat(tok.financials.amount);
+          }
+          if (v === undefined && tok.price != null && tok.amount != null) {
+            v = parseFloat(tok.price) * parseFloat(tok.amount);
+          }
+          const val = parseFloat(v) || 0;
+          if (chainKey === undefined) unmatchedDebug.staking += val; else addVal(chainKey, val);
         });
         if (!any) {
           const bal = parseFloat(base?.balance);
@@ -907,10 +910,13 @@ function App() {
     // Optional: could normalize numeric-only keys to align with supportedChains numeric ids
     // (Already using String() so matching done by same string form when rendering.)
 
-    // Generic alias merging: every alias (id, name, displayName, etc.) for a supported chain receives the same aggregated sum.
-    const merged = { ...totals };
+    // Option 3 (simplified): aggregate per canonical key only (no alias duplication assignment)
+    const merged = {};
     if (Array.isArray(supportedChains) && supportedChains.length > 0) {
       supportedChains.forEach((sc) => {
+        const canonical = String(
+          sc.displayName || sc.name || sc.shortName || sc.id || sc.chainId || sc.chain
+        );
         const aliases = [
           sc.id,
           sc.chainId,
@@ -921,20 +927,17 @@ function App() {
           sc.displayName,
           sc.name,
           sc.shortName,
+          canonical,
         ]
           .filter((a) => a !== undefined && a !== null && a !== '')
           .map((a) => String(a));
-        if (aliases.length === 0) return;
         const uniqueAliases = Array.from(new Set(aliases));
         const sum = uniqueAliases.reduce((acc, key) => acc + (totals[key] || 0), 0);
-        // Assign aggregated sum to all aliases so any lookup (id or name) returns the full value
-        uniqueAliases.forEach((key) => {
-          merged[key] = sum;
-        });
-        // Also ensure a canonical key (prefer displayName > name > id) exists
-        const canonical = String(sc.displayName || sc.name || sc.shortName || sc.id || sc.chainId);
         merged[canonical] = sum;
       });
+    } else {
+      // Fallback: if supportedChains not loaded, expose raw totals
+      Object.assign(merged, totals);
     }
 
     if (unmatchedDebug.liquidity + unmatchedDebug.lending + unmatchedDebug.staking > 0) {
@@ -943,15 +946,6 @@ function App() {
       } catch {}
     }
 
-    return { mergedTotals: merged, rawTotals: totals };
-    try {
-      console.log(
-        '[Chains] Computing chainTotals from snapshot. Version:',
-        snapshotVersion,
-        'hasSnapshot:',
-        !!walletDataSnapshotRef.current
-      );
-    } catch {}
     return { mergedTotals: merged, rawTotals: totals };
   }, [snapshotVersion, showLendingDefiTokens, showStakingDefiTokens, supportedChains]);
 
@@ -979,6 +973,9 @@ function App() {
     return sum;
   }, [supportedChains, chainTotals]);
 
+  // Navigation view mode (segmented)
+  const [viewMode, setViewMode] = useState('overview');
+
   // UI
   return (
     <MaskValuesProvider value={{ maskValues, toggleMaskValues, setMaskValues, maskValue }}>
@@ -998,259 +995,131 @@ function App() {
           searchAddress={searchAddress}
           setSearchAddress={setSearchAddress}
         />
-        <div
-          style={{
-            padding: `8px ${sidePadding} 0px ${sidePadding}`,
-            boxSizing: 'border-box',
-            width: '100%',
-          }}
-        >
-          {/* Supported Chains: only after aggregation ready */}
-          {isAggregationReady && (
-            <div style={{ marginTop: 18 }}>
-              {chainsLoading && (!supportedChains || supportedChains.length === 0) && (
-                <div style={{ fontSize: 12, color: theme.textSecondary }}>Loading chains...</div>
-              )}
-              {supportedChains && supportedChains.length > 0 && (
-                <div
-                  style={{
-                    background: theme.bgPanel,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: 16,
-                    padding: '16px 18px 18px 18px',
-                    boxShadow: theme.shadow || '0 2px 4px rgba(0,0,0,0.04)',
-                    position: 'relative',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      marginBottom: 12,
-                      color: theme.textSecondary,
-                      letterSpacing: '.5px',
-                    }}
-                  >
-                    SUPPORTED CHAINS
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 14,
-                      overflowX: 'auto',
-                      paddingBottom: 4,
-                      scrollbarWidth: 'thin',
-                    }}
-                  >
-                    {supportedChains.map((c, idx) => {
-                      const name = c.displayName || c.name || c.shortName || `Chain ${idx + 1}`;
-                      const canonicalKeyRaw =
-                        c.displayName ||
-                        c.name ||
-                        c.shortName ||
-                        c.id ||
-                        c.chainId ||
-                        c.chain ||
-                        c.network ||
-                        c.networkId;
-                      const canonicalKey = String(canonicalKeyRaw);
-                      const canonicalKeyNormalized = normalizeChainKey(canonicalKey);
-                      const chainKeyFallback = String(
-                        c.id ||
-                          c.chainId ||
-                          c.chainID ||
-                          c.chain ||
-                          c.networkId ||
-                          c.network ||
-                          name
-                      );
-                      const value =
-                        chainTotals[canonicalKey] ??
-                        chainTotals[chainKeyFallback] ??
-                        chainTotals[canonicalKey.toLowerCase()] ??
-                        0;
-                      const selectedSet = selectedChains || new Set();
-                      const isSelected = selectedSet.has(canonicalKeyNormalized);
-                      const percent = calculatePercentage(value, totalAllChains);
-
-                      const baseBg = theme.bgInteractive;
-                      const selectedBg = theme.primarySubtle || theme.bgInteractive;
-                      const hoverBg = theme.bgInteractiveHover;
-
-                      return (
-                        <div
-                          key={canonicalKey}
-                          onClick={() => toggleChainSelection(canonicalKeyNormalized)}
-                          style={{
-                            minWidth: 130, // reduced from 180
-                            background: 'transparent',
-                            border: 'none',
-                            borderRadius: 14, // slightly smaller radius
-                            padding: '8px 10px', // reduced padding
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            gap: 4,
-                            cursor: 'pointer',
-                            userSelect: 'none',
-                            opacity: isSelected ? 1 : 0.35, // start a bit lighter
-                            transition: 'opacity .18s',
-                          }}
-                          title={
-                            isSelected ? 'Clique para desselecionar' : 'Clique para selecionar'
-                          }
-                          onMouseEnter={(e) => {
-                            if (!isSelected) e.currentTarget.style.opacity = 0.55;
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!isSelected) e.currentTarget.style.opacity = 0.35;
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: c.iconUrl ? '32px 1fr' : '1fr',
-                              columnGap: 8,
-                              rowGap: 2,
-                              alignItems: 'center',
-                            }}
-                          >
-                            {c.iconUrl && (
-                              <div
-                                style={{
-                                  width: 32,
-                                  height: 32,
-                                  gridRow: '1 / span 2',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  borderRadius: 10,
-                                  overflow: 'hidden',
-                                }}
-                              >
-                                <img
-                                  src={c.iconUrl}
-                                  alt={name}
-                                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                            )}
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+          <div style={{ padding: `8px ${sidePadding} 0px ${sidePadding}`, boxSizing: 'border-box', width: '100%' }}>
+            {/* Segmented Nav */}
+            <div style={{ marginTop: 12, marginBottom: 20, display: 'flex', justifyContent: 'center' }}>
+              <SegmentedNav value={viewMode} onChange={setViewMode} disabled={!isAggregationReady} />
+            </div>
+            {/* Supported Chains: only on Overview after aggregation ready */}
+              {isAggregationReady && viewMode === 'overview' && (
+                <div style={{ marginTop: 18 }}>
+                  {chainsLoading && (!supportedChains || supportedChains.length === 0) && (
+                    <div style={{ fontSize: 12, color: theme.textSecondary }}>Loading chains...</div>
+                  )}
+                  {supportedChains && supportedChains.length > 0 && (
+                    <div className="panel-unified" style={{ position: 'relative', marginTop: 18 }}>
+                      <div className="panel-heading">Supported Chains</div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 14,
+                          overflowX: 'auto',
+                          paddingBottom: 4,
+                          scrollbarWidth: 'thin',
+                        }}
+                      >
+                        {supportedChains.map((c, idx) => {
+                          const name = c.displayName || c.name || c.shortName || `Chain ${idx + 1}`;
+                          const canonicalKeyRaw =
+                            c.displayName ||
+                            c.name ||
+                            c.shortName ||
+                            c.id ||
+                            c.chainId ||
+                            c.chain ||
+                            c.network ||
+                            c.networkId;
+                          const canonicalKey = String(canonicalKeyRaw);
+                          const canonicalKeyNormalized = normalizeChainKey(canonicalKey);
+                          const chainKeyFallback = String(
+                            c.id ||
+                              c.chainId ||
+                              c.chainID ||
+                              c.chain ||
+                              c.networkId ||
+                              c.network ||
+                              name
+                          );
+                          const value =
+                            chainTotals[canonicalKey] ??
+                            chainTotals[chainKeyFallback] ??
+                            chainTotals[canonicalKey.toLowerCase()] ??
+                            0;
+                          const selectedSet = selectedChains || new Set();
+                          const isSelected = selectedSet.has(canonicalKeyNormalized);
+                          const percent = calculatePercentage(value, totalAllChains);
+                          return (
                             <div
+                              key={canonicalKey}
+                              onClick={() => toggleChainSelection(canonicalKeyNormalized)}
                               style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                color: theme.textPrimary,
-                                lineHeight: 1.2,
-                              }}
-                            >
-                              {name}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 11,
-                                color: theme.textSecondary,
+                                minWidth: 130,
+                                background: 'transparent',
+                                border: 'none',
+                                borderRadius: 14,
+                                padding: '8px 10px',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: 2,
+                                justifyContent: 'center',
+                                gap: 4,
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                opacity: isSelected ? 1 : 0.35,
+                                transition: 'opacity .18s',
                               }}
+                              title={isSelected ? 'Clique para desselecionar' : 'Clique para selecionar'}
+                              onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.opacity = 0.55; }}
+                              onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.opacity = 0.35; }}
                             >
-                              <span
-                                style={{ fontWeight: 600, color: theme.textPrimary, fontSize: 12 }}
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: c.iconUrl ? '32px 1fr' : '1fr',
+                                  columnGap: 8,
+                                  rowGap: 2,
+                                  alignItems: 'center',
+                                }}
                               >
-                                {maskValue(formatPrice(value))}
-                              </span>
-                              <span style={{ fontSize: 10, color: theme.textMuted }}>
-                                {percent}
-                              </span>
+                                {c.iconUrl && (
+                                  <div
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      gridRow: '1 / span 2',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      borderRadius: 10,
+                                      overflow: 'hidden',
+                                    }}
+                                  >
+                                    <img
+                                      src={c.iconUrl}
+                                      alt={name}
+                                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                    />
+                                  </div>
+                                )}
+                                <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, lineHeight: 1.2 }}>{name}</div>
+                                <div style={{ fontSize: 11, color: theme.textSecondary, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <span style={{ fontWeight: 600, color: theme.textPrimary, fontSize: 12 }}>
+                                    {maskValue(formatPrice(value))}
+                                  </span>
+                                  <span style={{ fontSize: 10, color: theme.textMuted }}>{percent}</span>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
-        </div>
 
-        {/* View Mode + Content Wrapper with horizontal sidePadding */}
-        <div
-          style={{
-            padding: `0 ${sidePadding} 64px ${sidePadding}`,
-            boxSizing: 'border-box',
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {/* View Mode Toggle: show only when aggregation ready; reserve space placeholder earlier to avoid layout shift */}
-          {!isAggregationReady && account && (
-            <div style={{ marginTop: 16, marginBottom: 16, height: 44 }} />
-          )}
-          {isAggregationReady && (
-            <div
-              style={{
-                marginTop: 16,
-                marginBottom: 16,
-                display: 'flex',
-                justifyContent: 'center',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  background: theme.bgInteractive,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 8,
-                  padding: 2,
-                  width: '100%',
-                  maxWidth: 480,
-                }}
-              >
-                {['Default', 'Summary', 'Rebalancing'].map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setViewMode(mode)}
-                    style={{
-                      background: viewMode === mode ? theme.primarySubtle : 'transparent',
-                      color: viewMode === mode ? theme.textPrimary : theme.textSecondary,
-                      border: 'none',
-                      padding: '8px 16px',
-                      borderRadius: 6,
-                      fontSize: 13,
-                      fontWeight: viewMode === mode ? 600 : 500,
-                      cursor: 'pointer',
-                      transition: 'all 120ms ease',
-                      outline: 'none',
-                      flex: 1,
-                      textAlign: 'center',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (viewMode !== mode) {
-                        e.currentTarget.style.backgroundColor = theme.bgPanelHover;
-                        e.currentTarget.style.color = theme.textPrimary;
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (viewMode !== mode) {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.color = theme.textSecondary;
-                      }
-                    }}
-                    onFocus={(e) =>
-                      (e.currentTarget.style.boxShadow = `0 0 0 2px ${theme.focusRing}`)
-                    }
-                    onBlur={(e) => (e.currentTarget.style.boxShadow = 'none')}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+              {/* (Removed legacy inline main content duplication and old horizontal view mode toggle) */}
 
           {/* Overlay de sincronização bloqueando interação até conclusão */}
           {(DEV_FORCE_AGG_OVERLAY || aggJobId) && (
@@ -1294,7 +1163,7 @@ function App() {
                   {aggCompleted ? 'Synchronized' : 'Synchronizing your account'}
                 </h2>
                 <p style={{ fontSize: isMobile ? 13 : 14, lineHeight: 1.5, opacity: 0.9, margin: '0 0 18px 0' }}>
-                  {aggCompleted ? 'Data ready – unlocking interface.' : 'Aggregating your DeFi positions across multiple providers. The interface unlocks once we have complete data to avoid partial insights.'}
+                  {aggCompleted ? 'Data ready – unlocking interface.' : 'Aggregating your DeFi positions across multiple providers.'}
                 </p>
                 <div style={{ fontSize: isMobile ? 12 : 13, fontWeight: 500, marginBottom: 6 }}>
                   {(() => {
@@ -1325,15 +1194,16 @@ function App() {
               </div>
             </div>
           )}
-          {isAggregationReady && (
-            <div>
-              {viewMode === 'Summary' && isAggregationReady && (
+            {isAggregationReady && (
+              <>
+              {viewMode === 'summary' && (
                 <SummaryView
                   walletTokens={walletTokens}
                   getLiquidityPoolsData={getLiquidityPoolsData}
                   getLendingAndBorrowingData={getLendingAndBorrowingData}
                   getStakingData={getStakingData}
                   getTotalPortfolioValue={getTotalPortfolioValue}
+                  getPortfolioBreakdown={getPortfolioBreakdown}
                   maskValue={maskValue}
                   formatPrice={formatPrice}
                   theme={theme}
@@ -1342,7 +1212,7 @@ function App() {
                   showLendingDefiTokens={showLendingDefiTokens}
                 />
               )}
-              {viewMode === 'Rebalancing' && isAggregationReady && (
+              {viewMode === 'strategies' && (
                 <RebalancingView
                   walletTokens={walletTokens}
                   getLiquidityPoolsData={getLiquidityPoolsData}
@@ -1355,9 +1225,28 @@ function App() {
                   initialSavedItems={rebalanceInfo?.items}
                 />
               )}
-              {viewMode !== 'Summary' && viewMode !== 'Rebalancing' && isAggregationReady && (
+              {viewMode === 'pools' && (
+                <PoolsView
+                  getLiquidityPoolsData={getLiquidityPoolsData}
+                />
+              )}
+              {viewMode === 'overview' && (
                 <>
-                  {/* Default view - Tokens using SectionTable */}
+                  {/* Liquidity placeholder when viewMode === 'liquidity' */}
+                  {viewMode === 'liquidity' && (
+                    <div style={{
+                      background: theme.bgPanel,
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: 16,
+                      padding: '32px 40px',
+                      marginBottom: 32,
+                      textAlign: 'center'
+                    }}>
+                      <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:.5}}>Liquidity (beta)</h2>
+                      <p style={{fontSize:13, opacity:.75, margin:'12px 0 0 0'}}>Upcoming view to consolidate pool positions and APY metrics.</p>
+                    </div>
+                  )}
+                  {/* Default Overview (wallet + protocols) shown when not in summary/strategies */}
                   {walletTokens.length > 0 &&
                     (() => {
                       const columns = [
@@ -1535,12 +1424,9 @@ function App() {
                               </svg>
                             </div>
                           }
-                          rightPercent={walletPercent}
-                          rightValue={maskValue(formatPrice(walletValue))}
                           isExpanded={tokensExpanded}
                           onToggle={() => setTokensExpanded(!tokensExpanded)}
                           transparentBody={true}
-                          infoBadges={infoBadges}
                           optionsMenu={optionsMenu}
                           customContent={
                             <div
@@ -1563,7 +1449,7 @@ function App() {
                         />
                       );
                     })()}
-                  {/* Protocols at level 0 (no Liquidity/Lending/Staking top-level) */}
+                  {/* Protocols only in Overview */}
                   <ErrorBoundary>
                     <ProtocolsSection
                       getLiquidityPoolsData={getLiquidityPoolsData}
@@ -1588,12 +1474,12 @@ function App() {
                   </ErrorBoundary>
                 </>
               )}
-            </div>
-          )}
-        </div>
-        {/* end padded content wrapper */}
+              </>
+            )}
+          </div>{/* end inner padded content */}
+        </div>{/* end main vertical layout */}
 
-        {/* Tooltip */}
+  {/* Tooltip */}
         {tooltipVisible && (
           <div
             style={{

@@ -102,6 +102,9 @@ public class AdditionalData
     public RangeInfo? Range { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? PriceUnavailable { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? Fees24h { get; set; }
 }
 
 public class RangeInfo

@@ -8,12 +8,12 @@ import {
   groupTokensByType,
   groupStakingTokensByType,
 } from '../utils/walletUtils';
+import { isRewardToken, calculateTokensValue } from '../utils/tokenFilters';
 
-import LendingTables from './LendingTables';
-import PoolTables from './PoolTables';
+import { PoolTables, LendingTables, StakingTables, WalletTokensTable } from './tables';
 import ProtocolTables from './ProtocolTables';
 import SectionTable from './SectionTable';
-import StakingTables from './StakingTables';
+import MiniMetric from './MiniMetric';
 
 const ProtocolsSection = ({
   getLiquidityPoolsData,
@@ -135,14 +135,23 @@ const ProtocolsSection = ({
         if (!liqPositions.length && !stakingPositions.length && !lendingPositions.length)
           return null;
 
-        // Compute protocol total balance (lending borrowed negative)
+        // (1) Compute raw liquidity & staking positive totals (staking counts only positive balances)
         const liquidityTotal = liqPositions.reduce((sum, pos) => {
           const container = pos.position || pos;
           return (
             sum + (container.tokens?.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0) || 0)
           );
         }, 0);
-        const lendingTotal = lendingPositions.reduce((sum, pos) => {
+        const stakingTotal = stakingPositions.reduce((sum, pos) => {
+          const tokens = Array.isArray(pos.tokens)
+            ? filterStakingDefiTokens(pos.tokens, showStakingDefiTokens)
+            : [];
+            // Staking rarely has negatives, but guard anyway
+          const v = tokens.reduce((s, t) => s + Math.max(parseFloat(t.totalPrice) || 0, 0), 0);
+          return sum + v;
+        }, 0);
+        // (2) Lending net: supplied positive, borrowed negative
+        const lendingNetProvisional = lendingPositions.reduce((sum, pos) => {
           const tokens = Array.isArray(pos.tokens)
             ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens)
             : [];
@@ -158,14 +167,7 @@ const ProtocolsSection = ({
           }, 0);
           return sum + net;
         }, 0);
-        const stakingTotal = stakingPositions.reduce((sum, pos) => {
-          const tokens = Array.isArray(pos.tokens)
-            ? filterStakingDefiTokens(pos.tokens, showStakingDefiTokens)
-            : [];
-          const v = tokens.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0);
-          return sum + v;
-        }, 0);
-        const protocolTotal = liquidityTotal + lendingTotal + stakingTotal;
+        // We'll override lendingNet later with values from grouped tables (more faithful) if available.
 
         // Build tables for this protocol
         const tables = [];
@@ -174,26 +176,11 @@ const ProtocolsSection = ({
         let liquidityRewardsValue = 0;
         if (liqPositions.length > 0) {
           poolsGrouped = groupTokensByPool(liqPositions);
-          // Calculate total rewards value from liquidity positions
+          // Calculate total rewards value from liquidity positions using unified utility
           liqPositions.forEach((pos) => {
             if (pos.tokens && Array.isArray(pos.tokens)) {
-              pos.tokens.forEach((token) => {
-                const t = (token.type || '').toLowerCase();
-                const sym = (token.symbol || '').toLowerCase();
-                const name = (token.name || '').toLowerCase();
-                const isReward =
-                  t === 'reward' ||
-                  t === 'rewards' ||
-                  sym.includes('reward') ||
-                  name.includes('reward') ||
-                  sym.includes('comp') ||
-                  sym.includes('crv') ||
-                  sym.includes('cake') ||
-                  sym.includes('uni');
-                if (isReward) {
-                  liquidityRewardsValue += parseFloat(token.totalPrice) || 0;
-                }
-              });
+              const rewardTokens = pos.tokens.filter(isRewardToken);
+              liquidityRewardsValue += calculateTokensValue(rewardTokens);
             }
           });
         }
@@ -324,7 +311,19 @@ const ProtocolsSection = ({
             </div>
           ) : null;
 
-        const protocolPercent = calculatePercentage(protocolTotal, getTotalPortfolioValue());
+        // Recompute lending net using grouped data (ensures alignment with what is actually displayed)
+        const lendingNet = lendingGroup
+          ? lendingGroup.supplied.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0) -
+            lendingGroup.borrowed.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0)
+          : lendingNetProvisional;
+
+        const protocolTotal = liquidityTotal + stakingTotal + lendingNet;
+        // Positive contribution (used for %): ignore pure debt (negative net)
+        const protocolPositive = liquidityTotal + stakingTotal + Math.max(lendingNet, 0);
+        const totalPortfolio = getTotalPortfolioValue();
+        const protocolPercent = protocolPositive <= 0
+          ? '0%'
+          : calculatePercentage(protocolPositive, totalPortfolio);
         const totalRewardsValue = liquidityRewardsValue + lendingRewardsValue + stakingRewardsValue;
         const infoBadges = [
           liqPositions.length > 0 ? `Pools: ${Object.keys(poolsGrouped || {}).length}` : null,
@@ -496,11 +495,43 @@ const ProtocolsSection = ({
             key={protocolGroup.protocol.name}
             icon={icon}
             title={displayTitle}
-            rightPercent={protocolPercent}
-            rightValue={maskValue(formatPrice(protocolTotal))}
-            rewardsValue={totalRewardsValue > 0 ? maskValue(formatPrice(totalRewardsValue)) : null}
             transparentBody={true}
-            metricsRatio={hideHeaderRewards ? [2, 1, 1] : [2, 1, 1, 1]}
+            // Custom header metrics: Percent | Rewards | Value (| Fees 24h se pools)
+            renderHeaderMetrics={() => {
+              const cells = [];
+              // Coluna 1: percent + info badges agrupadas
+              cells.push(
+                <div style={{ display:'flex', gap:12, alignItems:'center' }}>
+                  <MiniMetric label="Percent" value={protocolPercent || '—'} />
+                  {infoBadges && <div className="mini-metric-pill">{infoBadges}</div>}
+                </div>
+              );
+              // Coluna 2: Rewards (se houver)
+              cells.push(
+                <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                  {totalRewardsValue > 0 && (
+                    <MiniMetric label="Rewards" value={maskValue(formatPrice(totalRewardsValue))} />
+                  )}
+                </div>
+              );
+              // Coluna 3: Value total
+              cells.push(
+                <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                  <MiniMetric label="Value" value={maskValue(formatPrice(protocolTotal))} />
+                </div>
+              );
+              // Se pools presentes e quiser mostrar Fees 24h agregadas futuras (placeholder)
+              if (hasPools) {
+                cells.push(
+                  <div style={{ display:'flex', justifyContent:'flex-end' }}>
+                    <MiniMetric label="Fees 24h" value={totalRewardsValue > 0 ? '—' : '—'} />
+                  </div>
+                );
+              }
+              const ratio = hasPools ? [2,1,1,1] : [2,1,1];
+              return { ratio, cells };
+            }}
+            metricsRatio={hasPools ? [2,1,1,1] : [2,1,1]}
             summaryColumns={null}
             renderSummaryCell={undefined}
             isExpanded={
@@ -509,7 +540,6 @@ const ProtocolsSection = ({
                 : true
             }
             onToggle={() => toggleProtocolExpansion(protocolGroup.protocol.name)}
-            infoBadges={infoBadges}
             optionsMenu={optionsMenu}
             customContent={
               <>

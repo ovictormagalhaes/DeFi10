@@ -8,6 +8,7 @@ const SummaryView = ({
   getLendingAndBorrowingData,
   getStakingData,
   getTotalPortfolioValue,
+  getPortfolioBreakdown,
   maskValue,
   formatPrice,
   theme,
@@ -27,53 +28,23 @@ const SummaryView = ({
     return val;
   };
 
-  // Cálculos básicos para o resumo
-  const walletValue = walletTokens.reduce((sum, tokenData) => {
-    const token = tokenData.token || tokenData;
-    return sum + (parseFloat(token.totalPrice) || 0);
-  }, 0);
-
+  // Usar breakdown unificado
+  const breakdown = getPortfolioBreakdown ? getPortfolioBreakdown() : null;
+  const totalValue = breakdown ? breakdown.totalNet : getTotalPortfolioValue();
+  const walletValue = breakdown ? breakdown.walletValue : 0;
   const liquidityData = getLiquidityPoolsData();
   const lendingData = getLendingAndBorrowingData();
   const stakingData = getStakingData();
-
-  const liquidityValue = groupDefiByProtocol(liquidityData).reduce(
-    (total, group) =>
-      total +
-      group.positions.reduce(
-        (sum, pos) =>
-          sum +
-          (pos.tokens?.reduce(
-            (tokenSum, token) => tokenSum + (parseFloat(token.totalPrice) || 0),
-            0
-          ) || 0),
-        0
-      ),
-    0
-  );
-
-  const lendingValue = groupDefiByProtocol(lendingData).reduce((grand, group) => {
-    const groupSum = group.positions.reduce((sum, pos) => {
-      const tokens = Array.isArray(pos.tokens)
-        ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens)
-        : [];
-      const net = tokens.reduce((s, t) => s + signedTokenValue(t, pos), 0);
-      return sum + net;
-    }, 0);
-    return grand + groupSum;
-  }, 0);
-
-  const stakingValueCalc = stakingData.reduce((total, position) => {
-    const balance = parseFloat(position.balance) || 0;
-    return total + (isNaN(balance) ? 0 : balance);
-  }, 0);
-
-  const totalValue = getTotalPortfolioValue();
-
+  const defiNet = breakdown ? breakdown.defiNet : totalValue - walletValue;
+  const defiGross = breakdown ? breakdown.defiGross : defiNet;
+  const lendingBorrowed = breakdown ? breakdown.lendingBorrowed : 0;
+  const lendingSupplied = breakdown ? breakdown.lendingSupplied : 0;
+  const stakingValueCalc = breakdown ? breakdown.stakingValue : 0;
+  // portfolioGross removido conforme solicitação; manter apenas net
   return (
-    <div className="summary-panel p-6 mt-4">
+  <div className="summary-panel panel-unified" style={{ marginTop: 18 }}>
       <div className="summary-header">
-        <div className="circle-32 bg-primary-subtle">
+  <div className="circle-32 bg-primary-subtle" style={{ marginTop:2 }}>
           <svg
             width="18"
             height="18"
@@ -89,7 +60,7 @@ const SummaryView = ({
           </svg>
         </div>
         <div className="">
-          <h2 className="summary-title text-primary">
+          <h2 className="panel-heading" style={{ fontSize:20, fontWeight:600 }}>
             Portfolio Summary
           </h2>
           <p className="summary-sub text-secondary">
@@ -122,19 +93,21 @@ const SummaryView = ({
           </div>
         </div>
 
-        {/* DeFi Positions */}
+        {/* DeFi Positions (Gross) */}
         <div className="metric-card">
           <div className="metric-label">
             DeFi Positions
           </div>
           <div className="metric-value-md text-primary mb-1">
-            {maskValue(formatPrice(totalValue - walletValue))}
+            {maskValue(formatPrice(defiNet))}
           </div>
           <div className="text-xs text-secondary">
             {liquidityData.length + lendingData.length + stakingData.length} positions
           </div>
         </div>
       </div>
+
+      {/* Breakdown extra removido conforme solicitação do usuário */}
 
       {/* Quick Stats */}
       <div className="quick-stats">

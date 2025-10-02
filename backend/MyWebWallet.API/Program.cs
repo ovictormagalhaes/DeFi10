@@ -98,6 +98,9 @@ builder.Services.AddScoped<IRebalanceService, RebalanceService>();
 builder.Services.AddSingleton<IAggregationJobStore, AggregationJobStore>();
 builder.Services.AddSingleton<ITokenFactory, TokenFactory>();
 
+// Fees 24h heuristic service (to be replaced by precise on-chain variant)
+builder.Services.AddSingleton<IUniswapV3FeesService, UniswapV3FeesService>();
+
 // RabbitMQ infrastructure
 builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
 builder.Services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();

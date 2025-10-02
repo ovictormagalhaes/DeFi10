@@ -5,13 +5,18 @@ namespace MyWebWallet.API.DTOs;
 public class RebalanceItem
 {
     public string Version { get; set; } = "1";
-    public string Asset { get; set; } = string.Empty;
-    public WalletItemType Type { get; set; } = WalletItemType.Unknown;
-    // 0..100
+    public string? Asset { get; set; } = string.Empty;
+    public RebalanceAssetType Type { get; set; } = RebalanceAssetType.Unknown;
     public int Note { get; set; } = 0;
-    public RebalanceReferenceType ByGroupType { get; set; } = RebalanceReferenceType.Protocol;
-    // e.g. aave-v3, uniswap-v3, wallet
+    public RebalanceReferenceType ByGroupType { get; set; } = RebalanceReferenceType.Unknown;
     public string? Value { get; set; }
+    public RebalanceItemAdditionalInfo AdditionalInfo { get; set; } = new();
+}
+
+public class RebalanceItemAdditionalInfo
+{
+    public string? Logo1 { get; set; }
+    public string? Logo2 { get; set; }
 }
 
 public class RebalanceRequest

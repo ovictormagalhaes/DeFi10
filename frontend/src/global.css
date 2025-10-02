@@ -534,6 +534,43 @@ body.light, .theme-light {
 .table-unified tbody tr:nth-child(odd) { background: var(--mw-table-row-alt-bg, rgba(255,255,255,0.025)); }
 .table-unified tbody tr:nth-child(odd):hover { background: var(--mw-table-row-hover-bg, rgba(255,255,255,0.05)); }
 
+/* ---------- PoolsView & DeFi tables migration (Phase 3 inline removal) ---------- */
+.pools-view { display:flex; flex-direction:column; gap:24px; }
+.pools-stats { display:flex; flex-wrap:wrap; gap:16px; }
+.stat-card { flex:1 1 160px; min-width:160px; background:var(--mw-surface-1); border:1px solid var(--app-border); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
+.stat-card-label { font-size:11px; letter-spacing:.5px; text-transform:uppercase; font-weight:600; color:var(--mw-text-secondary,var(--app-text-secondary)); }
+.stat-card-value { font-size:18px; font-weight:600; color:var(--mw-text-primary,var(--app-text-primary)); }
+.pools-panel { background:var(--mw-surface-1); border:1px solid var(--app-border); border-radius:16px; padding:14px 18px; display:flex; flex-direction:column; gap:4px; }
+.pools-panel-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:8px; }
+.pools-panel-title { font-size:18px; font-weight:600; color:var(--mw-text-primary,var(--app-text-primary)); }
+.pools-panel-hint { font-size:12px; color:var(--mw-text-secondary,var(--app-text-secondary)); }
+.pool-collapse-section { border-bottom:1px solid var(--app-border); }
+.pool-collapse-btn { all:unset; cursor:pointer; width:100%; padding:10px 8px; display:flex; align-items:center; gap:12px; position:relative; }
+.pool-collapse-btn:focus-visible { outline:2px solid var(--mw-primary,var(--app-primary)); outline-offset:2px; border-radius:8px; }
+.pool-collapse-label { font-size:15px; font-weight:600; color:var(--mw-text-primary,var(--app-text-primary)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pool-collapse-metrics { margin-left:auto; display:flex; align-items:center; gap:18px; font-size:12px; color:var(--mw-text-secondary,var(--app-text-secondary)); }
+.pool-collapse-metrics span { font-family:var(--font-mono,monospace); }
+.chevron { transition:transform .2s; display:inline-block; }
+.chevron-open { transform:rotate(90deg); }
+.mini-metrics { display:flex; flex-wrap:wrap; gap:28px; font-size:12px; }
+.mini-metric { display:flex; flex-direction:column; gap:2px; min-width:70px; align-items:center; text-align:center; }
+.mini-metric-label { font-size:10px; letter-spacing:.5px; font-weight:600; text-transform:uppercase; color:var(--mw-text-secondary,var(--app-text-secondary)); }
+.mini-metric-value { font-size:13px; font-family:var(--font-mono,monospace); font-weight:600; color:var(--mw-text-primary,var(--app-text-primary)); }
+.mini-metric-value.accent { color: var(--mw-accent, #45b773); }
+.mini-metric-row { display:inline-flex; align-items:center; gap:4px; }
+.mini-metric-value.mono { font-family:var(--font-mono,monospace); }
+.mini-metric-value.strong { font-weight:700; }
+/* Condensed pill variant (percent badge replacement) */
+.mini-metric-condensed { min-width:auto; }
+.mini-metric-condensed > .mini-metric-label { display:none; }
+.mini-metric.mini-metric-condensed { padding:0; }
+.mini-metric-condensed .mini-metric-row { background:transparent; border:1px solid var(--app-border); padding:0 6px 0 8px; height:24px; line-height:20px; border-radius:6px; font-size:12px; font-weight:400; color:var(--mw-text-secondary,var(--app-text-secondary)); cursor:default; }
+.mini-metric-condensed .mini-metric-value { font-size:12px; font-weight:400; font-family:inherit; }
+.range-chip-wrapper { display:inline-flex; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); border:0; }
+@media (max-width:900px){ .pools-view { gap:20px; } .mini-metrics { gap:18px; } }
+@media (max-width:600px){ .pool-collapse-metrics { gap:10px; } }
+
 /* Summary row + expansion animation */
 .table-summary { background: var(--mw-table-summary-bg, rgba(255,255,255,0.02)); font-weight:600; }
 .table-summary td { border-top:1px solid var(--mw-table-border, var(--app-border, #2d3442)); }
@@ -629,7 +666,7 @@ select.input-base option { background: var(--mw-bg-panel,var(--app-bg-panel)); c
 }
 .grid-rebalance { display:grid; grid-template-columns:1.9fr 1.6fr 0.8fr 0.8fr 0.8fr 0.6fr 72px; gap:0; }
 .panel-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-.panel-title { font-weight:700; font-size:16px; }
+.panel-title { font-weight:600; font-size:16px; text-transform:none; letter-spacing:0; }
 .flex-center { display:flex; align-items:center; }
 .flex-end { display:flex; justify-content:flex-end; align-items:center; }
 .text-success { color: var(--mw-success-text, var(--app-success-text,#16a34a)); }
@@ -954,6 +991,9 @@ pre {
 .circle-32 { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
 .bg-primary-subtle { background: var(--mw-primary-subtle,var(--app-primary-subtle,rgba(69,183,115,0.15))); }
 .summary-panel { background: var(--mw-bg-panel,var(--app-bg-panel)); border:1px solid var(--mw-border,var(--app-border)); border-radius:12px; }
+.panel-unified { background: var(--mw-bg-panel,var(--app-bg-panel)); border:1px solid var(--mw-border,var(--app-border)); border-radius:12px; padding:24px; box-shadow: var(--mw-shadow-panel,0 2px 4px rgba(0,0,0,0.04)); }
+.panel-unified + .panel-unified { margin-top:24px; }
+.panel-heading { font-size:20px; font-weight:600; margin:0 0 12px 0; color: var(--mw-text-primary,var(--app-text-primary)); }
 .summary-header { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
 .summary-title { font-size:20px; font-weight:700; margin:0 0 4px 0; }
 .summary-sub { font-size:14px; margin:0; }
@@ -1027,4 +1067,29 @@ pre {
 .trend-wrap[data-trend='up']::before { content:'\25B2'; font-size:10px; margin-right:4px; color: var(--mw-success-text,#16a34a); }
 .trend-wrap[data-trend='down']::before { content:'\25BC'; font-size:10px; margin-right:4px; color: var(--mw-danger-text,#dc2626); }
 .trend-wrap[data-disabled='true']::before { content:''; }
+
+/* Responsive rules for lending (Aave V3) tables: hide Price first (<900px), then Collateral (<700px) */
+.lending-responsive .hide-sm { display: table-cell; }
+.lending-responsive .hide-md { display: table-cell; }
+@media (max-width: 900px) {
+  .lending-responsive .hide-sm { display: none; }
+}
+@media (max-width: 700px) {
+  .lending-responsive .hide-md { display: none; }
+}
+
+/* Nested liquidity pool subtable styles (added) */
+.td-nested-bg { background: var(--mw-surface-2, var(--app-bg-panel-alt,#272a33)); padding:0 !important; }
+.table-sub { width:100%; border-collapse:collapse; table-layout:fixed; }
+.table-sub-tight th, .table-sub-tight td { padding:6px 10px; font-size:12px; }
+.table-sub th.th-sub { text-align:left; font-weight:500; font-size:11px; letter-spacing:.25px; text-transform:uppercase; color: var(--mw-text-secondary,var(--app-text-secondary)); }
+.table-sub th.th-sub.th-right { text-align:right; }
+.table-sub th.th-sub.th-center { text-align:center; }
+.table-sub tbody tr.tbody-divider:not(:last-child) { border-bottom:1px solid var(--mw-table-row-divider, var(--mw-table-border, var(--app-border,#2d3442))); }
+.table-sub .col-name { width:40%; }
+.table-sub .col-amount { width:20%; }
+.table-sub .col-value { width:20%; }
+.table-sub .col-rewards { width:20%; }
+.disclosure { display:inline-block; width:10px; height:10px; border-right:2px solid var(--mw-text-secondary,var(--app-text-secondary)); border-bottom:2px solid var(--mw-text-secondary,var(--app-text-secondary)); transform:rotate(-45deg); transition:transform .18s ease; margin-right:4px; flex:0 0 auto; }
+.disclosure.open { transform:rotate(45deg); }
 
