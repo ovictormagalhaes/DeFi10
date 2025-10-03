@@ -11,7 +11,7 @@ public class AaveGetUserSuppliesResponse
 public class UserSuppliesData
 {
     [JsonPropertyName("userSupplies")]
-    public List<UserSupply> UserBorrows { get; set; } = new();
+    public List<UserSupply> UserSupplies { get; set; } = new();
 }
 
 public class UserSupply

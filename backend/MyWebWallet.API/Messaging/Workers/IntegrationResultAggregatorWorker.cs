@@ -58,6 +58,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         public int TotalAaveSupplies { get; set; }
         public int TotalAaveBorrows { get; set; }
         public int TotalUniswapPositions { get; set; }
+        public bool AaveHealthReceived { get; set; } // new flag
         public HashSet<string> ProvidersCompleted { get; set; } = new(); // store provider[:chain]
     }
 
@@ -132,7 +133,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         }
         await tran.ExecuteAsync();
 
-        // Incremental consolidation into wallet items
+        // Incremental consolidation into wallet items (map + health factor enrichment)
         try
         {
             var consolidated = new ConsolidatedWallet();
@@ -141,6 +142,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             {
                 try { consolidated = JsonSerializer.Deserialize<ConsolidatedWallet>(existingWalletJson!, _jsonOptions) ?? new ConsolidatedWallet(); } catch { consolidated = new ConsolidatedWallet(); }
             }
+
+            bool isAaveProvider = result.Provider is IntegrationProvider.AaveSupplies or IntegrationProvider.AaveBorrows;
 
             if (result.Status == IntegrationStatus.Success && result.Payload != null)
             {
@@ -156,73 +159,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                         var hydrationHelper = new TokenHydrationHelper(tokenLogoService);
                         var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
                         hydrationHelper.ApplyTokenLogosToWalletItems(newlyMapped, logos);
-
-                        // Price hydration (anchor-based) for newly mapped items only
-                        try
-                        {
-                            // Build anchors from existing consolidated + newly mapped with price > 0
-                            var priceAnchors = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-                            foreach (var existingItem in consolidated.Items)
-                            {
-                                if (existingItem?.Position?.Tokens == null) continue;
-                                foreach (var tk in existingItem.Position.Tokens)
-                                {
-                                    var p = tk.Financials?.Price ?? 0m;
-                                    if (p <= 0) continue;
-                                    if (!string.IsNullOrEmpty(tk.Symbol) && !priceAnchors.ContainsKey($"sym:{tk.Symbol}")) priceAnchors[$"sym:{tk.Symbol}"] = p;
-                                    if (!string.IsNullOrEmpty(tk.ContractAddress))
-                                    {
-                                        var addr = tk.ContractAddress.ToLowerInvariant();
-                                        if (!priceAnchors.ContainsKey($"addr:{addr}")) priceAnchors[$"addr:{addr}"] = p;
-                                    }
-                                }
-                            }
-                            foreach (var mapped in newlyMapped)
-                            {
-                                if (mapped?.Position?.Tokens == null) continue;
-                                foreach (var tk in mapped.Position.Tokens)
-                                {
-                                    var p = tk.Financials?.Price ?? 0m;
-                                    if (p <= 0) continue;
-                                    if (!string.IsNullOrEmpty(tk.Symbol) && !priceAnchors.ContainsKey($"sym:{tk.Symbol}")) priceAnchors[$"sym:{tk.Symbol}"] = p;
-                                    if (!string.IsNullOrEmpty(tk.ContractAddress))
-                                    {
-                                        var addr = tk.ContractAddress.ToLowerInvariant();
-                                        if (!priceAnchors.ContainsKey($"addr:{addr}")) priceAnchors[$"addr:{addr}"] = p;
-                                    }
-                                }
-                            }
-                            int adjustedNew = 0;
-                            foreach (var mapped in newlyMapped)
-                            {
-                                if (mapped?.Position?.Tokens == null) continue;
-                                foreach (var tk in mapped.Position.Tokens)
-                                {
-                                    if (tk.Financials == null) continue;
-                                    if (tk.Financials.Price > 0) continue;
-                                    if (!string.IsNullOrEmpty(tk.Symbol) && priceAnchors.TryGetValue($"sym:{tk.Symbol}", out var ap))
-                                    {
-                                        tk.Financials.Price = ap;
-                                        tk.Financials.TotalPrice = ap * tk.Financials.BalanceFormatted;
-                                        adjustedNew++; continue;
-                                    }
-                                    if (!string.IsNullOrEmpty(tk.ContractAddress) && priceAnchors.TryGetValue($"addr:{tk.ContractAddress.ToLowerInvariant()}", out var ap2))
-                                    {
-                                        tk.Financials.Price = ap2;
-                                        tk.Financials.TotalPrice = ap2 * tk.Financials.BalanceFormatted;
-                                        adjustedNew++; continue;
-                                    }
-                                }
-                            }
-                            if (adjustedNew > 0)
-                            {
-                                _logger.LogInformation("PRICE_HYDRATION_BATCH: Adjusted {Adjusted} newly mapped zero-priced tokens jobId={JobId}", adjustedNew, jobId);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "PRICE_HYDRATION_BATCH: failed jobId={JobId}", jobId);
-                        }
                     }
                 }
                 catch (Exception ex)
@@ -235,6 +171,60 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                 }
                 consolidated.Providers.Add(providerChainKey);
             }
+
+            // If both Aave supplies & borrows present for this chain, compute HealthFactor (simple heuristic)
+            if (isAaveProvider)
+            {
+                bool hasSupplies = consolidated.Providers.Any(p => p.StartsWith("aavesupplies", StringComparison.OrdinalIgnoreCase));
+                bool hasBorrows = consolidated.Providers.Any(p => p.StartsWith("aaveborrows", StringComparison.OrdinalIgnoreCase));
+                if (hasSupplies && hasBorrows)
+                {
+                    try
+                    {
+                        decimal collateralUsd = 0m;
+                        decimal debtUsd = 0m;
+                        foreach (var wi in consolidated.Items.Where(i => i.Protocol?.Id == "aave-v3" && i.Type == WalletItemType.LendingAndBorrowing))
+                        {
+                            var label = wi.Position?.Label?.ToLowerInvariant();
+                            if (label == "supplied")
+                            {
+                                var isCollateral = wi.AdditionalData?.IsCollateral ?? true;
+                                if (isCollateral && wi.Position?.Tokens != null)
+                                {
+                                    foreach (var t in wi.Position.Tokens)
+                                    {
+                                        var tp = t.Financials?.TotalPrice ?? 0m;
+                                        if (tp > 0) collateralUsd += tp;
+                                    }
+                                }
+                            }
+                            else if (label == "borrowed")
+                            {
+                                if (wi.Position?.Tokens != null)
+                                {
+                                    foreach (var t in wi.Position.Tokens)
+                                    {
+                                        var tp = t.Financials?.TotalPrice ?? 0m;
+                                        if (tp > 0) debtUsd += tp;
+                                    }
+                                }
+                            }
+                        }
+                        const decimal assumedLT = 0.8m;
+                        decimal healthFactor = debtUsd == 0m ? decimal.MaxValue : (collateralUsd * assumedLT) / debtUsd;
+                        foreach (var wi in consolidated.Items.Where(i => i.Protocol?.Id == "aave-v3" && i.Type == WalletItemType.LendingAndBorrowing))
+                        {
+                            wi.AdditionalData ??= new AdditionalData();
+                            wi.AdditionalData.HealthFactor = healthFactor;
+                        }
+                    }
+                    catch (Exception hfEx)
+                    {
+                        _logger.LogDebug(hfEx, "HF compute failed jobId={JobId}", jobId);
+                    }
+                }
+            }
+
             await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(consolidated, _jsonOptions), ttl);
         }
         catch (Exception ex)
@@ -242,7 +232,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             _logger.LogWarning(ex, "Failed consolidating wallet jobId={JobId}", jobId);
         }
 
-        // Summary (counts)
+        // Summary (counts + health flag)
         try
         {
             var existingSummaryJson = await db.StringGetAsync(summaryKey);
@@ -304,7 +294,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     var wallet = JsonSerializer.Deserialize<ConsolidatedWallet>(consolidatedJson!, _jsonOptions) ?? new ConsolidatedWallet();
                     if (wallet.Items.Count > 0)
                     {
-                        // Build symbol/address -> price anchor map
                         var anchors = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
                         foreach (var wi in wallet.Items)
                         {

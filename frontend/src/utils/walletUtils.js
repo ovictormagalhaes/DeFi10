@@ -779,130 +779,82 @@ export function calculatePercentage(value, total, options = {}){
 
 /**
  * extractPoolRange
- * Função unificada para extrair informações de range de pools de liquidez
- * de um objeto de posição heterogêneo de forma consistente
+ * @deprecated Use extractPoolRange from types/wallet.ts instead
+ * TODO: Remover esta versão JavaScript - migrado para TypeScript
  */
 export function extractPoolRange(positionLike) {
-  const pos = positionLike?.position || positionLike;
-  if (!pos || typeof pos !== 'object') return null;
-
-  // Try direct range objects first
-  const rangeCandidates = [
-    pos.range,
-    positionLike.range, // check original object too  
-    positionLike.additionalData?.range, // check additionalData on root object
-    pos.position?.range,
-    pos.meta?.range,
-    pos.extra?.range,
-    pos.priceRange,
-    pos.additionalData?.range,
-    pos.additionalInfo?.range
-  ].filter(Boolean);
-
-  let range = rangeCandidates[0] || null;
-
-  // If no direct range object, try to construct from individual fields
-  if (!range) {
-    const lower = pos.lower ?? pos.tickLower ?? pos.min ?? pos.minPrice ?? pos.priceMin ?? pos.lowerPrice;
-    const upper = pos.upper ?? pos.tickUpper ?? pos.max ?? pos.maxPrice ?? pos.priceMax ?? pos.upperPrice;
-    const current = pos.current ?? pos.spotPrice ?? pos.price ?? pos.currentPrice ?? pos.midPrice;
-
-    if (lower != null && upper != null) {
-      const lNum = parseFloat(lower);
-      const uNum = parseFloat(upper);
-      const cNum = parseFloat(current);
-      
-      if (isFinite(lNum) && isFinite(uNum)) {
-        range = {
-          lower: lNum,
-          upper: uNum,
-          current: isFinite(cNum) ? cNum : (lNum + uNum) / 2,
-          inRange: isFinite(cNum) ? (cNum >= lNum && cNum <= uNum) : true
-        };
-      }
-    }
+  console.warn('⚠️ DEPRECATED: Use extractPoolRange from types/wallet.ts instead');
+  if (!positionLike?.additionalData?.range) return null;
+  
+  const range = positionLike.additionalData.range;
+  
+  // Valida se tem as propriedades necessárias
+  if (range.lower != null && range.upper != null && range.current != null) {
+    return {
+      lower: parseFloat(range.lower),
+      upper: parseFloat(range.upper), 
+      current: parseFloat(range.current),
+      inRange: range.inRange
+    };
   }
-
-  // Normalize range object if it has different field names
-  if (range && (typeof range.lower === 'undefined') && (range.min != null || range.max != null)) {
-    const lNum = parseFloat(range.min ?? range.lower ?? range.low);
-    const uNum = parseFloat(range.max ?? range.upper ?? range.high);
-    const cNum = parseFloat(range.current ?? range.mid ?? range.price ?? range.spot);
-    
-    if (isFinite(lNum) && isFinite(uNum)) {
-      range = {
-        lower: lNum,
-        upper: uNum,
-        current: isFinite(cNum) ? cNum : (lNum + uNum) / 2,
-        inRange: isFinite(cNum) ? (cNum >= lNum && cNum <= uNum) : true
-      };
-    }
-  }
-
-  return range;
+  
+  return null;
 }
 
 /**
  * extractPoolFees24h
- * Função unificada para extrair informações de fees 24h de pools de liquidez
+ * Extrai fees 24h de pools Uniswap V3 do additionalData
  */
 export function extractPoolFees24h(positionLike) {
-  console.log('🔍 extractPoolFees24h - objeto completo:', positionLike);
+  if (!positionLike?.additionalData?.fees24h) return null;
   
-  const pos = positionLike?.position || positionLike;
-  if (!pos || typeof pos !== 'object') {
-    console.log('❌ extractPoolFees24h - pos inválido:', pos);
-    return null;
-  }
+  const fees = parseFloat(positionLike.additionalData.fees24h);
+  return isFinite(fees) ? fees : null;
+}
 
-  // Check additional data first (common in Uniswap V3 data)
-  const additionalData = positionLike.additionalData || pos.additionalData;
-  console.log('📊 extractPoolFees24h - additionalData:', additionalData);
+/**
+ * groupBy
+ * Função utilitária para agrupar arrays por uma chave derivada
+ */
+export function groupBy(arr, keyFn) {
+  return arr.reduce((acc, item) => {
+    const k = keyFn(item);
+    if (!acc[k]) acc[k] = [];
+    acc[k].push(item);
+    return acc;
+  }, {});
+}
+
+/**
+ * sum
+ * Função utilitária para somar valores numéricos em um array
+ */
+export function sum(values) {
+  return values.reduce((a, b) => a + (parseFloat(b) || 0), 0);
+}
+
+/**
+ * derivePositionKey
+ * Função utilitária para gerar chaves únicas para posições baseado em endereço ou símbolo
+ */
+export function derivePositionKey(p, index) {
+  const pos = p.position || p;
+  const token = pos.token || pos.asset || {};
+  const addr = (token.address || token.contract || token.contractAddress || '').toLowerCase();
+  const symbol = (token.symbol || '').toLowerCase();
+  if (addr) return `${addr}-${index}`;
+  return `${symbol || 'asset'}-${index}`;
+}
+
+/**
+ * extractHealthFactor
+ * @deprecated Use extractHealthFactor from types/wallet.ts instead
+ * TODO: Remover esta versão JavaScript - migrado para TypeScript
+ */
+export function extractHealthFactor(positionLike) {
+  console.warn('⚠️ DEPRECATED: Use extractHealthFactor from types/wallet.ts instead');
+  if (!positionLike?.additionalData?.healthFactor) return null;
   
-  if (additionalData && additionalData.fees24h != null) {
-    const fees = parseFloat(additionalData.fees24h);
-    console.log('✅ extractPoolFees24h - fees24h encontrado:', additionalData.fees24h, '→', fees);
-    return isFinite(fees) ? fees : null;
-  } else {
-    console.log('⚠️ extractPoolFees24h - fees24h não encontrado no additionalData');
-  }
-
-  // Try various fee field candidates
-  const feeCandidates = [
-    pos.fees24h,
-    pos.fees24H,
-    pos.fees_24h,
-    pos.fees_last_24h,
-    pos.volumeFees24h,
-    pos.dailyFees,
-    pos.daily_fees,
-    pos.feeVolume,
-    pos.fee_volume,
-    pos.feesEarned,
-    pos.fees_earned,
-    pos.feesUSD,
-    pos.fees_usd,
-    pos.feesGenerated,
-    pos.fees_generated,
-    pos.tradingFees,
-    pos.trading_fees,
-    pos.protocolFees,
-    pos.protocol_fees,
-    pos.lpFees,
-    pos.lp_fees
-  ];
-
-  for (const candidate of feeCandidates) {
-    if (candidate != null) {
-      const fees = parseFloat(candidate);
-      console.log('🔄 extractPoolFees24h - testando candidato:', candidate, '→', fees);
-      if (isFinite(fees) && fees >= 0) {
-        console.log('✅ extractPoolFees24h - candidato válido encontrado:', fees);
-        return fees;
-      }
-    }
-  }
-
-  console.log('❌ extractPoolFees24h - nenhum fees24h encontrado, retornando null');
-  return null;
+  const healthFactor = parseFloat(positionLike.additionalData.healthFactor);
+  return isFinite(healthFactor) ? healthFactor : null;
 }

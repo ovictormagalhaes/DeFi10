@@ -1,2 +1,2 @@
-// Legacy location stub - implementation moved to tables/PoolTables.jsx
-export { default } from './tables/PoolTables.jsx';
+// Legacy location stub - implementation moved to tables/PoolTables.tsx (TypeScript)
+export { default } from './tables/PoolTables.tsx';

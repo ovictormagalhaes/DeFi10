@@ -1,2 +1,2 @@
-// Legacy location stub - implementation moved to tables/LendingTables.jsx
-export { default } from './tables/LendingTables.jsx';
+// Redirecionamento para versão TypeScript consolidada
+export { default } from './tables/LendingTables.tsx';

@@ -7,6 +7,7 @@ import InfoIconWithTooltip from './InfoIconWithTooltip';
  * Props:
  *  - label: string (opcional)
  *  - value: ReactNode
+ *  - custom: ReactNode (componente customizado que substitui o value)
  *  - tooltip: string | ReactNode (conteúdo do tooltip)
  *  - icon: ReactNode (prefix icon pequeno opcional)
  *  - accent: boolean (aplica cor de destaque)
@@ -21,7 +22,8 @@ import InfoIconWithTooltip from './InfoIconWithTooltip';
 export default function MiniMetric({
   label,
   value,
-  tooltip,
+  custom = null,
+  tooltip = '',
   icon = null,
   accent = false,
   condensed = false,
@@ -63,7 +65,13 @@ export default function MiniMetric({
       {label && <span className="mini-metric-label">{label}</span>}
       <div className="mini-metric-row" style={{ justifyContent: align === 'left' ? 'flex-start' : align === 'center' ? 'center' : 'flex-end' }}>
         {icon && <span className="mini-metric-icon">{icon}</span>}
-        <span className={valueCls} style={{ fontSize }}>{value}</span>
+        {custom ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'inherit' }}>
+            {custom}
+          </div>
+        ) : (
+          <span className={valueCls} style={{ fontSize }}>{value}</span>
+        )}
         {tooltip && (
           <InfoIconWithTooltip
             content={tooltip}

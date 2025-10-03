@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
@@ -20,11 +21,7 @@ public class AaveeService : IAaveeService
 
     public string NetworkName => "Aavee";
 
-    public bool IsValidAddress(string account)
-    {
-        // Implement validation logic for Aavee wallet addresses
-        return !string.IsNullOrEmpty(account) && account.StartsWith("0x") && account.Length == 42;
-    }
+    public bool IsValidAddress(string account) => !string.IsNullOrEmpty(account) && account.StartsWith("0x") && account.Length == 42;
 
     public async Task<AaveGetUserSuppliesResponse> GetUserSupplies(string address, string chain)
     {
@@ -34,77 +31,31 @@ public class AaveeService : IAaveeService
             {
                 query = @"
                     query UserSupplies($marketAddress: String!, $chainId: Int!, $user: String!) {
-                      userSupplies(
-                        request: {
-                          markets: [
-                            { address: $marketAddress, chainId: $chainId }
-                          ]
-                          user: $user
-                        }
-                      ) {
-                        market {
-                          name
-                          chain {
-                            chainId
-                          }
-                        }
-                        currency {
-                          symbol
-                          name
-                          address
-                        }
-                        balance {
-                          amount {
-                            value
-                          }
-                          usd
-                        }
-                        apy {
-                          raw
-                          decimals
-                          value
-                          formatted
-                        }
+                      userSupplies( request: { markets: [ { address: $marketAddress, chainId: $chainId } ] user: $user }) {
+                        market { name chain { chainId } }
+                        currency { symbol name address }
+                        balance { amount { value } usd }
+                        apy { raw decimals value formatted }
                         isCollateral
                         canBeCollateral
                       }
                     }",
-                variables = new
-                {
-                    marketAddress = NETWORK_BASE_ADDRESS,
-                    chainId = NETWORK_BASE_CHAIN_ID,
-                    user = address
-                }
+                variables = new { marketAddress = NETWORK_BASE_ADDRESS, chainId = NETWORK_BASE_CHAIN_ID, user = address }
             };
 
             var response = await _httpClient.PostAsJsonAsync(_graphqlEndpoint, requestBody);
-            
             if (!response.IsSuccessStatusCode)
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
+                var err = await response.Content.ReadAsStringAsync();
                 response.EnsureSuccessStatusCode();
             }
-
-            var jsonResponse = await response.Content.ReadAsStringAsync();
-            var data = JsonSerializer.Deserialize<AaveGetUserSuppliesResponse>(jsonResponse);
-            
-            return data ?? new AaveGetUserSuppliesResponse();
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<AaveGetUserSuppliesResponse>(json) ?? new AaveGetUserSuppliesResponse();
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
         {
-            Console.WriteLine($"ERROR: AaveeService: HTTP Request failed in GetUserSupplies - {ex.Message}");
-            throw new Exception($"AaveeService HTTP error: {ex.Message}", ex);
-        }
-        catch (JsonException ex)
-        {
-            Console.WriteLine($"ERROR: AaveeService: JSON Deserialization failed in GetUserSupplies - {ex.Message}");
-            throw new Exception($"AaveeService JSON error: {ex.Message}", ex);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"ERROR: AaveeService: Unexpected error in GetUserSupplies - {ex.Message}");
-            Console.WriteLine($"ERROR: AaveeService: Stack trace - {ex.StackTrace}");
-            throw new Exception($"AaveeService unexpected error: {ex.Message}", ex);
+            Console.WriteLine($"ERROR: AaveeService GetUserSupplies - {ex.Message}");
+            throw;
         }
     }
 
@@ -116,75 +67,29 @@ public class AaveeService : IAaveeService
             {
                 query = @"
                     query userBorrows($marketAddress: String!, $chainId: Int!, $user: String!) {
-                      userBorrows(
-                        request: {
-                          markets: [
-                            { address: $marketAddress, chainId: $chainId }
-                          ]
-                          user: $user
-                        }
-                      ) {
-                        market {
-                          name
-                          chain {
-                            chainId
-                          }
-                        }
-                        currency {
-                          symbol
-                          name
-                          address
-                        }
-                        debt {
-                          amount {
-                            value
-                          }
-                          usd
-                        }
-                        apy {
-                          raw
-                          decimals
-                          value
-                          formatted
-                        }
+                      userBorrows(request: { markets: [{ address: $marketAddress, chainId: $chainId } ] user: $user }) {
+                        market { name chain { chainId } }
+                        currency { symbol name address }
+                        debt { amount { value } usd }
+                        apy { raw decimals value formatted }
                       }
                     }",
-                variables = new
-                {
-                    marketAddress = NETWORK_BASE_ADDRESS,
-                    chainId = NETWORK_BASE_CHAIN_ID,
-                    user = address
-                }
+                variables = new { marketAddress = NETWORK_BASE_ADDRESS, chainId = NETWORK_BASE_CHAIN_ID, user = address }
             };
 
             var response = await _httpClient.PostAsJsonAsync(_graphqlEndpoint, requestBody);
-            
             if (!response.IsSuccessStatusCode)
             {
-                var errorContent = await response.Content.ReadAsStringAsync();
+                var err = await response.Content.ReadAsStringAsync();
                 response.EnsureSuccessStatusCode();
             }
-
-            var jsonResponse = await response.Content.ReadAsStringAsync();
-            var data = JsonSerializer.Deserialize<AaveGetUserBorrowsResponse>(jsonResponse);
-            
-            return data ?? new AaveGetUserBorrowsResponse();
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<AaveGetUserBorrowsResponse>(json) ?? new AaveGetUserBorrowsResponse();
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
         {
-            Console.WriteLine($"ERROR: AaveeService: HTTP Request failed in GetUserBorrows - {ex.Message}");
-            throw new Exception($"AaveeService HTTP error: {ex.Message}", ex);
-        }
-        catch (JsonException ex)
-        {
-            Console.WriteLine($"ERROR: AaveeService: JSON Deserialization failed in GetUserBorrows - {ex.Message}");
-            throw new Exception($"AaveeService JSON error: {ex.Message}", ex);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"ERROR: AaveeService: Unexpected error in GetUserBorrows - {ex.Message}");
-            Console.WriteLine($"ERROR: AaveeService: Stack trace - {ex.StackTrace}");
-            throw new Exception($"AaveeService unexpected error: {ex.Message}", ex);
+            Console.WriteLine($"ERROR: AaveeService GetUserBorrows - {ex.Message}");
+            throw;
         }
     }
 }

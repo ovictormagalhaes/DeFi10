@@ -32,12 +32,12 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
         if (!SupportsChain(chain))
             throw new NotSupportedException($"Chain {chain} is not supported by {GetProtocolName()}");
 
-        if (response?.Data?.UserBorrows == null)
+        if (response?.Data?.UserSupplies == null)
             return new List<WalletItem>();
 
         var walletItems = new List<WalletItem>();
 
-        foreach (var supply in response.Data.UserBorrows)
+        foreach (var supply in response.Data.UserSupplies)
         {
             if (!decimal.TryParse(supply.Balance.Amount.Value, out var amountFormatted)) amountFormatted = 0m;
             if (!decimal.TryParse(supply.Balance.Usd, out var totalUsd)) totalUsd = 0m;

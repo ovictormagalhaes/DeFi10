@@ -1,26 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
 
-import ActionButton from './components/ActionButton';
-import CellsContainer from './components/CellsContainer';
-import CollapsibleMenu from './components/CollapsibleMenu';
-import DeFiMenu from './components/DeFiMenu';
 import ErrorBoundary from './components/ErrorBoundary';
 import HeaderBar from './components/HeaderBar';
-import PoolTokenCell from './components/PoolTokenCell';
 import ProtocolsSection from './components/ProtocolsSection';
 import SectionTable from './components/SectionTable';
-import TokensMenu from './components/TokensMenu';
 import { ChainIconsProvider } from './context/ChainIconsProvider';
 import { MaskValuesProvider } from './context/MaskValuesContext';
 import { useTheme } from './context/ThemeProvider';
 import { useWalletConnection, useTooltip } from './hooks/useWallet';
-import useWalletMenus from './hooks/useWalletMenus';
-import colors from './styles/colors';
 import { WalletTokensTable } from './components/tables';
 import SummaryView from './components/SummaryView';
 import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
 import PoolsView from './components/PoolsView';
-import AggregationPanel from './components/AggregationPanel';
 import SegmentedNav from './components/SegmentedNav';
 import { useAggregationJob } from './hooks/useAggregationJob';
 import { api } from './config/api';

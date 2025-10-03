@@ -9,8 +9,9 @@ import {
   groupStakingTokensByType,
 } from '../utils/walletUtils';
 import { isRewardToken, calculateTokensValue } from '../utils/tokenFilters';
+import { extractHealthFactor } from '../types/wallet';
 
-import { PoolTables, LendingTables, StakingTables, WalletTokensTable } from './tables';
+import { PoolTables, LendingTables, WalletTokensTable } from './tables';
 import ProtocolTables from './ProtocolTables';
 import SectionTable from './SectionTable';
 import MiniMetric from './MiniMetric';
@@ -105,7 +106,9 @@ const ProtocolsSection = ({
           return positions
             .filter((p) => positionMatchesSelection(p))
             .map((p) => {
-              if (!selectedChains || isAllChainsSelected) return p;
+              if (!selectedChains || isAllChainsSelected) {
+                return p;
+              }
               const cloned = p.position ? { ...p, position: { ...p.position } } : { ...p };
               const container = cloned.position || cloned;
               const tokensArr = Array.isArray(container.tokens) ? container.tokens : [];
@@ -187,7 +190,14 @@ const ProtocolsSection = ({
 
         let lendingGroup = null;
         let lendingRewardsValue = 0;
+        let lendingHealthFactor = null;
+        
         if (lendingPositions.length > 0) {
+          // EXTRAIR HEALTH FACTOR ANTES DE QUEBRAR A ESTRUTURA - usando função TypeScript
+          lendingHealthFactor = lendingPositions
+            .map(pos => extractHealthFactor(pos))
+            .find(hf => hf != null && isFinite(hf)) || null;
+          
           const filtered = lendingPositions.map((p) => ({
             ...p,
             tokens: Array.isArray(p.tokens)
@@ -208,6 +218,7 @@ const ProtocolsSection = ({
             supplied: grouped.supplied || [],
             borrowed: grouped.borrowed || [],
             rewards: grouped.rewards || [],
+            healthFactor: lendingHealthFactor, // Preservar o Health Factor
           };
           // Calculate total rewards value from lending positions
           lendingRewardsValue = lendingGroup.rewards.reduce(
@@ -554,6 +565,7 @@ const ProtocolsSection = ({
                       supplied={lendingGroup.supplied}
                       borrowed={lendingGroup.borrowed}
                       rewards={lendingGroup.rewards}
+                      healthFactor={lendingGroup.healthFactor}
                     />
                   )}
                 {stakingGroup &&
