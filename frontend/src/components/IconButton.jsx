@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 export default function IconButton({ icon, label, onClick, size = 32, variant = 'neutral' }) {
   const { theme } = useTheme();

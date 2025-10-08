@@ -17,6 +17,7 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
     private readonly IRabbitMqConnectionFactory _connectionFactory;
     private readonly RabbitMqOptions _options;
     private readonly ILogger<RabbitMqPublisher> _logger;
+    private readonly IConfiguration _configuration;
     private IModel? _channel;
     private readonly SemaphoreSlim _initLock = new(1,1);
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
@@ -24,11 +25,12 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public RabbitMqPublisher(IRabbitMqConnectionFactory connectionFactory, IOptions<RabbitMqOptions> options, ILogger<RabbitMqPublisher> logger)
+    public RabbitMqPublisher(IRabbitMqConnectionFactory connectionFactory, IOptions<RabbitMqOptions> options, ILogger<RabbitMqPublisher> logger, IConfiguration configuration)
     {
         _connectionFactory = connectionFactory;
         _options = options.Value;
         _logger = logger;
+        _configuration = configuration;
     }
 
     private IModel GetOrCreateChannel()
@@ -53,11 +55,37 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
             props.DeliveryMode = 2; // persistent
             props.MessageId = Guid.NewGuid().ToString();
             props.Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            
             ch.BasicPublish(exchange: _options.Exchange, routingKey: routingKey, mandatory: false, basicProperties: props, body: body);
+            
             if (_options.PublisherConfirms)
             {
-                ch.WaitForConfirmsOrDie(TimeSpan.FromSeconds(5));
+                // Configurável via appsettings, default 30s (era 5s)
+                var confirmTimeoutSeconds = _configuration.GetValue<int?>("RabbitMQ:PublisherConfirmTimeoutSeconds") ?? 30;
+                var timeout = TimeSpan.FromSeconds(Math.Clamp(confirmTimeoutSeconds, 5, 120));
+                
+                _logger.LogTrace("Waiting for publisher confirm routingKey={RoutingKey} timeout={Timeout}s", routingKey, timeout.TotalSeconds);
+                ch.WaitForConfirmsOrDie(timeout);
+                _logger.LogTrace("Publisher confirm received routingKey={RoutingKey}", routingKey);
             }
+        }
+        catch (TimeoutException tex)
+        {
+            _logger.LogError(tex, "Publisher confirm timeout for routingKey {RoutingKey} after waiting. This may indicate RabbitMQ broker issues.", routingKey);
+            
+            // Recreate channel on timeout - it might be in a bad state
+            try 
+            { 
+                _channel?.Close(); 
+                _channel?.Dispose(); 
+            } 
+            catch 
+            { 
+                /* ignore cleanup errors */ 
+            }
+            _channel = null;
+            
+            throw;
         }
         catch (Exception ex)
         {
@@ -72,6 +100,14 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
 
     public void Dispose()
     {
-        try { _channel?.Dispose(); } catch { /* ignore */ }
+        try 
+        { 
+            _channel?.Dispose(); 
+        } 
+        catch 
+        { 
+            /* ignore cleanup errors */ 
+        }
+        _initLock?.Dispose();
     }
 }

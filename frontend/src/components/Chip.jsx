@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 // Generic small badge/chip component
 // Props: variant ('default' | 'accent' | 'success' | 'danger' | 'warning' | 'muted' | 'outline'),

@@ -29,6 +29,136 @@ namespace MyWebWallet.API.Services.Interfaces
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress, bool onlyOpenPositions);
         // Chain-aware overload for multi-chain support (Base, Arbitrum)
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress, bool onlyOpenPositions, ChainEnum chain);
+
+        // Novos métodos para operações granulares resilientes
+        /// <summary>
+        /// Enumera apenas os IDs das posições de um owner sem buscar detalhes completos
+        /// </summary>
+        Task<IEnumerable<BigInteger>> EnumeratePositionIdsAsync(string ownerAddress, ChainEnum chain, bool onlyOpen = true);
+        
+        /// <summary>
+        /// Busca dados básicos de uma posição específica (sem pool state)
+        /// </summary>
+        Task<PositionDataResult> GetPositionDataSafeAsync(BigInteger tokenId, ChainEnum chain);
+        
+        /// <summary>
+        /// Busca metadados de um pool específico com fallback
+        /// </summary>
+        Task<PoolMetadataResult> GetPoolMetadataSafeAsync(string poolAddress, ChainEnum chain);
+        
+        /// <summary>
+        /// Busca estado atual de um pool com fallback
+        /// </summary>
+        Task<PoolStateResult> GetPoolStateSafeAsync(string poolAddress, ChainEnum chain);
+        
+        /// <summary>
+        /// Busca informações de ticks com fallback
+        /// </summary>
+        Task<TickRangeResult> GetTickRangeSafeAsync(string poolAddress, int tickLower, int tickUpper, ChainEnum chain);
+        
+        /// <summary>
+        /// Busca metadados de tokens ERC20 com cache
+        /// </summary>
+        Task<TokenMetadataResult> GetTokenMetadataSafeAsync(string tokenAddress, ChainEnum chain);
+    }
+
+    /// <summary>
+    /// Resultado seguro para dados de posição
+    /// </summary>
+    public class PositionDataResult
+    {
+        public BigInteger TokenId { get; init; }
+        public PositionDTO? Position { get; init; }
+        public string? PoolAddress { get; init; }
+        public bool Success { get; init; }
+        public string? ErrorMessage { get; init; }
+        public DateTime RetrievedAt { get; init; } = DateTime.UtcNow;
+
+        public static PositionDataResult CreateSuccess(BigInteger tokenId, PositionDTO position, string? poolAddress = null)
+            => new() { TokenId = tokenId, Position = position, PoolAddress = poolAddress, Success = true };
+
+        public static PositionDataResult CreateFailure(BigInteger tokenId, string errorMessage)
+            => new() { TokenId = tokenId, Success = false, ErrorMessage = errorMessage };
+    }
+
+    /// <summary>
+    /// Resultado seguro para metadados de pool
+    /// </summary>
+    public class PoolMetadataResult
+    {
+        public string PoolAddress { get; init; } = string.Empty;
+        public UniswapV3PoolMetadata? Metadata { get; init; }
+        public bool Success { get; init; }
+        public string? ErrorMessage { get; init; }
+        public DateTime RetrievedAt { get; init; } = DateTime.UtcNow;
+
+        public static PoolMetadataResult CreateSuccess(string poolAddress, UniswapV3PoolMetadata metadata)
+            => new() { PoolAddress = poolAddress, Metadata = metadata, Success = true };
+
+        public static PoolMetadataResult CreateFailure(string poolAddress, string errorMessage)
+            => new() { PoolAddress = poolAddress, Success = false, ErrorMessage = errorMessage };
+    }
+
+    /// <summary>
+    /// Resultado seguro para estado de pool
+    /// </summary>
+    public class PoolStateResult
+    {
+        public string PoolAddress { get; init; } = string.Empty;
+        public UniswapV3PoolState? State { get; init; }
+        public bool Success { get; init; }
+        public string? ErrorMessage { get; init; }
+        public DateTime RetrievedAt { get; init; } = DateTime.UtcNow;
+
+        public static PoolStateResult CreateSuccess(string poolAddress, UniswapV3PoolState state)
+            => new() { PoolAddress = poolAddress, State = state, Success = true };
+
+        public static PoolStateResult CreateFailure(string poolAddress, string errorMessage)
+            => new() { PoolAddress = poolAddress, Success = false, ErrorMessage = errorMessage };
+    }
+
+    /// <summary>
+    /// Resultado seguro para informações de tick range
+    /// </summary>
+    public class TickRangeResult
+    {
+        public string PoolAddress { get; init; } = string.Empty;
+        public int TickLower { get; init; }
+        public int TickUpper { get; init; }
+        public TickInfoDTO? LowerTickInfo { get; init; }
+        public TickInfoDTO? UpperTickInfo { get; init; }
+        public bool Success { get; init; }
+        public string? ErrorMessage { get; init; }
+        public DateTime RetrievedAt { get; init; } = DateTime.UtcNow;
+
+        public static TickRangeResult CreateSuccess(string poolAddress, int tickLower, int tickUpper, 
+            TickInfoDTO lowerTick, TickInfoDTO upperTick)
+            => new() { PoolAddress = poolAddress, TickLower = tickLower, TickUpper = tickUpper, 
+                      LowerTickInfo = lowerTick, UpperTickInfo = upperTick, Success = true };
+
+        public static TickRangeResult CreateFailure(string poolAddress, int tickLower, int tickUpper, string errorMessage)
+            => new() { PoolAddress = poolAddress, TickLower = tickLower, TickUpper = tickUpper, 
+                      Success = false, ErrorMessage = errorMessage };
+    }
+
+    /// <summary>
+    /// Resultado seguro para metadados de token
+    /// </summary>
+    public class TokenMetadataResult
+    {
+        public string TokenAddress { get; init; } = string.Empty;
+        public string Symbol { get; init; } = string.Empty;
+        public string Name { get; init; } = string.Empty;
+        public int Decimals { get; init; }
+        public bool Success { get; init; }
+        public string? ErrorMessage { get; init; }
+        public DateTime RetrievedAt { get; init; } = DateTime.UtcNow;
+
+        public static TokenMetadataResult CreateSuccess(string tokenAddress, string symbol, string name, int decimals)
+            => new() { TokenAddress = tokenAddress, Symbol = symbol, Name = name, Decimals = decimals, Success = true };
+
+        public static TokenMetadataResult CreateFailure(string tokenAddress, string errorMessage)
+            => new() { TokenAddress = tokenAddress, Success = false, ErrorMessage = errorMessage };
     }
 
     /// <summary>

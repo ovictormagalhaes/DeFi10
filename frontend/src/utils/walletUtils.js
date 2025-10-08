@@ -26,10 +26,10 @@ export function normalizeFinancials(token) {
 
 // Constants for item types
 export const ITEM_TYPES = {
-  WALLET: 1,
-  LIQUIDITY_POOL: 2,
-  LENDING_AND_BORROWING: 3,
-  STAKING: 4,
+  WALLET: "Wallet",
+  LIQUIDITY_POOL: "LiquidityPool", 
+  LENDING_AND_BORROWING: "LendingAndBorrowing",
+  STAKING: "Staking",
   GROUP: 98, // virtual grouping type (frontend only)
 };
 
@@ -60,18 +60,24 @@ export function getWalletTokens(data) {
   return collected;
 }
 
+// DEPRECATED: Use getLiquidityPoolItems from types/filters.ts instead
 // Get liquidity pools from unified data
 export function getLiquidityPools(data) {
+  console.warn('DEPRECATED: getLiquidityPools from walletUtils.js is deprecated. Use getLiquidityPoolItems from types/filters.ts');
   return filterItemsByType(data, ITEM_TYPES.LIQUIDITY_POOL);
 }
 
+// DEPRECATED: Use getLendingItems from types/filters.ts instead
 // Get lending and borrowing positions from unified data
 export function getLendingAndBorrowingPositions(data) {
+  console.warn('DEPRECATED: getLendingAndBorrowingPositions from walletUtils.js is deprecated. Use getLendingItems from types/filters.ts');
   return filterItemsByType(data, ITEM_TYPES.LENDING_AND_BORROWING);
 }
 
+// DEPRECATED: Use getStakingItems from types/filters.ts instead
 // Get staking positions from unified data
 export function getStakingPositions(data) {
+  console.warn('DEPRECATED: getStakingPositions from walletUtils.js is deprecated. Use getStakingItems from types/filters.ts');
   return filterItemsByType(data, ITEM_TYPES.STAKING);
 }
 

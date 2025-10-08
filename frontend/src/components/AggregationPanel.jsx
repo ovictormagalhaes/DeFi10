@@ -28,6 +28,9 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
     loading,
     error,
     expired,
+    pollingAttempt,
+    maxPollingAttempts,
+    nextPollInterval,
   } = useAggregationJob();
 
   // Auto start / ensure when account changes
@@ -83,7 +86,7 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
       )}
       {showTimeout && (
         <div className="badge" style={{ alignSelf: 'flex-start' }}>
-          Timed out (some providers may be missing)
+          Timed out - retrying {pollingAttempt}/{maxPollingAttempts} (next in {Math.round(nextPollInterval/1000)}s)
         </div>
       )}
 
@@ -97,6 +100,12 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
           <div style={{ height: 6, background: 'var(--mw-bg-interactive, #1f2733)', borderRadius: 4, overflow: 'hidden' }}>
             <div style={{ width: pct + '%', height: '100%', background: 'var(--mw-accent-bg,#2563eb)', transition: 'width .4s' }} />
           </div>
+          {/* Polling indicator */}
+          {!isCompleted && pollingAttempt > 0 && (
+            <div className="text-xs" style={{ fontSize: 10, color: 'var(--mw-text-secondary)', textAlign: 'center' }}>
+              Polling attempt {pollingAttempt}/{maxPollingAttempts}
+            </div>
+          )}
         </div>
       )}
 

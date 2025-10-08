@@ -4,7 +4,6 @@ import { useChainIcons } from '../context/ChainIconsProvider';
 import {
   formatPrice,
   groupDefiByProtocol,
-  groupTokensByPool,
   groupTokensByType,
   groupStakingTokensByType,
 } from '../utils/walletUtils';
@@ -175,10 +174,8 @@ const ProtocolsSection = ({
         // Build tables for this protocol
         const tables = [];
 
-        let poolsGrouped = null;
         let liquidityRewardsValue = 0;
         if (liqPositions.length > 0) {
-          poolsGrouped = groupTokensByPool(liqPositions);
           // Calculate total rewards value from liquidity positions using unified utility
           liqPositions.forEach((pos) => {
             if (pos.tokens && Array.isArray(pos.tokens)) {
@@ -337,7 +334,7 @@ const ProtocolsSection = ({
           : calculatePercentage(protocolPositive, totalPortfolio);
         const totalRewardsValue = liquidityRewardsValue + lendingRewardsValue + stakingRewardsValue;
         const infoBadges = [
-          liqPositions.length > 0 ? `Pools: ${Object.keys(poolsGrouped || {}).length}` : null,
+          liqPositions.length > 0 ? `Pools: ${liqPositions.length}` : null,
           lendingPositions.length > 0 ? `Lending: ${lendingPositions.length}` : null,
           stakingPositions.length > 0 ? `Staking: ${stakingPositions.length}` : null,
         ]
@@ -382,7 +379,7 @@ const ProtocolsSection = ({
           </div>
         );
         // Decide layout AFTER we know which table(s) will render
-        const hasPools = !!(poolsGrouped && Object.keys(poolsGrouped).length > 0);
+        const hasPools = liqPositions.length > 0;
         const hasLending = !!(
           lendingGroup &&
           (lendingGroup.supplied.length > 0 ||
@@ -554,8 +551,8 @@ const ProtocolsSection = ({
             optionsMenu={optionsMenu}
             customContent={
               <>
-                {poolsGrouped && Object.keys(poolsGrouped).length > 0 && (
-                  <PoolTables pools={poolsGrouped} />
+                {liqPositions && liqPositions.length > 0 && (
+                  <PoolTables items={liqPositions} />
                 )}
                 {lendingGroup &&
                   (lendingGroup.supplied.length > 0 ||

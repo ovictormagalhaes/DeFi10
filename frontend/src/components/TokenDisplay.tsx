@@ -97,22 +97,18 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
 
   return (
     <div
-      className={`token-display ${className}`}
+      className={`token-display flex items-center ${className}`}
       style={{
-        display: 'flex',
-        alignItems: 'center',
         gap: showText ? `${gap}px` : 0,
         ...style,
       }}
     >
       {/* Logo container */}
       <div
-        className="token-logos"
+        className="token-logos relative flex-shrink-0"
         style={{
-          position: 'relative',
           height: `${size}px`,
           width: isPair ? `${pairSize + overlap}px` : `${size}px`,
-          flexShrink: 0,
         }}
       >
         {logos.map((logo: any, index: number) => (
@@ -120,15 +116,15 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
             key={index}
             src={logo.src || logo}
             alt={logo.alt || `Token ${index + 1}`}
+            className="token-logo rounded-full"
             style={{
               position: isPair ? 'absolute' : 'static',
               left: isPair && index === 1 ? `${overlap}px` : '0px',
               top: '0px',
               width: isPair ? `${pairSize}px` : `${size}px`,
               height: isPair ? `${pairSize}px` : `${size}px`,
-              borderRadius: '50%',
-              border: isPair ? '2px solid white' : 'none',
-              backgroundColor: '#f0f0f0',
+              border: isPair ? `2px solid ${theme.bgApp}` : 'none',
+              backgroundColor: theme.bgPanel,
               zIndex: isPair ? (index === 0 ? 2 : 1) : 'auto',
             }}
             onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
@@ -150,8 +146,8 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
               width: `${Math.round(size * 0.4)}px`,
               height: `${Math.round(size * 0.4)}px`,
               borderRadius: '50%',
-              border: '2px solid white',
-              backgroundColor: 'white',
+              border: `2px solid ${theme.bgApp}`,
+              backgroundColor: theme.bgPanel,
               zIndex: 10,
             }}
             onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
@@ -165,11 +161,11 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
       {/* Text */}
       {showText && (
         <span
-          className="token-text"
+          className="token-text text-primary"
           style={{
             fontSize: `${Math.round(size * 0.6)}px`,
             fontWeight: 500,
-            color: '#000000', // TODO: Implement proper theme typing
+            color: theme?.textPrimary || '#f4f4f4',
           }}
         >
           {text}

@@ -13,7 +13,17 @@ public enum IntegrationProvider
     AaveSupplies = 4,
     AaveBorrows = 5,
     AlchemyNfts = 6,
-    TokenLogos = 7
+    TokenLogos = 7,
+    
+    // Novos eventos granulares para Uniswap V3
+    UniswapV3PositionData = 10,      // GetPositionAsync individual
+    UniswapV3PoolMetadata = 11,      // GetPoolMetadataAsync
+    UniswapV3PoolState = 12,         // GetCurrentPoolStateAsync
+    UniswapV3TickInfo = 13,          // GetTickInfoAsync + GetTickRangeInfoAsync
+    UniswapV3FeeGrowth = 14,         // GetPoolFeeGrowthAsync
+    UniswapV3PositionRange = 15,     // GetPositionRangeAsync
+    UniswapV3TokenMetadata = 16,     // GetErc20MetadataAsync
+    UniswapV3PositionEnumeration = 17 // Enumerate positions by owner
 }
 
 public enum IntegrationStatus
@@ -119,4 +129,68 @@ public sealed record WalletAggregationRequested(
     IReadOnlyList<string> Chains,
     DateTime RequestedAtUtc,
     int ExpectedIntegrations
+);
+
+// Novos contratos para operações granulares Uniswap V3
+public sealed record UniswapV3PositionDataRequest(
+    Guid JobId,
+    string Account,
+    string Chain,
+    string TokenId,
+    string? PoolAddress = null
+);
+
+public sealed record UniswapV3PositionDataResult(
+    string TokenId,
+    object? PositionData,
+    string? PoolAddress,
+    bool Success,
+    string? ErrorMessage
+);
+
+public sealed record UniswapV3PoolMetadataRequest(
+    Guid JobId,
+    string Account,
+    string Chain,
+    string PoolAddress
+);
+
+public sealed record UniswapV3PoolMetadataResult(
+    string PoolAddress,
+    object? Metadata,
+    bool Success,
+    string? ErrorMessage
+);
+
+public sealed record UniswapV3PoolStateRequest(
+    Guid JobId,
+    string Account,
+    string Chain,
+    string PoolAddress
+);
+
+public sealed record UniswapV3PoolStateResult(
+    string PoolAddress,
+    object? PoolState,
+    bool Success,
+    string? ErrorMessage
+);
+
+public sealed record UniswapV3TickInfoRequest(
+    Guid JobId,
+    string Account,
+    string Chain,
+    string PoolAddress,
+    int TickLower,
+    int TickUpper
+);
+
+public sealed record UniswapV3TickInfoResult(
+    string PoolAddress,
+    int TickLower,
+    int TickUpper,
+    object? LowerTickInfo,
+    object? UpperTickInfo,
+    bool Success,
+    string? ErrorMessage
 );

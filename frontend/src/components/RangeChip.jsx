@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 // Reusable Uniswap V3-style range chip
 // Props:
@@ -19,7 +19,7 @@ export default function RangeChip({
   markerOvershoot = 2,
 }) {
   const { theme } = useTheme();
-  if (!range) return <span style={{ opacity: 0.6 }}>-</span>;
+  if (!range) return <span className="opacity-60">-</span>;
 
   const { lower, upper, current, inRange } = range || {};
 

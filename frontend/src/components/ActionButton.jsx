@@ -1,4 +1,4 @@
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 // Reusable action button with fixed width to prevent layout shift
 export default function ActionButton({

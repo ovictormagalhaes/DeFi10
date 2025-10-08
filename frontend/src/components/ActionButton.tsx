@@ -62,7 +62,7 @@ export default function ActionButton({
       {loading ? (
         spinIcon
       ) : icon ? (
-        <span className="mono-icon icon-inline-flex">{icon}</span>
+        <span className="mono-icon inline-flex items-center">{icon}</span>
       ) : null}
       <span>{label}</span>
     </button>

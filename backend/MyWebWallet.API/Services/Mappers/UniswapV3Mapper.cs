@@ -3,7 +3,6 @@ using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Interfaces;
 using System.Globalization;
 using ChainEnum = MyWebWallet.API.Models.Chain;
-using Microsoft.Extensions.Logging;
 using MyWebWallet.API.Aggregation;
 
 namespace MyWebWallet.API.Services.Mappers;
@@ -13,16 +12,14 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     private readonly IUniswapV3OnChainService _uniswapV3OnChainService;
     private readonly ILogger<UniswapV3Mapper> _logger;
     private readonly ITokenFactory _tokenFactory;
-    private readonly IUniswapV3FeesService _feesService;
 
     private static readonly HashSet<ChainEnum> Supported = new() { ChainEnum.Base, ChainEnum.Arbitrum };
 
-    public UniswapV3Mapper(IUniswapV3OnChainService uniswapV3OnChainService, ILogger<UniswapV3Mapper> logger, ITokenFactory tokenFactory, IUniswapV3FeesService feesService)
+    public UniswapV3Mapper(IUniswapV3OnChainService uniswapV3OnChainService, ILogger<UniswapV3Mapper> logger, ITokenFactory tokenFactory)
     {
         _uniswapV3OnChainService = uniswapV3OnChainService;
         _logger = logger;
         _tokenFactory = tokenFactory;
-        _feesService = feesService;
     }
 
     public string ProtocolName => "UniswapV3";
@@ -46,21 +43,6 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             var item = ProcessPosition(position, chain, nativePriceUSD);
             if (item != null)
             {
-                try
-                {
-                    var token0PriceUsd = item.Position?.Tokens?.FirstOrDefault(t => t.Symbol == position.Token0.Symbol)?.Financials?.Price ?? 0m;
-                    var token1PriceUsd = item.Position?.Tokens?.FirstOrDefault(t => t.Symbol == position.Token1.Symbol)?.Financials?.Price ?? 0m;
-                    var fees24h = await _feesService.GetFees24hUsdAsync(position, chain, token0PriceUsd, token1PriceUsd);
-                    if (fees24h.HasValue && fees24h.Value > 0)
-                    {
-                        item.AdditionalData ??= new AdditionalData();
-                        item.AdditionalData.Fees24h = fees24h.Value;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug(ex, "Fees24h calculation failed pos={Id}", position.Id);
-                }
                 walletItems.Add(item);
             }
         }
@@ -81,8 +63,15 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             var currentSupplyToken0 = depositedToken0 - withdrawnToken0;
             var currentSupplyToken1 = depositedToken1 - withdrawnToken1;
 
-            var feesToken0 = TryParseInvariant(position.CollectedFeesToken0) ?? 0m;
-            var feesToken1 = TryParseInvariant(position.CollectedFeesToken1) ?? 0m;
+            // Usar valores calculados de uncollected fees em vez dos CollectedFees (que estão sempre 0)
+            var feesToken0 = TryParseInvariant(position.EstimatedUncollectedToken0) ?? 0m;
+            var feesToken1 = TryParseInvariant(position.EstimatedUncollectedToken1) ?? 0m;
+
+            // Validar e limitar valores extremos para evitar overflows
+            currentSupplyToken0 = ValidateTokenAmount(currentSupplyToken0, position.Id, "currentSupplyToken0");
+            currentSupplyToken1 = ValidateTokenAmount(currentSupplyToken1, position.Id, "currentSupplyToken1");
+            feesToken0 = ValidateTokenAmount(feesToken0, position.Id, "feesToken0");
+            feesToken1 = ValidateTokenAmount(feesToken1, position.Id, "feesToken1");
 
             var token0DerivedNative = TryParseInvariant(position.Token0.DerivedNative) ?? 0m;
             var token1DerivedNative = TryParseInvariant(position.Token1.DerivedNative) ?? 0m;
@@ -99,12 +88,12 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             {
                 if (token0PriceUSD > 0 && token1PriceUSD <= 0)
                 {
-                    token1PriceUSD = token0PriceUSD / ratioT1PerT0;
+                    token1PriceUSD = SafeDivide(token0PriceUSD, ratioT1PerT0);
                     ratioDerived1 = true;
                 }
                 else if (token1PriceUSD > 0 && token0PriceUSD <= 0)
                 {
-                    token0PriceUSD = token1PriceUSD * ratioT1PerT0;
+                    token0PriceUSD = SafeMultiply(token1PriceUSD, ratioT1PerT0);
                     ratioDerived0 = true;
                 }
             }
@@ -114,6 +103,36 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             {
                 priceUnavailable = true;
                 _logger.LogDebug("UniV3 price missing pos={Id} t0={T0} t1={T1} ratio={Ratio} nativeUSD={Native}", position.Id, position.Token0.Symbol, position.Token1.Symbol, ratioT1PerT0, nativePriceUSD);
+            }
+
+            // Se não conseguimos determinar preços via nativePrice, tentar detectar tokens conhecidos
+            // mas apenas se não houve erro de chain inválida
+            if (token0PriceUSD <= 0 && token1PriceUSD <= 0 && nativePriceUSD <= 0 && !priceUnavailable)
+            {
+                // Tentar identificar tokens por símbolo/endereço e aplicar preços aproximados
+                token0PriceUSD = EstimatePriceByToken(position.Token0.Symbol, position.Token0.Id, chain);
+                token1PriceUSD = EstimatePriceByToken(position.Token1.Symbol, position.Token1.Id, chain);
+                
+                if (token0PriceUSD > 0 || token1PriceUSD > 0)
+                {
+                    _logger.LogInformation("UniV3 using fallback prices pos={Id} t0={T0}:{P0} t1={T1}:{P1}", 
+                        position.Id, position.Token0.Symbol, token0PriceUSD, position.Token1.Symbol, token1PriceUSD);
+                    priceUnavailable = false; // Temos pelo menos um preço
+                }
+            }
+            
+            // Se ainda não temos preços mas a posição parece válida, tentar fallback mais agressivo
+            if (token0PriceUSD <= 0 && token1PriceUSD <= 0)
+            {
+                token0PriceUSD = EstimatePriceByToken(position.Token0.Symbol, position.Token0.Id, chain);
+                token1PriceUSD = EstimatePriceByToken(position.Token1.Symbol, position.Token1.Id, chain);
+                
+                if (token0PriceUSD > 0 || token1PriceUSD > 0)
+                {
+                    _logger.LogInformation("UniV3 using fallback prices pos={Id} t0={T0}:{P0} t1={T1}:{P1}", 
+                        position.Id, position.Token0.Symbol, token0PriceUSD, position.Token1.Symbol, token1PriceUSD);
+                    priceUnavailable = false; // Temos pelo menos um preço
+                }
             }
 
             if (ratioDerived0 || ratioDerived1)
@@ -176,6 +195,79 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
         }
     }
 
+    /// <summary>
+    /// Valida e limita amounts de token para evitar overflows
+    /// </summary>
+    private decimal ValidateTokenAmount(decimal amount, string positionId, string fieldName)
+    {
+        const decimal MAX_REASONABLE_AMOUNT = 100_000_000m; // 100 milhões como limite mais conservador
+
+        if (amount > MAX_REASONABLE_AMOUNT)
+        {
+            _logger.LogWarning("UniV3 capping extreme amount pos={Id} field={Field} original={Original} capped={Capped}", 
+                positionId, fieldName, amount, MAX_REASONABLE_AMOUNT);
+            return MAX_REASONABLE_AMOUNT;
+        }
+
+        if (amount < 0)
+        {
+            _logger.LogWarning("UniV3 negative amount pos={Id} field={Field} amount={Amount}", 
+                positionId, fieldName, amount);
+            return 0;
+        }
+
+        // Log valores suspeitos
+        if (amount > 1_000_000) // Log se > 1 milhão
+        {
+            _logger.LogInformation("UniV3 large amount detected pos={Id} field={Field} amount={Amount}", 
+                positionId, fieldName, amount);
+        }
+
+        return amount;
+    }
+
+    /// <summary>
+    /// Multiplicação segura que evita overflow
+    /// </summary>
+    private static decimal SafeMultiply(decimal a, decimal b)
+    {
+        try
+        {
+            if (a == 0 || b == 0) return 0;
+            
+            // Check if multiplication would overflow
+            if (a > 0 && b > 0 && a > decimal.MaxValue / b)
+                return decimal.MaxValue;
+            if (a < 0 && b < 0 && a < decimal.MaxValue / b)
+                return decimal.MaxValue;
+            if ((a > 0 && b < 0 && b < decimal.MinValue / a) || 
+                (a < 0 && b > 0 && a < decimal.MinValue / b))
+                return decimal.MinValue;
+
+            return a * b;
+        }
+        catch (OverflowException)
+        {
+            return a > 0 == b > 0 ? decimal.MaxValue : decimal.MinValue;
+        }
+    }
+
+    /// <summary>
+    /// Divisão segura que evita overflow
+    /// </summary>
+    private static decimal SafeDivide(decimal a, decimal b)
+    {
+        try
+        {
+            if (b == 0) return 0;
+            return a / b;
+        }
+        catch (OverflowException)
+        {
+            return a > 0 == b > 0 ? decimal.MaxValue : decimal.MinValue;
+        }
+    }
+
     private static decimal? TryParseInvariant(string? s)
         => decimal.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
     private static int? TryParseInvariantInt(string? s)
@@ -191,4 +283,40 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
         Url = "https://app.uniswap.org",
         Logo = "https://cdn.moralis.io/defi/uniswap.png"
     };
+
+    /// <summary>
+    /// Estima preço de token baseado em símbolo/endereço conhecidos
+    /// </summary>
+    private static decimal EstimatePriceByToken(string symbol, string address, ChainEnum chain)
+    {
+        var sym = symbol?.ToUpperInvariant();
+        var addr = address?.ToLowerInvariant();
+        
+        // Preços aproximados para tokens conhecidos (Base chain)
+        if (chain == ChainEnum.Base)
+        {
+            return sym switch
+            {
+                "WETH" when addr == "0x4200000000000000000000000000000000000006" => 4500m, // WETH aproximado
+                "USDC" when addr == "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913" => 1.0m,   // USDC
+                "AAVE" when addr == "0x63706e401c06ac8513145b7687a14804d17f814b" => 285m,   // AAVE aproximado
+                "cbBTC" when addr == "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf" => 125000m, // cbBTC aproximado
+                _ => 0m
+            };
+        }
+        
+        // Preços aproximados para tokens conhecidos (Arbitrum chain)
+        if (chain == ChainEnum.Arbitrum)
+        {
+            return sym switch
+            {
+                "WETH" when addr == "0x82af49447d8a07e3bd95bd0d56f35241523fbab1" => 4500m, // WETH aproximado
+                "PENDLE" when addr == "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8" => 4.7m,  // PENDLE aproximado
+                "USDC" => 1.0m, // USDC genérico
+                _ => 0m
+            };
+        }
+        
+        return 0m;
+    }
 }

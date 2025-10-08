@@ -83,4 +83,4 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ initialMode = 'dar
 
 export const useTheme = () => useContext(ThemeContext);
 
-export default ThemeContext;
+export default ThemeProvider;

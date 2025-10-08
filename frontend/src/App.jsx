@@ -6,12 +6,12 @@ import ProtocolsSection from './components/ProtocolsSection';
 import SectionTable from './components/SectionTable';
 import { ChainIconsProvider } from './context/ChainIconsProvider';
 import { MaskValuesProvider } from './context/MaskValuesContext';
-import { useTheme } from './context/ThemeProvider';
+import { useTheme } from './context/ThemeProvider.tsx';
 import { useWalletConnection, useTooltip } from './hooks/useWallet';
 import { WalletTokensTable } from './components/tables';
 import SummaryView from './components/SummaryView';
 import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
-import PoolsView from './components/PoolsView';
+import PoolsView from './components/PoolsView.tsx';
 import SegmentedNav from './components/SegmentedNav';
 import { useAggregationJob } from './hooks/useAggregationJob';
 import { api } from './config/api';
@@ -26,12 +26,15 @@ import {
   filterItemsByType,
   getWalletTokens,
   getLiquidityPools,
-  getLendingAndBorrowingPositions,
-  getStakingPositions,
   computePortfolioBreakdown,
   setTotalPortfolioValue,
   calculatePercentage,
 } from './utils/walletUtils';
+import { 
+  getLiquidityPoolItems,
+  getLendingItems, 
+  getStakingItems
+} from './types/filters';
 import {
   DEFAULT_COLUMN_VISIBILITY,
   DEFAULT_EXPANSION_STATES,
@@ -382,9 +385,9 @@ function App() {
   const getLiquidityPoolsData = () => {
     if (!walletData) return [];
     if (walletData.items && Array.isArray(walletData.items))
-      return getLiquidityPools(walletData.items);
+      return getLiquidityPoolItems(walletData.items);
     if (walletData.data && Array.isArray(walletData.data))
-      return getLiquidityPools(walletData.data);
+      return getLiquidityPoolItems(walletData.data);
     if (Array.isArray(walletData.deFi))
       return walletData.deFi.filter((d) => (d.position?.label || d.position?.name) === 'Liquidity');
     return walletData.liquidityPools || [];
@@ -436,9 +439,9 @@ function App() {
   const getLendingAndBorrowingData = () => {
     if (!walletData) return [];
     if (walletData.items && Array.isArray(walletData.items))
-      return getLendingAndBorrowingPositions(walletData.items);
+      return getLendingItems(walletData.items);
     if (walletData.data && Array.isArray(walletData.data))
-      return getLendingAndBorrowingPositions(walletData.data);
+      return getLendingItems(walletData.data);
     if (Array.isArray(walletData.deFi))
       return walletData.deFi.filter((d) => (d.position?.label || d.position?.name) !== 'Liquidity');
     return walletData.lendingAndBorrowing || [];
@@ -447,9 +450,9 @@ function App() {
   const getStakingData = () => {
     if (!walletData) return [];
     if (walletData.items && Array.isArray(walletData.items))
-      return filterItemsByType(walletData.items, ITEM_TYPES.STAKING);
+      return getStakingItems(walletData.items);
     if (walletData.data && Array.isArray(walletData.data))
-      return getStakingPositions(walletData.data);
+      return getStakingItems(walletData.data);
     return walletData.staking || [];
   };
 
@@ -736,8 +739,8 @@ function App() {
       let liqItems = [];
       const snap = sourceData;
       if (snap) {
-        if (snap.items && Array.isArray(snap.items)) liqItems = getLiquidityPools(snap.items);
-        else if (snap.data && Array.isArray(snap.data)) liqItems = getLiquidityPools(snap.data);
+        if (snap.items && Array.isArray(snap.items)) liqItems = getLiquidityPoolItems(snap.items);
+        else if (snap.data && Array.isArray(snap.data)) liqItems = getLiquidityPoolItems(snap.data);
         else if (Array.isArray(snap.deFi))
           liqItems = snap.deFi.filter(
             (d) => (d.position?.label || d.position?.name) === 'Liquidity'
@@ -788,9 +791,9 @@ function App() {
       const snap = sourceData;
       if (snap) {
         if (snap.items && Array.isArray(snap.items))
-          lendingItems = getLendingAndBorrowingPositions(snap.items);
+          lendingItems = getLendingItems(snap.items);
         else if (snap.data && Array.isArray(snap.data))
-          lendingItems = getLendingAndBorrowingPositions(snap.data);
+          lendingItems = getLendingItems(snap.data);
         else if (Array.isArray(snap.deFi))
           lendingItems = snap.deFi.filter(
             (d) => (d.position?.label || d.position?.name) !== 'Liquidity'
@@ -849,9 +852,9 @@ function App() {
       const snap = sourceData;
       if (snap) {
         if (snap.items && Array.isArray(snap.items))
-          stakingItems = filterItemsByType(snap.items, ITEM_TYPES.STAKING);
+          stakingItems = getStakingItems(snap.items);
         else if (snap.data && Array.isArray(snap.data))
-          stakingItems = getStakingPositions(snap.data);
+          stakingItems = getStakingItems(snap.data);
         else stakingItems = snap.staking || [];
       }
       stakingItems.forEach((item) => {
@@ -986,20 +989,20 @@ function App() {
           searchAddress={searchAddress}
           setSearchAddress={setSearchAddress}
         />
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-          <div style={{ padding: `8px ${sidePadding} 0px ${sidePadding}`, boxSizing: 'border-box', width: '100%' }}>
+        <div className="w-full flex flex-column" style={{ minHeight: '100vh' }}>
+          <div className="w-full" style={{ padding: `8px ${sidePadding} 0px ${sidePadding}`, boxSizing: 'border-box' }}>
             {/* Segmented Nav */}
-            <div style={{ marginTop: 12, marginBottom: 20, display: 'flex', justifyContent: 'center' }}>
+            <div className="mt-12 mb-20 flex justify-center">
               <SegmentedNav value={viewMode} onChange={setViewMode} disabled={!isAggregationReady} />
             </div>
             {/* Supported Chains: only on Overview after aggregation ready */}
               {isAggregationReady && viewMode === 'overview' && (
-                <div style={{ marginTop: 18 }}>
+                <div className="mt-18">
                   {chainsLoading && (!supportedChains || supportedChains.length === 0) && (
-                    <div style={{ fontSize: 12, color: theme.textSecondary }}>Loading chains...</div>
+                    <div className="text-base" style={{ color: theme.textSecondary }}>Loading chains...</div>
                   )}
                   {supportedChains && supportedChains.length > 0 && (
-                    <div className="panel-unified" style={{ position: 'relative', marginTop: 18 }}>
+                    <div className="panel-unified relative mt-18">
                       <div className="panel-heading">Supported Chains</div>
                       <div
                         style={{

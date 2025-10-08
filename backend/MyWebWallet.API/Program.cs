@@ -5,6 +5,7 @@ using MyWebWallet.API.Services.Models;
 using StackExchange.Redis;
 using MyWebWallet.API.Messaging.Workers; // added
 using MyWebWallet.API.Messaging.Rabbit; // added
+using MyWebWallet.API.Messaging.Extensions; // added for granular configuration
 using Microsoft.Extensions.Options;
 using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Infrastructure;
@@ -19,6 +20,19 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 builder.Services.Configure<CoinMarketCapOptions>(builder.Configuration.GetSection("CoinMarketCap"));
 builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection("Redis"));
 builder.Services.Configure<AggregationOptions>(builder.Configuration.GetSection("Aggregation"));
+builder.Services.Configure<UniswapV3WorkerOptions>(builder.Configuration.GetSection("UniswapV3Workers"));
+builder.Services.Configure<ProtocolConfigurationOptions>(builder.Configuration.GetSection("ProtocolConfiguration"));
+
+// PHASE 1 IMPROVEMENT: Chain Configuration System
+builder.Services.Configure<ChainConfiguration>(builder.Configuration.GetSection("ChainConfiguration"));
+// Changed to singleton to allow resolution from root provider during startup validation
+builder.Services.AddSingleton<IChainConfigurationService, ChainConfigurationService>();
+
+// Protocol configuration service (needed by MoralisService)
+builder.Services.AddSingleton<IProtocolConfigurationService, ProtocolConfigurationService>();
+
+// PHASE 1 IMPROVEMENT: Protocol Plugin System
+builder.Services.AddSingleton<IProtocolPluginRegistry, ProtocolPluginRegistry>();
 
 // Core services
 builder.Services.AddSingleton<ISystemClock, SystemClock>();
@@ -72,8 +86,7 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddSingleton<ITokenLogoService, TokenLogoService>();
 builder.Services.AddScoped<MyWebWallet.API.Services.Helpers.TokenHydrationHelper>();
 
-// Removed WalletService/IWalletService registration (commented implementations)
-
+// Blockchain / protocol services
 builder.Services.AddScoped<IBlockchainService, EthereumService>();
 builder.Services.AddScoped<IMoralisService, MoralisService>();
 builder.Services.AddScoped<IAaveeService, AaveeService>();
@@ -98,14 +111,11 @@ builder.Services.AddScoped<IRebalanceService, RebalanceService>();
 builder.Services.AddSingleton<IAggregationJobStore, AggregationJobStore>();
 builder.Services.AddSingleton<ITokenFactory, TokenFactory>();
 
-// Fees 24h heuristic service (to be replaced by precise on-chain variant)
-builder.Services.AddSingleton<IUniswapV3FeesService, UniswapV3FeesService>();
-
 // RabbitMQ infrastructure
 builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
 builder.Services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();
 
-// Messaging workers
+// Messaging workers - single enhanced worker with granular logic
 builder.Services.AddHostedService<IntegrationRequestWorker>();
 builder.Services.AddHostedService<IntegrationResultAggregatorWorker>();
 builder.Services.AddHostedService<AggregationTimeoutMonitorWorker>(); // timeout monitor
@@ -146,6 +156,65 @@ try
 catch (Exception ex)
 {
     logger.LogWarning(ex, "Token logo service initialization failed");
+}
+
+// Initialize Plugin System
+try
+{
+    var pluginRegistry = app.Services.GetRequiredService<IProtocolPluginRegistry>();
+    var pluginCount = await pluginRegistry.DiscoverAndRegisterPluginsAsync();
+    logger.LogInformation("Protocol plugin system initialized - Discovered {Count} plugins", pluginCount);
+
+    var healthResults = await pluginRegistry.CheckPluginHealthAsync();
+    var healthyPlugins = healthResults.Count(kvp => kvp.Value.IsHealthy);
+    logger.LogInformation("Plugin health check - {Healthy}/{Total} plugins are healthy", healthyPlugins, healthResults.Count);
+
+    foreach (var (pluginId, health) in healthResults)
+    {
+        if (health.IsHealthy)
+        {
+            logger.LogDebug("Plugin {PluginId} is healthy - Status: {Status}, Response time: {ResponseTime}ms", pluginId, health.Status, health.ResponseTime.TotalMilliseconds);
+        }
+        else
+        {
+            logger.LogWarning("Plugin {PluginId} is unhealthy - Status: {Status}, Errors: {Errors}", pluginId, health.Status, string.Join(", ", health.Errors));
+        }
+    }
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "Failed to initialize protocol plugin system");
+}
+
+// Validate Chain Configuration
+try
+{
+    var chainConfigService = app.Services.GetRequiredService<IChainConfigurationService>();
+    var enabledChains = chainConfigService.GetEnabledChains().ToList();
+    logger.LogInformation("Chain configuration loaded - {Count} enabled chains: {Chains}", enabledChains.Count, string.Join(", ", enabledChains));
+
+    foreach (var chain in enabledChains)
+    {
+        var validation = chainConfigService.ValidateChainConfig(chain);
+        if (validation.IsValid)
+        {
+            logger.LogDebug("Chain {Chain} configuration is valid", chain);
+        }
+        else
+        {
+            logger.LogWarning("Chain {Chain} configuration has issues - Errors: {Errors}, Warnings: {Warnings}", chain, string.Join(", ", validation.Errors), string.Join(", ", validation.Warnings));
+        }
+    }
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "Failed to validate chain configurations");
+}
+
+var uniV3Options = builder.Configuration.GetSection("UniswapV3Workers").Get<UniswapV3WorkerOptions>();
+if (uniV3Options != null)
+{
+    logger.LogInformation("Uniswap V3 granular processing configured - Enabled: {Enabled}, Timeout: {Timeout}s, MaxRetry: {MaxRetry}, MinSuccess: {MinSuccess}%", uniV3Options.EnableGranularProcessing, uniV3Options.GranularOperationTimeout.TotalSeconds, uniV3Options.MaxRetryAttempts, uniV3Options.MinSuccessRate * 100);
 }
 
 app.MapHealthChecks("/health");

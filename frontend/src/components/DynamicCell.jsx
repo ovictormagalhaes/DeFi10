@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 const DynamicCell = ({ data, columns, onMouseEnter, onMouseLeave, style = {}, className = '' }) => {
   const { theme } = useTheme();

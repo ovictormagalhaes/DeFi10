@@ -54,90 +54,149 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
     private async Task ScanAsync(CancellationToken ct)
     {
         var endpoints = _redis.GetEndPoints();
-        if (endpoints.Length == 0) return;
+        if (endpoints.Length == 0) 
+        {
+            _logger.LogWarning("No Redis endpoints available for timeout scanning");
+            return;
+        }
+        
         var server = _redis.GetServer(endpoints[0]);
         var db = _redis.GetDatabase();
         var now = DateTime.UtcNow;
+        
+        var scannedJobs = 0;
+        var activeJobs = 0;
+        var timedOutJobs = 0;
 
-        // Pattern: wallet:agg:*:meta
-        foreach (var key in server.Keys(pattern: "wallet:agg:*:meta"))
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            try
+            // Pattern: wallet:agg:*:meta
+            foreach (var key in server.Keys(pattern: "wallet:agg:*:meta"))
             {
-                var metaEntries = await db.HashGetAllAsync(key);
-                if (metaEntries.Length == 0) continue;
-                var meta = metaEntries.ToDictionary(x => x.Name.ToString(), x => x.Value.ToString());
-                if (!meta.TryGetValue("status", out var statusStr)) continue;
-                if (!meta.TryGetValue("created_at", out var createdStr)) continue;
-                if (!meta.TryGetValue("final_emitted", out var finalEmittedStr)) finalEmittedStr = "0";
-
-                if (finalEmittedStr == "1") continue; // already finalized
-
-                if (!Enum.TryParse<AggregationStatus>(statusStr, true, out var aggStatus)) continue;
-                if (aggStatus is AggregationStatus.Completed or AggregationStatus.CompletedWithErrors or AggregationStatus.TimedOut or AggregationStatus.Cancelled)
-                    continue; // finished states
-
-                if (!DateTime.TryParse(createdStr, out var createdAt)) continue;
-                var age = now - createdAt;
-                if (age < _jobTimeout) continue; // not expired yet
-
-                // Derive jobId from key: wallet:agg:{jobId}:meta
-                var parts = key.ToString().Split(':', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length < 3) continue;
-                var jobIdStr = parts[2];
-                if (!Guid.TryParse(jobIdStr, out var jobId)) continue;
-
-                // Pending providers length
-                var pendingKey = $"wallet:agg:{jobId}:pending";
-                var pendingCount = (int)await db.SetLengthAsync(pendingKey);
-
-                // Avoid race: re-check final_emitted just before updating
-                var finalCheck = await db.HashGetAsync(key, "final_emitted");
-                if (finalCheck == "1") continue;
-
-                // Mark timed out - increment timed_out by remaining pending, set status + final_emitted
-                var tran = db.CreateTransaction();
-                if (pendingCount > 0)
+                ct.ThrowIfCancellationRequested();
+                scannedJobs++;
+                
+                try
                 {
-                    tran.HashIncrementAsync(key, "timed_out", pendingCount);
+                    var metaEntries = await db.HashGetAllAsync(key);
+                    if (metaEntries.Length == 0) continue;
+                    var meta = metaEntries.ToDictionary(x => x.Name.ToString(), x => x.Value.ToString());
+                    
+                    if (!meta.TryGetValue("status", out var statusStr)) continue;
+                    if (!meta.TryGetValue("created_at", out var createdStr)) continue;
+                    if (!meta.TryGetValue("final_emitted", out var finalEmittedStr)) finalEmittedStr = "0";
+
+                    if (finalEmittedStr == "1") continue; // already finalized
+
+                    if (!Enum.TryParse<AggregationStatus>(statusStr, true, out var aggStatus)) continue;
+                    if (aggStatus is AggregationStatus.Completed or AggregationStatus.CompletedWithErrors or AggregationStatus.TimedOut or AggregationStatus.Cancelled)
+                        continue; // finished states
+
+                    // This is an active job
+                    activeJobs++;
+
+                    if (!DateTime.TryParse(createdStr, out var createdAt)) continue;
+                    var age = now - createdAt;
+                    
+                    // Log active jobs for visibility
+                    var jobIdFromKey = ExtractJobIdFromKey(key.ToString());
+                    _logger.LogDebug("Active job found: {JobId} status={Status} age={Age}s remaining={Remaining}s", 
+                        jobIdFromKey, aggStatus, (int)age.TotalSeconds, (int)(_jobTimeout - age).TotalSeconds);
+                    
+                    if (age < _jobTimeout) continue; // not expired yet
+
+                    // This job needs to be timed out
+                    if (!Guid.TryParse(jobIdFromKey, out var jobId)) continue;
+
+                    // Get additional info for logging
+                    var account = meta.TryGetValue("account", out var acc) ? acc : "unknown";
+                    var expectedTotal = meta.TryGetValue("expected_total", out var exp) ? exp : "0";
+                    var succeeded = meta.TryGetValue("succeeded", out var succ) ? succ : "0";
+                    var failed = meta.TryGetValue("failed", out var fail) ? fail : "0";
+
+                    _logger.LogWarning("Job exceeds timeout: {JobId} account={Account} age={Age}s expected={Expected} succeeded={Succeeded} failed={Failed}", 
+                        jobId, account, (int)age.TotalSeconds, expectedTotal, succeeded, failed);
+
+                    // Pending providers length
+                    var pendingKey = $"wallet:agg:{jobId}:pending";
+                    var pendingCount = (int)await db.SetLengthAsync(pendingKey);
+
+                    // Avoid race: re-check final_emitted just before updating
+                    var finalCheck = await db.HashGetAsync(key, "final_emitted");
+                    if (finalCheck == "1") 
+                    {
+                        _logger.LogDebug("Job {JobId} was finalized by another process, skipping timeout", jobId);
+                        continue;
+                    }
+
+                    // Mark timed out - increment timed_out by remaining pending, set status + final_emitted
+                    var tran = db.CreateTransaction();
+                    if (pendingCount > 0)
+                    {
+                        tran.HashIncrementAsync(key, "timed_out", pendingCount);
+                    }
+                    tran.HashSetAsync(key, new HashEntry[]
+                    {
+                        new("status", AggregationStatus.TimedOut.ToString()),
+                        new("final_emitted", 1)
+                    });
+                    var exec = await tran.ExecuteAsync();
+                    if (!exec)
+                    {
+                        _logger.LogWarning("Transaction failed marking timeout jobId={JobId}", jobId);
+                        continue;
+                    }
+
+                    // Gather counts for event
+                    int succeededCount = (int)(long)(await db.HashGetAsync(key, "succeeded"));
+                    int failedCount = (int)(long)(await db.HashGetAsync(key, "failed"));
+                    int timedOutCount = (int)(long)(await db.HashGetAsync(key, "timed_out"));
+                    int expectedCount = (int)(long)(await db.HashGetAsync(key, "expected_total"));
+
+                    var evt = new WalletAggregationCompleted(
+                        JobId: jobId,
+                        Account: account,
+                        Status: AggregationStatus.TimedOut,
+                        CompletedAtUtc: DateTime.UtcNow,
+                        Total: expectedCount,
+                        Succeeded: succeededCount,
+                        Failed: failedCount,
+                        TimedOut: timedOutCount
+                    );
+                    
+                    _logger.LogWarning("Job timed out and marked: jobId={JobId} expected={Expected} succ={Succ} fail={Fail} timedOut={TO} pendingRemoved={Pending}", 
+                        jobId, expectedCount, succeededCount, failedCount, timedOutCount, pendingCount);
+                    
+                    await _publisher.PublishAsync("aggregation.completed", evt, ct);
+                    timedOutJobs++;
                 }
-                tran.HashSetAsync(key, new HashEntry[]
+                catch (Exception exInner)
                 {
-                    new("status", AggregationStatus.TimedOut.ToString()),
-                    new("final_emitted", 1)
-                });
-                var exec = await tran.ExecuteAsync();
-                if (!exec)
-                {
-                    _logger.LogWarning("Transaction failed marking timeout jobId={JobId}", jobId);
-                    continue;
+                    _logger.LogError(exInner, "Failed processing meta key {Key}", key);
                 }
-
-                // Gather counts for event
-                int succeeded = (int)(long)(await db.HashGetAsync(key, "succeeded"));
-                int failed = (int)(long)(await db.HashGetAsync(key, "failed"));
-                int timedOut = (int)(long)(await db.HashGetAsync(key, "timed_out"));
-                int expected = (int)(long)(await db.HashGetAsync(key, "expected_total"));
-                var account = await db.HashGetAsync(key, "account");
-
-                var evt = new WalletAggregationCompleted(
-                    JobId: jobId,
-                    Account: account,
-                    Status: AggregationStatus.TimedOut,
-                    CompletedAtUtc: DateTime.UtcNow,
-                    Total: expected,
-                    Succeeded: succeeded,
-                    Failed: failed,
-                    TimedOut: timedOut
-                );
-                _logger.LogWarning("Job timed out jobId={JobId} expected={Expected} succ={Succ} fail={Fail} timedOut={TO}", jobId, expected, succeeded, failed, timedOut);
-                await _publisher.PublishAsync("aggregation.completed", evt, ct);
-            }
-            catch (Exception exInner)
-            {
-                _logger.LogError(exInner, "Failed processing meta key {Key}", key);
             }
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during Redis key enumeration");
+        }
+        
+        // Summary log every scan cycle
+        if (scannedJobs > 0 || activeJobs > 0 || timedOutJobs > 0)
+        {
+            _logger.LogInformation("Timeout scan completed: scanned={Scanned} active={Active} timedOut={TimedOut}", 
+                scannedJobs, activeJobs, timedOutJobs);
+        }
+        else
+        {
+            _logger.LogDebug("Timeout scan completed: no aggregation jobs found");
+        }
+    }
+
+    private static string ExtractJobIdFromKey(string key)
+    {
+        // Extract jobId from key format: wallet:agg:{jobId}:meta
+        var parts = key.Split(':', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 3 ? parts[2] : "unknown";
     }
 }

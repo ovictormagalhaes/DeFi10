@@ -84,6 +84,7 @@ public class EthereumService : IBlockchainService
         var acct = account.ToLowerInvariant();
         var activeKey = GetActiveJobKey(acct, chain);
         var existing = await db.StringGetAsync(activeKey);
+        
         if (existing.HasValue && Guid.TryParse(existing.ToString(), out var existingJobId))
         {
             var metaKeyCheck = RedisKeys.Meta(existingJobId);

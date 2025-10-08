@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 import { useMaskValues } from '../context/MaskValuesContext';
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 /**
  * HeaderBar layout:
@@ -63,17 +63,14 @@ export default function HeaderBar({
       }}
     >
       {/* Left Brand (Area 1) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+      <div className="flex items-center gap-12 min-w-0">
         <div
+          className="flex-center font-bold"
           style={{
             width: 40,
             height: 40,
             borderRadius: 12,
             background: brandGradient,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 700,
             fontSize: 16,
             color: '#fff',
             letterSpacing: 0.5,

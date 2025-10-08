@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 /**
  * TableSection
@@ -27,14 +27,14 @@ export default function TableSection({
   const hoverBg = theme.tableRowHoverBg || (theme.mode === 'light' ? '#ecf0f3' : '#2b2e37');
 
   return (
-    <div style={{ margin: '12px 0' }}>
+    <div className="mt-12 mb-12">
       {title && (
-        <div style={{ padding: '8px 4px 4px 4px' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: theme.textPrimary }}>{title}</div>
+        <div className="p-6" style={{ paddingBottom: '4px' }}>
+          <div className="text-xl font-semibold" style={{ color: theme.textPrimary }}>{title}</div>
         </div>
       )}
-      <div style={{ backgroundColor: bodyBg, borderRadius: 8, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="rounded-lg overflow-hidden" style={{ backgroundColor: bodyBg }}>
+        <table className="w-full" style={{ borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ backgroundColor: headerBg }}>
               {columns.map((col) => (

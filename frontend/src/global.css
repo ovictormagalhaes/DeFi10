@@ -17,7 +17,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Background & text color are now controlled by ThemeProvider effect (see ThemeProvider.jsx). */
+  /* Background & text color are now controlled by ThemeProvider effect (see ThemeProvider.tsx). */
 }
 
 /* Fallback initial CSS custom properties (dark mode baseline) to reduce flash before JS applies dynamic vars */
@@ -44,6 +44,199 @@ body {
   --mw-table-summary-bg: rgba(255,255,255,0.02);
   --mw-shadow-popover: 0 4px 18px -2px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.35);
   --mw-shadow-focus: 0 0 0 3px rgba(69,183,115,0.35);
+}
+
+/* Utility Classes for Inline Style Replacement */
+
+/* Flexbox Layout Utilities */
+.flex { display: flex; }
+.flex-column { flex-direction: column; }
+.flex-row { flex-direction: row; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.justify-start { justify-content: flex-start; }
+.flex-1 { flex: 1; }
+.flex-auto { flex: 1 1 auto; }
+.flex-none { flex: none; }
+.flex-shrink-0 { flex-shrink: 0; }
+
+/* Gap Utilities */
+.gap-2 { gap: 2px; }
+.gap-4 { gap: 4px; }
+.gap-6 { gap: 6px; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-20 { gap: 20px; }
+
+/* Spacing Utilities */
+.m-0 { margin: 0; }
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mt-18 { margin-top: 18px; }
+.mt-20 { margin-top: 20px; }
+.mt-24 { margin-top: 24px; }
+.mb-4 { margin-bottom: 4px; }
+.mb-6 { margin-bottom: 6px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-20 { margin-bottom: 20px; }
+.mr-6 { margin-right: 6px; }
+.ml-6 { margin-left: 6px; }
+
+.p-0 { padding: 0; }
+.p-6 { padding: 6px; }
+.p-12 { padding: 12px; }
+.p-16 { padding: 16px; }
+.p-20 { padding: 20px; }
+.px-20 { padding-left: 20px; padding-right: 20px; }
+.py-16 { padding-top: 16px; padding-bottom: 16px; }
+.pl-34 { padding-left: 34px; }
+
+/* Position Utilities */
+.relative { position: relative; }
+.absolute { position: absolute; }
+.fixed { position: fixed; }
+
+/* Sizing Utilities */
+.w-full { width: 100%; }
+.w-16 { width: 16px; }
+.w-18 { width: 18px; }
+.w-21 { width: 21px; }
+.h-full { height: 100%; }
+.h-16 { height: 16px; }
+.h-18 { height: 18px; }
+.h-14 { height: 14px; }
+.min-w-0 { min-width: 0; }
+.max-w-240 { max-width: 240px; }
+.max-w-380 { max-width: 380px; }
+.max-w-520 { max-width: 520px; }
+
+/* Text Alignment */
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+/* Font Sizes */
+.text-xs { font-size: 10px; }
+.text-sm { font-size: 11px; }
+.text-base { font-size: 12px; }
+.text-md { font-size: 13px; }
+.text-lg { font-size: 14px; }
+.text-xl { font-size: 15px; }
+.text-2xl { font-size: 18px; }
+.text-3xl { font-size: 20px; }
+.text-4xl { font-size: 24px; }
+
+/* Font Weights */
+.font-normal { font-weight: 400; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+
+/* Line Heights */
+.leading-none { line-height: 1; }
+.leading-tight { line-height: 1.2; }
+.leading-normal { line-height: 1.4; }
+.leading-relaxed { line-height: 1.5; }
+
+/* Border Radius */
+.rounded { border-radius: 4px; }
+.rounded-md { border-radius: 6px; }
+.rounded-lg { border-radius: 8px; }
+.rounded-full { border-radius: 50%; }
+
+/* Display */
+.block { display: block; }
+.inline { display: inline; }
+.inline-flex { display: inline-flex; }
+.hidden { display: none; }
+
+/* Overflow */
+.overflow-hidden { overflow: hidden; }
+.overflow-visible { overflow: visible; }
+
+/* Cursor */
+.cursor-pointer { cursor: pointer; }
+
+/* Opacity */
+.opacity-60 { opacity: 0.6; }
+.opacity-75 { opacity: 0.75; }
+.opacity-90 { opacity: 0.9; }
+
+/* Object Fit */
+.object-contain { object-fit: contain; }
+.object-cover { object-fit: cover; }
+
+/* Common Layout Patterns */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-col-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Mini Metric Components */
+.mini-metric-label {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  color: var(--mw-text-secondary, var(--app-text-secondary));
+}
+
+.mini-metric-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+
+.mini-metric-value {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--mw-text-primary, var(--app-text-primary));
+}
+
+/* Token Display Utilities */
+.token-pair-container {
+  position: relative;
+  width: 21px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.token-pair-first {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+}
+
+.token-pair-second {
+  position: absolute;
+  left: 7px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
 }
 
 /* Light mode overrides */
@@ -516,7 +709,11 @@ body.light, .theme-light {
 
 /* Avatar / token logos */
 .avatar-32 { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
-.token-logo { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--mw-border, var(--app-border)); }
+.token-logo { 
+  border-radius: 50%; 
+  border: 2px solid var(--mw-bg-app, var(--app-bg-app)); 
+  background-color: var(--mw-bg-panel, var(--app-bg-panel)); 
+}
 
 /* Table header row: unify with table body surface unless overridden */
 .table-header-row { background: var(--mw-table-header-bg, var(--mw-table-bg, var(--app-bg-panel))); }

@@ -22,7 +22,7 @@ public class AggregationController : ControllerBase
         Converters = { new JsonStringEnumConverter() }
     };
 
-    private static readonly ChainEnum[] DefaultChains = new[] { ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum };
+    private static readonly ChainEnum[] DefaultChains = new[] { ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum, ChainEnum.Ethereum };
     private const string MetaPattern = "wallet:agg:*:meta"; // used only where index not yet implemented
 
     public AggregationController(IConnectionMultiplexer redis, IBlockchainService blockchainService, ILogger<AggregationController> logger)

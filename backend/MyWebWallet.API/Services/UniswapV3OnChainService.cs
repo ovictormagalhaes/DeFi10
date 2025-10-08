@@ -10,6 +10,7 @@ using Nethereum.Hex.HexConvertors.Extensions;
 using System.Numerics;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 
 namespace MyWebWallet.API.Services
 {
@@ -20,11 +21,11 @@ namespace MyWebWallet.API.Services
         [Parameter("uint96", "nonce", 1)]
         public BigInteger Nonce { get; set; }
         [Parameter("address", "operator", 2)]
-        public string Operator { get; set; }
+        public string Operator { get; set; } = string.Empty;
         [Parameter("address", "token0", 3)]
-        public string Token0 { get; set; }
+        public string Token0 { get; set; } = string.Empty;
         [Parameter("address", "token1", 4)]
-        public string Token1 { get; set; }
+        public string Token1 { get; set; } = string.Empty;
         [Parameter("uint24", "fee", 5)]
         public uint Fee { get; set; }
         [Parameter("int24", "tickLower", 6)]
@@ -145,6 +146,7 @@ namespace MyWebWallet.API.Services
         }
 
         private readonly IConfiguration _configuration;
+        private readonly ILogger<UniswapV3OnChainService> _logger;
         private const string BASE_FACTORY_ADDRESS = "0x33128a8fC17869897dcE68Ed026d694621f6FDfD";
         private const string BASE_POSITION_MANAGER_ADDRESS = "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1";
         private const string ARBITRUM_FACTORY_ADDRESS = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
@@ -153,9 +155,10 @@ namespace MyWebWallet.API.Services
         private sealed record ChainContext(ChainEnum Chain, Web3 Web3, string PositionManager, string Factory, string PoolInitCodeHash);
         private readonly ConcurrentDictionary<ChainEnum, ChainContext> _contexts = new();
 
-        public UniswapV3OnChainService(IConfiguration configuration)
+        public UniswapV3OnChainService(IConfiguration configuration, ILogger<UniswapV3OnChainService> logger)
         {
             _configuration = configuration;
+            _logger = logger;
         }
 
         private ChainContext GetContext(ChainEnum chain) => _contexts.GetOrAdd(chain, c => BuildContext(c));
@@ -189,12 +192,21 @@ namespace MyWebWallet.API.Services
             return new(chain, new Web3(rpc), pm, factory, init);
         }
 
-        private static string Normalize(string a) => a.StartsWith("0x") ? a.ToLowerInvariant() : "0x" + a.ToLowerInvariant();
+        private static string Normalize(string? a) 
+        {
+            if (string.IsNullOrEmpty(a)) 
+                return "0x0000000000000000000000000000000000000000"; // endereço zero como fallback
+            
+            return a.StartsWith("0x") ? a.ToLowerInvariant() : "0x" + a.ToLowerInvariant();
+        }
 
-        private string ComputePoolAddress(ChainContext ctx, string tokenA, string tokenB, uint fee)
+        private string ComputePoolAddress(ChainContext ctx, string? tokenA, string? tokenB, uint fee)
         {
             try
             {
+                if (string.IsNullOrEmpty(tokenA) || string.IsNullOrEmpty(tokenB))
+                    return string.Empty;
+                
                 tokenA = Normalize(tokenA); tokenB = Normalize(tokenB);
                 var (token0, token1) = string.CompareOrdinal(tokenA, tokenB) < 0 ? (tokenA, tokenB) : (tokenB, tokenA);
                 var encoder = new ABIEncode();
@@ -210,10 +222,13 @@ namespace MyWebWallet.API.Services
             catch { return string.Empty; }
         }
 
-        private async Task<string> GetPoolAddressFromFactoryAsync(ChainContext ctx, string tokenA, string tokenB, uint fee)
+        private async Task<string> GetPoolAddressFromFactoryAsync(ChainContext ctx, string? tokenA, string? tokenB, uint fee)
         {
             try
             {
+                if (string.IsNullOrEmpty(tokenA) || string.IsNullOrEmpty(tokenB))
+                    return string.Empty;
+                
                 var tA = Normalize(tokenA); var tB = Normalize(tokenB);
                 var (token0, token1) = string.CompareOrdinal(tA, tB) < 0 ? (tA, tB) : (tB, tA);
                 var handler = ctx.Web3.Eth.GetContractHandler(ctx.Factory);
@@ -226,8 +241,11 @@ namespace MyWebWallet.API.Services
             catch { return string.Empty; }
         }
 
-        private async Task<string> ResolvePoolAsync(ChainContext ctx, string token0, string token1, uint fee)
+        private async Task<string> ResolvePoolAsync(ChainContext ctx, string? token0, string? token1, uint fee)
         {
+            if (string.IsNullOrEmpty(token0) || string.IsNullOrEmpty(token1))
+                return string.Empty;
+            
             var fromFactory = await GetPoolAddressFromFactoryAsync(ctx, token0, token1, fee);
             if (!string.IsNullOrEmpty(fromFactory)) return fromFactory;
             var computed = ComputePoolAddress(ctx, token0, token1, fee);
@@ -239,10 +257,13 @@ namespace MyWebWallet.API.Services
             return string.Empty;
         }
 
-        private async Task<(string symbol, string name, int decimals)> GetErc20MetadataAsync(ChainContext ctx, string token)
+        private async Task<(string symbol, string name, int decimals)> GetErc20MetadataAsync(ChainContext ctx, string? token)
         {
             try
             {
+                if (string.IsNullOrEmpty(token))
+                    return (string.Empty, string.Empty, 0);
+                
                 var h = ctx.Web3.Eth.GetContractHandler(token);
                 var decTask = h.QueryAsync<ERC20DecimalsFunction, byte>(new());
                 var symTask = h.QueryAsync<ERC20SymbolFunction, string>(new());
@@ -257,13 +278,27 @@ namespace MyWebWallet.API.Services
         {
             try
             {
-                var h = ctx.Web3.Eth.GetContractHandler(ctx.PositionManager);
-                return await h.QueryDeserializingToObjectAsync<PositionsFunction, PositionDTO>(new PositionsFunction { TokenId = id });
+                // Get position details from contract
+                var positionResult = await ctx.Web3.Eth.GetContractHandler(ctx.PositionManager)
+                    .QueryDeserializingToObjectAsync<PositionsFunction, PositionDTO>(new PositionsFunction { TokenId = id });
+                
+                if (positionResult == null)
+                {
+                    Console.WriteLine($"WARNING: position {id} chain={ctx.Chain} failed: Position not found");
+                    return null;
+                }
+
+                return positionResult;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex.Message.Contains("Invalid token ID") || ex.Message.Contains("ERC721: owner query"))
             {
                 Console.WriteLine($"WARNING: position {id} chain={ctx.Chain} failed: {ex.Message}");
                 return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: position {id} chain={ctx.Chain} failed with exception: {ex.Message}");
+                throw;
             }
         }
 
@@ -365,12 +400,24 @@ namespace MyWebWallet.API.Services
             var resp = new UniswapV3GetActivePoolsResponse();
             if (ids == null) { resp.Data.Bundles.Add(new UniswapV3Bundle { NativePriceUSD = "0" }); return resp; }
             double nativePrice = 0d;
+            
             // Pre-fetch Chainlink price fallback (only if chain supports and we have any ids)
             var chainlinkPriceTask = TryGetNativeUsdFromChainlinkAsync(ctx);
+            
             foreach (var id in ids)
             {
-                var pos = await TryGetPositionAsync(ctx, id); if (pos == null) { Console.WriteLine($"UNISWAP_SKIP: chain={ctx.Chain} tokenId={id} reason=pos-null"); continue; }
-                if (onlyOpen && pos.Liquidity == 0) { Console.WriteLine($"UNISWAP_SKIP: chain={ctx.Chain} tokenId={id} reason=zero-liquidity"); continue; }
+                var pos = await TryGetPositionAsync(ctx, id); 
+                if (pos == null) 
+                { 
+                    _logger.LogWarning("Skipping position {TokenId} on chain {Chain}: position not found", id, ctx.Chain);
+                    continue; 
+                }
+                
+                if (onlyOpen && pos.Liquidity == 0) 
+                { 
+                    _logger.LogDebug("Skipping position {TokenId} on chain {Chain}: zero liquidity", id, ctx.Chain);
+                    continue; 
+                }
 
                 var pool = await ResolvePoolAsync(ctx, pos.Token0, pos.Token1, pos.Fee);
                 var meta0Task = GetErc20MetadataAsync(ctx, pos.Token0);
@@ -379,20 +426,29 @@ namespace MyWebWallet.API.Services
                 var feeGrowthTask = string.IsNullOrEmpty(pool) ? Task.FromResult<(BigInteger, BigInteger)?>(null) : TryGetFeeGrowthAsync(ctx, pool);
                 Task<TickInfoDTO?> lowerTickTask = Task.FromResult<TickInfoDTO?>(null);
                 Task<TickInfoDTO?> upperTickTask = Task.FromResult<TickInfoDTO?>(null);
+                
                 if (!string.IsNullOrEmpty(pool))
                 {
                     lowerTickTask = GetTickInfoSafeAsync(ctx, pool, pos.TickLower);
                     upperTickTask = GetTickInfoSafeAsync(ctx, pool, pos.TickUpper);
                 }
+                
                 await Task.WhenAll(meta0Task, meta1Task, slot0Task, feeGrowthTask, lowerTickTask, upperTickTask);
-                var (sym0, name0, dec0) = meta0Task.Result; var (sym1, name1, dec1) = meta1Task.Result;
-                var slot0 = slot0Task.Result; var fg = feeGrowthTask.Result; var lowerTickInfo = lowerTickTask.Result; var upperTickInfo = upperTickTask.Result;
+                
+                var (sym0, name0, dec0) = meta0Task.Result; 
+                var (sym1, name1, dec1) = meta1Task.Result;
+                var slot0 = slot0Task.Result; 
+                var fg = feeGrowthTask.Result; 
+                var lowerTickInfo = lowerTickTask.Result; 
+                var upperTickInfo = upperTickTask.Result;
+                
                 int currTick = slot0?.Tick ?? 0;
                 var (amt0, amt1, branch) = ComputePositionAmountsPrecise(pos.Liquidity, pos.TickLower, pos.TickUpper, slot0?.SqrtPriceX96 ?? 0, currTick, dec0, dec1);
 
-                // base owed (tokens owed fields)
-                var owedBase0 = ScaleToken(pos.TokensOwed0, dec0); var owedBase1 = ScaleToken(pos.TokensOwed1, dec1);
-                decimal finalOwed0 = owedBase0; decimal finalOwed1 = owedBase1;
+                // Calculate uncollected fees using improved formula with proper logging
+                decimal finalOwed0 = ScaleToken(pos.TokensOwed0, dec0); 
+                decimal finalOwed1 = ScaleToken(pos.TokensOwed1, dec1);
+                
                 if (fg != null)
                 {
                     try
@@ -405,16 +461,21 @@ namespace MyWebWallet.API.Services
                             dec1,
                             currTick,
                             lowerTickInfo,
-                            upperTickInfo);
+                            upperTickInfo,
+                            _logger); // Pass logger for proper structured logging
+                            
                         finalOwed0 = uncollected.Amount0;
                         finalOwed1 = uncollected.Amount1;
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"UNISWAP_FEES_WARN: chain={ctx.Chain} tokenId={id} msg={ex.Message}");
+                        _logger.LogWarning(ex, "Failed to calculate uncollected fees for position {TokenId} on chain {Chain}", id, ctx.Chain);
+                        // Keep base values as fallback
                     }
                 }
-                Console.WriteLine($"UNISWAP_FEES: chain={ctx.Chain} tokenId={id} liq={pos.Liquidity} tickL={pos.TickLower} tickU={pos.TickUpper} curTick={currTick} base0={owedBase0} base1={owedBase1} final0={finalOwed0} final1={finalOwed1} fg0={(fg?.Item1 ?? 0)} fg1={(fg?.Item2 ?? 0)} dec0={dec0} dec1={dec1}");
+
+                _logger.LogDebug("Position {TokenId} on chain {Chain} - Liquidity: {Liquidity}, Tick Range: [{TickLower}, {TickUpper}], Current Tick: {CurrentTick}, Fees: [{Fees0}, {Fees1}]",
+                    id, ctx.Chain, pos.Liquidity, pos.TickLower, pos.TickUpper, currTick, finalOwed0, finalOwed1);
 
                 // Derive token native ratios (restore previous logic)
                 string derived0 = "0", derived1 = "0";
@@ -442,7 +503,7 @@ namespace MyWebWallet.API.Services
                         if (chainlink.HasValue && chainlink.Value > 0)
                         {
                             nativePrice = chainlink.Value;
-                            Console.WriteLine($"UNISWAP_NATIVE_FALLBACK: chain={ctx.Chain} nativePriceUSD={nativePrice}");
+                            _logger.LogDebug("Using Chainlink price fallback for chain {Chain}: ${Price}", ctx.Chain, nativePrice);
                         }
                     }
 
@@ -469,11 +530,10 @@ namespace MyWebWallet.API.Services
                             derived0 = (ratio / nativePrice).ToString("G17");
                         }
                     }
-                    Console.WriteLine($"UNISWAP_PRICE: chain={ctx.Chain} tokenId={id} sqrtPriceX96={slot0?.SqrtPriceX96} ratioT1perT0={ratio} derived0={derived0} derived1={derived1} nativePrice={nativePrice}");
                 }
                 catch (Exception exPrice)
                 {
-                    Console.WriteLine($"UNISWAP_PRICE_WARN: chain={ctx.Chain} tokenId={id} msg={exPrice.Message}");
+                    _logger.LogWarning(exPrice, "Failed to calculate token prices for position {TokenId} on chain {Chain}", id, ctx.Chain);
                 }
 
                 var minPrice = TickToPrice(pos.TickLower, dec0, dec1).ToString("G17");
@@ -508,26 +568,28 @@ namespace MyWebWallet.API.Services
                     EstimatedUncollectedToken1 = finalOwed1.ToString("G17")
                 });
             }
+            
             // If nativePrice still zero, try chainlink fallback result at end (maybe no positions produced ratio)
             if (nativePrice <= 0)
             {
                 var chainlink = await chainlinkPriceTask;
                 if (chainlink.HasValue && chainlink.Value > 0) nativePrice = chainlink.Value;
             }
+            
             resp.Data.Bundles.Add(new UniswapV3Bundle { NativePriceUSD = nativePrice > 0 ? nativePrice.ToString("G17") : "0" });
             return resp;
         }
 
-        private Task<TickInfoDTO?> GetTickInfoSafeAsync(ChainContext ctx, string pool, int tick)
+        private async Task<TickInfoDTO?> GetTickInfoSafeAsync(ChainContext ctx, string pool, int tick)
         {
             try
             {
-                return ctx.Web3.Eth.GetContractHandler(pool)
-                    .QueryDeserializingToObjectAsync<TicksFunction, TickInfoDTO>(new TicksFunction { Tick = tick }, null)!;
+                return await ctx.Web3.Eth.GetContractHandler(pool)
+                    .QueryDeserializingToObjectAsync<TicksFunction, TickInfoDTO>(new TicksFunction { Tick = tick }, null);
             }
             catch
             {
-                return Task.FromResult<TickInfoDTO?>(null);
+                return null;
             }
         }
         // Interface single calls (Base chain default)
@@ -550,5 +612,181 @@ namespace MyWebWallet.API.Services
         { var slot=await TryGetSlot0Async(BaseCtx,poolAddress); var fg=await TryGetFeeGrowthAsync(BaseCtx,poolAddress); if(slot==null||fg==null) return null; return new UniswapV3PoolState(poolAddress,DateTimeOffset.UtcNow.ToUnixTimeSeconds(),slot.SqrtPriceX96,slot.Tick,fg.Value.Item1,fg.Value.Item2); }
         public async Task<PositionRangeInfo> GetPositionRangeAsync(BigInteger positionTokenId)
         { var pos=await GetPositionAsync(positionTokenId); var ctx=BaseCtx; var pool=await ResolvePoolAsync(ctx,pos.Token0,pos.Token1,pos.Fee); var slot=await TryGetSlot0Async(ctx,pool); int currentTick=slot?.Tick??0; var min=TickToPrice(pos.TickLower,0,0); var max=TickToPrice(pos.TickUpper,0,0); var cur=TickToPrice(currentTick,0,0); var status=currentTick<pos.TickLower?"below":(currentTick>pos.TickUpper?"above":"in-range"); return new PositionRangeInfo(positionTokenId,pool,pos.TickLower,pos.TickUpper,currentTick,min,max,cur,status); }
+        
+        // Implementações dos novos métodos granulares resilientes
+        public async Task<IEnumerable<BigInteger>> EnumeratePositionIdsAsync(string ownerAddress, ChainEnum chain, bool onlyOpen = true)
+        {
+            try
+            {
+                var ctx = GetContext(chain);
+                var h = ctx.Web3.Eth.GetContractHandler(ctx.PositionManager);
+                var bal = await h.QueryAsync<BalanceOfFunction, BigInteger>(new BalanceOfFunction { Owner = ownerAddress });
+                
+                if (bal == 0) return Enumerable.Empty<BigInteger>();
+
+                var ids = new List<BigInteger>();
+                for (BigInteger i = 0; i < bal && i < 50; i++)
+                {
+                    try 
+                    {
+                        var tokenId = await h.QueryAsync<TokenOfOwnerByIndexFunction, BigInteger>(
+                            new TokenOfOwnerByIndexFunction { Owner = ownerAddress, Index = i });
+                        
+                        if (onlyOpen)
+                        {
+                            var pos = await TryGetPositionAsync(ctx, tokenId);
+                            if (pos != null && pos.Liquidity > 0)
+                            {
+                                ids.Add(tokenId);
+                            }
+                        }
+                        else
+                        {
+                            ids.Add(tokenId);
+                        }
+                    } 
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"WARNING: Failed to get tokenId at index {i} for owner {ownerAddress}: {ex.Message}");
+                        break;
+                    }
+                }
+                
+                return ids;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to enumerate positions for owner {ownerAddress}: {ex.Message}");
+                return Enumerable.Empty<BigInteger>();
+            }
+        }
+
+        public async Task<PositionDataResult> GetPositionDataSafeAsync(BigInteger tokenId, ChainEnum chain)
+        {
+            try
+            {
+                var ctx = GetContext(chain);
+                var position = await TryGetPositionAsync(ctx, tokenId);
+                
+                if (position == null)
+                {
+                    return PositionDataResult.CreateFailure(tokenId, "Position not found or inaccessible");
+                }
+
+                // Validação extra de campos obrigatórios
+                if (string.IsNullOrEmpty(position.Token0) || string.IsNullOrEmpty(position.Token1))
+                {
+                    return PositionDataResult.CreateFailure(tokenId, "Position has invalid token addresses");
+                }
+
+                // Tenta resolver o endereço do pool
+                string? poolAddress = null;
+                try
+                {
+                    poolAddress = await ResolvePoolAsync(ctx, position.Token0, position.Token1, position.Fee);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"WARNING: Failed to resolve pool address for tokenId {tokenId}: {ex.Message}");
+                }
+
+                return PositionDataResult.CreateSuccess(tokenId, position, poolAddress);
+            }
+            catch (Exception ex)
+            {
+                return PositionDataResult.CreateFailure(tokenId, ex.Message);
+            }
+        }
+
+        public async Task<PoolMetadataResult> GetPoolMetadataSafeAsync(string poolAddress, ChainEnum chain)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(poolAddress))
+                {
+                    return PoolMetadataResult.CreateFailure(poolAddress ?? "null", "Invalid pool address");
+                }
+
+                var ctx = GetContext(chain);
+                var metadata = await GetPoolMetadataAsync(poolAddress);
+                
+                if (metadata == null)
+                {
+                    return PoolMetadataResult.CreateFailure(poolAddress, "Pool metadata not available");
+                }
+
+                return PoolMetadataResult.CreateSuccess(poolAddress, metadata);
+            }
+            catch (Exception ex)
+            {
+                return PoolMetadataResult.CreateFailure(poolAddress ?? "null", ex.Message);
+            }
+        }
+
+        public async Task<PoolStateResult> GetPoolStateSafeAsync(string poolAddress, ChainEnum chain)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(poolAddress))
+                {
+                    return PoolStateResult.CreateFailure(poolAddress ?? "null", "Invalid pool address");
+                }
+
+                var ctx = GetContext(chain);
+                var state = await GetCurrentPoolStateAsync(poolAddress);
+                
+                if (state == null)
+                {
+                    return PoolStateResult.CreateFailure(poolAddress, "Pool state not available");
+                }
+
+                return PoolStateResult.CreateSuccess(poolAddress, state);
+            }
+            catch (Exception ex)
+            {
+                return PoolStateResult.CreateFailure(poolAddress ?? "null", ex.Message);
+            }
+        }
+
+        public async Task<TickRangeResult> GetTickRangeSafeAsync(string poolAddress, int tickLower, int tickUpper, ChainEnum chain)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(poolAddress))
+                {
+                    return TickRangeResult.CreateFailure(poolAddress ?? "null", tickLower, tickUpper, "Invalid pool address");
+                }
+
+                var ctx = GetContext(chain);
+                var (lowerTick, upperTick) = await GetTickRangeInfoAsync(poolAddress, tickLower, tickUpper);
+                
+                return TickRangeResult.CreateSuccess(poolAddress, tickLower, tickUpper, lowerTick, upperTick);
+            }
+            catch (Exception ex)
+            {
+                return TickRangeResult.CreateFailure(poolAddress ?? "null", tickLower, tickUpper, ex.Message);
+            }
+        }
+
+        public async Task<TokenMetadataResult> GetTokenMetadataSafeAsync(string tokenAddress, ChainEnum chain)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(tokenAddress))
+                {
+                    return TokenMetadataResult.CreateFailure(tokenAddress ?? "null", "Invalid token address");
+                }
+
+                var ctx = GetContext(chain);
+                var (symbol, name, decimals) = await GetErc20MetadataAsync(ctx, tokenAddress);
+                
+                // Considera sucesso mesmo se alguns campos estão vazios
+                return TokenMetadataResult.CreateSuccess(tokenAddress, symbol, name, decimals);
+            }
+            catch (Exception ex)
+            {
+                return TokenMetadataResult.CreateFailure(tokenAddress ?? "null", ex.Message);
+            }
+        }
     }
 }

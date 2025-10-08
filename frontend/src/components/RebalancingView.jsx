@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { config } from '../config/api';
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 // import { getFontStyles } from '../styles/fontStyles'; // (Unused after refactor)
 import { ITEM_TYPES } from '../utils/walletUtils';
 import { RebalanceAssetType, RebalanceReferenceTypeEnum, getAssetTypeLabel } from '../constants/rebalanceEnums';
@@ -985,16 +985,16 @@ export default function RebalancingView({
                             <td className="td text-primary col-name">
                               <span className="flex align-center gap-8" title={row.assetLabel}>
                                 {renderAssetIcons()}
-                                <span className="truncate" style={{maxWidth:'240px'}}>{row.assetLabel}</span>
+                                <span className="truncate max-w-240">{row.assetLabel}</span>
                               </span>
                             </td>
                             <td className="td td-right td-mono tabular-nums text-primary col-current">
                               {(() => {
                                 const pctStr = fmtPct(Math.max(0, pctCurrent));
                                 return (
-                                  <div className="flex column align-end" style={{ lineHeight: '14px' }}>
-                                    <span style={{ fontSize: 12 }}>{pctStr}</span>
-                                    <span className="text-secondary" style={{ fontSize: 11 }}>{fmtUSD(curVal)}</span>
+                                  <div className="flex flex-column items-end leading-tight">
+                                    <span className="text-base">{pctStr}</span>
+                                    <span className="text-secondary text-sm">{fmtUSD(curVal)}</span>
                                   </div>
                                 );
                               })()}

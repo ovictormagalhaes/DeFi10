@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 /**
  * Thin vertical sidebar navigation.

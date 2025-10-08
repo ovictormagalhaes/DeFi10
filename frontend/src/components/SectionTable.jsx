@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 // Lucide settings icon (inline to avoid new dependency if lucide-react not installed)
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 // Using proportional ratio [2,1,1,1] for 4-column metric alignment
 import { getFontStyles } from '../styles/fontStyles';
 import { ratioToColGroup } from '../utils/tableLayout';
@@ -137,7 +137,7 @@ const createMenuOption = (
   fontStyles,
   stopPropagation = true
 ) => (
-  <label style={{ display: 'block', marginBottom: 4, cursor: 'pointer' }}>
+  <label className="block mb-4 cursor-pointer">
     <input
       type="radio"
       name={name}
@@ -151,7 +151,7 @@ const createMenuOption = (
             }
           : onChange
       }
-      style={{ marginRight: 6 }}
+      className="mr-6"
     />
     <span style={fontStyles.secondary}>{children}</span>
   </label>
@@ -271,7 +271,7 @@ export default function SectionTable({
   };
 
   return (
-    <div style={{ margin: '12px 0px' }}>
+    <div className="mt-12 mb-12">
       <div
         style={{
           background: isCard ? cardBg : 'transparent',
@@ -292,18 +292,18 @@ export default function SectionTable({
           }}
           onClick={onToggle ? handleToggle : undefined}
         >
-          <div style={createFlexRow(8, { flex: '1 1 auto' })}>
+          <div className="flex items-center gap-8 flex-auto">
             {icon}
             <span style={fontStyles.menuHeader}>{title}</span>
           </div>
-          <div style={createFlexRow(12)} onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-12" onClick={(e) => e.stopPropagation()}>
             {/* Header metrics: prefer renderHeaderMetrics if provided; fallback to legacy props */}
             {subtitle &&
               (renderHeaderMetrics ||
                 infoBadges ||
                 rightPercent !== null ||
                 rightValue !== null) && (
-                <div style={{ minWidth: isThreeColMetrics ? 360 : 420, flex: '0 0 auto' }}>
+                <div className="flex-none" style={{ minWidth: isThreeColMetrics ? 360 : 420 }}>
                   {renderHeaderMetrics ? (
                     renderMetricsTable(
                       renderHeaderMetrics({

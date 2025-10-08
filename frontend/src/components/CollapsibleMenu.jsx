@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 // Componente reutilizável de menu colapsável
 function CollapsibleMenu({
@@ -143,20 +143,18 @@ function CollapsibleMenu({
     <div style={{ marginTop: isFlat ? 0 : 12, marginBottom: isFlat ? 0 : 12 }}>
       {/* Container */}
       <div
+        className="overflow-hidden"
         style={{
           border: isFlat ? '0' : `1px solid ${theme.tableBorder || theme.border}`,
           borderRadius: isFlat ? 0 : 10,
           background: isFlat ? 'transparent' : (theme.bgPanelAlt || theme.bgPanel),
-          overflow: 'hidden',
           transition: 'border-color .25s, background-color .25s',
         }}
       >
         {/* Header apenas com título + toggle */}
         <div
+          className="flex items-center justify-between"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
             padding: isFlat ? '0 0 8px 0' : basePadding,
             cursor: 'pointer',
             userSelect: 'none',

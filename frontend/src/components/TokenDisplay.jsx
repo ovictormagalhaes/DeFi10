@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { useChainIcons } from '../context/ChainIconsProvider';
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 import { formatTokenDisplay } from '../utils/tokenDisplay';
 
 /**

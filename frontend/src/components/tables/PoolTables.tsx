@@ -1,10 +1,6 @@
-/**
- * PoolTables TypeScript Component - Migração completa para TypeScript
- * Tabelas para exibir pools de liquidez com suporte completo a TypeScript
- */
-
 import React, { useState, useMemo, useEffect } from 'react';
 import StandardHeader from '../table/StandardHeader';
+import TableFooter from '../table/TableFooter';
 import TokenDisplay from '../TokenDisplay';
 import MiniMetric from '../MiniMetric';
 import RangeChip from '../RangeChip';
@@ -20,125 +16,55 @@ import {
 import { 
   extractAllRewards, 
   normalizeTokenPrice, 
-  calculateTokensValue,
-  filterUncollectedFeeTokens
 } from '../../utils/tokenFilters';
-import type { WalletItem, Token } from '../../types/wallet';
-import { extractPoolRange, extractPoolFees24h } from '../../types/wallet';
-import { getLiquidityPoolItems } from '../../types/filters';
+import type { WalletItem } from '../../types/wallet';
 
-// Interface CORRETA - APENAS WalletItem[]
+// Interface simplificada - APENAS WalletItem[]
 interface PoolTablesProps {
-  items: WalletItem[]; // SEMPRE usar esta estrutura
+  items: WalletItem[];
   showMetrics?: boolean;
-  
-  // DEPRECATED - apenas para compatibilidade temporária
-  pools?: any[] | Record<string, any> | null;
 }
 
-// TODO: Migrar completamente para usar items: WalletItem[] e remover props legacy
-
-interface Pool {
-  address?: string;
-  poolAddress?: string;
-  name?: string;
-  tokens?: PoolToken[];
-  assets?: PoolToken[];
-  position?: {
-    tokens?: PoolToken[];
-    range?: any;
-  };
-  totalValueUsd?: number;
-  totalValueUSD?: number;
-  totalValue?: number;
-  tvlUsd?: number;
-  tvlUSD?: number;
-  tvl?: number;
-  liquidityUsd?: number;
-  liquidityUSD?: number;
-  liquidity?: number;
-  rewards?: RewardToken[];
-  rewardTokens?: RewardToken[];
-  uncollectedFees?: RewardToken[];
-  fees?: RewardToken[];
-  // Possíveis localizações de range
-  range?: any;
-  rangeData?: any;
-  priceRange?: any;
-  additionalData?: {
-    range?: any;
-    [key: string]: any;
-  };
-  type?: string;
-  [key: string]: any; // Para propriedades dinâmicas
-}
-
-interface PoolToken {
-  symbol: string;
-  totalValueUsd?: number;
-  totalValueUSD?: number;
-  totalValue?: number;
-  totalPrice?: number;
-  balance?: number;
-  amount?: number;
-  address?: string;
-  decimals?: number;
-  logo?: string;
-  chainKey?: string;
-  [key: string]: any;
-}
-
-interface RewardToken {
-  symbol?: string;
-  totalValueUsd?: number;
-  totalValueUSD?: number;
-  totalValue?: number;
-  valueUsd?: number;
-  totalPrice?: number;
-  financials?: {
-    totalPrice?: number;
-    totalValue?: number;
-    price?: number;
-  };
-  [key: string]: any;
-}
-
-interface AggregatedPool extends Pool {
-  value: number;
-  rewards: RewardToken[];
-}
-
+// Interface para range de pools
 interface PoolRange {
   min?: number;
   max?: number;
   current?: number;
   inRange?: boolean;
+  lower?: number;
+  upper?: number;
   [key: string]: any;
 }
 
 // Função para derivar chave única do pool
-function derivePoolKey(pool: Pool | null, index: number): string {
-  if (!pool) return `pool-${index}`;
-  const addr = (pool.address || pool.poolAddress || '').toLowerCase();
+function derivePoolKey(item: WalletItem, index: number): string {
+  // Verificar se tem address/contractAddress tanto em item quanto em position
+  const addr = (
+    (item as any).address || (item as any).contractAddress || 
+    item.position?.address || item.position?.contractAddress || ''
+  ).toLowerCase();
   if (addr) return addr;
-  const name = (pool.name || '').toLowerCase();
+  
+  // Verificar se tem name/label tanto em item quanto em position
+  const name = (
+    (item as any).name || (item as any).label || 
+    item.position?.name || item.position?.label || ''
+  ).toLowerCase();
   if (name) return `${name}-${index}`;
   return `pool-${index}`;
 }
 
-// Função para extrair range de diferentes estruturas de pool
-function extractRangeFromPool(pool: Pool): PoolRange | null {
-  if (!pool) return null;
-
-  // Tenta várias localizações possíveis para range data
-  const rangeData = 
-    pool.additionalData?.range ||
-    pool.range ||
-    pool.position?.range ||
-    pool.rangeData ||
-    pool.priceRange ||
-    null;
-
+// Função para extrair range de WalletItem
+function extractRangeFromItem(item: WalletItem): PoolRange | null {
+  // Tenta extrair range dos dados da posição ou additionalData
+  const rangeData = (
+    (item as any).additionalData?.range || 
+    (item as any).range || 
+    (item as any).rangeData || 
+    (item.position as any)?.range || 
+    (item.position as any)?.rangeData || 
+    null
+  );
   if (!rangeData) return null;
 
   // Valida e converte os dados de range
@@ -160,42 +86,71 @@ function extractRangeFromPool(pool: Pool): PoolRange | null {
   return null;
 }
 
-// Função para agregar pools com rewards
-function aggregatePools(pools: Pool[] = []): AggregatedPool[] {
-  return pools.map((p) => {
-    const tokens = p.tokens || p.assets || p.position?.tokens || [];
-    
-    const rawValue =
-      p.totalValueUsd ?? p.totalValueUSD ?? p.totalValue ?? 
-      p.tvlUsd ?? p.tvlUSD ?? p.tvl ?? 
-      p.liquidityUsd ?? p.liquidityUSD ?? p.liquidity ?? 0;
-    const valueNum = parseFloat(String(rawValue)) || 0;
-    
-    // Extract all rewards using the unified utility
-    const allRewards = extractAllRewards(p);
-    
-    // Normalize all reward tokens to have consistent totalPrice field
-    const normalizedRewards = allRewards.map(normalizeTokenPrice);
-    
-    // Deduplicate by symbol+rounded totalPrice to avoid double counting
-    const seen = new Set<string>();
-    const deduplicatedRewards = normalizedRewards.filter((item: any) => {
-      const keySig = `${(item.symbol || '').toLowerCase()}|${Math.round((item.totalPrice || 0) * 1e6)}`;
-      if (seen.has(keySig)) return false;
-      seen.add(keySig);
-      return true;
-    });
+// Função para extrair informações do protocolo de WalletItem
+function getProtocolInfo(item: WalletItem): { name: string | null; logo: string | null } {
+  if (!item.protocol) return { name: null, logo: null };
+  
+  return {
+    name: item.protocol.name || null,
+    logo: item.protocol.logo || null
+  };
+}
 
-    return { ...p, tokens, value: valueNum, rewards: deduplicatedRewards } as AggregatedPool;
+// Interface para item processado
+interface ProcessedPoolItem {
+  item: WalletItem;
+  tokens: any[];
+  value: number;
+  rewards: any[];
+}
+
+// Função para processar WalletItems de pool
+function processPoolItems(items: WalletItem[]): ProcessedPoolItem[] {
+  return items.map((item) => {
+    // Tokens podem estar em item.tokens (dados diretos) ou item.position?.tokens (nested)
+    const tokens = (item as any).tokens || item.position?.tokens || [];
+    
+    // Extract all tokens from position including uncollected fees
+    const allTokens = (item as any).tokens || item.position?.tokens || [];
+    const uncollectedFeeTokens = allTokens.filter((t: any) => t.type === 'LiquidityUncollectedFee');
+    const normalizedRewards = uncollectedFeeTokens.map(normalizeTokenPrice);
+    
+    // Calculate value from tokens - apenas tokens "Supplied", excluir rewards
+    const suppliedTokens = tokens.filter((t: any) => t.type === 'Supplied' || !t.type || t.type === 'LP');
+    const valueNum = suppliedTokens.reduce((sum: number, token: any) => {
+      const price = parseFloat(String(
+        token.financials?.totalPrice || 
+        token.totalPrice || 
+        token.totalValueUsd || 
+        token.totalValueUSD || 
+        token.totalValue || 
+        token.valueUsd || 
+        token.valueUSD || 
+        token.value || 
+        0
+      )) || 0;
+      return sum + price;
+    }, 0);
+    
+    return {
+      item,
+      tokens,
+      value: valueNum,
+      rewards: normalizedRewards
+    };
   });
 }
 
-const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true }) => {
+const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true }) => {
   const { maskValue } = useMaskValues();
   const { theme } = useTheme();
   const [openPools, setOpenPools] = useState<Record<string, boolean>>({});
+  
 
-  // Viewport width for responsive column hiding (restored legacy behavior)
+  
+
+
+  // Viewport width for responsive column hiding
   const initialWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const [vw, setVw] = useState(initialWidth);
 
@@ -213,30 +168,26 @@ const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true 
     };
   }, [initialWidth]);
 
-  // Breakpoints aligned to original (legacy) variant you preferred (950 / 800 / 600)
+  // Breakpoints para responsividade
   const hideRange = vw < 600;
   const hideRewards = vw < 800;
   const hideAmount = vw < 950;
 
-  // Normalize input: accept array, object map, or falsy
-  const poolsArray = useMemo(() => {
-    if (Array.isArray(pools)) return pools;
-    if (pools && typeof pools === 'object') return Object.values(pools);
-    return [];
-  }, [pools]);
+  if (!items || items.length === 0) return null;
 
-  if (!poolsArray || poolsArray.length === 0) return null;
-
-  const aggregated = useMemo(() => aggregatePools(poolsArray), [poolsArray]);
-  const totalValue = sum(aggregated.map((p) => p.value));
+  const processedItems = useMemo(() => processPoolItems(items), [items]);
+  const totalValue = sum(processedItems.map((p) => p.value));
   const rewardsValue = sum(
-    aggregated.flatMap((p) => 
-      p.rewards.map((r: any) => 
-        r.totalValueUsd || r.totalValueUSD || r.totalValue || r.valueUsd || r.totalPrice || 0
-      )
+    processedItems.flatMap((p) => 
+      (p.rewards || [])
+        .filter((r: any) => r.type === 'LiquidityUncollectedFee')
+        .map((r: any) => parseFloat(
+          r.totalPrice || r.totalValueUsd || r.totalValueUSD || r.totalValue || 
+          r.valueUsd || r.valueUSD || r.value || r.financials?.totalPrice || 0
+        ) || 0)
     )
   );
-  const positionsCount = aggregated.length;
+  const positionsCount = processedItems.length;
   const portfolioTotal = getTotalPortfolioValue ? getTotalPortfolioValue() : 0;
   const portfolioPercent = portfolioTotal > 0 ? calculatePercentage(totalValue, portfolioTotal) : '0%';
 
@@ -244,7 +195,7 @@ const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true 
     setOpenPools((prev) => ({ ...prev, [key]: !prev[key] })); 
   }
 
-  const keyList = aggregated.map((p, i) => derivePoolKey(p, i));
+  const keyList = processedItems.map((p, i) => derivePoolKey(p.item, i));
   const allOpen = keyList.every((k) => openPools[k]);
   const anyOpen = keyList.some((k) => openPools[k]);
   
@@ -259,6 +210,43 @@ const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true 
     setOpenPools({}); 
   }
 
+  // Extrair protocolo predominante dos itens
+  const protocolInfo = React.useMemo(() => {
+    if (!processedItems.length) return { name: null, logo: null };
+    
+    // Coletar todos os protocolos e contar ocorrências
+    const protocolCounts = new Map<string, { count: number; info: { name: string | null; logo: string | null } }>();
+    
+    processedItems.forEach(({ item }) => {
+      const info = getProtocolInfo(item);
+      if (info.name) {
+        const existing = protocolCounts.get(info.name);
+        if (existing) {
+          existing.count++;
+          // Update logo if current item has logo and existing doesn't
+          if (info.logo && !existing.info.logo) {
+            existing.info.logo = info.logo;
+          }
+        } else {
+          protocolCounts.set(info.name, { count: 1, info });
+        }
+      }
+    });
+    
+    // Encontrar protocolo mais comum
+    let maxCount = 0;
+    let predominantProtocol: { name: string | null; logo: string | null } = { name: null, logo: null };
+    
+    for (const [, { count, info }] of protocolCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        predominantProtocol = info;
+      }
+    }
+    
+    return predominantProtocol;
+  }, [processedItems]);
+
   return (
     <div className="pool-tables-wrapper flex-col gap-12">
       {showMetrics && (
@@ -271,10 +259,36 @@ const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true 
             label="Portfolio %" 
             value={portfolioPercent}
           />
+          {protocolInfo.name && (
+            <div className="mini-metric">
+              <span className="mini-metric-label">
+                Protocol
+              </span>
+              <div className="mini-metric-row">
+                {protocolInfo.logo && (
+                  <img 
+                    src={protocolInfo.logo} 
+                    alt={protocolInfo.name} 
+                    style={{ 
+                      width: 16, 
+                      height: 16, 
+                      borderRadius: '50%', 
+                      objectFit: 'cover',
+                      border: '1px solid var(--app-border)'
+                    }}
+                    onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
+                  />
+                )}
+                <span className="mini-metric-value">
+                  {protocolInfo.name}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
       
-      {aggregated.length > 3 && (
+      {processedItems.length > 3 && (
         <div className="expand-controls flex gap-8">
           <button 
             type="button" 
@@ -313,22 +327,24 @@ const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true 
           labels={{ token: 'Pools' }}
         />
         <tbody>
-          {aggregated.map((pool, idx) => {
-            const key = derivePoolKey(pool, idx);
+          {processedItems.map((processedItem, idx) => {
+            const { item, tokens, value, rewards } = processedItem;
+            const key = derivePoolKey(item, idx);
             const isOpen = !!openPools[key];
             
-            // Extract range from pool structure (não é WalletItem, então usar função customizada)
-            const poolRange = extractRangeFromPool(pool);
+            // Extract range from WalletItem structure
+            const poolRange = extractRangeFromItem(item);
                         
-            const totalRewardsValue = pool.rewards?.reduce((s, r: any) => 
-              s + (parseFloat(String(
-                r.totalValueUsd || 
-                r.totalValueUSD || 
-                r.totalValue || 
-                r.valueUsd || 
-                r.totalPrice || 
-                (r.financials && (r.financials.totalPrice || r.financials.totalValue || r.financials.price))
-              )) || 0), 0) || 0;
+            // Filtrar APENAS LiquidityUncollectedFee tokens para uncollected fees
+            const uncollectedFeeTokens = (rewards || []).filter((r: any) => 
+              r.type === 'LiquidityUncollectedFee'
+            );
+            
+            // Calcular valor total dos uncollected fees
+            const totalRewardsValue = uncollectedFeeTokens.reduce((s: number, t: any) => s + (parseFloat(
+              t.totalPrice || t.totalValueUsd || t.totalValueUSD || t.totalValue || 
+              t.valueUsd || t.valueUSD || t.value || t.financials?.totalPrice || 0
+            ) || 0), 0);
 
             return (
               <React.Fragment key={key}>
@@ -344,9 +360,9 @@ const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true 
                       >
                         {isOpen ? '−' : '+'}
                       </span>
-                      {Array.isArray(pool.tokens) && pool.tokens.length > 0 && (
+                      {Array.isArray(tokens) && tokens.length > 0 && (
                         <TokenDisplay 
-                          tokens={pool.tokens.slice(0, 2) as never[]} 
+                          tokens={tokens.filter((t: any) => t.type === 'Supplied' || !t.type || t.type === 'LP').slice(0, 2) as never[]} 
                           size={24} 
                           showChain={false}
                           getChainIcon={(chainKey: string) => undefined}
@@ -382,30 +398,30 @@ const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true 
                   )}
                   
                   <td className="td td-right td-mono td-mono-strong text-primary col-value">
-                    {maskValue(formatPrice(pool.value))}
+                    {maskValue(formatPrice(value))}
                   </td>
                 </tr>
 
-                {isOpen && pool.tokens && (
+                {isOpen && tokens && (
                   <>
-                    {pool.tokens.map((t: any, tIdx: number) => {
+                    {tokens
+                      .filter((t: any) => t.type === 'Supplied' || !t.type || t.type === 'LP')
+                      .map((t: any, tIdx: number) => {
                       const tokenValue = parseFloat(String(
-                        t.totalValueUsd || t.totalValueUSD || t.totalValue || t.totalPrice || 0
+                        t.financials?.totalPrice || t.totalPrice || t.totalValueUsd || t.totalValueUSD || t.totalValue || 
+                        t.valueUsd || t.valueUSD || t.value || 0
                       )) || 0;
                       
-                      const tokenRewardsRaw = (pool.rewards || []).filter((r: any) => 
+                      // Filtrar APENAS LiquidityUncollectedFee tokens para este token específico
+                      const tokenUncollectedFees = (rewards || []).filter((r: any) => 
+                        r.type === 'LiquidityUncollectedFee' &&
                         (r.symbol || '').toLowerCase() === (t.symbol || '').toLowerCase()
                       );
                       
-                      const tokenRewardsValue = tokenRewardsRaw.reduce((s, r: any) => 
-                        s + (parseFloat(String(
-                          r.totalValueUsd || 
-                          r.totalValueUSD || 
-                          r.totalValue || 
-                          r.valueUsd || 
-                          r.totalPrice || 
-                          (r.financials && (r.financials.totalPrice || r.financials.totalValue || r.financials.price))
-                        )) || 0), 0);
+                      // Calcular valor dos uncollected fees para este token específico
+                      const tokenRewardsValue = tokenUncollectedFees.reduce((s: number, r: any) => s + (parseFloat(
+                        r.financials?.totalPrice || r.totalPrice || 0
+                      ) || 0), 0);
 
                       return (
                         <tr key={`${key}-tok-${tIdx}`} className="table-row tbody-divider pool-token-rows-enter">
@@ -430,7 +446,7 @@ const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true 
                           
                           {!hideRewards && (
                             <td className="td-small td-right td-mono text-primary col-uncollected">
-                              {tokenRewardsValue ? maskValue(formatPrice(tokenRewardsValue)) : '-'}
+                              {tokenRewardsValue && tokenRewardsValue > 0.001 ? maskValue(formatPrice(tokenRewardsValue)) : '-'}
                             </td>
                           )}
                           
@@ -446,6 +462,11 @@ const PoolTables: React.FC<PoolTablesProps> = ({ pools = [], showMetrics = true 
             );
           })}
         </tbody>
+        <TableFooter 
+          totalValue={totalValue}
+          itemsCount={positionsCount}
+          columns={['range', 'amount', 'rewards', 'value']}
+        />
       </table>
     </div>
   );

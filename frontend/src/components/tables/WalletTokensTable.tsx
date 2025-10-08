@@ -14,6 +14,7 @@ import {
 } from '../../utils/walletUtils';
 import TokenDisplay from '../TokenDisplay';
 import StandardHeader from '../table/StandardHeader';
+import TableFooter from '../table/TableFooter';
 import MiniMetric from '../MiniMetric';
 import type { WalletItem } from '../../types/wallet';
 import { getWalletTokenItems } from '../../types/filters';
@@ -182,6 +183,11 @@ const WalletTokensTable: React.FC<WalletTokensTableProps> = ({
             );
           })}
         </tbody>
+        <TableFooter 
+          totalValue={totalValue}
+          itemsCount={count}
+          columnDefs={columnDefs}
+        />
       </table>
     </div>
   );

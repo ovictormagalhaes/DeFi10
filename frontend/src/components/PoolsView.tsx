@@ -1,7 +1,12 @@
+/**
+ * PoolsView TypeScript Component - Migração completa do PoolsView.jsx funcional
+ * Exibe pools de liquidez com interface rica e expansível
+ * Versão atualizada para usar a estrutura real dos dados da API
+ */
 import React from 'react';
-import MiniMetric from './MiniMetric.jsx';
-import TokenDisplay from './TokenDisplay.jsx';
-import RangeChip from './RangeChip.jsx';
+import MiniMetric from './MiniMetric';
+import TokenDisplay from './TokenDisplay';
+import RangeChip from './RangeChip';
 import { useTheme } from '../context/ThemeProvider';
 import { useMaskValues } from '../context/MaskValuesContext';
 import { 
@@ -10,9 +15,117 @@ import {
   extractRewards, 
   calculatePercentage, 
   getTotalPortfolioValue 
-} from '../utils/walletUtils.js';
+} from '../utils/walletUtils';
 import type { WalletItem, Token, Range } from '../types/wallet';
-import { extractPoolRange, extractPoolFees24h } from '../types/wallet';
+import { 
+  extractPoolRange, 
+  extractPoolFees24h, 
+  extractPoolCreatedAt, 
+  formatPoolAge,
+  extractUncollectedFeesForToken 
+} from '../types/wallet';
+
+// MetricCard Component
+const MetricCard: React.FC<{ 
+  label: string; 
+  value: string | number;
+  custom?: React.ReactNode;
+  highlight?: boolean;
+  icon?: React.ReactNode;
+  accent?: boolean;
+}> = ({ label, value, custom, highlight = false, icon, accent = false }) => {
+  const { theme } = useTheme();
+  
+  return (
+    <div 
+      className="metric-card" 
+      style={{
+        minHeight: '80px',
+        padding: '16px',
+        borderRadius: '12px',
+        background: highlight ? `${theme.accent}20` : theme.bgPanel,
+        border: `1px solid ${highlight ? theme.accent : theme.border}`,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        position: 'relative',
+        transition: 'all 0.2s ease'
+      }}
+    >
+      <div className="flex items-center gap-4 text-sm font-medium leading-tight" style={{
+        color: theme.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px'
+      }}>
+        {icon}
+        {label}
+      </div>
+      
+      {custom ? (
+        <div className="mt-8">
+          {custom}
+        </div>
+      ) : (
+        <div className="mt-8 leading-tight" style={{
+          fontSize: '16px',
+          fontWeight: '600',
+          color: accent ? theme.accent : (theme as any).text || theme.textPrimary
+        }}>
+          {value}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// CollapseItem Component
+const CollapseItem: React.FC<{
+  title: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}> = ({ title, children, defaultOpen = false }) => {
+  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+  const { theme } = useTheme();
+
+  return (
+    <div style={{
+      background: theme.bgPanel,
+      border: `1px solid ${theme.border}`,
+      borderRadius: '12px',
+      overflow: 'hidden',
+      transition: 'all 0.2s ease'
+    }}>
+      {/* Header */}
+      <div
+        className="flex items-center justify-between cursor-pointer px-20 py-16"
+        style={{
+          background: isOpen ? (theme as any).bgElevated || theme.bgPanel : 'transparent',
+          borderBottom: isOpen ? `1px solid ${theme.border}` : 'none',
+          transition: 'all 0.2s ease'
+        }}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex-1">
+          {title}
+        </div>
+        <div className="text-base ml-6" style={{
+          transform: `rotate(${isOpen ? 180 : 0}deg)`,
+          transition: 'transform 0.2s ease',
+          color: theme.textSecondary
+        }}>
+          ▼
+        </div>
+      </div>
+
+      {/* Content */}
+      {isOpen && (
+        <div className="px-20 pb-20">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Interfaces específicas para PoolsView
 interface ProtocolInfo {
@@ -43,28 +156,6 @@ interface EnrichedPool {
 interface PoolsViewProps {
   getLiquidityPoolsData?: () => WalletItem[];
 }
-
-// Componente MetricCard temporário para não depender de Material-UI
-const MetricCard: React.FC<{
-  label: string;
-  value: string | number;
-  theme?: any;
-}> = ({ label, value }) => (
-  <div style={{
-    padding: '16px',
-    border: '1px solid #e0e0e0',
-    borderRadius: '8px',
-    backgroundColor: '#f9f9f9',
-    textAlign: 'center'
-  }}>
-    <div style={{ fontSize: '0.875rem', color: '#666', marginBottom: '4px' }}>
-      {label}
-    </div>
-    <div style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
-      {value}
-    </div>
-  </div>
-);
 
 /* Funções utilitárias tipadas - mantendo compatibilidade com código existente */
 function getTokens(pos: any): Token[] {
@@ -101,6 +192,27 @@ function getProtocolInfo(pos: any): ProtocolInfo {
   }
   
   return { name, logo };
+}
+
+// Função para detectar protocolo predominante
+function detectPredominantProtocol(enriched: EnrichedPool[]): ProtocolInfo {
+  if (!enriched || enriched.length === 0) {
+    return { name: 'Unknown', logo: '❓' };
+  }
+
+  const protocolCounts = enriched.reduce((acc, pool) => {
+    const protocolInfo = getProtocolInfo(pool.pos);
+    const protocolName = protocolInfo.name || 'Unknown';
+    acc[protocolName] = (acc[protocolName] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const predominantProtocolName = Object.keys(protocolCounts).reduce((a, b) => 
+    protocolCounts[a] > protocolCounts[b] ? a : b
+  );
+
+  const mockPos = { protocol: predominantProtocolName };
+  return getProtocolInfo(mockPos);
 }
 
 function safeNum(v: any): number {
@@ -189,6 +301,24 @@ function sumClaimed(rewards: Token[]): number {
   }, 0);
 }
 
+function sumRewardValue(rewards: Token[]): number {
+  if (!Array.isArray(rewards) || !rewards.length) return 0;
+  
+  return rewards.reduce((s, r) => {
+    let val = (r as any).totalPrice ?? (r as any).value;
+    if (val == null) {
+      const price = parseFloat((r as any).price ?? (r as any).financials?.price);
+      if (isFinite(price)) {
+        const u = parseFloat((r as any).pending ?? (r as any).unclaimed ?? (r as any).rewardAmount ?? (r as any).accrued) || 0;
+        const c = parseFloat((r as any).claimed ?? (r as any).earned) || 0;
+        val = price * (u + c);
+      }
+    }
+    const num = parseFloat(val);
+    return s + (isFinite(num) ? num : 0);
+  }, 0);
+}
+
 function getUserValue(raw: any): number {
   const pos = raw?.position || raw;
   
@@ -216,18 +346,27 @@ function getAPR(raw: any): number | null {
 }
 
 function getCreatedDate(raw: any): Date | null {
+  // First try to extract from additionalData.createdAt (new approach)
+  const createdFromAdditional = extractPoolCreatedAt(raw);
+  if (createdFromAdditional) return createdFromAdditional;
+  
+  // Fallback to legacy approach
   const pos = raw?.position || raw;
   const cand = pos.createdAt || pos.creationTime || pos.timestamp || pos.created_date || pos.startTime;
-  
   if (!cand) return null;
   
-  try {
-    const d = new Date(cand);
-    if (!isNaN(d.getTime())) return d;
-  } catch {
-    return null;
+  try { 
+    // If it's already a unix timestamp (number), convert to Date
+    if (typeof cand === 'number') {
+      const d = new Date(cand * 1000); // Assume Unix timestamp in seconds
+      if (!isNaN(d.getTime())) return d;
+    }
+    // Otherwise try to parse as Date
+    const d = new Date(cand); 
+    if (!isNaN(d.getTime())) return d; 
+  } catch { 
+    return null; 
   }
-  
   return null;
 }
 
@@ -257,7 +396,7 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
     // Extract uncollected fees specifically from LiquidityUncollectedFee tokens
     const uncollectedFeeTokens = allTokens.filter((t: any) => t.type === 'LiquidityUncollectedFee') || [];
     
-    const { name: protocolName, logo: protocolLogo } = getProtocolInfo(pos);
+    const { name: protocolName, logo: protocolLogo } = getProtocolInfo(p);
     const value = getUserValue(p);
     const apr = getAPR(p);
     const fees24h = extractPoolFees24h(p);
@@ -312,6 +451,45 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
   const portfolioTotal = getTotalPortfolioValue ? getTotalPortfolioValue() : 0;
   const portfolioPercent = portfolioTotal > 0 ? calculatePercentage(totalValue, portfolioTotal) : '0%';
 
+  // Extrair protocolo predominante dos pools
+  const protocolInfo = React.useMemo(() => {
+    if (!enriched.length) return { name: null, logo: null };
+    
+    // Coletar todos os protocolos e contar ocorrências
+    const protocolCounts = new Map<string, { count: number; info: { name: string | null; logo: string | null } }>();
+    
+    enriched.forEach(pool => {
+      if (pool.protocolName) {
+        const existing = protocolCounts.get(pool.protocolName);
+        if (existing) {
+          existing.count++;
+          // Update logo if current pool has logo and existing doesn't
+          if (pool.protocolLogo && !existing.info.logo) {
+            existing.info.logo = pool.protocolLogo;
+          }
+        } else {
+          protocolCounts.set(pool.protocolName, { 
+            count: 1, 
+            info: { name: pool.protocolName, logo: pool.protocolLogo } 
+          });
+        }
+      }
+    });
+    
+    // Encontrar protocolo mais comum
+    let maxCount = 0;
+    let predominantProtocol: { name: string | null; logo: string | null } = { name: null, logo: null };
+    
+    for (const [, { count, info }] of protocolCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        predominantProtocol = info;
+      }
+    }
+    
+    return predominantProtocol;
+  }, [enriched]);
+
   // responsiveness for card grid
   const [vw, setVw] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   
@@ -334,22 +512,277 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
           gap: '16px', 
-          marginBottom: '24px' 
+          marginBottom: '0px' 
         }}
       >
         <MetricCard label="Total Pools" value={enriched.length} />
         <MetricCard label="Total Value" value={maskValue(formatPrice(totalValue))} />
-        <MetricCard label="Uncollected" value={maskValue(formatPrice(totalRewardsValue))} />
-        {avgApr && <MetricCard label="Avg APR" value={`${avgApr.toFixed(2)}%`} />}
-        <MetricCard label="Fee 24h" value={maskValue(formatPrice(totalFees24h))} />
+        <MetricCard label="Uncollected" value={maskValue(formatPrice(totalRewardsValue || 0))} />
         <MetricCard label="Range" value={`${enriched.filter(e => e.range?.inRange).length}/${enriched.length}`} />
         <MetricCard label="Portfolio" value={portfolioPercent} />
+
       </div>
 
-      {/* TODO: Implementar tabela completa dos pools aqui */}
-      <div>
-        <h4>Pools Table (TypeScript implementation pending)</h4>
-        <p>Found {enriched.length} pools with proper TypeScript typing</p>
+      {/* Interface original com CollapseItem */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '0px' }}>
+        {enriched.map((enrichedPool, index) => {
+          const { raw, pos, tokens, rewards } = enrichedPool;
+          const { name: protocolName, logo: protocolLogo } = getProtocolInfo(raw);
+          
+          console.log(`Pool ${index}:`, {
+            enrichedPoolProtocolName: enrichedPool.protocolName,
+            localProtocolName: protocolName,
+            protocolLogo: protocolLogo,
+            pos: pos,
+            raw: raw,
+            posKeys: Object.keys(pos || {}),
+            rawKeys: Object.keys(raw || {}),
+            posProtocol: pos?.protocol,
+            posProvider: pos?.provider,
+            posPlatform: pos?.platform,
+            posDex: pos?.dex,
+            rawProtocol: (raw as any)?.protocol,
+            rawProvider: (raw as any)?.provider,
+            rawPlatform: (raw as any)?.platform,
+            rawDex: (raw as any)?.dex
+          });
+          
+          const poolValue = safeNum(pos?.totalPrice || pos?.value || 0);
+          const poolApr = safeNum(pos?.apr || pos?.apy || 0);
+          const fees24h = extractPoolFees24h(raw);
+          const createdAt = extractPoolCreatedAt(raw);
+          const ageDisplay = formatPoolAge(createdAt);
+          // Dados da estrutura real: range está em raw.additionalData.range
+          // Uncollected fees estão em raw.position.tokens com type "LiquidityUncollectedFee"
+
+          // USAR extractPoolRange com o WalletItem completo (raw)
+          const range = extractPoolRange(raw);
+          
+          const highlightValue = maskValue(formatPrice(poolValue));
+          const highlightApr = poolApr > 0 ? `${poolApr.toFixed(2)}%` : '--';
+          const highlightFees = fees24h && fees24h > 0 ? maskValue(formatPrice(fees24h)) : '--';
+
+          return (
+            <CollapseItem
+              key={index}
+              title={
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>             
+                  {/* Token Display */}
+                  <div style={{ flex: 1 }}>
+                    <TokenDisplay tokens={tokens} />
+                  </div>
+                  
+                  {/* Quick Stats */}
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: '16px', 
+                    alignItems: 'center',
+                    fontSize: '14px'
+                  }}>
+                    {range && (
+                      <RangeChip range={range} width={80} />
+                    )}
+                  </div>
+                </div>
+              }
+            >
+              <div style={{ padding: '16px 0' }}>
+                {/* Métricas do Pool */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                  gap: '12px',
+                  marginBottom: '20px'
+                }}>
+                  {enrichedPool.protocolName && (
+                    <MiniMetric 
+                      label="Protocol" 
+                      value={
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {enrichedPool.protocolLogo && (
+                            <img 
+                              src={enrichedPool.protocolLogo} 
+                              alt={enrichedPool.protocolName} 
+                              style={{ width: '16px', height: '16px', borderRadius: '50%' }}
+                              onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
+                            />
+                          )}
+                          <span>{enrichedPool.protocolName}</span>
+                        </div>
+                      }
+                    />
+                  )}
+                </div>
+
+                {/* Tabelas de Tokens */}
+                <div style={{ marginTop: '16px' }}>
+                  {/* Positions Table */}
+                  {tokens.length > 0 && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <h4 style={{ 
+                        margin: '0 0 8px 0',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: (theme as any).text || theme.textPrimary
+                      }}>Positions</h4>
+                      <div style={{
+                        background: (theme as any).bgElevated || theme.bgPanel,
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: '8px',
+                        overflow: 'hidden'
+                      }}>
+                        {/* Table Header */}
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: '2fr 1fr 1fr 1fr',
+                          padding: '12px 16px',
+                          background: (theme as any).bgElevated || theme.bgPanel,
+                          borderBottom: `1px solid ${theme.border}`,
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          color: theme.textSecondary,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          <div>Token</div>
+                          <div style={{ textAlign: 'right' }}>Amount</div>
+                          <div style={{ textAlign: 'right' }}>Value</div>
+                          <div style={{ textAlign: 'right' }}>Uncollected</div>
+                        </div>
+                        
+                        {/* Table Rows */}
+                        {tokens.map((token, tokenIndex) => {
+                          // Get the actual token from raw position data to have proper amounts
+                          const rawToken = raw.position?.tokens?.find((t: any) => 
+                            t.symbol === token.symbol && t.type === 'Supplied'
+                          ) as any;
+                          
+                          const amount = rawToken?.amount ?? (token as any).amount ?? (token as any).balance ?? token.financials?.amount;
+                          const price = rawToken?.price ?? (token as any).price ?? token.financials?.price;
+                          let value = rawToken?.totalPrice ?? (token as any).totalPrice ?? (token as any).value ?? token.financials?.totalPrice;
+                          
+                          // Calcular uncollected fees usando a função correta baseada na estrutura real dos dados
+                          const uncollectedValue = extractUncollectedFeesForToken(raw, token.symbol);
+                          
+                          if (value == null && amount != null && price != null) {
+                            value = amount * price;
+                          }
+                          
+                          return (
+                            <div key={tokenIndex} style={{
+                              display: 'grid',
+                              gridTemplateColumns: '2fr 1fr 1fr 1fr',
+                              padding: '12px 16px',
+                              borderBottom: tokenIndex < tokens.length - 1 ? `1px solid ${theme.border}` : 'none',
+                              alignItems: 'center'
+                            }}>
+                              {/* Token Column */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {token.logo && (
+                                  <img src={token.logo} alt={token.symbol} style={{
+                                    width: '20px', height: '20px', borderRadius: '50%'
+                                  }} onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+                                )}
+                                <span style={{ fontWeight: '500', color: (theme as any).text || theme.textPrimary }}>
+                                  {token.symbol}
+                                </span>
+                              </div>
+                              
+                              {/* Amount Column */}
+                              <div style={{ textAlign: 'right' }}>
+                                {rawToken ? (
+                                  <div style={{ fontSize: '14px', color: (theme as any).text || theme.textPrimary }}>
+                                    {maskValue(formatTokenAmount(rawToken, 4))}
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '12px', color: theme.textSecondary }}>--</span>
+                                )}
+                              </div>
+                              
+                              {/* Value Column */}
+                              <div style={{ textAlign: 'right' }}>
+                                {value != null ? (
+                                  <div style={{ fontSize: '14px', color: (theme as any).text || theme.textPrimary }}>
+                                    {maskValue(formatPrice(value))}
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '12px', color: theme.textSecondary }}>--</span>
+                                )}
+                              </div>
+                              
+                              {/* Uncollected Column */}
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '14px', color: (theme as any).text || theme.textPrimary, fontWeight: '500' }}>
+                                  {maskValue(formatPrice(uncollectedValue || 0))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Rewards Table */}
+                  {rewards.length > 0 && (
+                    <div>
+                      <h4 style={{ 
+                        margin: '0 0 8px 0',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: (theme as any).text || theme.textPrimary
+                      }}>Rewards</h4>
+                      <div style={{
+                        background: (theme as any).bgElevated || theme.bgPanel,
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: '8px',
+                        overflow: 'hidden'
+                      }}>
+                        {rewards.map((reward, rewardIndex) => {
+                          const unclaimed = (reward as any).pending ?? (reward as any).unclaimed ?? (reward as any).rewardAmount ?? (reward as any).accrued;
+                          const claimed = (reward as any).claimed ?? (reward as any).earned ?? 0;
+                          
+                          return (
+                            <div key={rewardIndex} style={{
+                              padding: '12px 16px',
+                              borderBottom: rewardIndex < rewards.length - 1 ? `1px solid ${theme.border}` : 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {reward.logo && (
+                                  <img src={reward.logo} alt={reward.symbol} style={{
+                                    width: '20px', height: '20px', borderRadius: '50%'
+                                  }} onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+                                )}
+                                <span style={{ fontWeight: '500', color: (theme as any).text || theme.textPrimary }}>
+                                  {reward.symbol}
+                                </span>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                {unclaimed != null && unclaimed > 0 && (
+                                  <div style={{ fontSize: '14px', color: theme.accent }}>
+                                    +{formatTokenAmount(unclaimed)} unclaimed
+                                  </div>
+                                )}
+                                {claimed != null && claimed > 0 && (
+                                  <div style={{ fontSize: '12px', color: theme.textSecondary }}>
+                                    {formatTokenAmount(claimed)} earned
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CollapseItem>
+          );
+        })}
       </div>
     </div>
   );

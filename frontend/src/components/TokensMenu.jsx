@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { useMaskValues } from '../context/MaskValuesContext';
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 import { formatBalance, formatPrice, getFilteredTokens } from '../utils/walletUtils';
 
 import Chip from './Chip';

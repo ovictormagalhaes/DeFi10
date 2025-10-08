@@ -8,51 +8,37 @@ namespace MyWebWallet.API.Controllers;
 [Route("api/v1/wallets")]
 public class WalletController : ControllerBase
 {
-    //private readonly IWalletService _walletService;
+    private readonly IChainConfigurationService _chainConfig;
 
-    public WalletController()
+    public WalletController(IChainConfigurationService chainConfigurationService)
     {
-
+        _chainConfig = chainConfigurationService;
     }
 
     /// <summary>
-    /// Gets supported chains for wallet operations
+    /// Gets supported chains for wallet operations (driven by configuration)
     /// </summary>
-    /// <returns>List of supported blockchain networks with metadata</returns>
     [HttpGet("supported-chains")]
     public ActionResult<SupportedChainsResponse> GetSupportedChains()
     {
-        var supportedChains = new List<SupportedChainResponse>
-        {
-            new()
+        var chains = _chainConfig.GetEnabledChains()
+            .Select(chainEnum => new { chainEnum, cfg = _chainConfig.GetChainConfig(chainEnum) })
+            .Where(x => x.cfg != null)
+            .Select(x => new SupportedChainResponse
             {
-                Name = "Base",
-                Id = Chain.Base.ToChainId(),
-                ChainId = Chain.Base.ToNumericChainId(),
-                DisplayName = Chain.Base.GetDisplayName(),
-                IconUrl = Chain.Base.GetIconUrl()
-            },
-            new()
-            {
-                Name = "BNB",
-                Id = Chain.BNB.ToChainId(),
-                ChainId = Chain.BNB.ToNumericChainId(),
-                DisplayName = Chain.BNB.GetDisplayName(),
-                IconUrl = Chain.BNB.GetIconUrl()
-            },
-            new()
-            {
-                Name = "Arbitrum",
-                Id = Chain.Arbitrum.ToChainId(),
-                ChainId = Chain.Arbitrum.ToNumericChainId(),
-                DisplayName = Chain.Arbitrum.GetDisplayName(),
-                IconUrl = Chain.Arbitrum.GetIconUrl()
-            }
-        };
+                Name = x.chainEnum.ToString(),
+                Id = x.cfg!.Slug ?? x.chainEnum.ToString().ToLowerInvariant(),
+                ChainId = x.cfg!.ChainId,
+                DisplayName = string.IsNullOrWhiteSpace(x.cfg.DisplayName) ? x.chainEnum.ToString() : x.cfg.DisplayName,
+                IconUrl = string.IsNullOrWhiteSpace(x.cfg.IconUrl) ? string.Empty : x.cfg.IconUrl
+            })
+            .OrderBy(c => c.ChainId)
+            .ToList();
 
         var response = new SupportedChainsResponse
         {
-            Chains = supportedChains
+            Chains = chains,
+            LastUpdated = DateTime.UtcNow
         };
 
         return Ok(response);

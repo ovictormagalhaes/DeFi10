@@ -20,6 +20,8 @@ export function useAggregationJob() {
   const pollTimer = useRef(null);
   const attemptRef = useRef(0);
   const cancelled = useRef(false);
+  const maxAttempts = useRef(20); // Máximo de 20 tentativas (~17 minutos)
+  const currentInterval = useRef(5000); // Intervalo inicial de 5s
   // Controle de idempotência / anti-loop
   const lastAccountRef = useRef(null);
   const lastChainRef = useRef(null);
@@ -44,6 +46,8 @@ export function useAggregationJob() {
     setIsCompleted(false);
     attemptRef.current = 0;
     cancelled.current = false;
+    maxAttempts.current = 20;
+    currentInterval.current = 5000;
   }, []);
 
   const start = useCallback(async (account, chains = null) => {
@@ -70,6 +74,7 @@ export function useAggregationJob() {
       lastAccountRef.current = account;
       lastChainRef.current = null; // multi-chain ou indefinido
       attemptRef.current = 0;
+      currentInterval.current = 5000; // Reset para intervalo inicial
       return pickedJobId;
     } catch (err) {
       setError(err);
@@ -115,6 +120,7 @@ export function useAggregationJob() {
       lastAccountRef.current = account;
       lastChainRef.current = null;
       attemptRef.current = 0;
+      currentInterval.current = 5000; // Reset para intervalo inicial
       return pickedJobId;
     } catch (err) {
       setError(err);
@@ -170,7 +176,16 @@ export function useAggregationJob() {
         if (pcs.length) data.processed = pcs;
       }
       setSnapshot(data);
-      if (data.isCompleted || /^(Completed|CompletedWithErrors|TimedOut)$/i.test(data.status)) {
+      
+      // Lógica de completude: para apenas em Completed/CompletedWithErrors, CONTINUA em TimedOut
+      if (/^(Completed|CompletedWithErrors)$/i.test(data.status)) {
+        setIsCompleted(true);
+      } else if (data.status === 'TimedOut') {
+        // TimedOut: continua polling com intervalo progressivo (mesmo que isCompleted=true do backend)
+        console.log(`Job TimedOut (attempt ${attemptRef.current}), continuing with progressive polling...`);
+        setIsCompleted(false); // Força continuar polling para TimedOut
+      } else if (data.isCompleted) {
+        // Outros casos onde isCompleted=true do backend
         setIsCompleted(true);
       }
     } catch (err) {
@@ -179,17 +194,41 @@ export function useAggregationJob() {
     }
   }, []);
 
-  // Polling loop (interval fixo de 5 segundos conforme requisito)
+  // Função para calcular intervalo progressivo
+  const getProgressiveInterval = useCallback(() => {
+    const attempt = attemptRef.current;
+    if (attempt <= 2) return 5000;    // Primeiras 3 tentativas: 5s
+    if (attempt <= 5) return 10000;   // Próximas 3 tentativas: 10s  
+    if (attempt <= 10) return 20000;  // Próximas 5 tentativas: 20s
+    if (attempt <= 15) return 30000;  // Próximas 5 tentativas: 30s
+    return 60000;                     // Restantes: 60s
+  }, []);
+
+  // Polling loop com intervalos progressivos
   useEffect(() => {
     if (!jobId) return;
     if (cancelled.current) return;
 
     const run = async () => {
       if (cancelled.current) return;
+      
+      // Verificar limite de tentativas
+      if (attemptRef.current >= maxAttempts.current) {
+        console.warn(`Polling stopped: reached maximum attempts (${maxAttempts.current})`);
+        setError(new Error(`Aggregation polling timeout after ${maxAttempts.current} attempts`));
+        setLoading(false);
+        return;
+      }
+
+      attemptRef.current += 1;
       await fetchSnapshot(jobId);
+      
       if (!cancelled.current && !isCompleted) {
-        // Sempre agenda próximo ciclo em 5000ms
-        pollTimer.current = setTimeout(run, 5000);
+        // Calcular intervalo progressivo baseado no número de tentativas
+        currentInterval.current = getProgressiveInterval();
+        console.log(`Scheduling next poll in ${currentInterval.current}ms (attempt ${attemptRef.current}/${maxAttempts.current})`);
+        
+        pollTimer.current = setTimeout(run, currentInterval.current);
       } else {
         setLoading(false);
       }
@@ -202,7 +241,7 @@ export function useAggregationJob() {
       cancelled.current = true;
       clearTimer();
     };
-  }, [jobId, isCompleted, fetchSnapshot]);
+  }, [jobId, isCompleted, fetchSnapshot, getProgressiveInterval]);
 
   // Derivados convenientes
   const progress = snapshot?.progress ?? (snapshot && snapshot.expected > 0
@@ -226,6 +265,10 @@ export function useAggregationJob() {
     expired,
     pending: snapshot?.pending || [],
     processed: snapshot?.processed || [],
+    // Informações do polling progressivo
+    pollingAttempt: attemptRef.current,
+    maxPollingAttempts: maxAttempts.current,
+    nextPollInterval: currentInterval.current,
     start,
     ensure, // start com reutilização de job existente por account (idempotente)
     reset,

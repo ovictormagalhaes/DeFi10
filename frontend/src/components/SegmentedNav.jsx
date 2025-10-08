@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 
 // Fixed three main tabs per request
 const TABS = [

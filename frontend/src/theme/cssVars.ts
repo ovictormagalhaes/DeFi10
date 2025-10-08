@@ -16,7 +16,12 @@ export function applyThemeCssVars(
   const entries = Object.entries(tokens);
   for (const [k, v] of entries) {
     if (typeof v === 'string') {
-      target.style.setProperty(tokenKeyToVarName(k), v);
+      const appVarName = tokenKeyToVarName(k);
+      const mwVarName = appVarName.replace('--app-', '--mw-');
+      
+      // Define both --app-* and --mw-* variables for compatibility
+      target.style.setProperty(appVarName, v);
+      target.style.setProperty(mwVarName, v);
     }
   }
   // Expor modo também

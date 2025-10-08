@@ -5,6 +5,7 @@
 
 import React, { useMemo, useState } from 'react';
 import StandardHeader from '../table/StandardHeader';
+import TableFooter from '../table/TableFooter';
 import TokenDisplay from '../TokenDisplay';
 import MiniMetric from '../MiniMetric';
 import { useMaskValues } from '../../context/MaskValuesContext';
@@ -226,6 +227,12 @@ export default function LendingTables({
       const isSupplied = title === 'Supplied';
       const isBorrowed = title === 'Borrowed';
 
+      // Calculate the correct total for this specific section
+      const sectionTotal = tokens.reduce((sum, t) => {
+        const valueRaw = parseFloat(String((t as any).totalPrice || (t as any).totalValueUsd || (t as any).totalValue || (t as any).valueUsd || 0)) || 0;
+        return sum + (negative ? -Math.abs(valueRaw) : valueRaw);
+      }, 0);
+
       return (
         <div className="table-wrapper">
           <table className="table-unified text-primary">
@@ -268,7 +275,7 @@ export default function LendingTables({
                     className={`table-row table-row-hover ${idx === tokens.length - 1 ? '' : 'tbody-divider'}`}
                   >
                     <td className="td text-primary col-name">
-                      <TokenDisplay tokens={[t] as never[]} size={22} showChain={false} getChainIcon={() => null} />
+                      <TokenDisplay tokens={[t] as never[]} size={22} showChain={false} getChainIcon={() => undefined} />
                     </td>
                     <td className="td th-center col-collateral">
                       {isSupplied && (
@@ -303,6 +310,11 @@ export default function LendingTables({
                 );
               })}
             </tbody>
+            <TableFooter 
+              totalValue={sectionTotal}
+              itemsCount={tokens.length}
+              columns={['', 'price', 'amount', 'value']}
+            />
           </table>
         </div>
       );
@@ -387,7 +399,7 @@ export default function LendingTables({
                     <td className="td text-primary col-name" onClick={() => toggle(i, 'sup')} style={{ cursor: 'pointer' }}>
                       <div className="flex items-center gap-8">
                         <span className={`disclosure ${isOpen ? 'open' : ''}`} />
-                        <TokenDisplay tokens={[p.token] as any} size={22} showChain={false} getChainIcon={() => null} />
+                        <TokenDisplay tokens={[p.token] as any} size={22} showChain={false} getChainIcon={() => undefined} />
                       </div>
                     </td>
                     <td className="td td-right td-mono tabular-nums text-primary col-supplied">
@@ -408,6 +420,11 @@ export default function LendingTables({
               );
             })}
           </tbody>
+          <TableFooter 
+            totalValue={totalSuppliedValue}
+            itemsCount={suppliedList.length}
+            columns={['price', 'amount', 'value']}
+          />
         </table>
       )}
       

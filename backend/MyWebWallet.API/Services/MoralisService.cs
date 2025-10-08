@@ -2,6 +2,7 @@ using System.Text.Json;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Models;
+using MyWebWallet.API.Configuration;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services
@@ -11,52 +12,59 @@ namespace MyWebWallet.API.Services
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
         private readonly string _baseUrl;
+        private readonly IProtocolConfigurationService _protocolConfig;
 
-        public MoralisService(HttpClient httpClient, IConfiguration configuration)
+        public MoralisService(HttpClient httpClient, IConfiguration configuration, IProtocolConfigurationService protocolConfigurationService)
         {
             _httpClient = httpClient;
-            _apiKey = configuration["Moralis:ApiKey"];
-            _baseUrl = configuration["Moralis:BaseUrl"];
+            _apiKey = configuration["Moralis:ApiKey"] ?? string.Empty;
+            _baseUrl = configuration["Moralis:BaseUrl"] ?? string.Empty;
+            _protocolConfig = protocolConfigurationService;
         }
 
         public string GetProtocolName() => "Moralis";
+        public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
+        public IEnumerable<ChainEnum> GetSupportedChains() => new [] { ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum, ChainEnum.Ethereum };
 
-        public bool SupportsChain(ChainEnum chain)
+        private string ResolveApiChain(ChainEnum chain)
         {
-            return GetSupportedChains().Contains(chain);
+            var moralis = _protocolConfig.GetProtocol("moralis");
+            if (moralis != null)
+            {
+                var entry = moralis.ChainSupports.FirstOrDefault(c => string.Equals(c.Chain, chain.ToString(), StringComparison.OrdinalIgnoreCase));
+                if (entry != null && entry.Settings.TryGetValue("chainId", out var cid) && !string.IsNullOrWhiteSpace(cid))
+                    return cid;
+            }
+            return chain.ToString().ToLowerInvariant();
         }
 
-        public IEnumerable<ChainEnum> GetSupportedChains()
+        private string ResolveApiChain(string chainText)
         {
-            return [ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum];
+            if (Enum.TryParse<ChainEnum>(chainText, true, out var parsed))
+                return ResolveApiChain(parsed);
+            return chainText.ToLowerInvariant();
         }
 
         public async Task<MoralisGetERC20TokenResponse> GetERC20TokenBalanceAsync(string address, string chain)
         {
+            var apiChain = ResolveApiChain(chain);
             try
             {
-                // Construct the API URL
-                var url = $"{_baseUrl}/wallets/{address}/tokens?chain={chain}&exclude_spam=true";
-
-                // Configure the request headers
+                var url = $"{_baseUrl}/wallets/{address}/tokens?chain={apiChain}&exclude_spam=true";
                 _httpClient.DefaultRequestHeaders.Clear();
                 _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
                 _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
-
-                // Make the HTTP request
                 var response = await _httpClient.GetAsync(url);
-
                 if (response.IsSuccessStatusCode)
                 {
                     var responseJson = await response.Content.ReadAsStringAsync();
-
                     var moralisResponse = JsonSerializer.Deserialize<MoralisGetERC20TokenResponse>(responseJson);
                     return moralisResponse ?? new MoralisGetERC20TokenResponse();
                 }
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"ERROR: MoralisService: HTTP error - Status: {response.StatusCode}, Content: {errorContent}");
+                    Console.WriteLine($"ERROR: MoralisService: HTTP error - Status: {response.StatusCode}, Chain={apiChain}, Content: {errorContent}");
                     throw new HttpRequestException($"Moralis API returned {response.StatusCode}: {errorContent}");
                 }
             }
@@ -73,38 +81,30 @@ namespace MyWebWallet.API.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"ERROR: MoralisService: Unexpected error in GetERC20TokenBalanceAsync - {ex.Message}");
-                Console.WriteLine($"ERROR: MoralisService: Stack trace - {ex.StackTrace}");
                 throw new Exception($"MoralisService unexpected error: {ex.Message}", ex);
             }
         }
 
         public async Task<MoralisGetDeFiPositionsResponse> GetDeFiPositionsAsync(string address, string chain)
         {
+            var apiChain = ResolveApiChain(chain);
             try
             {
-                // Construct the API URL
-                var url = $"{_baseUrl}/wallets/{address}/defi/positions?chain={chain}";
-                
-                // Configure the request headers
+                var url = $"{_baseUrl}/wallets/{address}/defi/positions?chain={apiChain}";
                 _httpClient.DefaultRequestHeaders.Clear();
                 _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
                 _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
-
-                // Make the HTTP request
                 var response = await _httpClient.GetAsync(url);
-
                 if (response.IsSuccessStatusCode)
                 {
                     var responseJson = await response.Content.ReadAsStringAsync();
-
                     var moralisResponse = JsonSerializer.Deserialize<MoralisGetDeFiPositionsResponse>(responseJson);
-
                     return moralisResponse ?? new MoralisGetDeFiPositionsResponse();
                 }
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"ERROR: MoralisService: HTTP error - Status: {response.StatusCode}, Content: {errorContent}");
+                    Console.WriteLine($"ERROR: MoralisService: HTTP error - Status: {response.StatusCode}, Chain={apiChain}, Content: {errorContent}");
                     throw new HttpRequestException($"Moralis API returned {response.StatusCode}: {errorContent}");
                 }
             }
