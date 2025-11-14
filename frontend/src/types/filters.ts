@@ -27,6 +27,29 @@ export function getStakingItems(items: WalletItem[]): WalletItem[] {
 }
 
 /**
+ * Filtra WalletItems para obter apenas posições de locking (vePENDLE, etc.)
+ */
+export function getLockingItems(items: WalletItem[]): WalletItem[] {
+  console.log('getLockingItems called with items:', items);
+  const lockingItems = items.filter(item => {
+    console.log('Checking item type:', item.type, 'for item:', item);
+    return item.type === "Locking";
+  });
+  console.log('getLockingItems returning:', lockingItems);
+  return lockingItems;
+}
+
+export function getDepositingItems(items: WalletItem[]): WalletItem[] {
+  console.log('getDepositingItems called with items:', items);
+  const depositingItems = items.filter(item => {
+    console.log('Checking item type:', item.type, 'for item:', item);
+    return item.type === "Depositing";
+  });
+  console.log('getDepositingItems returning:', depositingItems);
+  return depositingItems;
+}
+
+/**
  * Filtra WalletItems para obter apenas tokens de carteira
  */
 export function getWalletTokenItems(items: WalletItem[]): WalletItem[] {

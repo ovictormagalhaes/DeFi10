@@ -224,7 +224,7 @@ export const TypeGuards = {
     const obj = value as any;
     
     // Validar type
-    const validTypes = ["Wallet", "LiquidityPool", "LendingAndBorrowing", "Staking"];
+    const validTypes = ["Wallet", "LiquidityPool", "LendingAndBorrowing", "Staking", "Locking", "Depositing"];
     if (!('type' in obj) || !validTypes.includes(obj.type)) {
       validationLog.error(`WalletItem.type is invalid. Expected: ${validTypes.join(', ')}, got: ${obj.type}`);
       return false;

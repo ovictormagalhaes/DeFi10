@@ -868,6 +868,19 @@ select.input-base option { background: var(--mw-bg-panel,var(--app-bg-panel)); c
 .flex-end { display:flex; justify-content:flex-end; align-items:center; }
 .text-success { color: var(--mw-success-text, var(--app-success-text,#16a34a)); }
 .text-danger { color: var(--mw-danger-text, var(--app-danger-text,#dc2626)); }
+
+/* Locking Tables Styles */
+.lock-status { 
+  font-size: 12px; 
+  font-weight: 500; 
+  padding: 2px 6px; 
+  border-radius: 4px;
+  background: rgba(156, 163, 175, 0.1);
+}
+.locking-token-rows-enter {
+  background: rgba(0, 0, 0, 0.02);
+  border-left: 2px solid var(--mw-border, var(--app-border));
+}
 .badge-sm { font-size:12px; padding:2px 6px; line-height:1.2; }
 .pad-10-12 { padding:10px 12px; }
 .pad-16 { padding:16px; }

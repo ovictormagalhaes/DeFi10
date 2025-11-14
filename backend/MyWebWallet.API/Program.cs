@@ -1,16 +1,18 @@
-using MyWebWallet.API.Services;
-using MyWebWallet.API.Services.Interfaces;
-using MyWebWallet.API.Services.Mappers;
-using MyWebWallet.API.Services.Models;
-using StackExchange.Redis;
-using MyWebWallet.API.Messaging.Workers; // added
-using MyWebWallet.API.Messaging.Rabbit; // added
-using MyWebWallet.API.Messaging.Extensions; // added for granular configuration
-using Microsoft.Extensions.Options;
+using MyWebWallet.API.Aggregation;
 using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Infrastructure;
 using MyWebWallet.API.Infrastructure.Redis;
-using MyWebWallet.API.Aggregation;
+using MyWebWallet.API.Messaging;
+using MyWebWallet.API.Messaging.Rabbit;
+using MyWebWallet.API.Messaging.Workers;
+using MyWebWallet.API.Services;
+using MyWebWallet.API.Services.Helpers;
+using MyWebWallet.API.Services.Interfaces;
+using MyWebWallet.API.Services.Mappers;
+using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Solana;
+using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
@@ -23,15 +25,12 @@ builder.Services.Configure<AggregationOptions>(builder.Configuration.GetSection(
 builder.Services.Configure<UniswapV3WorkerOptions>(builder.Configuration.GetSection("UniswapV3Workers"));
 builder.Services.Configure<ProtocolConfigurationOptions>(builder.Configuration.GetSection("ProtocolConfiguration"));
 
-// PHASE 1 IMPROVEMENT: Chain Configuration System
 builder.Services.Configure<ChainConfiguration>(builder.Configuration.GetSection("ChainConfiguration"));
-// Changed to singleton to allow resolution from root provider during startup validation
+
 builder.Services.AddSingleton<IChainConfigurationService, ChainConfigurationService>();
 
-// Protocol configuration service (needed by MoralisService)
 builder.Services.AddSingleton<IProtocolConfigurationService, ProtocolConfigurationService>();
 
-// PHASE 1 IMPROVEMENT: Protocol Plugin System
 builder.Services.AddSingleton<IProtocolPluginRegistry, ProtocolPluginRegistry>();
 
 // Core services
@@ -88,28 +87,47 @@ builder.Services.AddScoped<MyWebWallet.API.Services.Helpers.TokenHydrationHelper
 
 // Blockchain / protocol services
 builder.Services.AddScoped<IBlockchainService, EthereumService>();
-builder.Services.AddScoped<IMoralisService, MoralisService>();
+builder.Services.AddScoped<IMoralisService, MoralisEVMService>();  // EVM chains (Ethereum, Base, Arbitrum, BNB)
 builder.Services.AddScoped<IAaveeService, AaveeService>();
 builder.Services.AddScoped<IUniswapV3Service, UniswapV3Service>();
-builder.Services.AddScoped<IUniswapV3OnChainService, UniswapV3OnChainService>();
+builder.Services.AddSingleton<IUniswapV3OnChainService, UniswapV3OnChainService>();
 builder.Services.AddScoped<IAlchemyNftService, AlchemyNftService>();
+// Pendle
+builder.Services.AddScoped<IPendleService, PendleService>();
+// Solana - dedicated Moralis Solana API service
+// Using Kamino REST API for better reliability and no RPC rate limits
+builder.Services.AddScoped<ISolanaService, KaminoService>();
+builder.Services.AddScoped<IMoralisSolanaService, MoralisSolanaService>();
+
+builder.Services.AddHttpClient<KaminoService>();
+builder.Services.AddHttpClient<MoralisSolanaService>();
+builder.Services.AddHttpClient<EthereumService>();
+builder.Services.AddHttpClient<MoralisEVMService>();
+builder.Services.AddHttpClient<ICoinMarketCapService, CoinMarketCapService>();
+builder.Services.AddHttpClient<PendleService>();
+builder.Services.AddHttpClient<UniswapV3OnChainService>();
 
 builder.Services.AddScoped<IWalletItemMapper<IEnumerable<TokenDetail>>, MoralisTokenMapper>();
 builder.Services.AddScoped<IWalletItemMapper<AaveGetUserSuppliesResponse>, AaveSuppliesMapper>();
 builder.Services.AddScoped<IWalletItemMapper<AaveGetUserBorrowsResponse>, AaveBorrowsMapper>();
 builder.Services.AddScoped<IWalletItemMapper<UniswapV3GetActivePoolsResponse>, UniswapV3Mapper>();
+// Pendle mappers
+builder.Services.AddScoped<IWalletItemMapper<PendleVePositionsResponse>, PendleVeMapper>();
+builder.Services.AddScoped<IWalletItemMapper<PendleDepositsResponse>, PendleDepositsMapper>();
+// Solana mappers
+builder.Services.AddScoped<IWalletItemMapper<SolanaTokenResponse>, SolanaTokenMapper>();
+builder.Services.AddScoped<IWalletItemMapper<IEnumerable<KaminoPosition>>, SolanaKaminoMapper>();
+builder.Services.AddScoped<IWalletItemMapper<IEnumerable<RaydiumPosition>>, SolanaRaydiumMapper>();
 
 builder.Services.AddScoped<IWalletItemMapperFactory, WalletItemMapperFactory>();
 
-builder.Services.AddHttpClient<EthereumService>();
-builder.Services.AddHttpClient<MoralisService>();
-builder.Services.AddHttpClient<ICoinMarketCapService, CoinMarketCapService>();
-
+// Rebalance service
 builder.Services.AddScoped<IRebalanceService, RebalanceService>();
 
 // Aggregation orchestration additions
 builder.Services.AddSingleton<IAggregationJobStore, AggregationJobStore>();
 builder.Services.AddSingleton<ITokenFactory, TokenFactory>();
+builder.Services.AddScoped<IPriceService, PriceService>();
 
 // RabbitMQ infrastructure
 builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();

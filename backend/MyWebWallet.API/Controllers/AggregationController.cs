@@ -7,6 +7,7 @@ using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services; // EthereumService
 using ChainEnum = MyWebWallet.API.Models.Chain;
 using MyWebWallet.API.Aggregation; // RedisKeys
+using System.Text.RegularExpressions;
 
 namespace MyWebWallet.API.Controllers;
 
@@ -16,19 +17,27 @@ public class AggregationController : ControllerBase
 {
     private readonly IConnectionMultiplexer _redis;
     private readonly IBlockchainService _blockchainService;
+    private readonly IChainConfigurationService _chainConfig;
     private readonly ILogger<AggregationController> _logger;
+    
+    // Address validation patterns
+    private static readonly Regex EthAddressRegex = new("^0x[a-fA-F0-9]{40}$", RegexOptions.Compiled);
+    private static readonly Regex SolAddressRegex = new("^[1-9A-HJ-NP-Za-km-z]{32,44}$", RegexOptions.Compiled);
+    
     private static readonly JsonSerializerOptions EnumJsonOptions = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() }
     };
 
-    private static readonly ChainEnum[] DefaultChains = new[] { ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum, ChainEnum.Ethereum };
+    private static readonly ChainEnum[] DefaultEthChains = new[] { ChainEnum.Base, ChainEnum.BNB, ChainEnum.Arbitrum, ChainEnum.Ethereum };
+    private static readonly ChainEnum[] DefaultSolChains = new[] { ChainEnum.Solana };
     private const string MetaPattern = "wallet:agg:*:meta"; // used only where index not yet implemented
 
-    public AggregationController(IConnectionMultiplexer redis, IBlockchainService blockchainService, ILogger<AggregationController> logger)
+    public AggregationController(IConnectionMultiplexer redis, IBlockchainService blockchainService, IChainConfigurationService chainConfigurationService, ILogger<AggregationController> logger)
     {
         _redis = redis;
         _blockchainService = blockchainService;
+        _chainConfig = chainConfigurationService;
         _logger = logger;
     }
 
@@ -39,7 +48,28 @@ public class AggregationController : ControllerBase
         public string[]? Chains { get; set; }
     }
 
-    private static string ActiveJobKey(string accountLower, ChainEnum chain) => RedisKeys.ActiveSingle(accountLower, chain); // use central RedisKeys
+    private static string ActiveJobKey(string accountLower, ChainEnum chain) => RedisKeys.ActiveSingle(accountLower, chain);
+
+    private enum WalletType { Ethereum, Solana, Unknown }
+
+    private static WalletType DetectWalletType(string address)
+    {
+        if (EthAddressRegex.IsMatch(address))
+            return WalletType.Ethereum;
+        if (SolAddressRegex.IsMatch(address))
+            return WalletType.Solana;
+        return WalletType.Unknown;
+    }
+
+    private static bool IsValidAddressForChain(string address, ChainEnum chain)
+    {
+        return chain switch
+        {
+            ChainEnum.Solana => SolAddressRegex.IsMatch(address),
+            ChainEnum.Base or ChainEnum.Ethereum or ChainEnum.Arbitrum or ChainEnum.Optimism or ChainEnum.BNB or ChainEnum.Polygon => EthAddressRegex.IsMatch(address),
+            _ => false
+        };
+    }
 
     [HttpPost]
     public async Task<IActionResult> Start([FromBody] AggregationStartRequest request)
@@ -47,11 +77,22 @@ public class AggregationController : ControllerBase
         if (request is null) return BadRequest(new { error = "payload required" });
         var account = request.Account?.Trim();
         if (string.IsNullOrWhiteSpace(account)) return BadRequest(new { error = "account required" });
+
+        // Detect wallet type
+        var walletType = DetectWalletType(account);
+        if (walletType == WalletType.Unknown)
+        {
+            return BadRequest(new { error = "Invalid address format. Must be a valid Ethereum (0x...) or Solana (Base58) address." });
+        }
+
+        _logger.LogInformation("Detected wallet type: {WalletType} for address: {Address}", walletType, account);
+
         if (_blockchainService is not EthereumService eth)
             return BadRequest(new { error = "Unsupported blockchain service for aggregation start" });
 
         try
         {
+            var enabledChains = _chainConfig.GetEnabledChains().ToHashSet();
             var resolved = new List<ChainEnum>();
             var chains = request.Chains;
             if (chains != null && chains.Length > 0)
@@ -61,16 +102,47 @@ public class AggregationController : ControllerBase
                     if (string.IsNullOrWhiteSpace(entry)) continue;
                     foreach (var part in entry.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                     {
-                        if (Enum.TryParse<ChainEnum>(part, true, out var parsed) && !resolved.Contains(parsed))
-                            resolved.Add(parsed);
-                        else if (!Enum.TryParse<ChainEnum>(part, true, out _))
+                        if (Enum.TryParse<ChainEnum>(part, true, out var parsed))
+                        {
+                            if (!IsValidAddressForChain(account, parsed))
+                            {
+                                return BadRequest(new { 
+                                    error = $"Address format is not valid for chain '{parsed}'. " +
+                                           $"{(walletType == WalletType.Solana ? "Solana addresses can only be used with the Solana chain." : "Ethereum addresses can only be used with EVM chains (Base, Arbitrum, etc.).")}"
+                                });
+                            }
+                            
+                            if (enabledChains.Contains(parsed) && !resolved.Contains(parsed))
+                                resolved.Add(parsed);
+                        }
+                        else
+                        {
                             return BadRequest(new { error = $"Invalid chain '{part}'" });
+                        }
                     }
                 }
             }
+            
             if (resolved.Count == 0)
             {
-                resolved.AddRange(DefaultChains);
+                // Auto-select ONLY compatible chains based on wallet type
+                var defaultChains = walletType == WalletType.Solana ? DefaultSolChains : DefaultEthChains;
+                resolved.AddRange(defaultChains.Where(enabledChains.Contains));
+                
+                _logger.LogInformation("Auto-selected {Count} default chains for {WalletType}: {Chains}", 
+                    resolved.Count, walletType, string.Join(", ", resolved));
+            }
+
+            // Final validation: ensure ALL resolved chains are compatible with wallet type
+            // This is critical to prevent Solana addresses being sent to EVM APIs
+            resolved = resolved.Where(c => IsValidAddressForChain(account, c)).Distinct().ToList();
+            
+            if (resolved.Count == 0) 
+            {
+                return BadRequest(new { 
+                    error = $"No compatible enabled chains available for {walletType} wallet type. " +
+                           $"{(walletType == WalletType.Solana ? "Solana chain must be enabled." : "At least one EVM chain (Base, Arbitrum, Ethereum, BNB) must be enabled.")}"
+                });
             }
 
             Guid jobId = resolved.Count == 1
@@ -79,7 +151,14 @@ public class AggregationController : ControllerBase
 
             var reused = await DetermineReuseAsync(account, resolved, jobId);
 
-            return Ok(new { account, chains = resolved.Select(c => c.ToString()).ToList(), jobId, reused });
+            return Ok(new 
+            { 
+                account, 
+                walletType = walletType.ToString(),
+                chains = resolved.Select(c => c.ToString()).ToList(), 
+                jobId, 
+                reused 
+            });
         }
         catch (Exception ex)
         {

@@ -10,6 +10,7 @@ public class ProtocolConfigurationOptions
     public ProtocolDefinition? AaveV3 { get; set; }
     public ProtocolDefinition? Moralis { get; set; }
     public ProtocolDefinition? UniswapV3 { get; set; }
+    public ProtocolDefinition? PendleV2 { get; set; } // novo protocolo
 
     // Generic support (in case future protocols want to register dynamically)
     public Dictionary<string, ProtocolDefinition> Extra { get; set; } = new();
@@ -28,15 +29,8 @@ public class ProtocolConfigurationOptions
             void Add(string sourceKey, ProtocolDefinition? def)
             {
                 if (def == null) return;
-                // If Key not provided, derive from property name (sourceKey)
-                if (string.IsNullOrWhiteSpace(def.Key))
-                {
-                    // canonical key: lowercase kebab
-                    def.Key = ToKebab(sourceKey);
-                }
-                // Register main key
+                if (string.IsNullOrWhiteSpace(def.Key)) def.Key = ToKebab(sourceKey);
                 if (!map.ContainsKey(def.Key)) map[def.Key] = def;
-                // Add canonical variations (kebab, original, lower)
                 var variations = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
                     def.Key,
@@ -44,9 +38,7 @@ public class ProtocolConfigurationOptions
                     sourceKey.ToLowerInvariant(),
                     ToKebab(sourceKey),
                 };
-                // Include DisplayName if present
                 if (!string.IsNullOrWhiteSpace(def.DisplayName)) variations.Add(def.DisplayName);
-                // Include configured aliases
                 if (def.Aliases != null)
                 {
                     foreach (var a in def.Aliases.Where(a => !string.IsNullOrWhiteSpace(a)))
@@ -56,7 +48,6 @@ public class ProtocolConfigurationOptions
                         variations.Add(a!.ToLowerInvariant());
                     }
                 }
-                // Write all variations
                 foreach (var v in variations)
                 {
                     if (!map.ContainsKey(v)) map[v] = def;
@@ -66,9 +57,9 @@ public class ProtocolConfigurationOptions
             Add(nameof(AaveV3), AaveV3);
             Add(nameof(Moralis), Moralis);
             Add(nameof(UniswapV3), UniswapV3);
+            Add(nameof(PendleV2), PendleV2);
             foreach (var kv in Extra)
             {
-                // Ensure Extra entry has Key set if missing
                 if (kv.Value != null && string.IsNullOrWhiteSpace(kv.Value.Key)) kv.Value.Key = ToKebab(kv.Key);
                 Add(kv.Key, kv.Value);
             }
@@ -79,15 +70,12 @@ public class ProtocolConfigurationOptions
     private static string ToKebab(string s)
     {
         if (string.IsNullOrWhiteSpace(s)) return string.Empty;
-        // Simple PascalCase / camelCase -> kebab
         var chars = new List<char>(s.Length * 2);
         for (int i = 0; i < s.Length; i++)
         {
             var c = s[i];
             if (char.IsUpper(c) && i > 0 && (char.IsLower(s[i - 1]) || (i + 1 < s.Length && char.IsLower(s[i + 1]))))
-            {
                 chars.Add('-');
-            }
             chars.Add(char.ToLowerInvariant(c));
         }
         return new string(chars.ToArray());
@@ -104,26 +92,23 @@ public class ProtocolConfigurationOptions
 // Unified protocol definition (all protocols use / inherit this structure)
 public class ProtocolDefinition
 {
-    // Canonical key / identifier (e.g. "uniswap-v3"). If omitted in config, auto-generated.
     public string? Key { get; set; }
-    // Optional alternative identifiers (e.g. ["uniswap", "uni-v3"]).
     public List<string>? Aliases { get; set; }
     public string? DisplayName { get; set; }
     public string? Icon { get; set; }
     public string? Website { get; set; }
     public string? Documentation { get; set; }
     public List<ProtocolChainSupport> ChainSupports { get; set; } = new();
-    public Dictionary<string, string>? Metadata { get; set; } // arbitrary protocol-level metadata
+    public Dictionary<string, string>? Metadata { get; set; }
 }
 
 public class ProtocolChainSupport
 {
-    public string Chain { get; set; } = string.Empty; // e.g. "Base", "Arbitrum"
+    public string Chain { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
-    public Dictionary<string, string> Settings { get; set; } = new(); // per?chain protocol settings (e.g. factory, positionManager)
+    public Dictionary<string, string> Settings { get; set; } = new();
 }
 
-// Helper DTO returned by service
 public sealed class ProtocolChainResolved
 {
     public string ProtocolId { get; }

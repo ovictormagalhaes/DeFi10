@@ -10,7 +10,7 @@ import {
 import { isRewardToken, calculateTokensValue } from '../utils/tokenFilters';
 import { extractHealthFactor } from '../types/wallet';
 
-import { PoolTables, LendingTables, WalletTokensTable } from './tables';
+import { PoolTables, LendingTables, WalletTokensTable, LockingTables, DepositTables } from './tables';
 import ProtocolTables from './ProtocolTables';
 import SectionTable from './SectionTable';
 import MiniMetric from './MiniMetric';
@@ -19,6 +19,8 @@ const ProtocolsSection = ({
   getLiquidityPoolsData,
   getLendingAndBorrowingData,
   getStakingData,
+  getLockingData,
+  getDepositingData,
   selectedChains,
   isAllChainsSelected,
   getCanonicalFromObj,
@@ -51,19 +53,28 @@ const ProtocolsSection = ({
   // Hide rewards chip in header metrics on small screens
   const hideHeaderRewards = vw < 700;
   const { getIcon } = useChainIcons();
+  const stakingData = getStakingData();
+  const lockingData = getLockingData();
+  const depositingData = (typeof getDepositingData === 'function') ? getDepositingData() : [];
+
+  console.log('ProtocolsSection - depositingData:', depositingData);
+
   const allDefi = [
     ...getLiquidityPoolsData(),
     ...getLendingAndBorrowingData(),
-    ...getStakingData(),
+    ...stakingData,
+    ...lockingData,
+    ...depositingData,
   ];
 
   if (allDefi.length === 0) return null;
-
   const protocolGroups = groupDefiByProtocol(allDefi);
 
   return (
     <div>
       {protocolGroups.map((protocolGroup, pgIdx) => {
+        console.log('Processing protocolGroup:', protocolGroup.protocol.name, 'positions:', protocolGroup.positions);
+        
         // Classify positions by type using label/name heuristics
         const liqPositionsOriginal = protocolGroup.positions.filter((p) => {
           const lbl = (p.position?.label || p.position?.name || p.label || '')
@@ -77,11 +88,34 @@ const ProtocolsSection = ({
             .toLowerCase();
           return lbl.includes('staking');
         });
+        const lockingPositionsOriginal = protocolGroup.positions.filter((p) => {
+          // Check type first for explicit categorization
+          if (p.type === 'Locking') return true;
+          
+          const lbl = (p.position?.label || p.position?.name || p.label || '')
+            .toString()
+            .toLowerCase();
+          
+          // Only check label if contains "lock" but NOT "deposit" (to avoid ambiguity)
+          const hasLock = lbl.includes('lock') || lbl.includes('vesting');
+          const hasDeposit = lbl.includes('deposit');
+          
+          // If has both lock and deposit, it's NOT a locking position (it's depositing)
+          if (hasLock && hasDeposit) return false;
+          
+          return hasLock;
+        });
+        const depositingPositionsOriginal = protocolGroup.positions.filter((p) => {
+          // Only use explicit type, do NOT use label heuristics
+          return p.type === 'Depositing';
+        });
+        
+        console.log('Protocol:', protocolGroup.protocol.name, 'depositingPositionsOriginal:', depositingPositionsOriginal);
         const lendingPositionsOriginal = protocolGroup.positions.filter((p) => {
           const lbl = (p.position?.label || p.position?.name || p.label || '')
             .toString()
             .toLowerCase();
-          return !lbl.includes('liquidity') && !lbl.includes('staking');
+          return !lbl.includes('liquidity') && !lbl.includes('staking') && !lbl.includes('lock') && !lbl.includes('vesting') && !lbl.includes('deposit') && p.type !== 'Locking' && p.type !== 'Depositing';
         });
 
         // Helper to filter tokens inside a position according to selected chains.
@@ -126,16 +160,21 @@ const ProtocolsSection = ({
         // If selection active and protocol has no positions matching, skip early
         if (selectedChains && !isAllChainsSelected) {
           const anyMatch = protocolGroup.positions.some((pos) => positionMatchesSelection(pos));
-          if (!anyMatch) return null;
+          if (!anyMatch) {
+            return null;
+          }
         }
 
         const liqPositions = filterPositionArray(liqPositionsOriginal);
         const stakingPositions = filterPositionArray(stakingPositionsOriginal);
+        const lockingPositions = filterPositionArray(lockingPositionsOriginal);
+        const depositingPositions = filterPositionArray(depositingPositionsOriginal);
         const lendingPositions = filterPositionArray(lendingPositionsOriginal);
 
         // If after filtering everything vanished (should be rare now), still skip.
-        if (!liqPositions.length && !stakingPositions.length && !lendingPositions.length)
+        if (!liqPositions.length && !stakingPositions.length && !lockingPositions.length && !depositingPositions.length && !lendingPositions.length) {
           return null;
+        }
 
         // (1) Compute raw liquidity & staking positive totals (staking counts only positive balances)
         const liquidityTotal = liqPositions.reduce((sum, pos) => {
@@ -151,6 +190,16 @@ const ProtocolsSection = ({
             // Staking rarely has negatives, but guard anyway
           const v = tokens.reduce((s, t) => s + Math.max(parseFloat(t.totalPrice) || 0, 0), 0);
           return sum + v;
+        }, 0);
+        const lockingTotal = lockingPositions.reduce((sum, pos) => {
+          const container = pos.position || pos;
+          const tokens = container.tokens || [];
+          return sum + tokens.reduce((s, t) => s + (parseFloat(t.financials?.totalPrice || t.totalPrice || 0) || 0), 0);
+        }, 0);
+        const depositingTotal = depositingPositions.reduce((sum, pos) => {
+          const container = pos.position || pos;
+          const tokens = container.tokens || [];
+          return sum + tokens.reduce((s, t) => s + (parseFloat(t.financials?.totalPrice || t.totalPrice || 0) || 0), 0);
         }, 0);
         // (2) Lending net: supplied positive, borrowed negative
         const lendingNetProvisional = lendingPositions.reduce((sum, pos) => {
@@ -325,9 +374,9 @@ const ProtocolsSection = ({
             lendingGroup.borrowed.reduce((s, t) => s + (parseFloat(t.totalPrice) || 0), 0)
           : lendingNetProvisional;
 
-        const protocolTotal = liquidityTotal + stakingTotal + lendingNet;
+        const protocolTotal = liquidityTotal + stakingTotal + lockingTotal + depositingTotal + lendingNet;
         // Positive contribution (used for %): ignore pure debt (negative net)
-        const protocolPositive = liquidityTotal + stakingTotal + Math.max(lendingNet, 0);
+        const protocolPositive = liquidityTotal + stakingTotal + lockingTotal + depositingTotal + Math.max(lendingNet, 0);
         const totalPortfolio = getTotalPortfolioValue();
         const protocolPercent = protocolPositive <= 0
           ? '0%'
@@ -337,6 +386,8 @@ const ProtocolsSection = ({
           liqPositions.length > 0 ? `Pools: ${liqPositions.length}` : null,
           lendingPositions.length > 0 ? `Lending: ${lendingPositions.length}` : null,
           stakingPositions.length > 0 ? `Staking: ${stakingPositions.length}` : null,
+          lockingPositions.length > 0 ? `Locking: ${lockingPositions.length}` : null,
+          depositingPositions.length > 0 ? `Depositing: ${depositingPositions.length}` : null,
         ]
           .filter(Boolean)
           .join('  •  ');
@@ -390,6 +441,10 @@ const ProtocolsSection = ({
           stakingGroup &&
           (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0)
         );
+        const hasLocking = lockingPositions.length > 0;
+        const hasDepositing = depositingPositions.length > 0;
+        
+
         // Pools: 5 cols (Pool|Range|Amount|Rewards|Value), Lending/Staking: 3 cols ([2,1,1])
         const metricsRatio = hasPools ? [2, 1, 1, 1, 1] : [2, 1, 1];
 
@@ -569,6 +624,8 @@ const ProtocolsSection = ({
                   (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0) && (
                     <StakingTables staked={stakingGroup.staked} rewards={stakingGroup.rewards} />
                   )}
+                {hasLocking && <LockingTables items={lockingPositions} />}
+                {hasDepositing && <DepositTables items={depositingPositions} />}
                 {tables.length > 0 && (
                   <ProtocolTables
                     icon={null}

@@ -7,5 +7,6 @@ public enum Chain
     Polygon = 3,
     Arbitrum = 4,
     Optimism = 5,
-    BNB = 6
+    BNB = 6,
+    Solana = 7
 }

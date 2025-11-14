@@ -67,7 +67,7 @@ export interface AdditionalData {
 }
 
 export interface WalletItem {
-  type: "Wallet" | "LiquidityPool" | "LendingAndBorrowing" | "Staking";
+  type: "Wallet" | "LiquidityPool" | "LendingAndBorrowing" | "Staking" | "Locking" | "Depositing";
   protocol: Protocol;
   position: Position;
   additionalData: AdditionalData | null;

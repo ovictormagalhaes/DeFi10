@@ -2,7 +2,11 @@
 // Centralizes all token type detection and filtering logic used across the project
 
 /**
- * Normalize a token type to lowercase string for comparison
+ * Normalize aexport function filterSuppliedTokens(tokens) {
+ export function filterGovernanceTokens(tokens) {
+  if (!Array.isArray(tokens)) return [];
+  return tokens.filter((token) => isGovernanceToken(token));y.isArray(tokens)) return [];
+  return tokens.filter((token) => isSuppliedToken(token));e to lowercase string for comparison
  * @param {string|number} type - Token type (string or enum number)
  * @returns {string} Normalized lowercase type
  */
@@ -18,6 +22,7 @@ export const TOKEN_TYPES = {
   BORROWED: 2,
   LIQUIDITY_UNCOLLECTED_FEE: 3,
   LIQUIDITY_COLLECTED_FEE: 4,
+  GOVERNANCE_POWER: 5,
 };
 
 /**
@@ -34,6 +39,7 @@ export function isSuppliedToken(token) {
     type === 'supply' ||
     type === 'deposit' ||
     token.type === TOKEN_TYPES.SUPPLIED ||
+    token.type === 'Supplied' || // Exact match for backend enum
     !type // Default to supplied if no type
   );
 }
@@ -114,13 +120,35 @@ export function isRewardToken(token) {
 }
 
 /**
+ * Check if a token is a governance power token (vePENDLE, etc.)
+ * @param {Object} token - Token object
+ * @returns {boolean}
+ */
+export function isGovernanceToken(token) {
+  if (!token) return false;
+  
+  const type = normalizeTokenType(token.type);
+  const symbol = (token.symbol || '').toLowerCase();
+  const name = (token.name || '').toLowerCase();
+  
+  return (
+    type === 'governancepower' ||
+    token.type === TOKEN_TYPES.GOVERNANCE_POWER ||
+    token.type === 'GovernancePower' || // Exact match for backend enum
+    symbol.includes('ve') ||
+    name.includes('governance') ||
+    name.includes('voting power')
+  );
+}
+
+/**
  * Filter tokens by supplied/deposit type
  * @param {Array} tokens - Array of tokens
  * @returns {Array} Filtered supplied tokens
  */
 export function filterSuppliedTokens(tokens) {
   if (!Array.isArray(tokens)) return [];
-  return tokens.filter(isSuppliedToken);
+  return tokens.filter(token => isSuppliedToken(token));
 }
 
 /**
@@ -151,6 +179,16 @@ export function filterRewardTokens(tokens) {
 export function filterUncollectedFeeTokens(tokens) {
   if (!Array.isArray(tokens)) return [];
   return tokens.filter(isUncollectedFeeToken);
+}
+
+/**
+ * Filter tokens by governance power type
+ * @param {Array} tokens - Array of tokens
+ * @returns {Array} Filtered governance tokens
+ */
+export function filterGovernanceTokens(tokens) {
+  if (!Array.isArray(tokens)) return [];
+  return tokens.filter(token => isGovernanceToken(token));
 }
 
 /**

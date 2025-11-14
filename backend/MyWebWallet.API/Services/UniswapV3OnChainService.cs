@@ -217,9 +217,11 @@ namespace MyWebWallet.API.Services
                 var packed = "ff" + factoryNo0x + saltHash + initNo0x;
                 if (!System.Text.RegularExpressions.Regex.IsMatch(packed, "^[0-9a-fA-F]+$")) return string.Empty;
                 var hash = Sha3Keccack.Current.CalculateHash(packed.HexToByteArray()).ToHex(false).TrimStart('0','x');
-                return ("0x" + hash[^40..]).ToLowerInvariant();
+                var computed = ("0x" + hash[^40..]).ToLowerInvariant();
+                _logger.LogTrace("Computed pool address candidate token0={Token0} token1={Token1} fee={Fee} computed={Pool}", token0, token1, fee, computed);
+                return computed;
             }
-            catch { return string.Empty; }
+            catch (Exception ex) { _logger.LogDebug(ex, "ComputePoolAddress failed"); return string.Empty; }
         }
 
         private async Task<string> GetPoolAddressFromFactoryAsync(ChainContext ctx, string? tokenA, string? tokenB, uint fee)
@@ -236,9 +238,10 @@ namespace MyWebWallet.API.Services
                 if (string.IsNullOrWhiteSpace(pool) || pool == "0x0000000000000000000000000000000000000000") return string.Empty;
                 var code = await ctx.Web3.Eth.GetCode.SendRequestAsync(pool);
                 if (string.IsNullOrEmpty(code) || code == "0x") return string.Empty;
+                _logger.LogTrace("Factory returned pool token0={Token0} token1={Token1} fee={Fee} pool={Pool}", token0, token1, fee, pool);
                 return pool.ToLowerInvariant();
             }
-            catch { return string.Empty; }
+            catch (Exception ex) { _logger.LogDebug(ex, "GetPoolAddressFromFactoryAsync failed"); return string.Empty; }
         }
 
         private async Task<string> ResolvePoolAsync(ChainContext ctx, string? token0, string? token1, uint fee)
@@ -254,6 +257,7 @@ namespace MyWebWallet.API.Services
                 var code = await ctx.Web3.Eth.GetCode.SendRequestAsync(computed);
                 if (!string.IsNullOrEmpty(code) && code != "0x") return computed;
             }
+            _logger.LogWarning("ResolvePool failed token0={Token0} token1={Token1} fee={Fee}", token0, token1, fee);
             return string.Empty;
         }
 
@@ -271,7 +275,7 @@ namespace MyWebWallet.API.Services
                 await Task.WhenAll(decTask, symTask, nameTask);
                 return ((await symTask) ?? string.Empty, (await nameTask) ?? string.Empty, (int)await decTask);
             }
-            catch { return (string.Empty, string.Empty, 0); }
+            catch (Exception ex) { _logger.LogDebug(ex, "GetErc20MetadataAsync failed token={Token}", token); return (string.Empty, string.Empty, 0); }
         }
 
         private async Task<PositionDTO?> TryGetPositionAsync(ChainContext ctx, BigInteger id)
@@ -305,7 +309,7 @@ namespace MyWebWallet.API.Services
         private async Task<Slot0OutputDTO?> TryGetSlot0Async(ChainContext ctx, string pool)
         {
             try { return await ctx.Web3.Eth.GetContractHandler(pool).QueryDeserializingToObjectAsync<Slot0Function, Slot0OutputDTO>(new()); }
-            catch { return null; }
+            catch (Exception ex) { _logger.LogDebug(ex, "TryGetSlot0Async failed pool={Pool}", pool); return null; }
         }
 
         private async Task<(BigInteger fg0, BigInteger fg1)?> TryGetFeeGrowthAsync(ChainContext ctx, string pool)
@@ -318,7 +322,7 @@ namespace MyWebWallet.API.Services
                 await Task.WhenAll(t0, t1);
                 return (await t0, await t1);
             }
-            catch { return null; }
+            catch (Exception ex) { _logger.LogDebug(ex, "TryGetFeeGrowthAsync failed pool={Pool}", pool); return null; }
         }
 
         private static (decimal amount0, decimal amount1, string branch) ComputePositionAmountsPrecise(BigInteger L, int tickLower, int tickUpper, BigInteger sqrtPriceX96, int currentTick, int dec0, int dec1)
@@ -374,6 +378,13 @@ namespace MyWebWallet.API.Services
             return await BuildFromIds(ctx, positionTokenIds, onlyOpenPositions);
         }
 
+        // NEW: Chain-aware overload for granular pipeline
+        public async Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds, ChainEnum chain, bool onlyOpenPositions)
+        {
+            var ctx = GetContext(chain);
+            return await BuildFromIds(ctx, positionTokenIds, onlyOpenPositions);
+        }
+
         // Interface: owner (Base default wrappers)
         public Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress) => GetActivePoolsOnChainAsync(ownerAddress, false, ChainEnum.Base);
         public Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress, bool onlyOpenPositions) => GetActivePoolsOnChainAsync(ownerAddress, onlyOpenPositions, ChainEnum.Base);
@@ -419,7 +430,12 @@ namespace MyWebWallet.API.Services
                     continue; 
                 }
 
+                _logger.LogDebug("Processing position {TokenId} token0={Token0} token1={Token1} fee={Fee} L={Liquidity} ticks=[{TL},{TU}]", id, pos.Token0, pos.Token1, pos.Fee, pos.Liquidity, pos.TickLower, pos.TickUpper);
                 var pool = await ResolvePoolAsync(ctx, pos.Token0, pos.Token1, pos.Fee);
+                if (string.IsNullOrEmpty(pool))
+                {
+                    _logger.LogWarning("Pool not resolved for position {TokenId} token0={Token0} token1={Token1} fee={Fee}", id, pos.Token0, pos.Token1, pos.Fee);
+                }
                 var meta0Task = GetErc20MetadataAsync(ctx, pos.Token0);
                 var meta1Task = GetErc20MetadataAsync(ctx, pos.Token1);
                 var slot0Task = string.IsNullOrEmpty(pool) ? Task.FromResult<Slot0OutputDTO?>(null) : TryGetSlot0Async(ctx, pool);
@@ -441,11 +457,30 @@ namespace MyWebWallet.API.Services
                 var fg = feeGrowthTask.Result; 
                 var lowerTickInfo = lowerTickTask.Result; 
                 var upperTickInfo = upperTickTask.Result;
+
+                if (slot0 == null)
+                {
+                    _logger.LogWarning("Slot0 missing for position {TokenId} pool={Pool}", id, pool);
+                }
+                if (fg == null)
+                {
+                    _logger.LogWarning("Fee growth missing for position {TokenId} pool={Pool}", id, pool);
+                }
+                if (lowerTickInfo == null || upperTickInfo == null)
+                {
+                    _logger.LogWarning("Tick info missing for position {TokenId} lowerNull={LowerNull} upperNull={UpperNull}", id, lowerTickInfo == null, upperTickInfo == null);
+                }
+                else
+                {
+                    _logger.LogTrace("Tick outside snapshot pos={TokenId} lowerGross={LG} lowerNet={LN} lowerFG0={L0} lowerFG1={L1} upperGross={UG} upperNet={UN} upperFG0={U0} upperFG1={U1}", id,
+                        lowerTickInfo.LiquidityGross, lowerTickInfo.LiquidityNet, lowerTickInfo.FeeGrowthOutside0X128, lowerTickInfo.FeeGrowthOutside1X128,
+                        upperTickInfo.LiquidityGross, upperTickInfo.LiquidityNet, upperTickInfo.FeeGrowthOutside0X128, upperTickInfo.FeeGrowthOutside1X128);
+                }
                 
                 int currTick = slot0?.Tick ?? 0;
                 var (amt0, amt1, branch) = ComputePositionAmountsPrecise(pos.Liquidity, pos.TickLower, pos.TickUpper, slot0?.SqrtPriceX96 ?? 0, currTick, dec0, dec1);
+                _logger.LogTrace("Position amounts pos={TokenId} branch={Branch} amount0={Amt0} amount1={Amt1}", id, branch, amt0, amt1);
 
-                // Calculate uncollected fees using improved formula with proper logging
                 decimal finalOwed0 = ScaleToken(pos.TokensOwed0, dec0); 
                 decimal finalOwed1 = ScaleToken(pos.TokensOwed1, dec1);
                 
@@ -462,7 +497,7 @@ namespace MyWebWallet.API.Services
                             currTick,
                             lowerTickInfo,
                             upperTickInfo,
-                            _logger); // Pass logger for proper structured logging
+                            _logger);
                             
                         finalOwed0 = uncollected.Amount0;
                         finalOwed1 = uncollected.Amount1;
@@ -470,22 +505,22 @@ namespace MyWebWallet.API.Services
                     catch (Exception ex)
                     {
                         _logger.LogWarning(ex, "Failed to calculate uncollected fees for position {TokenId} on chain {Chain}", id, ctx.Chain);
-                        // Keep base values as fallback
                     }
                 }
 
-                _logger.LogDebug("Position {TokenId} on chain {Chain} - Liquidity: {Liquidity}, Tick Range: [{TickLower}, {TickUpper}], Current Tick: {CurrentTick}, Fees: [{Fees0}, {Fees1}]",
-                    id, ctx.Chain, pos.Liquidity, pos.TickLower, pos.TickUpper, currTick, finalOwed0, finalOwed1);
+                _logger.LogDebug("UNI-V3 FEES TRACE pos={Pos} pool={Pool} token0={Sym0} token1={Sym1} dec=[{D0},{D1}] tickCurrent={Tick} range=[{TL},{TU}] fg0={FG0} fg1={FG1} feeInsideLast0={FIL0} feeInsideLast1={FIL1} owedRaw0={Raw0} owedRaw1={Raw1} finalOwed0={Final0} finalOwed1={Final1}",
+                    id, pool, sym0, sym1, dec0, dec1, currTick, pos.TickLower, pos.TickUpper,
+                    fg?.Item1, fg?.Item2, pos.FeeGrowthInside0LastX128, pos.FeeGrowthInside1LastX128,
+                    pos.TokensOwed0, pos.TokensOwed1, finalOwed0, finalOwed1);
 
-                // Derive token native ratios (restore previous logic)
                 string derived0 = "0", derived1 = "0";
                 try
                 {
                     double ratio = 0d;
                     if (slot0?.SqrtPriceX96 > 0)
                     {
-                        var sqrt = (double)slot0.SqrtPriceX96 / Math.Pow(2, 96); // sqrt(token1/token0)
-                        ratio = sqrt * sqrt * Math.Pow(10d, dec0 - dec1); // token1 per token0
+                        var sqrt = (double)slot0.SqrtPriceX96 / Math.Pow(2, 96);
+                        ratio = sqrt * sqrt * Math.Pow(10d, dec0 - dec1);
                     }
                     bool t0W = IsWeth(sym0, pos.Token0); bool t1W = IsWeth(sym1, pos.Token1);
                     bool t0S = IsStable(sym0); bool t1S = IsStable(sym1);
@@ -496,7 +531,6 @@ namespace MyWebWallet.API.Services
                             nativePrice = t0W ? ratio : (ratio == 0 ? 0 : 1d / ratio);
                     }
 
-                    // After attempt, still no nativePrice? Use Chainlink fallback
                     if (nativePrice <= 0)
                     {
                         var chainlink = await chainlinkPriceTask;
@@ -584,11 +618,14 @@ namespace MyWebWallet.API.Services
         {
             try
             {
-                return await ctx.Web3.Eth.GetContractHandler(pool)
+                var result = await ctx.Web3.Eth.GetContractHandler(pool)
                     .QueryDeserializingToObjectAsync<TicksFunction, TickInfoDTO>(new TicksFunction { Tick = tick }, null);
+                _logger.LogTrace("ticks() success pool={Pool} tick={Tick} liquidityGross={Gross} liquidityNet={Net} fg0Outside={FG0} fg1Outside={FG1}", pool, tick, result?.LiquidityGross, result?.LiquidityNet, result?.FeeGrowthOutside0X128, result?.FeeGrowthOutside1X128);
+                return result;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogDebug(ex, "ticks() call failed pool={Pool} tick={Tick}", pool, tick);
                 return null;
             }
         }

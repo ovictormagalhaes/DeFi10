@@ -7,5 +7,4 @@ public interface IChainSupportService
 {
     bool SupportsChain(ChainEnum chain);
     IEnumerable<ChainEnum> GetSupportedChains();
-    string GetProtocolName();
 }

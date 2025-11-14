@@ -12,6 +12,10 @@ namespace MyWebWallet.API.Messaging.Workers;
 /// <summary>
 /// Periodically scans aggregation jobs in Redis and marks overdue ones as TimedOut,
 /// emitting a WalletAggregationCompleted event (status TimedOut).
+/// 
+/// Configuration:
+/// - Aggregation:TimeoutScanSeconds (default 60s) - How often to scan for timed out jobs
+/// - Aggregation:JobTimeoutSeconds (default 180s) - Max age of a job before timing out (3 minutes)
 /// </summary>
 public class AggregationTimeoutMonitorWorker : BackgroundService
 {
@@ -30,7 +34,7 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
         _logger = logger;
         _redis = redis;
         _publisher = publisher;
-        _scanInterval = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue<int?>("Aggregation:TimeoutScanSeconds") ?? 30, 5, 300));
+        _scanInterval = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue<int?>("Aggregation:TimeoutScanSeconds") ?? 60, 5, 300));
         _jobTimeout = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue<int?>("Aggregation:JobTimeoutSeconds") ?? 180, 30, 3600));
     }
 

@@ -13,6 +13,8 @@ using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using MyWebWallet.API.Services.Helpers;
+using MyWebWallet.API.Aggregation; // added for IPriceService
+using MyWebWallet.API.Services.Filters; // Add for ProtocolTokenFilter
 
 namespace MyWebWallet.API.Messaging.Workers;
 
@@ -58,7 +60,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         public int TotalAaveSupplies { get; set; }
         public int TotalAaveBorrows { get; set; }
         public int TotalUniswapPositions { get; set; }
-        public bool AaveHealthReceived { get; set; } // new flag
+        public int TotalPendleLocks { get; set; }
+        public int TotalPendleDeposits { get; set; }
         public HashSet<string> ProvidersCompleted { get; set; } = new(); // store provider[:chain]
     }
 
@@ -153,12 +156,88 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                 try
                 {
                     newlyMapped = await MapPayloadAsync(result, mapperFactory, chainEnum);
+
+                    // Deduplicate: remove protocol wrapper tokens from Moralis Wallet
+                    if (newlyMapped.Count > 0 && result.Provider == IntegrationProvider.MoralisTokens)
+                    {
+                        // 1. Remove Aave-specific wrappers using IAaveeService
+                        var aaveSvc = scope.ServiceProvider.GetRequiredService<IAaveeService>();
+                        var wrappers = await aaveSvc.GetWrapperTokenAddressesAsync(chainEnum);
+                        if (wrappers.Count > 0)
+                        {
+                            int aaveRemoved = 0;
+                            foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
+                            {
+                                var before = wi.Position.Tokens.Count;
+                                wi.Position.Tokens = wi.Position.Tokens
+                                    .Where(t => string.IsNullOrEmpty(t?.ContractAddress) || !wrappers.Contains(t.ContractAddress))
+                                    .ToList();
+                                aaveRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
+                            }
+                            if (aaveRemoved > 0)
+                                _logger.LogInformation("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain}", aaveRemoved, chainEnum);
+                        }
+                        
+                        // 2. Remove general protocol tokens using ProtocolTokenFilter (pattern-based)
+                        int protocolRemoved = 0;
+                        foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
+                        {
+                            var before = wi.Position.Tokens.Count;
+                            wi.Position.Tokens = wi.Position.Tokens
+                                .Where(t => !ProtocolTokenFilter.ShouldFilterToken(t?.Symbol, t?.ContractAddress))
+                                .ToList();
+                            protocolRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
+                        }
+                        if (protocolRemoved > 0)
+                            _logger.LogInformation("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain}", protocolRemoved, chainEnum);
+                        
+                        // Remove empty wallet items after filtering
+                        newlyMapped.RemoveAll(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && (i.Position?.Tokens == null || i.Position.Tokens.Count == 0));
+                    }
+
                     if (newlyMapped.Count > 0)
                     {
+                        // 1. Logos
                         var tokenLogoService = scope.ServiceProvider.GetRequiredService<ITokenLogoService>();
                         var hydrationHelper = new TokenHydrationHelper(tokenLogoService);
                         var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
                         hydrationHelper.ApplyTokenLogosToWalletItems(newlyMapped, logos);
+
+                        // 2. Prices (novo passo)
+                        try
+                        {
+                            var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
+                            var prices = await priceService.HydratePricesAsync(newlyMapped, chainEnum, ct);
+                            if (prices.Count > 0)
+                            {
+                                int applied = 0;
+                                foreach (var wi in newlyMapped)
+                                {
+                                    if (wi.Position?.Tokens == null) continue;
+                                    foreach (var tk in wi.Position.Tokens)
+                                    {
+                                        if (tk?.Financials == null) continue;
+                                        if (tk.Financials.Price is > 0) continue; // already priced
+                                        var key = BuildPriceKey(tk);
+                                        if (string.IsNullOrEmpty(key)) continue;
+                                        if (prices.TryGetValue(key, out var price) && price > 0)
+                                        {
+                                            tk.Financials.Price = price;
+                                            var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
+                                            if (formatted.HasValue)
+                                                tk.Financials.TotalPrice = formatted.Value * price;
+                                            applied++;
+                                        }
+                                    }
+                                }
+                                if (applied > 0)
+                                    _logger.LogDebug("Applied {Applied} prices (initial mapping) jobId={JobId} chain={Chain}", applied, jobId, chainEnum);
+                            }
+                        }
+                        catch (Exception pxEx)
+                        {
+                            _logger.LogWarning(pxEx, "Price hydration failed (initial) jobId={JobId} chain={Chain}", jobId, chainEnum);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -237,19 +316,57 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         {
             var existingSummaryJson = await db.StringGetAsync(summaryKey);
             AggregationSummary summary = existingSummaryJson.HasValue ? (JsonSerializer.Deserialize<AggregationSummary>(existingSummaryJson!, _jsonOptions) ?? new()) : new();
+            
             if (result.Status == IntegrationStatus.Success && result.Payload is JsonElement payloadEl && payloadEl.ValueKind != JsonValueKind.Null)
             {
-                if (payloadEl.TryGetProperty("result", out var moralisArray) && moralisArray.ValueKind == JsonValueKind.Array && result.Provider == IntegrationProvider.MoralisTokens)
-                    summary.TotalTokens += moralisArray.GetArrayLength();
-                if (payloadEl.TryGetProperty("data", out var aaveData) && aaveData.ValueKind == JsonValueKind.Object)
+                switch (result.Provider)
                 {
-                    if (result.Provider == IntegrationProvider.AaveSupplies && aaveData.TryGetProperty("userSupplies", out var sups) && sups.ValueKind == JsonValueKind.Array)
-                        summary.TotalAaveSupplies += sups.GetArrayLength();
-                    if (result.Provider == IntegrationProvider.AaveBorrows && aaveData.TryGetProperty("userBorrows", out var bors) && bors.ValueKind == JsonValueKind.Array)
-                        summary.TotalAaveBorrows += bors.GetArrayLength();
+                    case IntegrationProvider.MoralisTokens:
+                        if (payloadEl.TryGetProperty("result", out var moralisArray) && moralisArray.ValueKind == JsonValueKind.Array)
+                            summary.TotalTokens += moralisArray.GetArrayLength();
+                        break;
+
+                    case IntegrationProvider.SolanaTokens:
+                        if (payloadEl.TryGetProperty("tokens", out var solToks) && solToks.ValueKind == JsonValueKind.Array)
+                            summary.TotalTokens += solToks.GetArrayLength();
+                        break;
+
+                    case IntegrationProvider.AaveSupplies:
+                        if (payloadEl.TryGetProperty("data", out var aaveSupData) && aaveSupData.TryGetProperty("userSupplies", out var sups) && sups.ValueKind == JsonValueKind.Array)
+                            summary.TotalAaveSupplies += sups.GetArrayLength();
+                        break;
+
+                    case IntegrationProvider.AaveBorrows:
+                        if (payloadEl.TryGetProperty("data", out var aaveBorData) && aaveBorData.TryGetProperty("userBorrows", out var bors) && bors.ValueKind == JsonValueKind.Array)
+                            summary.TotalAaveBorrows += bors.GetArrayLength();
+                        break;
+
+                    case IntegrationProvider.UniswapV3Positions:
+                        if (payloadEl.TryGetProperty("data", out var uniData) && uniData.TryGetProperty("positions", out var posArr) && posArr.ValueKind == JsonValueKind.Array)
+                            summary.TotalUniswapPositions += posArr.GetArrayLength();
+                        break;
+                    
+                    case IntegrationProvider.PendleVePositions:
+                        if (payloadEl.TryGetProperty("data", out var pendleVeData) && 
+                            pendleVeData.TryGetProperty("locks", out var locksArr) && 
+                            locksArr.ValueKind == JsonValueKind.Array)
+                            summary.TotalPendleLocks += locksArr.GetArrayLength();
+                        break;
+                    
+                    case IntegrationProvider.PendleDeposits:
+                        if (payloadEl.TryGetProperty("data", out var pendleDepData) && 
+                            pendleDepData.TryGetProperty("deposits", out var depositsArr) && 
+                            depositsArr.ValueKind == JsonValueKind.Array)
+                            summary.TotalPendleDeposits += depositsArr.GetArrayLength();
+                        break;
+                    
+                    // Kamino and Raydium payloads are arrays, no specific count needed for summary yet.
+                    // This case prevents the "requires an element of type 'Object'" error.
+                    case IntegrationProvider.SolanaKaminoPositions:
+                    case IntegrationProvider.SolanaRaydiumPositions:
+                        // No action needed, payload is an empty array.
+                        break;
                 }
-                if (result.Provider == IntegrationProvider.UniswapV3Positions && payloadEl.TryGetProperty("data", out var uniData) && uniData.ValueKind == JsonValueKind.Object && uniData.TryGetProperty("positions", out var posArr) && posArr.ValueKind == JsonValueKind.Array)
-                    summary.TotalUniswapPositions += posArr.GetArrayLength();
             }
             summary.ProvidersCompleted.Add(providerChainKey);
             await db.StringSetAsync(summaryKey, JsonSerializer.Serialize(summary, _jsonOptions), ttl);
@@ -287,66 +404,65 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         {
             try
             {
-                // Price backfill attempt
                 var consolidatedJson = await db.StringGetAsync(consolidatedKey);
                 if (consolidatedJson.HasValue)
                 {
                     var wallet = JsonSerializer.Deserialize<ConsolidatedWallet>(consolidatedJson!, _jsonOptions) ?? new ConsolidatedWallet();
                     if (wallet.Items.Count > 0)
                     {
-                        var anchors = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-                        foreach (var wi in wallet.Items)
+                        // Price hydration final (agrupa por chain textual dos tokens)
+                        try
                         {
-                            if (wi?.Position?.Tokens == null) continue;
-                            foreach (var tk in wi.Position.Tokens)
+                            using var scope = _rootProvider.CreateScope();
+                            var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
+                            var tokensByChain = wallet.Items
+                                .SelectMany(w => w.Position?.Tokens ?? Enumerable.Empty<Token>())
+                                .GroupBy(t => (t.Chain ?? string.Empty).ToLowerInvariant());
+                            int filled = 0;
+                            foreach (var g in tokensByChain)
                             {
-                                var price = tk.Financials?.Price ?? 0m;
-                                if (price > 0)
+                                if (string.IsNullOrEmpty(g.Key)) continue;
+                                if (!Enum.TryParse<ChainEnum>(g.Key, true, out var parsedChain)) parsedChain = ChainEnum.Base;
+                                // Build synthetic wallet subset for this chain
+                                var subsetItems = wallet.Items.Where(w => (w.Position?.Tokens?.Any(tk => (tk.Chain ?? "").Equals(g.Key, StringComparison.OrdinalIgnoreCase)) ?? false)).ToList();
+                                if (subsetItems.Count == 0) continue;
+                                var prices = await priceService.HydratePricesAsync(subsetItems, parsedChain, ct);
+                                if (prices.Count == 0) continue;
+                                foreach (var wi in subsetItems)
                                 {
-                                    if (!string.IsNullOrEmpty(tk.Symbol) && !anchors.ContainsKey($"sym:{tk.Symbol}")) anchors[$"sym:{tk.Symbol}"] = price;
-                                    if (!string.IsNullOrEmpty(tk.ContractAddress))
+                                    if (wi.Position?.Tokens == null) continue;
+                                    foreach (var tk in wi.Position.Tokens)
                                     {
-                                        var addr = tk.ContractAddress.ToLowerInvariant();
-                                        if (!anchors.ContainsKey($"addr:{addr}")) anchors[$"addr:{addr}"] = price;
+                                        if (tk.Financials == null) continue;
+                                        if (tk.Financials.Price is > 0) continue;
+                                        var key = BuildPriceKey(tk);
+                                        if (prices.TryGetValue(key, out var price) && price > 0)
+                                        {
+                                            tk.Financials.Price = price;
+                                            var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
+                                            if (formatted.HasValue)
+                                                tk.Financials.TotalPrice = formatted.Value * price;
+                                            filled++;
+                                        }
                                     }
                                 }
                             }
-                        }
-                        int adjusted = 0;
-                        foreach (var wi in wallet.Items)
-                        {
-                            if (wi?.Position?.Tokens == null) continue;
-                            foreach (var tk in wi.Position.Tokens)
+                            if (filled > 0)
                             {
-                                if (tk.Financials == null) continue;
-                                if (tk.Financials.Price > 0) continue; // already priced
-                                // Try anchor by symbol
-                                if (!string.IsNullOrEmpty(tk.Symbol) && anchors.TryGetValue($"sym:{tk.Symbol}", out var pSym))
-                                {
-                                    tk.Financials.Price = pSym;
-                                    tk.Financials.TotalPrice = pSym * tk.Financials.BalanceFormatted;
-                                    adjusted++; continue;
-                                }
-                                // Try anchor by address
-                                if (!string.IsNullOrEmpty(tk.ContractAddress) && anchors.TryGetValue($"addr:{tk.ContractAddress.ToLowerInvariant()}", out var pAddr))
-                                {
-                                    tk.Financials.Price = pAddr;
-                                    tk.Financials.TotalPrice = pAddr * tk.Financials.BalanceFormatted;
-                                    adjusted++; continue;
-                                }
+                                await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(wallet, _jsonOptions), ttl);
+                                _logger.LogInformation("Final price hydration applied {Filled} prices jobId={JobId}", filled, jobId);
                             }
                         }
-                        if (adjusted > 0)
+                        catch (Exception finalPxEx)
                         {
-                            _logger.LogInformation("PRICE_BACKFILL: Adjusted {Adjusted} zero-priced token entries jobId={JobId}", adjusted, jobId);
-                            await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(wallet, _jsonOptions), ttl);
+                            _logger.LogWarning(finalPxEx, "Final price hydration failed jobId={JobId}", jobId);
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "PRICE_BACKFILL: failed jobId={JobId}", jobId);
+                _logger.LogWarning(ex, "PRICE_HYDRATION_FINAL: failed jobId={JobId}", jobId);
             }
 
             AggregationStatus aggStatus;
@@ -418,7 +534,53 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     if (dto != null) list.AddRange(await factory.CreateUniswapV3Mapper().MapAsync(dto, chain));
                 }
                 break;
+            case IntegrationProvider.PendleVePositions:
+                if (result.Payload is JsonElement pendleEl)
+                {
+                    var dto = JsonSerializer.Deserialize<PendleVePositionsResponse>(pendleEl.GetRawText());
+                    if (dto != null) list.AddRange(await factory.CreatePendleVeMapper().MapAsync(dto, chain));
+                }
+                break;
+            case IntegrationProvider.PendleDeposits:
+                if (result.Payload is JsonElement pendleDepEl)
+                {
+                    var dto = JsonSerializer.Deserialize<PendleDepositsResponse>(pendleDepEl.GetRawText());
+                    if (dto != null) list.AddRange(await factory.CreatePendleDepositsMapper().MapAsync(dto, chain));
+                }
+                break;
+            case IntegrationProvider.SolanaTokens:
+                if (result.Payload is JsonElement solTokEl)
+                {
+                    var dto = JsonSerializer.Deserialize<SolanaTokenResponse>(solTokEl.GetRawText());
+                    if (dto != null)
+                    {
+                        list.AddRange(await factory.CreateSolanaTokenMapper().MapAsync(dto, chain));
+                    }
+                }
+                break;
+            case IntegrationProvider.SolanaKaminoPositions:
+                if (result.Payload is JsonElement kaminoEl)
+                {
+                    var positions = JsonSerializer.Deserialize<IEnumerable<KaminoPosition>>(kaminoEl.GetRawText()) ?? Enumerable.Empty<KaminoPosition>();
+                    list.AddRange(await factory.CreateSolanaKaminoMapper().MapAsync(positions, chain));
+                }
+                break;
+            case IntegrationProvider.SolanaRaydiumPositions:
+                if (result.Payload is JsonElement raydiumEl)
+                {
+                    var positions = JsonSerializer.Deserialize<IEnumerable<RaydiumPosition>>(raydiumEl.GetRawText()) ?? Enumerable.Empty<RaydiumPosition>();
+                    list.AddRange(await factory.CreateSolanaRaydiumMapper().MapAsync(positions, chain));
+                }
+                break;
         }
         return list;
+    }
+
+    private static string BuildPriceKey(Token t)
+    {
+        if (t == null) return string.Empty;
+        var sym = t.Symbol; if (string.IsNullOrWhiteSpace(sym)) return string.Empty;
+        var chain = t.Chain ?? string.Empty;
+        return (sym + "|" + chain).ToLowerInvariant();
     }
 }

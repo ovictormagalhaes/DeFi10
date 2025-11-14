@@ -11,6 +11,12 @@ public interface IWalletItemMapperFactory
     IWalletItemMapper<AaveGetUserSuppliesResponse> CreateAaveSuppliesMapper();
     IWalletItemMapper<AaveGetUserBorrowsResponse> CreateAaveBorrowsMapper();
     IWalletItemMapper<UniswapV3GetActivePoolsResponse> CreateUniswapV3Mapper();
+    IWalletItemMapper<PendleVePositionsResponse> CreatePendleVeMapper();
+    IWalletItemMapper<PendleDepositsResponse> CreatePendleDepositsMapper();
+    // Solana mappers
+    IWalletItemMapper<SolanaTokenResponse> CreateSolanaTokenMapper();
+    IWalletItemMapper<IEnumerable<KaminoPosition>> CreateSolanaKaminoMapper();
+    IWalletItemMapper<IEnumerable<RaydiumPosition>> CreateSolanaRaydiumMapper();
     
     // Chain validation methods
     bool ValidateChainSupport<T>(ChainEnum chain) where T : class;
@@ -38,6 +44,21 @@ public class WalletItemMapperFactory : IWalletItemMapperFactory
     public IWalletItemMapper<UniswapV3GetActivePoolsResponse> CreateUniswapV3Mapper()
         => _serviceProvider.GetRequiredService<IWalletItemMapper<UniswapV3GetActivePoolsResponse>>();
 
+    public IWalletItemMapper<PendleVePositionsResponse> CreatePendleVeMapper()
+        => _serviceProvider.GetRequiredService<IWalletItemMapper<PendleVePositionsResponse>>();
+
+    public IWalletItemMapper<PendleDepositsResponse> CreatePendleDepositsMapper()
+        => _serviceProvider.GetRequiredService<IWalletItemMapper<PendleDepositsResponse>>();
+
+    public IWalletItemMapper<SolanaTokenResponse> CreateSolanaTokenMapper()
+        => _serviceProvider.GetRequiredService<IWalletItemMapper<SolanaTokenResponse>>();
+
+    public IWalletItemMapper<IEnumerable<KaminoPosition>> CreateSolanaKaminoMapper()
+        => _serviceProvider.GetRequiredService<IWalletItemMapper<IEnumerable<KaminoPosition>>>();
+
+    public IWalletItemMapper<IEnumerable<RaydiumPosition>> CreateSolanaRaydiumMapper()
+        => _serviceProvider.GetRequiredService<IWalletItemMapper<IEnumerable<RaydiumPosition>>>();
+
     public bool ValidateChainSupport<T>(ChainEnum chain) where T : class
     {
         var mapper = _serviceProvider.GetService<IWalletItemMapper<T>>();
@@ -51,7 +72,13 @@ public class WalletItemMapperFactory : IWalletItemMapperFactory
             CreateMoralisTokenMapper(),
             CreateAaveSuppliesMapper(),
             CreateAaveBorrowsMapper(),
-            CreateUniswapV3Mapper()
+            CreateUniswapV3Mapper(),
+            CreatePendleVeMapper(),
+            CreatePendleDepositsMapper(),
+            // Solana
+            CreateSolanaTokenMapper(),
+            CreateSolanaKaminoMapper(),
+            CreateSolanaRaydiumMapper()
         };
         return mappers;
     }

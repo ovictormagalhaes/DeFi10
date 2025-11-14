@@ -1,32 +1,38 @@
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Models;
+using MyWebWallet.API.Services.Interfaces;
+using ChainEnum = MyWebWallet.API.Models.Chain;
 
 namespace MyWebWallet.API.Services.Mappers;
 
 public class MoralisDeFiMapper : IWalletItemMapper<IEnumerable<GetDeFiPositionsMoralisInfo>>
 {
-    public string ProtocolName => "Moralis-DeFi";
-    public string GetProtocolName() => ProtocolName;
+    private readonly IChainConfigurationService _chainConfig;
+    private readonly IProtocolConfigurationService _protocolConfig;
+    private const string PROTOCOL_ID = "moralis";
 
-    public bool SupportsChain(MyWebWallet.API.Models.Chain chain)
+    public MoralisDeFiMapper(IChainConfigurationService chainConfig, IProtocolConfigurationService protocolConfig)
+    { _chainConfig = chainConfig; _protocolConfig = protocolConfig; }
+
+    public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
+    public IEnumerable<ChainEnum> GetSupportedChains() => new[] { ChainEnum.Base, ChainEnum.BNB };
+
+    public Protocol GetProtocolDefinition(ChainEnum chain)
     {
-        return GetSupportedChains().Contains(chain);
+        var protoDef = _protocolConfig.GetProtocol(PROTOCOL_ID) ?? throw new InvalidOperationException($"Protocol configuration missing for {PROTOCOL_ID}");
+        if (string.IsNullOrWhiteSpace(protoDef.Key) || string.IsNullOrWhiteSpace(protoDef.DisplayName))
+            throw new InvalidOperationException($"Protocol {PROTOCOL_ID} missing mandatory metadata (Key/DisplayName)");
+        var chainSlug = _chainConfig.GetChainConfig(chain)?.Slug ?? throw new InvalidOperationException($"Chain slug missing for {chain}");
+        return new Protocol { Name = protoDef.DisplayName!, Chain = chainSlug, Id = protoDef.Key!, Url = protoDef.Website ?? string.Empty, Logo = protoDef.Icon ?? string.Empty };
     }
 
-    public IEnumerable<MyWebWallet.API.Models.Chain> GetSupportedChains()
+    public async Task<List<WalletItem>> MapAsync(IEnumerable<GetDeFiPositionsMoralisInfo> items, ChainEnum chain)
     {
-        return new[] { MyWebWallet.API.Models.Chain.Base, MyWebWallet.API.Models.Chain.BNB };
-    }
-
-    public async Task<List<WalletItem>> MapAsync(IEnumerable<GetDeFiPositionsMoralisInfo> items, MyWebWallet.API.Models.Chain chain)
-    {
-        if (!SupportsChain(chain))
-            throw new NotSupportedException($"Chain {chain} is not supported by {GetProtocolName()}");
-
+        if (!SupportsChain(chain)) throw new NotSupportedException($"Chain {chain} is not supported by {PROTOCOL_ID}");
+        var protocol = GetProtocolDefinition(chain);
         return await Task.FromResult(items?.Select(d =>
         {
             var label = d.Position?.Label?.ToLowerInvariant();
-
             var walletItemType = label switch
             {
                 "liquidity" => WalletItemType.LiquidityPool,
@@ -38,23 +44,15 @@ public class MoralisDeFiMapper : IWalletItemMapper<IEnumerable<GetDeFiPositionsM
             return new WalletItem
             {
                 Type = walletItemType,
-                Protocol = new Protocol
-                {
-                    Name = d.ProtocolName,
-                    Chain = chain.ToChainId(),
-                    Id = d.ProtocolId,
-                    Url = d.ProtocolUrl,
-                    Logo = d.ProtocolLogo
-                },
+                Protocol = protocol,
                 Position = new Position
                 {
                     Label = d.Position.Label,
                     Tokens = d.Position.Tokens.Select(t =>
                     {
-                        var balance = t.Balance != null ? decimal.Parse(t.Balance) : 0;
-                        var decimalPlaces = int.TryParse(t.Decimals, out var decimals) ? decimals : 0;
-                        var balanceFormatted = balance / (decimal)Math.Pow(10, decimalPlaces);
-
+                        decimal balance = 0; if (!string.IsNullOrEmpty(t.Balance)) decimal.TryParse(t.Balance, out balance);
+                        int decimalPlaces = int.TryParse(t.Decimals, out var dec) ? dec : 0;
+                        var balanceFormatted = decimalPlaces > 0 ? balance / (decimal)Math.Pow(10, decimalPlaces) : balance;
                         return new Token
                         {
                             Type = ParseTokenType(t.TokenType),
@@ -62,7 +60,7 @@ public class MoralisDeFiMapper : IWalletItemMapper<IEnumerable<GetDeFiPositionsM
                             Symbol = t.Symbol,
                             ContractAddress = t.ContractAddress,
                             Logo = t.Logo,
-                            Chain = chain.ToChainId(),
+                            Chain = protocol.Chain,
                             Thumbnail = t.Thumbnail,
                             Financials = new TokenFinancials
                             {
@@ -75,21 +73,10 @@ public class MoralisDeFiMapper : IWalletItemMapper<IEnumerable<GetDeFiPositionsM
                         };
                     }).ToList()
                 },
-                AdditionalData = new AdditionalData
-                {
-                    //HealthFactor = d.AccountData?.HealthFactory != null && decimal.TryParse(d.AccountData.HealthFactory, out var healthFactor) ? healthFactor : null
-                }
+                AdditionalData = new AdditionalData { }
             };
         })?.ToList() ?? []);
     }
 
-    private static TokenType? ParseTokenType(string tokenType)
-    {
-        return tokenType?.ToLowerInvariant() switch
-        {
-            "supplied" => TokenType.Supplied,
-            "borrowed" => TokenType.Borrowed,
-            _ => null
-        };
-    }
+    private static TokenType? ParseTokenType(string tokenType) => tokenType?.ToLowerInvariant() switch { "supplied" => TokenType.Supplied, "borrowed" => TokenType.Borrowed, _ => null };
 }

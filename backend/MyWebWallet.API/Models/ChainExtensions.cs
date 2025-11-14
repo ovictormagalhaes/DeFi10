@@ -19,25 +19,13 @@ namespace MyWebWallet.API.Models
             Chain.Arbitrum => "arbitrum",
             Chain.Optimism => "optimism",
             Chain.BNB => "bsc", // common id used by providers for BNB Smart Chain
+            Chain.Solana => "solana",
             _ => chain.ToString().ToLowerInvariant()
         };
 
         /// <summary>
-        /// Returns EVM numeric chain id.
-        /// </summary>
-        public static int ToNumericChainId(this Chain chain) => chain switch
-        {
-            Chain.Ethereum => 1,
-            Chain.Base => 8453,
-            Chain.Polygon => 137,
-            Chain.Arbitrum => 42161,
-            Chain.Optimism => 10,
-            Chain.BNB => 56,
-            _ => throw new NotSupportedException($"Unsupported chain numeric id mapping: {chain}")
-        };
-
-        /// <summary>
         /// Builds an Alchemy RPC URL for the given chain + api key. Throws if chain is not supported by current configuration.
+        /// Only applies to EVM chains.
         /// </summary>
         public static string GetAlchemyRpcUrl(this Chain chain, string apiKey) => chain switch
         {
@@ -48,6 +36,7 @@ namespace MyWebWallet.API.Models
             Chain.Optimism => $"https://opt-mainnet.g.alchemy.com/v2/{apiKey}",
             // Alchemy may not support BNB in all accounts; keep here for future or throw to highlight unsupported use
             Chain.BNB => throw new NotSupportedException("Alchemy RPC not configured for BNB chain"),
+            Chain.Solana => throw new NotSupportedException("GetAlchemyRpcUrl is EVM-only and does not support Solana"),
             _ => throw new NotSupportedException($"Unsupported chain for Alchemy RPC: {chain}")
         };
     }

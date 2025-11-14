@@ -23,6 +23,8 @@ namespace MyWebWallet.API.Services.Interfaces
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds);
         // Overload with filter for only open positions
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds, bool onlyOpenPositions);
+        // NEW: Chain-aware overload for tokenId list (used by granular flow)
+        Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(IEnumerable<BigInteger> positionTokenIds, ChainEnum chain, bool onlyOpenPositions);
         // Enumerate positions by owner (no subgraph dependency)
         Task<UniswapV3GetActivePoolsResponse> GetActivePoolsOnChainAsync(string ownerAddress);
         // Overload with filter for only open positions

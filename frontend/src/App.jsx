@@ -30,10 +30,12 @@ import {
   setTotalPortfolioValue,
   calculatePercentage,
 } from './utils/walletUtils';
-import { 
+import {
   getLiquidityPoolItems,
   getLendingItems, 
-  getStakingItems
+  getStakingItems,
+  getLockingItems,
+  getDepositingItems
 } from './types/filters';
 import {
   DEFAULT_COLUMN_VISIBILITY,
@@ -448,12 +450,69 @@ function App() {
   };
 
   const getStakingData = () => {
+    console.log('getStakingData called, walletData:', walletData);
     if (!walletData) return [];
-    if (walletData.items && Array.isArray(walletData.items))
-      return getStakingItems(walletData.items);
-    if (walletData.data && Array.isArray(walletData.data))
-      return getStakingItems(walletData.data);
+    
+    if (walletData.items && Array.isArray(walletData.items)) {
+      console.log('Using walletData.items, total items:', walletData.items.length);
+      const stakingItems = getStakingItems(walletData.items);
+      console.log('Found staking items:', stakingItems);
+      return stakingItems;
+    }
+    
+    if (walletData.data && Array.isArray(walletData.data)) {
+      console.log('Using walletData.data, total items:', walletData.data.length);
+      const stakingItems = getStakingItems(walletData.data);
+      console.log('Found staking items:', stakingItems);
+      return stakingItems;
+    }
+    
+    console.log('Using walletData.staking fallback:', walletData.staking || []);
     return walletData.staking || [];
+  };
+
+  const getLockingData = () => {
+    console.log('getLockingData called, walletData:', walletData);
+    if (!walletData) return [];
+    
+    if (walletData.items && Array.isArray(walletData.items)) {
+      console.log('Using walletData.items for locking, total items:', walletData.items.length);
+      const lockingItems = getLockingItems(walletData.items);
+      console.log('Found locking items:', lockingItems);
+      return lockingItems;
+    }
+    
+    if (walletData.data && Array.isArray(walletData.data)) {
+      console.log('Using walletData.data for locking, total items:', walletData.data.length);
+      const lockingItems = getLockingItems(walletData.data);
+      console.log('Found locking items:', lockingItems);
+      return lockingItems;
+    }
+    
+    console.log('No locking data found');
+    return [];
+  };
+
+  const getDepositingData = () => {
+    console.log('getDepositingData called, walletData:', walletData);
+    if (!walletData) return [];
+    
+    if (walletData.items && Array.isArray(walletData.items)) {
+      console.log('Using walletData.items for depositing, total items:', walletData.items.length);
+      const depositingItems = getDepositingItems(walletData.items);
+      console.log('Found depositing items:', depositingItems);
+      return depositingItems;
+    }
+    
+    if (walletData.data && Array.isArray(walletData.data)) {
+      console.log('Using walletData.data for depositing, total items:', walletData.data.length);
+      const depositingItems = getDepositingItems(walletData.data);
+      console.log('Found depositing items:', depositingItems);
+      return depositingItems;
+    }
+    
+    console.log('No depositing data found');
+    return [];
   };
 
   // Unified portfolio breakdown (memoized by snapshot + toggles)
@@ -1449,6 +1508,8 @@ function App() {
                       getLiquidityPoolsData={getLiquidityPoolsData}
                       getLendingAndBorrowingData={getLendingAndBorrowingData}
                       getStakingData={getStakingData}
+                      getLockingData={getLockingData}
+                      getDepositingData={getDepositingData}
                       selectedChains={selectedChains}
                       isAllChainsSelected={isAllChainsSelected}
                       getCanonicalFromObj={getCanonicalFromObj}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Defi10</title>
+      <!-- Optional: uncomment to force local API during debugging -->
+      <!-- <script>window.__API_BASE__='http://localhost:5001';</script> -->
+    <script>
+      // Snapshot inicial de CSS vars com guardas para evitar erro quando body ainda não existe.
+      (function applyInitialTheme() {
+        function run() {
+          var storedMode;
+            try { storedMode = localStorage.getItem('defi10_theme_mode'); } catch {}
+          var mode = storedMode === 'light' || storedMode === 'dark' ? storedMode : 'dark';
+          var root = document.documentElement;
+          if (!root || !root.style) return; // safety
+          var dark = { bgApp:'#15171f', bgPanel:'#22242b', bgPanelAlt:'#272a33', textPrimary:'#f4f4f4', textSecondary:'#a2a9b5', primary:'#45b773', accent:'#9fe8c0', border:'#30333b' };
+          var light = { bgApp:'#f0f2f4', bgPanel:'#ffffff', bgPanelAlt:'#f7f9fb', textPrimary:'#2f3137', textSecondary:'#798698', primary:'#2d9873', accent:'#2d9873', border:'#d9dde2' };
+          var t = mode === 'light' ? light : dark;
+          var map = {
+            '--app-mode': mode,
+            '--app-bg-app': t.bgApp,
+            '--app-bg-panel': t.bgPanel,
+            '--app-bg-panel-alt': t.bgPanelAlt,
+            '--app-text-primary': t.textPrimary,
+            '--app-text-secondary': t.textSecondary,
+            '--app-primary': t.primary,
+            '--app-accent': t.accent,
+            '--app-border': t.border,
+          };
+          for (var k in map) { try { root.style.setProperty(k, map[k]); } catch {} }
+          if (document.body) {
+            try { document.body.style.backgroundColor = t.bgApp; } catch {}
+            try { document.body.style.color = t.textPrimary; } catch {}
+          } else {
+            // Se body ainda não existe, agenda para DOMContentLoaded
+            document.addEventListener('DOMContentLoaded', function once(){
+              document.removeEventListener('DOMContentLoaded', once);
+              try { document.body.style.backgroundColor = t.bgApp; } catch {}
+              try { document.body.style.color = t.textPrimary; } catch {}
+            });
+          }
+        }
+        try { run(); } catch (e) { /* noop */ }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-EueGxGMS.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CK4Flh9z.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

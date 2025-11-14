@@ -698,8 +698,23 @@ export default function RebalancingView({
   }, [initialSavedItems, tokensList, poolsList, lendingList, stakingList, protocolsList]);
 
   // Mark initial load done (for auto-save skip)
+  const lastSavedHashRef = React.useRef(null);
+  
   React.useEffect(() => {
-    if (!didInitialLoad) setDidInitialLoad(true);
+    if (!didInitialLoad) {
+      setDidInitialLoad(true);
+      // Initialize hash with current entries to prevent initial save
+      if (entries.length > 0) {
+        lastSavedHashRef.current = JSON.stringify(entries.map(e => ({
+          id: e.id,
+          assetType: e.assetType,
+          assetId: e.assetId,
+          referenceType: e.referenceType,
+          referenceValue: e.referenceValue,
+          note: e.note
+        })));
+      }
+    }
   }, [entries, didInitialLoad]);
 
   const saveRebalance = React.useCallback(async () => {
@@ -785,18 +800,48 @@ export default function RebalancingView({
     }
   }, [entries, account, REF_ENUM_MAP, RebalanceReferenceType.TotalWallet, tokensList, poolsList, lendingList, stakingList]);
 
-  // Auto-save: debounce minimal (300ms) after changes, skip initial population
-  const saveTimerRef = React.useRef(null);
-  React.useEffect(() => {
-    if (!didInitialLoad) return; // skip first population
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    if (entries.length === 0) {
-      setSaveResult(null);
-      return;
-    }
-    saveTimerRef.current = setTimeout(() => { saveRebalance(); }, 300);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [entries, didInitialLoad, saveRebalance]);
+  // Auto-save DISABLED - save only on explicit button click or delete action
+  // const saveTimerRef = React.useRef(null);
+  // const saveRebalanceRef = React.useRef(saveRebalance);
+  
+  // Keep ref updated with latest saveRebalance function
+  // React.useEffect(() => {
+  //   saveRebalanceRef.current = saveRebalance;
+  // }, [saveRebalance]);
+  
+  // React.useEffect(() => {
+  //   if (!didInitialLoad) return; // skip first population
+  //   if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+  //   if (entries.length === 0) {
+  //     setSaveResult(null);
+  //     lastSavedHashRef.current = null;
+  //     return;
+  //   }
+  //   
+  //   // Calculate hash of current entries to detect real changes
+  //   const currentHash = JSON.stringify(entries.map(e => ({
+  //     id: e.id,
+  //     assetType: e.assetType,
+  //     assetId: e.assetId,
+  //     referenceType: e.referenceType,
+  //     referenceValue: e.referenceValue,
+  //     note: e.note
+  //   })));
+  //   
+  //   // Skip save if nothing changed
+  //   if (lastSavedHashRef.current === currentHash) {
+  //     return;
+  //   }
+  //   
+  //   saveTimerRef.current = setTimeout(() => { 
+  //     saveRebalanceRef.current().then(() => {
+  //       // Update hash after successful save
+  //       lastSavedHashRef.current = currentHash;
+  //     });
+  //   }, 300);
+  //   return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [entries]);
 
   // Duplicate detection for current selection (used to disable Add in dialog)
   const candidateId =
@@ -1076,19 +1121,32 @@ export default function RebalancingView({
           })}
         </div>
       )}
-      {/* Auto-save status bar (no manual button) */}
+      {/* Manual save bar with Save button */}
       <div className="save-bar mt-20" style={{ justifyContent: 'space-between' }}>
         <div>
           {entries.length === 0 && <span>Adicione items para iniciar configuração.</span>}
           {entries.length > 0 && !saveResult && saving && <span>Saving…</span>}
           {entries.length > 0 && !saving && saveResult && (
             <span>
-              Auto-saved: key {saveResult.key} • {saveResult.itemsCount} items{saveResult.savedAt ? ` • ${saveResult.savedAt.toLocaleTimeString()}` : ''}
+              Saved: key {saveResult.key} • {saveResult.itemsCount} items{saveResult.savedAt ? ` • ${saveResult.savedAt.toLocaleTimeString()}` : ''}
             </span>
           )}
           {saveError && <span className="text-negative">Erro ao salvar: {saveError}</span>}
         </div>
-        {saving && <span className="text-secondary" style={{ fontSize: 12 }}>sync…</span>}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {saving && <span className="text-secondary" style={{ fontSize: 12 }}>sync…</span>}
+          {entries.length > 0 && (
+            <button 
+              type="button" 
+              onClick={() => saveRebalance()} 
+              disabled={saving}
+              className="btn btn--primary"
+              style={{ fontSize: '14px', padding: '6px 16px' }}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

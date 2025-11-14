@@ -77,7 +77,7 @@ public class Token
     public string Chain { get; set; }
     public string Symbol { get; set; }
     public string ContractAddress { get; set; }
-    public string Logo { get; set; }
+    public string? Logo { get; set; }
     public string Thumbnail { get; set; }
     public TokenFinancials Financials { get; set; } = new();
     public bool? Native { get; set; }
@@ -98,6 +98,9 @@ public class AdditionalData
     public string? SqrtPriceX96 { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? CreatedAt { get; set; }
+    // Novo campo específico para locks/staking com data de desbloqueio em epoch seconds
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? UnlockAt { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public RangeInfo? Range { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -105,6 +108,12 @@ public class AdditionalData
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public decimal? Fees24h { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? TotalValueUsd { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? Apr { get; set; }
 }
 
 public class RangeInfo

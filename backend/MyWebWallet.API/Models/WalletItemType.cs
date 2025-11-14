@@ -8,6 +8,8 @@
         LendingAndBorrowing = 3,
         Staking = 4,
         Token = 5,
+        Locking = 6,
+        Depositing = 7,
         Other = 50
     }
 }

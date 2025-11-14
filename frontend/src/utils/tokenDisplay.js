@@ -40,8 +40,8 @@ export function formatTokenDisplay(tokens = [], { showName = false } = {}) {
     return {
       logos,
       text:
-        showName && name
-          ? `${sym || name}${sym && name && sym !== name ? ' · ' + name : ''}`
+        showName && name && sym && sym !== name
+          ? `${name} (${sym})`
           : sym || name || '',
     };
   }

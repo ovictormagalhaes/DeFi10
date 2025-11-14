@@ -264,29 +264,46 @@ export function groupDefiByProtocol(defiData) {
   };
 
   defiData.forEach((defi) => {
-    if (!defi || !defi.protocol || !defi.position) return;
-    const baseProtocolId = defi.protocol.id;
-    const baseProtocolName = defi.protocol.name || defi.protocol.id;
+    console.log('groupDefiByProtocol processing item:', defi);
+    
+    // Handle both WalletItem format (direct protocol/position) and legacy format (defi.protocol/defi.position)
+    const protocol = defi.protocol;
+    const position = defi.position;
+    
+    if (!defi || !protocol || !position) {
+      console.log('Skipping item - missing protocol or position:', defi);
+      return;
+    }
+    const baseProtocolId = protocol.id;
+    const baseProtocolName = protocol.name || protocol.id;
 
     const isUniswapV3 = /uniswap\s*v?3/i.test(baseProtocolName);
+    // Only apply chain grouping to base "pendle-v2", not "pendle-v2-deposits" or other variants
+    const isPendleV2 = /^pendle-v2$/i.test(baseProtocolId);
 
     let effectiveProtocolId = baseProtocolId;
     let effectiveProtocolName = baseProtocolName;
-    let protocolObj = { ...defi.protocol };
+    let protocolObj = { ...protocol };
 
-    if (isUniswapV3) {
+    if (isUniswapV3 || isPendleV2) {
       // Derive chain from position or its tokens
       const chainCandidate =
-        resolveChain(defi.position) ||
-        (Array.isArray(defi.position.tokens) &&
-          defi.position.tokens.map((t) => resolveChain(t)).find(Boolean));
+        resolveChain(position) ||
+        (Array.isArray(position.tokens) &&
+          position.tokens.map((t) => resolveChain(t)).find(Boolean));
       if (chainCandidate) {
         const chainStr = chainCandidate.toString();
         const chainClean = chainStr.replace(/[^a-zA-Z0-9_-]/g, '');
         effectiveProtocolId = `${baseProtocolId}-${chainClean}`.toLowerCase();
         // Pretty chain name capitalized
         const prettyChain = chainClean.charAt(0).toUpperCase() + chainClean.slice(1);
-        effectiveProtocolName = `Uniswap V3 (${prettyChain})`;
+        
+        if (isUniswapV3) {
+          effectiveProtocolName = `Uniswap V3 (${prettyChain})`;
+        } else if (isPendleV2) {
+          effectiveProtocolName = `Pendle V2`;
+        }
+        
         // Attach explicit chain so existing icon overlay logic can pick it up
         protocolObj = {
           ...protocolObj,
@@ -306,7 +323,8 @@ export function groupDefiByProtocol(defiData) {
     }
 
     grouped[effectiveProtocolId].positions.push({
-      ...defi.position,
+      ...position,
+      type: defi.type,
       additionalData: defi.additionalData,
     });
   });
