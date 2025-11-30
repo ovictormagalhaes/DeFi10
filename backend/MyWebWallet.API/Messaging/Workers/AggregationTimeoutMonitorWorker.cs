@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Messaging.Contracts.Enums;
 using MyWebWallet.API.Messaging.Contracts.Progress;
 using MyWebWallet.API.Messaging.Rabbit;
@@ -23,13 +24,14 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
         ILogger<AggregationTimeoutMonitorWorker> logger,
         IConnectionMultiplexer redis,
         IMessagePublisher publisher,
-        IConfiguration configuration)
+        IOptions<AggregationOptions> aggregationOptions)
     {
         _logger = logger;
         _redis = redis;
         _publisher = publisher;
-        _scanInterval = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue<int?>("Aggregation:TimeoutScanSeconds") ?? 60, 5, 300));
-        _jobTimeout = TimeSpan.FromSeconds(Math.Clamp(configuration.GetValue<int?>("Aggregation:JobTimeoutSeconds") ?? 180, 30, 3600));
+        var options = aggregationOptions.Value;
+        _scanInterval = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutScanSeconds, 5, 300));
+        _jobTimeout = TimeSpan.FromSeconds(Math.Clamp(options.JobTimeoutSeconds, 30, 3600));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

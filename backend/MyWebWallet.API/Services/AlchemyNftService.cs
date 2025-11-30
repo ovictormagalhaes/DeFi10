@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Services.Interfaces;
 
 namespace MyWebWallet.API.Services
@@ -10,10 +11,10 @@ namespace MyWebWallet.API.Services
         private readonly HttpClient _httpClient;
         private readonly string _alchemyNftBaseUrl;
 
-        public AlchemyNftService(IConfiguration configuration)
+        public AlchemyNftService(IOptions<AlchemyOptions> options)
         {
             _httpClient = new HttpClient();
-            var nftUrl = configuration["Alchemy:NftUrl"];
+            var nftUrl = options.Value.NftUrl;
             _alchemyNftBaseUrl = nftUrl.EndsWith("/") ? nftUrl : nftUrl + "/";
         }
 

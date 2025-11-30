@@ -1,6 +1,8 @@
 ﻿using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Options;
+using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
 using ChainEnum = MyWebWallet.API.Models.Chain;
@@ -15,14 +17,14 @@ namespace MyWebWallet.API.Services;
 
 public class PendleService : IPendleService
 {
-    private readonly IConfiguration _config;
+    private readonly PendleOptions _pendleOptions;
+    private readonly AlchemyOptions _alchemyOptions;
     private readonly ILogger<PendleService> _logger;
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly HttpClient _httpClient;
 
     private const string FALLBACK_VE_CONTRACT = "0x4f30A9D41B80ecC5B94306AB4364951AE3170210";
     private const int PENDLE_DECIMALS = 18;
-    private const string CONFIG_CONTRACT_KEY = "Pendle:VeContract";
     private const string PROTOCOL_ID = "pendle-v2";
     private const string PENDLE_API_BASE = "https://api-v2.pendle.finance/core";
     
@@ -30,10 +32,17 @@ public class PendleService : IPendleService
     private static DateTime _cacheExpiry = DateTime.MinValue;
     private static readonly TimeSpan CACHE_DURATION = TimeSpan.FromHours(1);
 
-    public PendleService(HttpClient httpClient, IConfiguration config, ILogger<PendleService> logger, IChainConfigurationService _unused, IProtocolConfigurationService protocolConfig)
+    public PendleService(
+        HttpClient httpClient,
+        IOptions<PendleOptions> pendleOptions,
+        IOptions<AlchemyOptions> alchemyOptions,
+        ILogger<PendleService> logger,
+        IChainConfigurationService _unused,
+        IProtocolConfigurationService protocolConfig)
     { 
         _httpClient = httpClient;
-        _config = config; 
+        _pendleOptions = pendleOptions.Value;
+        _alchemyOptions = alchemyOptions.Value;
         _logger = logger; 
         _protocolConfig = protocolConfig; 
     }
@@ -46,7 +55,7 @@ public class PendleService : IPendleService
         if (!AddressUtil.Current.IsValidEthereumAddressHexFormat(addr)) return resp;
         try { addr = AddressUtil.Current.ConvertToChecksumAddress(addr); } catch { }
 
-        var contract = _config[CONFIG_CONTRACT_KEY];
+        var contract = _pendleOptions.VeContract;
         if (string.IsNullOrWhiteSpace(contract))
         {
             var proto = _protocolConfig.GetProtocolOnChain(PROTOCOL_ID, chain);
@@ -280,22 +289,22 @@ public class PendleService : IPendleService
 
     private string? ResolveAlchemyOrOverride()
     { 
-        var ov = _config["Pendle:RpcOverride"]; 
-        if (!string.IsNullOrWhiteSpace(ov)) return ov.Trim(); 
+        if (!string.IsNullOrWhiteSpace(_pendleOptions.RpcOverride)) 
+            return _pendleOptions.RpcOverride.Trim(); 
         
-        var ak = _config["Alchemy:ApiKey"] ?? _config["ALCHEMY_API_KEY"] ?? _config["ALCHEMY_ETH_API_KEY"]; 
-        if (!string.IsNullOrWhiteSpace(ak)) return $"https://eth-mainnet.g.alchemy.com/v2/{ak.Trim()}"; 
+        if (!string.IsNullOrWhiteSpace(_alchemyOptions.ApiKey)) 
+            return $"https://eth-mainnet.g.alchemy.com/v2/{_alchemyOptions.ApiKey.Trim()}"; 
         
         return null; 
     }
 
     private string? ResolveBaseRpc()
     { 
-        var ak = _config["Alchemy:ApiKey"] ?? _config["ALCHEMY_API_KEY"] ?? _config["ALCHEMY_BASE_API_KEY"]; 
-        if (!string.IsNullOrWhiteSpace(ak)) return $"https://base-mainnet.g.alchemy.com/v2/{ak.Trim()}";
+        if (!string.IsNullOrWhiteSpace(_alchemyOptions.ApiKey)) 
+            return $"https://base-mainnet.g.alchemy.com/v2/{_alchemyOptions.ApiKey.Trim()}";
         
-        var ov = _config["Alchemy:BaseRpcUrl"]; 
-        if (!string.IsNullOrWhiteSpace(ov)) return ov;
+        if (!string.IsNullOrWhiteSpace(_alchemyOptions.BaseRpcUrl)) 
+            return _alchemyOptions.BaseRpcUrl;
         
         return null; 
     }

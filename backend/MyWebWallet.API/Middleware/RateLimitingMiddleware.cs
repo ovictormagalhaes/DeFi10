@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 
 namespace MyWebWallet.API.Middleware;
 
@@ -16,11 +17,11 @@ public class RateLimitingMiddleware
     public RateLimitingMiddleware(
         RequestDelegate next,
         ILogger<RateLimitingMiddleware> logger,
-        IConfiguration configuration)
+        IOptions<RateLimitOptions> options)
     {
         _next = next;
         _logger = logger;
-        _options = configuration.GetSection("RateLimiting").Get<RateLimitOptions>() ?? new RateLimitOptions();
+        _options = options.Value;
     }
 
     public async Task InvokeAsync(HttpContext context)

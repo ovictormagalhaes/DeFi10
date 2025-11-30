@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Messaging.Contracts.Enums;
 using MyWebWallet.API.Messaging.Contracts.Requests;
 using MyWebWallet.API.Messaging.Contracts.Results;
@@ -11,7 +12,6 @@ using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Solana;
 using MyWebWallet.API.Services.Models.Solana.Raydium;
-using MyWebWallet.API.Messaging.Extensions;
 using System.Numerics;
 using ChainEnum = MyWebWallet.API.Models.Chain;
 

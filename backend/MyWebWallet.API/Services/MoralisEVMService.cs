@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Infrastructure.Http;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
@@ -14,13 +16,13 @@ public class MoralisEVMService : BaseHttpService, IMoralisService, IChainSupport
 
     public MoralisEVMService(
         HttpClient httpClient, 
-        IConfiguration configuration, 
+        IOptions<MoralisOptions> options, 
         IProtocolConfigurationService protocolConfigurationService, 
         ILogger<MoralisEVMService> logger)
         : base(httpClient, logger)
     {
-        _apiKey = configuration["Moralis:ApiKey"] ?? string.Empty;
-        _baseUrl = configuration["Moralis:BaseUrl"] ?? string.Empty;
+        _apiKey = options.Value.ApiKey;
+        _baseUrl = options.Value.BaseUrl;
         _protocolConfig = protocolConfigurationService;
     }
 

@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
+using MyWebWallet.API.Configuration;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Models.Aave.Supplies;
@@ -18,10 +20,10 @@ public class AaveeService : IAaveeService
     private static readonly Dictionary<ChainEnum, (DateTime ts, HashSet<string> addrs)> _wrappersCache = new();
     private static readonly TimeSpan _wrappersTtl = TimeSpan.FromMinutes(60);
 
-    public AaveeService(HttpClient httpClient, IConfiguration configuration)
+    public AaveeService(HttpClient httpClient, IOptions<AaveOptions> options)
     {
         _httpClient = httpClient;
-        _graphqlEndpoint = configuration["Aave:GraphQLEndpoint"];
+        _graphqlEndpoint = options.Value.GraphQLEndpoint;
     }
 
     public string NetworkName => "Aavee";

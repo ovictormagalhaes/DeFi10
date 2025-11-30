@@ -10,5 +10,6 @@ public class RabbitMqOptions
     public bool UseTls { get; set; } = false;
     public int RequestedHeartbeatSeconds { get; set; } = 30;
     public bool PublisherConfirms { get; set; } = true;
+    public int PublisherConfirmTimeoutSeconds { get; set; } = 30;
     public string Exchange { get; set; } = "wallet.aggregation";
 }

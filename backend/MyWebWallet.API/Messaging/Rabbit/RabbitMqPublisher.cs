@@ -12,7 +12,6 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
     private readonly IRabbitMqConnectionFactory _connectionFactory;
     private readonly RabbitMqOptions _options;
     private readonly ILogger<RabbitMqPublisher> _logger;
-    private readonly IConfiguration _configuration;
     private IModel? _channel;
     private readonly SemaphoreSlim _initLock = new(1,1);
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
@@ -20,12 +19,11 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public RabbitMqPublisher(IRabbitMqConnectionFactory connectionFactory, IOptions<RabbitMqOptions> options, ILogger<RabbitMqPublisher> logger, IConfiguration configuration)
+    public RabbitMqPublisher(IRabbitMqConnectionFactory connectionFactory, IOptions<RabbitMqOptions> options, ILogger<RabbitMqPublisher> logger)
     {
         _connectionFactory = connectionFactory;
         _options = options.Value;
         _logger = logger;
-        _configuration = configuration;
     }
 
     private IModel GetOrCreateChannel()
@@ -55,9 +53,7 @@ public class RabbitMqPublisher : IMessagePublisher, IDisposable
             
             if (_options.PublisherConfirms)
             {
-
-                var confirmTimeoutSeconds = _configuration.GetValue<int?>("RabbitMQ:PublisherConfirmTimeoutSeconds") ?? 30;
-                var timeout = TimeSpan.FromSeconds(Math.Clamp(confirmTimeoutSeconds, 5, 120));
+                var timeout = TimeSpan.FromSeconds(Math.Clamp(_options.PublisherConfirmTimeoutSeconds, 5, 120));
                 
                 _logger.LogTrace("Waiting for publisher confirm routingKey={RoutingKey} timeout={Timeout}s", routingKey, timeout.TotalSeconds);
                 ch.WaitForConfirmsOrDie(timeout);

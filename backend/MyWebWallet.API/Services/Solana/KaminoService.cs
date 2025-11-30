@@ -1,4 +1,6 @@
-﻿using MyWebWallet.API.Models;
+﻿using Microsoft.Extensions.Options;
+using MyWebWallet.API.Configuration;
+using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Models.Solana.Kamino;
@@ -14,7 +16,7 @@ namespace MyWebWallet.API.Services.Solana
         private readonly HttpClient _httpClient;
         private readonly ILogger<KaminoService> _logger;
         private readonly int _rateLimitDelayMs;
-        private const string KaminoApiBaseUrl = "https://api.kamino.finance";
+        private readonly string _kaminoApiUrl;
         private const string MainMarketPubkey = "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF";
 
         private static readonly Dictionary<string, (string Symbol, int Decimals, string? Name)> ReserveMapping = new()
@@ -31,21 +33,21 @@ namespace MyWebWallet.API.Services.Solana
 
         public KaminoService(
             HttpClient httpClient,
-            IConfiguration configuration, 
+            IOptions<SolanaOptions> solanaOptions,
+            IOptions<KaminoOptions> kaminoOptions,
             ILogger<KaminoService> logger)
         {
             _httpClient = httpClient;
             _logger = logger;
             
-            _httpClient.BaseAddress = new System.Uri(KaminoApiBaseUrl);
+            _kaminoApiUrl = kaminoOptions.Value.ApiUrl;
+            _httpClient.BaseAddress = new System.Uri(_kaminoApiUrl);
             _httpClient.Timeout = System.TimeSpan.FromSeconds(30);
             
-            _rateLimitDelayMs = int.TryParse(configuration["Solana:RateLimitDelayMs"], out var delay) 
-                ? delay / 2 
-                : 1000;
+            _rateLimitDelayMs = solanaOptions.Value.RateLimitDelayMs / 2;
             
             _logger.LogInformation("KaminoService initialized - API: {ApiUrl}, Market: {Market}, Reserves: {Count}", 
-                KaminoApiBaseUrl, MainMarketPubkey, ReserveMapping.Count);
+                _kaminoApiUrl, MainMarketPubkey, ReserveMapping.Count);
         }
 
         public string GetProtocolName() => "Kamino Finance";

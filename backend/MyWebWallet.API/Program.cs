@@ -28,8 +28,28 @@ builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection("Redis
 builder.Services.Configure<AggregationOptions>(builder.Configuration.GetSection("Aggregation"));
 builder.Services.Configure<UniswapV3WorkerOptions>(builder.Configuration.GetSection("UniswapV3Workers"));
 builder.Services.Configure<ProtocolConfigurationOptions>(builder.Configuration.GetSection("ProtocolConfiguration"));
-
 builder.Services.Configure<ChainConfiguration>(builder.Configuration.GetSection("ChainConfiguration"));
+builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMQ"));
+builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection("RateLimiting"));
+builder.Services.Configure<MoralisOptions>(builder.Configuration.GetSection("Moralis"));
+builder.Services.Configure<AaveOptions>(builder.Configuration.GetSection("Aave"));
+builder.Services.Configure<UniswapV3Options>(builder.Configuration.GetSection("UniswapV3"));
+builder.Services.Configure<SolanaOptions>(builder.Configuration.GetSection("Solana"));
+builder.Services.Configure<RaydiumOptions>(builder.Configuration.GetSection("Raydium"));
+builder.Services.Configure<AlchemyOptions>(builder.Configuration.GetSection("Alchemy"));
+builder.Services.Configure<PendleOptions>(builder.Configuration.GetSection("Pendle"));
+builder.Services.Configure<KaminoOptions>(builder.Configuration.GetSection("Kamino"));
+
+builder.Services.AddSingleton<IValidateOptions<MoralisOptions>, MoralisOptions>();
+builder.Services.AddSingleton<IValidateOptions<RedisOptions>, RedisOptions>();
+builder.Services.AddSingleton<IValidateOptions<AggregationOptions>, AggregationOptions>();
+builder.Services.AddSingleton<IValidateOptions<AaveOptions>, AaveOptions>();
+builder.Services.AddSingleton<IValidateOptions<UniswapV3Options>, UniswapV3Options>();
+builder.Services.AddSingleton<IValidateOptions<SolanaOptions>, SolanaOptions>();
+builder.Services.AddSingleton<IValidateOptions<RaydiumOptions>, RaydiumOptions>();
+builder.Services.AddSingleton<IValidateOptions<AlchemyOptions>, AlchemyOptions>();
+builder.Services.AddSingleton<IValidateOptions<PendleOptions>, PendleOptions>();
+builder.Services.AddSingleton<IValidateOptions<KaminoOptions>, KaminoOptions>();
 
 builder.Services.AddSingleton<IChainConfigurationService, ChainConfigurationService>();
 
@@ -42,8 +62,6 @@ builder.Services.AddSingleton<IRedisDatabase, RedisDatabaseWrapper>();
 builder.Services.AddScoped<IWalletGroupService, WalletGroupService>();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
-
-builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection("RabbitMQ"));
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -135,6 +153,7 @@ builder.Services.AddScoped<IRebalanceService, RebalanceService>();
 builder.Services.AddSingleton<IAggregationJobStore, AggregationJobStore>();
 builder.Services.AddSingleton<ITokenFactory, TokenFactory>();
 builder.Services.AddScoped<IPriceService, PriceService>();
+builder.Services.AddScoped<IProtocolStatusService, ProtocolStatusService>();
 
 builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
 builder.Services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();
