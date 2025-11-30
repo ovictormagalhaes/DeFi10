@@ -152,7 +152,7 @@ const WalletDashboard: React.FC = () => {
 
       {/* Wallet Input */}
       <Panel className="mb-5 panel--surface-alt">
-        <h3>?? Load DeFi Portfolio</h3>
+        <h3>🔍 Load DeFi Portfolio</h3>
         <div className="flex gap-10 align-center">
           <input
             type="text"
@@ -189,11 +189,14 @@ const WalletDashboard: React.FC = () => {
             disabled={!walletAddress}
             className="btn"
           >
-            ?? Load Portfolio
+            🚀 Load Portfolio
           </button>
         </div>
         <p className="small muted mt-1">
           Selected chains: {selectedChains.join(', ')} | Protocols: Aave, Uniswap V3, Moralis
+        </p>
+        <p className="small muted mt-1">
+          💡 Tip: Use the <strong>wallet dropdown</strong> in the top-right header to manage <strong>Wallet Groups</strong> (up to 3 wallets)
         </p>
       </Panel>
 

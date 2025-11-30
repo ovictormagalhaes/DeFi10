@@ -44,7 +44,12 @@ public class AggregationController : ControllerBase
     // Request DTO (JSON body)
     public sealed class AggregationStartRequest
     {
+        // Single wallet mode (legacy)
         public string? Account { get; set; }
+        
+        // Multi-wallet mode (new)
+        public Guid? WalletGroupId { get; set; }
+        
         public string[]? Chains { get; set; }
     }
 
@@ -75,17 +80,52 @@ public class AggregationController : ControllerBase
     public async Task<IActionResult> Start([FromBody] AggregationStartRequest request)
     {
         if (request is null) return BadRequest(new { error = "payload required" });
-        var account = request.Account?.Trim();
-        if (string.IsNullOrWhiteSpace(account)) return BadRequest(new { error = "account required" });
 
-        // Detect wallet type
-        var walletType = DetectWalletType(account);
-        if (walletType == WalletType.Unknown)
+        // Resolve accounts from either single wallet or wallet group
+        List<string> accounts;
+        Guid? walletGroupId = null;
+        
+        if (!string.IsNullOrWhiteSpace(request.Account))
         {
-            return BadRequest(new { error = "Invalid address format. Must be a valid Ethereum (0x...) or Solana (Base58) address." });
+            // Legacy mode: single wallet
+            accounts = new List<string> { request.Account.Trim() };
+        }
+        else if (request.WalletGroupId.HasValue)
+        {
+            // New mode: wallet group
+            walletGroupId = request.WalletGroupId.Value;
+            
+            // Resolve wallet group
+            var walletGroupService = HttpContext.RequestServices.GetRequiredService<IWalletGroupService>();
+            var walletGroup = await walletGroupService.GetAsync(walletGroupId.Value);
+            
+            if (walletGroup == null)
+            {
+                return NotFound(new { error = $"Wallet group '{walletGroupId}' not found" });
+            }
+            
+            accounts = walletGroup.Wallets;
+            _logger.LogInformation("Resolved wallet group {GroupId} to {Count} accounts", walletGroupId, accounts.Count);
+        }
+        else
+        {
+            return BadRequest(new { error = "Either 'account' or 'walletGroupId' is required" });
         }
 
-        _logger.LogInformation("Detected wallet type: {WalletType} for address: {Address}", walletType, account);
+        // Validate all accounts and detect wallet types
+        var walletTypes = new HashSet<WalletType>();
+        foreach (var acc in accounts)
+        {
+            var type = DetectWalletType(acc);
+            if (type == WalletType.Unknown)
+            {
+                return BadRequest(new { error = $"Invalid address format for '{acc}'. Must be a valid Ethereum (0x...) or Solana (Base58) address." });
+            }
+            walletTypes.Add(type);
+        }
+
+        _logger.LogInformation("Detected wallet types: {Types} for {Count} address(es)", 
+            string.Join(", ", walletTypes), accounts.Count);
 
         if (_blockchainService is not EthereumService eth)
             return BadRequest(new { error = "Unsupported blockchain service for aggregation start" });
@@ -104,11 +144,15 @@ public class AggregationController : ControllerBase
                     {
                         if (Enum.TryParse<ChainEnum>(part, true, out var parsed))
                         {
-                            if (!IsValidAddressForChain(account, parsed))
+                            // Validate that at least ONE wallet is compatible with this chain
+                            bool anyCompatible = accounts.Any(acc => IsValidAddressForChain(acc, parsed));
+                            
+                            if (!anyCompatible)
                             {
                                 return BadRequest(new { 
-                                    error = $"Address format is not valid for chain '{parsed}'. " +
-                                           $"{(walletType == WalletType.Solana ? "Solana addresses can only be used with the Solana chain." : "Ethereum addresses can only be used with EVM chains (Base, Arbitrum, etc.).")}"
+                                    error = $"None of the provided wallet addresses are compatible with chain '{parsed}'. " +
+                                           $"Ethereum addresses (0x...) work with EVM chains (Base, Arbitrum, etc.). " +
+                                           $"Solana addresses (Base58) work only with Solana chain."
                                 });
                             }
                             
@@ -125,36 +169,57 @@ public class AggregationController : ControllerBase
             
             if (resolved.Count == 0)
             {
-                // Auto-select ONLY compatible chains based on wallet type
-                var defaultChains = walletType == WalletType.Solana ? DefaultSolChains : DefaultEthChains;
-                resolved.AddRange(defaultChains.Where(enabledChains.Contains));
+                // Auto-select compatible chains based on wallet types present
+                var hasEvm = accounts.Any(acc => DetectWalletType(acc) == WalletType.Ethereum);
+                var hasSolana = accounts.Any(acc => DetectWalletType(acc) == WalletType.Solana);
                 
-                _logger.LogInformation("Auto-selected {Count} default chains for {WalletType}: {Chains}", 
-                    resolved.Count, walletType, string.Join(", ", resolved));
+                if (hasEvm)
+                {
+                    resolved.AddRange(DefaultEthChains.Where(enabledChains.Contains));
+                }
+                if (hasSolana)
+                {
+                    resolved.AddRange(DefaultSolChains.Where(enabledChains.Contains));
+                }
+                
+                _logger.LogInformation("Auto-selected {Count} chains for mixed wallet types: {Chains}", 
+                    resolved.Count, string.Join(", ", resolved));
             }
 
-            // Final validation: ensure ALL resolved chains are compatible with wallet type
-            // This is critical to prevent Solana addresses being sent to EVM APIs
-            resolved = resolved.Where(c => IsValidAddressForChain(account, c)).Distinct().ToList();
+            // Final validation: ensure at least one wallet is compatible with resolved chains
+            resolved = resolved.Where(chain => accounts.Any(acc => IsValidAddressForChain(acc, chain))).Distinct().ToList();
             
             if (resolved.Count == 0) 
             {
                 return BadRequest(new { 
-                    error = $"No compatible enabled chains available for {walletType} wallet type. " +
-                           $"{(walletType == WalletType.Solana ? "Solana chain must be enabled." : "At least one EVM chain (Base, Arbitrum, Ethereum, BNB) must be enabled.")}"
+                    error = "No compatible enabled chains available for the provided wallet addresses. " +
+                           "Ensure at least one enabled chain matches your wallet type(s)."
                 });
             }
 
-            Guid jobId = resolved.Count == 1
-                ? await eth.StartAsyncAggregation(account, resolved[0])
-                : await eth.StartAsyncAggregation(account, resolved);
+            // Start aggregation (multi-wallet aware)
+            Guid jobId;
+            if (accounts.Count == 1)
+            {
+                // Single wallet (legacy path)
+                jobId = resolved.Count == 1
+                    ? await eth.StartAsyncAggregation(accounts[0], resolved[0])
+                    : await eth.StartAsyncAggregation(accounts[0], resolved);
+            }
+            else
+            {
+                // Multi-wallet (new path)
+                jobId = await eth.StartAsyncAggregationMultiWallet(accounts, resolved, walletGroupId);
+            }
 
-            var reused = await DetermineReuseAsync(account, resolved, jobId);
+            var reused = await DetermineReuseAsync(accounts[0], resolved, jobId);
 
             return Ok(new 
             { 
-                account, 
-                walletType = walletType.ToString(),
+                accounts = accounts.Count == 1 ? null : (object?)accounts,
+                account = accounts.Count == 1 ? accounts[0] : null,
+                walletGroupId, 
+                walletTypes = walletTypes.Select(t => t.ToString()).ToList(),
                 chains = resolved.Select(c => c.ToString()).ToList(), 
                 jobId, 
                 reused 
@@ -162,7 +227,7 @@ public class AggregationController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to start aggregation for account={Account}", request.Account);
+            _logger.LogError(ex, "Failed to start aggregation");
             return BadRequest(new { error = ex.Message });
         }
     }

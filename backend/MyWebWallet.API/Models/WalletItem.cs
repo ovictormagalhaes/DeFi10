@@ -98,7 +98,6 @@ public class AdditionalData
     public string? SqrtPriceX96 { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? CreatedAt { get; set; }
-    // Novo campo específico para locks/staking com data de desbloqueio em epoch seconds
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? UnlockAt { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

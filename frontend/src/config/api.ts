@@ -109,7 +109,8 @@ export const config = {
     CACHE: '/api/v1/cache',
     SUPPORTED_CHAINS: '/api/v1/wallets/supported-chains',
     REBALANCES: '/api/v1/rebalances',
-  AGGREGATIONS: '/api/v1/aggregations',
+    AGGREGATIONS: '/api/v1/aggregations',
+    WALLET_GROUPS: '/api/v1/wallet-groups',
   },
 
   // Default configuration
@@ -184,12 +185,35 @@ export const api = {
   getRebalances: (accountId: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.REBALANCES}/${accountId}`,
 
+  // Wallet Groups CRUD
+  createWalletGroup: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}`,
+  getWalletGroup: (id: string) => 
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}`,
+  updateWalletGroup: (id: string) => 
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}`,
+  deleteWalletGroup: (id: string) => 
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}`,
+
   // Aggregation jobs (pluralized backend: /api/v1/aggregations)
   // Contrato atual: POST /api/v1/aggregations  body: { account, chains? }
   startAggregation: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.AGGREGATIONS}`,
   buildStartAggregationBody: (account: string, chains?: string[] | string) => {
     const body: any = { account };
     if (chains) body.chains = Array.isArray(chains) ? chains : [chains];
+    return JSON.stringify(body);
+  },
+  // V2: Multi-wallet support with walletGroupId
+  buildStartAggregationBodyV2: (options: {
+    account?: string;
+    walletGroupId?: string;
+    chains?: string[] | string;
+  }) => {
+    const body: any = {};
+    if (options.account) body.account = options.account;
+    if (options.walletGroupId) body.walletGroupId = options.walletGroupId;
+    if (options.chains) {
+      body.chains = Array.isArray(options.chains) ? options.chains : [options.chains];
+    }
     return JSON.stringify(body);
   },
   // Helper: escolher jobId da lista retornada (prioriza Base, depois BNB, depois primeiro)

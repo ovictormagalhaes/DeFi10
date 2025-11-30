@@ -1,23 +1,29 @@
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
+using MyWebWallet.API.Services.Solana;
 
 namespace MyWebWallet.API.Services.Helpers;
 
+/// <summary>
+/// Hydrates token metadata (logos, symbols, names) using the new ITokenMetadataService
+/// </summary>
 public class TokenHydrationHelper
 {
-    private readonly ITokenLogoService _tokenLogoService;
+    private readonly ITokenMetadataService _metadataService;
 
-    public TokenHydrationHelper(ITokenLogoService tokenLogoService)
+    public TokenHydrationHelper(ITokenMetadataService metadataService)
     {
-        _tokenLogoService = tokenLogoService;
+        _metadataService = metadataService;
     }
 
+    /// <summary>
+    /// Hydrates token logos and metadata for all tokens in wallet items
+    /// </summary>
     public async Task<Dictionary<string, string?>> HydrateTokenLogosAsync(
         IEnumerable<WalletItem> walletItems, 
         Chain chain, 
         Dictionary<string, string>? incomingLogos = null)
     {
-        // 1. Extract all unique token addresses from wallet items
         var uniqueTokens = ExtractUniqueTokens(walletItems);
         
         if (!uniqueTokens.Any())
@@ -25,77 +31,144 @@ public class TokenHydrationHelper
 
         Console.WriteLine($"DEBUG: TokenHydrationHelper: Found {uniqueTokens.Count} unique tokens for hydration on {chain}");
 
-        // 2. Batch get existing logos from our database
-        var existingLogos = await _tokenLogoService.GetTokenLogosAsync(uniqueTokens, chain);
+        var existingLogos = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        var tokensToStore = new Dictionary<string, TokenMetadata>();
 
-        // 3. Extract logos that are already present in the tokens (from APIs)
+        // Fetch metadata from cache/CMC for each token
+        foreach (var tokenAddress in uniqueTokens)
+        {
+            var normalizedAddress = tokenAddress.ToLowerInvariant();
+            
+            // Try to get from metadata service
+            var metadata = await _metadataService.GetTokenMetadataAsync(normalizedAddress);
+            
+            if (metadata?.LogoUrl != null)
+            {
+                existingLogos[normalizedAddress] = metadata.LogoUrl;
+            }
+            else
+            {
+                // Check if incoming logos has this token
+                if (incomingLogos?.TryGetValue(normalizedAddress, out var incomingLogo) == true && !string.IsNullOrEmpty(incomingLogo))
+                {
+                    existingLogos[normalizedAddress] = incomingLogo;
+                    
+                    // Store new metadata
+                    tokensToStore[normalizedAddress] = new TokenMetadata
+                    {
+                        Symbol = string.Empty,
+                        Name = string.Empty,
+                        LogoUrl = incomingLogo
+                    };
+                }
+            }
+        }
+
+        // Extract logos from tokens themselves
         var logosFromTokens = ExtractLogosFromTokens(walletItems);
-
-        // 4. Identify tokens that need logos to be stored (from incoming data or token data)
-        var tokensToStore = new Dictionary<string, string>();
-        
-        // First, check logos from the tokens themselves
         foreach (var kvp in logosFromTokens)
         {
             var normalizedAddress = kvp.Key.ToLowerInvariant();
             
-            // Only store if we don't already have this token and token has a logo
-            if (!existingLogos.ContainsKey(normalizedAddress) || 
-                string.IsNullOrEmpty(existingLogos[normalizedAddress]))
+            if (!existingLogos.ContainsKey(normalizedAddress) && !string.IsNullOrEmpty(kvp.Value))
             {
-                if (!string.IsNullOrEmpty(kvp.Value))
-                {
-                    tokensToStore[normalizedAddress] = kvp.Value;
-                    existingLogos[normalizedAddress] = kvp.Value; // Update local result
-                }
-            }
-        }
-
-        // Then, check incoming logos (if provided)
-        if (incomingLogos != null)
-        {
-            foreach (var kvp in incomingLogos)
-            {
-                var normalizedAddress = kvp.Key.ToLowerInvariant();
+                existingLogos[normalizedAddress] = kvp.Value;
                 
-                // Only store if we don't already have this token and incoming has a logo
-                if (!existingLogos.ContainsKey(normalizedAddress) || 
-                    string.IsNullOrEmpty(existingLogos[normalizedAddress]))
+                tokensToStore[normalizedAddress] = new TokenMetadata
                 {
-                    if (!string.IsNullOrEmpty(kvp.Value))
-                    {
-                        tokensToStore[normalizedAddress] = kvp.Value;
-                        existingLogos[normalizedAddress] = kvp.Value; // Update local result
-                    }
-                }
+                    Symbol = string.Empty,
+                    Name = string.Empty,
+                    LogoUrl = kvp.Value
+                };
             }
         }
 
-        // 5. Batch store new logos
+        // Store new metadata
+        foreach (var kvp in tokensToStore)
+        {
+            await _metadataService.SetTokenMetadataAsync(kvp.Key, kvp.Value);
+        }
+
         if (tokensToStore.Any())
         {
-            await _tokenLogoService.SetTokenLogosAsync(tokensToStore, chain);
-            Console.WriteLine($"DEBUG: TokenHydrationHelper: Stored {tokensToStore.Count} new token logos on {chain}");
+            Console.WriteLine($"DEBUG: TokenHydrationHelper: Stored {tokensToStore.Count} new token metadata entries on {chain}");
         }
 
         return existingLogos;
     }
 
+    /// <summary>
+    /// Applies logos to wallet items based on metadata lookup
+    /// </summary>
     public void ApplyTokenLogosToWalletItems(IEnumerable<WalletItem> walletItems, Dictionary<string, string?> tokenLogos)
     {
+        // Build symbol → logo mapping for fallback lookup
+        var symbolToLogo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        
+        // Collect all known logos by symbol
+        var allTokens = walletItems.SelectMany(wi => wi.Position?.Tokens ?? Enumerable.Empty<Token>()).ToList();
+        
+        foreach (var token in allTokens)
+        {
+            if (string.IsNullOrEmpty(token.Symbol)) continue;
+            
+            // If we have logo by address, use it for symbol mapping
+            if (!string.IsNullOrEmpty(token.ContractAddress))
+            {
+                var normalizedAddress = token.ContractAddress.ToLowerInvariant();
+                if (tokenLogos.TryGetValue(normalizedAddress, out var logoByAddress) && !string.IsNullOrEmpty(logoByAddress))
+                {
+                    var normalizedSymbol = token.Symbol.ToUpperInvariant();
+                    if (!symbolToLogo.ContainsKey(normalizedSymbol))
+                    {
+                        symbolToLogo[normalizedSymbol] = logoByAddress;
+                    }
+                }
+            }
+            
+            // If token already has a logo, add to symbol mapping
+            if (!string.IsNullOrEmpty(token.Logo))
+            {
+                var normalizedSymbol = token.Symbol.ToUpperInvariant();
+                if (!symbolToLogo.ContainsKey(normalizedSymbol))
+                {
+                    symbolToLogo[normalizedSymbol] = token.Logo;
+                }
+            }
+        }
+
+        // Apply logos with fallback
         foreach (var walletItem in walletItems)
         {
             if (walletItem.Position?.Tokens != null)
             {
                 foreach (var token in walletItem.Position.Tokens)
                 {
-                    // Only apply logo if token doesn't already have one and we have a logo in our database
-                    if (!string.IsNullOrEmpty(token.ContractAddress) && string.IsNullOrEmpty(token.Logo))
+                    // Skip if token already has a logo
+                    if (!string.IsNullOrEmpty(token.Logo)) continue;
+                    
+                    string? logoUrl = null;
+                    
+                    // Strategy 1: Try by contract address (primary)
+                    if (!string.IsNullOrEmpty(token.ContractAddress))
                     {
                         var normalizedAddress = token.ContractAddress.ToLowerInvariant();
-                        if (tokenLogos.TryGetValue(normalizedAddress, out var logoUrl) && !string.IsNullOrEmpty(logoUrl))
+                        if (tokenLogos.TryGetValue(normalizedAddress, out logoUrl) && !string.IsNullOrEmpty(logoUrl))
                         {
                             token.Logo = logoUrl;
+                            continue;
+                        }
+                    }
+                    
+                    // Strategy 2: Fallback by symbol (secondary)
+                    if (!string.IsNullOrEmpty(token.Symbol))
+                    {
+                        var normalizedSymbol = token.Symbol.ToUpperInvariant();
+                        if (symbolToLogo.TryGetValue(normalizedSymbol, out logoUrl) && !string.IsNullOrEmpty(logoUrl))
+                        {
+                            token.Logo = logoUrl;
+                            Console.WriteLine($"DEBUG: TokenHydrationHelper: Applied logo by symbol fallback - {token.Symbol}");
+                            continue;
                         }
                     }
                 }
@@ -137,7 +210,6 @@ public class TokenHydrationHelper
                     if (!string.IsNullOrEmpty(token.ContractAddress) && !string.IsNullOrEmpty(token.Logo))
                     {
                         var normalizedAddress = token.ContractAddress.ToLowerInvariant();
-                        // Only add if we don't already have this token (first occurrence wins)
                         if (!tokenLogos.ContainsKey(normalizedAddress))
                         {
                             tokenLogos[normalizedAddress] = token.Logo;

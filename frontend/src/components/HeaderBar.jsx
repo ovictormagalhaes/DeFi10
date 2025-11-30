@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 
 import { useMaskValues } from '../context/MaskValuesContext';
 import { useTheme } from '../context/ThemeProvider.tsx';
+import { useWalletGroups } from '../hooks/useWalletGroups';
+import { formatAddress } from '../types/wallet-groups';
 
 /**
  * HeaderBar layout:
@@ -18,12 +20,18 @@ export default function HeaderBar({
   copyToClipboard,
   searchAddress,
   setSearchAddress,
+  onManageGroups, // NEW: callback to open wallet groups modal
+  selectedWalletGroupId, // NEW: currently selected wallet group
+  onSelectWalletGroup, // NEW: callback when group is selected
 }) {
   const { theme, mode, toggleTheme } = useTheme();
   const { maskValues, setMaskValues } = useMaskValues();
+  const { groups, getGroup } = useWalletGroups();
   const [walletOpen, setWalletOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const dropdownRef = useRef(null);
+
+  const selectedGroup = selectedWalletGroupId ? getGroup(selectedWalletGroupId) : null;
 
   useEffect(() => {
     const handler = (e) => {
@@ -165,6 +173,48 @@ export default function HeaderBar({
 
   {/* Right Icons / Account (Area 3) */}
   <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifySelf: isVeryNarrow ? 'end' : 'stretch', justifyContent: isVeryNarrow ? 'flex-end' : 'flex-end', minWidth: 0 }}>
+        {/* Wallet Group Chip */}
+        {selectedGroup && !isVeryNarrow && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: theme.bgPanel,
+              border: `1px solid ${theme.border}`,
+              padding: '4px 10px',
+              borderRadius: 12,
+              fontSize: 12,
+              color: theme.textSecondary,
+              cursor: 'pointer',
+            }}
+            onClick={() => onManageGroups?.()}
+            title={`Wallet Group: ${selectedGroup.displayName || 'Unnamed'}\n${selectedGroup.wallets.length} wallet(s)\nClick to manage`}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={theme.accent || theme.primary}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <span style={{ fontWeight: 500, color: theme.textPrimary }}>
+              {selectedGroup.displayName || 'Group'}
+            </span>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>
+              ({selectedGroup.wallets.length})
+            </span>
+          </div>
+        )}
+
         {/* Mobile hamburger (shows search overlay) */}
         {isVeryNarrow && (
           <IconButton
@@ -400,6 +450,77 @@ export default function HeaderBar({
                       </svg>
                     }
                   />
+                  {/* Divider */}
+                  <div style={{ height: 1, background: theme.border, margin: '4px 0' }} />
+                  {/* Wallet Groups Management */}
+                  <DropdownItem
+                    onClick={() => {
+                      onManageGroups?.();
+                      setWalletOpen(false);
+                    }}
+                    label="Manage Groups"
+                    icon={
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={theme.textPrimary}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                    }
+                  />
+                  {/* List available groups for quick selection */}
+                  {groups.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 10, color: theme.textSecondary, padding: '6px 12px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Quick Select
+                      </div>
+                      {groups.slice(0, 3).map(group => (
+                        <DropdownItem
+                          key={group.id}
+                          onClick={() => {
+                            onSelectWalletGroup?.(group.id);
+                            setWalletOpen(false);
+                          }}
+                          label={
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span>{group.displayName || 'Unnamed Group'}</span>
+                              <span style={{ fontSize: 10, opacity: 0.6 }}>
+                                {group.wallets.length} wallet(s)
+                              </span>
+                            </span>
+                          }
+                          icon={
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill={selectedWalletGroupId === group.id ? theme.accent || theme.primary : 'none'}
+                              stroke={selectedWalletGroupId === group.id ? theme.accent || theme.primary : theme.textSecondary}
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              {selectedWalletGroupId === group.id && (
+                                <path d="m9 12 2 2 4-4" />
+                              )}
+                            </svg>
+                          }
+                        />
+                      ))}
+                    </>
+                  )}
+                  {/* Divider */}
+                  <div style={{ height: 1, background: theme.border, margin: '4px 0' }} />
                   <DropdownItem
                     onClick={() => {
                       onDisconnect?.();
@@ -426,29 +547,100 @@ export default function HeaderBar({
                   />
                 </>
               ) : (
-                <DropdownItem
-                  onClick={() => {
-                    onConnect?.();
-                    setWalletOpen(false);
-                  }}
-                  label="Connect Wallet"
-                  icon={
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke={theme.textPrimary}
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M3 7v10a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V7" />
-                      <path d="M3 7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4" />
-                      <path d="M7 7h10" />
-                    </svg>
-                  }
-                />
+                <>
+                  <DropdownItem
+                    onClick={() => {
+                      onConnect?.();
+                      setWalletOpen(false);
+                    }}
+                    label="Connect Wallet"
+                    icon={
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={theme.textPrimary}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 7v10a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V7" />
+                        <path d="M3 7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4" />
+                        <path d="M7 7h10" />
+                      </svg>
+                    }
+                  />
+                  {/* Divider */}
+                  <div style={{ height: 1, background: theme.border, margin: '4px 0' }} />
+                  {/* Wallet Groups - available even without connection */}
+                  <DropdownItem
+                    onClick={() => {
+                      onManageGroups?.();
+                      setWalletOpen(false);
+                    }}
+                    label="Manage Groups"
+                    icon={
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={theme.textPrimary}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                    }
+                  />
+                  {/* List available groups for quick selection */}
+                  {groups.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 10, color: theme.textSecondary, padding: '6px 12px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Select Group
+                      </div>
+                      {groups.slice(0, 3).map(group => (
+                        <DropdownItem
+                          key={group.id}
+                          onClick={() => {
+                            onSelectWalletGroup?.(group.id);
+                            setWalletOpen(false);
+                          }}
+                          label={
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span>{group.displayName || 'Unnamed Group'}</span>
+                              <span style={{ fontSize: 10, opacity: 0.6 }}>
+                                {group.wallets.length} wallet(s)
+                              </span>
+                            </span>
+                          }
+                          icon={
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill={selectedWalletGroupId === group.id ? theme.accent || theme.primary : 'none'}
+                              stroke={selectedWalletGroupId === group.id ? theme.accent || theme.primary : theme.textSecondary}
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              {selectedWalletGroupId === group.id && (
+                                <path d="m9 12 2 2 4-4" />
+                              )}
+                            </svg>
+                          }
+                        />
+                      ))}
+                    </>
+                  )}
+                </>
               )}
             </div>
           )}

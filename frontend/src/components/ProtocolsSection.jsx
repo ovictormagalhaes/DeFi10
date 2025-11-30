@@ -77,10 +77,13 @@ const ProtocolsSection = ({
         
         // Classify positions by type using label/name heuristics
         const liqPositionsOriginal = protocolGroup.positions.filter((p) => {
+          // Check type first for explicit categorization
+          if (p.type === 'LiquidityPool') return true;
+          
           const lbl = (p.position?.label || p.position?.name || p.label || '')
             .toString()
             .toLowerCase();
-          return lbl.includes('liquidity');
+          return lbl.includes('liquidity') || lbl.includes('pool');
         });
         const stakingPositionsOriginal = protocolGroup.positions.filter((p) => {
           const lbl = (p.position?.label || p.position?.name || p.label || '')
@@ -112,10 +115,15 @@ const ProtocolsSection = ({
         
         console.log('Protocol:', protocolGroup.protocol.name, 'depositingPositionsOriginal:', depositingPositionsOriginal);
         const lendingPositionsOriginal = protocolGroup.positions.filter((p) => {
+          // Exclude positions already classified
+          if (p.type === 'LiquidityPool') return false;
+          if (p.type === 'Locking') return false;
+          if (p.type === 'Depositing') return false;
+          
           const lbl = (p.position?.label || p.position?.name || p.label || '')
             .toString()
             .toLowerCase();
-          return !lbl.includes('liquidity') && !lbl.includes('staking') && !lbl.includes('lock') && !lbl.includes('vesting') && !lbl.includes('deposit') && p.type !== 'Locking' && p.type !== 'Depositing';
+          return !lbl.includes('liquidity') && !lbl.includes('pool') && !lbl.includes('staking') && !lbl.includes('lock') && !lbl.includes('vesting') && !lbl.includes('deposit');
         });
 
         // Helper to filter tokens inside a position according to selected chains.

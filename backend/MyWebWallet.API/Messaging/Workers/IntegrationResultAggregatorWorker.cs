@@ -14,6 +14,7 @@ using MyWebWallet.API.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using MyWebWallet.API.Services.Helpers;
 using MyWebWallet.API.Aggregation; // added for IPriceService
+using MyWebWallet.API.Services.Solana; // added for ITokenMetadataService
 using MyWebWallet.API.Services.Filters; // Add for ProtocolTokenFilter
 
 namespace MyWebWallet.API.Messaging.Workers;
@@ -62,6 +63,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         public int TotalUniswapPositions { get; set; }
         public int TotalPendleLocks { get; set; }
         public int TotalPendleDeposits { get; set; }
+        public int TotalRaydiumPositions { get; set; } // Raydium CLMM pools
         public HashSet<string> ProvidersCompleted { get; set; } = new(); // store provider[:chain]
     }
 
@@ -89,16 +91,28 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             chainEnum = ChainEnum.Base;
         }
 
-        _logger.LogInformation("Aggregating result JobId={JobId} Provider={Provider} Chain={Chain} Status={Status}", result.JobId, result.Provider, chainEnum, result.Status);
+        _logger.LogInformation("Aggregating result JobId={JobId} Provider={Provider} Chain={Chain} Account={Account} Status={Status}", 
+            result.JobId, result.Provider, chainEnum, result.Account, result.Status);
 
         var db = _redis.GetDatabase();
         var jobId = result.JobId;
         var providerSlug = ProviderSlug(result.Provider);
         var providerChainKey = string.IsNullOrWhiteSpace(chainStr) ? providerSlug : $"{providerSlug}:{chainStr.ToLowerInvariant()}";
+        var account = result.Account;
 
         var metaKey = $"wallet:agg:{jobId}:meta";
+        
+        // Check if this is a multi-wallet job
+        var accountsField = await db.HashGetAsync(metaKey, "accounts");
+        bool isMultiWallet = accountsField.HasValue && accountsField.ToString().Contains(',');
+
         var pendingKey = $"wallet:agg:{jobId}:pending";
-        var resultKey = $"wallet:agg:{jobId}:result:{providerSlug}:{chainEnum.ToString().ToLowerInvariant()}"; // unique per provider+chain
+        
+        // Multi-wallet: result key includes wallet
+        var resultKey = isMultiWallet 
+            ? $"wallet:agg:{jobId}:result:{providerSlug}:{chainEnum.ToString().ToLowerInvariant()}:{account.ToLowerInvariant()}"
+            : $"wallet:agg:{jobId}:result:{providerSlug}:{chainEnum.ToString().ToLowerInvariant()}"; // legacy single wallet
+        
         var summaryKey = $"wallet:agg:{jobId}:summary";
         var consolidatedKey = $"wallet:agg:{jobId}:wallet";
 
@@ -110,7 +124,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
         if (await db.KeyExistsAsync(resultKey))
         {
-            _logger.LogInformation("Result already processed for JobId={JobId} Provider={Provider} Chain={Chain}", jobId, result.Provider, chainEnum);
+            _logger.LogInformation("Result already processed for JobId={JobId} Provider={Provider} Chain={Chain} Account={Account}", 
+                jobId, result.Provider, chainEnum, account);
             return;
         }
 
@@ -118,9 +133,13 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         var ttl = await db.KeyTimeToLiveAsync(metaKey) ?? TimeSpan.FromMinutes(15);
         await db.StringSetAsync(resultKey, json, ttl);
 
-        // Remove pending entry (multi-chain aware). Try provider:chain first then legacy provider slug.
-        var removed = await db.SetRemoveAsync(pendingKey, providerChainKey);
-        if (!removed)
+        // Remove pending entry (multi-wallet aware). Try provider:chain:wallet first then legacy formats.
+        var pendingEntry = isMultiWallet 
+            ? $"{providerSlug}:{chainStr?.ToLowerInvariant()}:{account.ToLowerInvariant()}"
+            : providerChainKey;
+        
+        var removed = await db.SetRemoveAsync(pendingKey, pendingEntry);
+        if (!removed && !isMultiWallet)
         {
             await db.SetRemoveAsync(pendingKey, providerSlug); // backwards compatibility
         }
@@ -139,176 +158,360 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         // Incremental consolidation into wallet items (map + health factor enrichment)
         try
         {
-            var consolidated = new ConsolidatedWallet();
-            var existingWalletJson = await db.StringGetAsync(consolidatedKey);
-            if (existingWalletJson.HasValue)
+            // Multi-wallet: consolidate per wallet
+            if (isMultiWallet)
             {
-                try { consolidated = JsonSerializer.Deserialize<ConsolidatedWallet>(existingWalletJson!, _jsonOptions) ?? new ConsolidatedWallet(); } catch { consolidated = new ConsolidatedWallet(); }
-            }
-
-            bool isAaveProvider = result.Provider is IntegrationProvider.AaveSupplies or IntegrationProvider.AaveBorrows;
-
-            if (result.Status == IntegrationStatus.Success && result.Payload != null)
-            {
-                using var scope = _rootProvider.CreateScope();
-                var mapperFactory = scope.ServiceProvider.GetRequiredService<IWalletItemMapperFactory>();
-                List<WalletItem> newlyMapped = new();
-                try
+                // Format: wallet:agg:{jobId}:wallet:{account}
+                var walletConsolidatedKey = $"wallet:agg:{jobId}:wallet:{account.ToLowerInvariant()}";
+                
+                var consolidated = new ConsolidatedWallet();
+                var existingWalletJson = await db.StringGetAsync(walletConsolidatedKey);
+                if (existingWalletJson.HasValue)
                 {
-                    newlyMapped = await MapPayloadAsync(result, mapperFactory, chainEnum);
+                    try { consolidated = JsonSerializer.Deserialize<ConsolidatedWallet>(existingWalletJson!, _jsonOptions) ?? new ConsolidatedWallet(); } 
+                    catch { consolidated = new ConsolidatedWallet(); }
+                }
 
-                    // Deduplicate: remove protocol wrapper tokens from Moralis Wallet
-                    if (newlyMapped.Count > 0 && result.Provider == IntegrationProvider.MoralisTokens)
+                bool isAaveProvider = result.Provider is IntegrationProvider.AaveSupplies or IntegrationProvider.AaveBorrows;
+
+                if (result.Status == IntegrationStatus.Success && result.Payload != null)
+                {
+                    using var scope = _rootProvider.CreateScope();
+                    var mapperFactory = scope.ServiceProvider.GetRequiredService<IWalletItemMapperFactory>();
+                    List<WalletItem> newlyMapped = new();
+                    try
                     {
-                        // 1. Remove Aave-specific wrappers using IAaveeService
-                        var aaveSvc = scope.ServiceProvider.GetRequiredService<IAaveeService>();
-                        var wrappers = await aaveSvc.GetWrapperTokenAddressesAsync(chainEnum);
-                        if (wrappers.Count > 0)
+                        newlyMapped = await MapPayloadAsync(result, mapperFactory, chainEnum);
+
+                        // Deduplicate: remove protocol wrapper tokens from Moralis Wallet
+                        if (newlyMapped.Count > 0 && result.Provider == IntegrationProvider.MoralisTokens)
                         {
-                            int aaveRemoved = 0;
+                            // 1. Remove Aave-specific wrappers using IAaveeService
+                            var aaveSvc = scope.ServiceProvider.GetRequiredService<IAaveeService>();
+                            var wrappers = await aaveSvc.GetWrapperTokenAddressesAsync(chainEnum);
+                            if (wrappers.Count > 0)
+                            {
+                                int aaveRemoved = 0;
+                                foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
+                                {
+                                    var before = wi.Position.Tokens.Count;
+                                    wi.Position.Tokens = wi.Position.Tokens
+                                        .Where(t => string.IsNullOrEmpty(t?.ContractAddress) || !wrappers.Contains(t.ContractAddress))
+                                        .ToList();
+                                    aaveRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
+                                }
+                                if (aaveRemoved > 0)
+                                    _logger.LogInformation("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain} account={Account}", 
+                                        aaveRemoved, chainEnum, account);
+                            }
+                            
+                            // 2. Remove general protocol tokens using ProtocolTokenFilter (pattern-based)
+                            int protocolRemoved = 0;
                             foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
                             {
                                 var before = wi.Position.Tokens.Count;
                                 wi.Position.Tokens = wi.Position.Tokens
-                                    .Where(t => string.IsNullOrEmpty(t?.ContractAddress) || !wrappers.Contains(t.ContractAddress))
+                                    .Where(t => !ProtocolTokenFilter.ShouldFilterToken(t?.Symbol, t?.ContractAddress))
                                     .ToList();
-                                aaveRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
+                                protocolRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
                             }
-                            if (aaveRemoved > 0)
-                                _logger.LogInformation("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain}", aaveRemoved, chainEnum);
+                            if (protocolRemoved > 0)
+                                _logger.LogInformation("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain} account={Account}", 
+                                    protocolRemoved, chainEnum, account);
+                            
+                            // Remove empty wallet items after filtering
+                            newlyMapped.RemoveAll(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && (i.Position?.Tokens == null || i.Position.Tokens.Count == 0));
                         }
-                        
-                        // 2. Remove general protocol tokens using ProtocolTokenFilter (pattern-based)
-                        int protocolRemoved = 0;
-                        foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
+
+                        if (newlyMapped.Count > 0)
                         {
-                            var before = wi.Position.Tokens.Count;
-                            wi.Position.Tokens = wi.Position.Tokens
-                                .Where(t => !ProtocolTokenFilter.ShouldFilterToken(t?.Symbol, t?.ContractAddress))
-                                .ToList();
-                            protocolRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
+                            // 1. Logos via ITokenMetadataService
+                            var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
+                            var hydrationHelper = new TokenHydrationHelper(metadataService);
+                            var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
+                            hydrationHelper.ApplyTokenLogosToWalletItems(newlyMapped, logos);
+
+                            // 2. Prices (novo passo)
+                            try
+                            {
+                                var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
+                                var prices = await priceService.HydratePricesAsync(newlyMapped, chainEnum, ct);
+                                if (prices.Count > 0)
+                                {
+                                    int applied = 0;
+                                    foreach (var wi in newlyMapped)
+                                    {
+                                        if (wi.Position?.Tokens == null) continue;
+                                        foreach (var tk in wi.Position.Tokens)
+                                        {
+                                            if (tk?.Financials == null) continue;
+                                            if (tk.Financials.Price is > 0) continue; // already priced
+                                            var key = BuildPriceKey(tk);
+                                            if (string.IsNullOrEmpty(key)) continue;
+                                            if (prices.TryGetValue(key, out var price) && price > 0)
+                                            {
+                                                tk.Financials.Price = price;
+                                                var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
+                                                if (formatted.HasValue)
+                                                    tk.Financials.TotalPrice = formatted.Value * price;
+                                                applied++;
+                                            }
+                                        }
+                                    }
+                                    if (applied > 0)
+                                        _logger.LogDebug("Applied {Applied} prices (initial mapping) jobId={JobId} chain={Chain} account={Account}", 
+                                            applied, jobId, chainEnum, account);
+                                }
+                            }
+                            catch (Exception pxEx)
+                            {
+                                _logger.LogWarning(pxEx, "Price hydration failed (initial) jobId={JobId} chain={Chain} account={Account}", 
+                                    jobId, chainEnum, account);
+                            }
                         }
-                        if (protocolRemoved > 0)
-                            _logger.LogInformation("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain}", protocolRemoved, chainEnum);
-                        
-                        // Remove empty wallet items after filtering
-                        newlyMapped.RemoveAll(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && (i.Position?.Tokens == null || i.Position.Tokens.Count == 0));
                     }
-
-                    if (newlyMapped.Count > 0)
+                    catch (Exception ex)
                     {
-                        // 1. Logos
-                        var tokenLogoService = scope.ServiceProvider.GetRequiredService<ITokenLogoService>();
-                        var hydrationHelper = new TokenHydrationHelper(tokenLogoService);
-                        var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
-                        hydrationHelper.ApplyTokenLogosToWalletItems(newlyMapped, logos);
+                        _logger.LogWarning(ex, "Mapping payload failed JobId={JobId} Provider={Provider} Chain={Chain} Account={Account}", 
+                            jobId, result.Provider, chainEnum, account);
+                    }
+                    foreach (var item in newlyMapped)
+                    {
+                        consolidated.Items.Add(item);
+                    }
+                    consolidated.Providers.Add($"{providerSlug}:{chainStr?.ToLowerInvariant()}:{account.ToLowerInvariant()}");
+                }
 
-                        // 2. Prices (novo passo)
+                // If both Aave supplies & borrows present for this chain + wallet, compute HealthFactor
+                if (isAaveProvider)
+                {
+                    bool hasSupplies = consolidated.Providers.Any(p => p.Contains("aavesupplies", StringComparison.OrdinalIgnoreCase));
+                    bool hasBorrows = consolidated.Providers.Any(p => p.Contains("aaveborrows", StringComparison.OrdinalIgnoreCase));
+                    if (hasSupplies && hasBorrows)
+                    {
                         try
                         {
-                            var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
-                            var prices = await priceService.HydratePricesAsync(newlyMapped, chainEnum, ct);
-                            if (prices.Count > 0)
+                            decimal collateralUsd = 0m;
+                            decimal debtUsd = 0m;
+                            foreach (var wi in consolidated.Items.Where(i => i.Protocol?.Id == "aave-v3" && i.Type == WalletItemType.LendingAndBorrowing))
                             {
-                                int applied = 0;
-                                foreach (var wi in newlyMapped)
+                                var label = wi.Position?.Label?.ToLowerInvariant();
+                                if (label == "supplied")
                                 {
-                                    if (wi.Position?.Tokens == null) continue;
-                                    foreach (var tk in wi.Position.Tokens)
+                                    var isCollateral = wi.AdditionalData?.IsCollateral ?? true;
+                                    if (isCollateral && wi.Position?.Tokens != null)
                                     {
-                                        if (tk?.Financials == null) continue;
-                                        if (tk.Financials.Price is > 0) continue; // already priced
-                                        var key = BuildPriceKey(tk);
-                                        if (string.IsNullOrEmpty(key)) continue;
-                                        if (prices.TryGetValue(key, out var price) && price > 0)
+                                        foreach (var t in wi.Position.Tokens)
                                         {
-                                            tk.Financials.Price = price;
-                                            var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
-                                            if (formatted.HasValue)
-                                                tk.Financials.TotalPrice = formatted.Value * price;
-                                            applied++;
+                                            var tp = t.Financials?.TotalPrice ?? 0m;
+                                            if (tp > 0) collateralUsd += tp;
                                         }
                                     }
                                 }
-                                if (applied > 0)
-                                    _logger.LogDebug("Applied {Applied} prices (initial mapping) jobId={JobId} chain={Chain}", applied, jobId, chainEnum);
+                                else if (label == "borrowed")
+                                {
+                                    if (wi.Position?.Tokens != null)
+                                    {
+                                        foreach (var t in wi.Position.Tokens)
+                                        {
+                                            var tp = t.Financials?.TotalPrice ?? 0m;
+                                            if (tp > 0) debtUsd += tp;
+                                        }
+                                    }
+                                }
                             }
+                            const decimal assumedLT = 0.8m;
+                            decimal healthFactor = debtUsd == 0m ? decimal.MaxValue : (collateralUsd * assumedLT) / debtUsd;
+                            foreach (var wi in consolidated.Items.Where(i => i.Protocol?.Id == "aave-v3" && i.Type == WalletItemType.LendingAndBorrowing))
+                            {
+                                wi.AdditionalData ??= new AdditionalData();
+                                wi.AdditionalData.HealthFactor = healthFactor;
+                            }
+                            _logger.LogDebug("Computed health factor {HF} for account={Account} chain={Chain}", healthFactor, account, chainEnum);
                         }
-                        catch (Exception pxEx)
+                        catch (Exception hfEx)
                         {
-                            _logger.LogWarning(pxEx, "Price hydration failed (initial) jobId={JobId} chain={Chain}", jobId, chainEnum);
+                            _logger.LogDebug(hfEx, "HF compute failed jobId={JobId} account={Account}", jobId, account);
                         }
                     }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Mapping payload failed JobId={JobId} Provider={Provider} Chain={Chain}", jobId, result.Provider, chainEnum);
-                }
-                foreach (var item in newlyMapped)
-                {
-                    consolidated.Items.Add(item);
-                }
-                consolidated.Providers.Add(providerChainKey);
-            }
 
-            // If both Aave supplies & borrows present for this chain, compute HealthFactor (simple heuristic)
-            if (isAaveProvider)
+                await db.StringSetAsync(walletConsolidatedKey, JsonSerializer.Serialize(consolidated, _jsonOptions), ttl);
+            }
+            else
             {
-                bool hasSupplies = consolidated.Providers.Any(p => p.StartsWith("aavesupplies", StringComparison.OrdinalIgnoreCase));
-                bool hasBorrows = consolidated.Providers.Any(p => p.StartsWith("aaveborrows", StringComparison.OrdinalIgnoreCase));
-                if (hasSupplies && hasBorrows)
+                // Legacy single wallet consolidation (keep existing code)
+                var consolidated = new ConsolidatedWallet();
+                var existingWalletJson = await db.StringGetAsync(consolidatedKey);
+                if (existingWalletJson.HasValue)
                 {
+                    try { consolidated = JsonSerializer.Deserialize<ConsolidatedWallet>(existingWalletJson!, _jsonOptions) ?? new ConsolidatedWallet(); } catch { consolidated = new ConsolidatedWallet(); }
+                }
+
+                bool isAaveProvider = result.Provider is IntegrationProvider.AaveSupplies or IntegrationProvider.AaveBorrows;
+
+                if (result.Status == IntegrationStatus.Success && result.Payload != null)
+                {
+                    using var scope = _rootProvider.CreateScope();
+                    var mapperFactory = scope.ServiceProvider.GetRequiredService<IWalletItemMapperFactory>();
+                    List<WalletItem> newlyMapped = new();
                     try
                     {
-                        decimal collateralUsd = 0m;
-                        decimal debtUsd = 0m;
-                        foreach (var wi in consolidated.Items.Where(i => i.Protocol?.Id == "aave-v3" && i.Type == WalletItemType.LendingAndBorrowing))
+                        newlyMapped = await MapPayloadAsync(result, mapperFactory, chainEnum);
+
+                        // Deduplicate: remove protocol wrapper tokens from Moralis Wallet
+                        if (newlyMapped.Count > 0 && result.Provider == IntegrationProvider.MoralisTokens)
                         {
-                            var label = wi.Position?.Label?.ToLowerInvariant();
-                            if (label == "supplied")
+                            // 1. Remove Aave-specific wrappers using IAaveeService
+                            var aaveSvc = scope.ServiceProvider.GetRequiredService<IAaveeService>();
+                            var wrappers = await aaveSvc.GetWrapperTokenAddressesAsync(chainEnum);
+                            if (wrappers.Count > 0)
                             {
-                                var isCollateral = wi.AdditionalData?.IsCollateral ?? true;
-                                if (isCollateral && wi.Position?.Tokens != null)
+                                int aaveRemoved = 0;
+                                foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
                                 {
-                                    foreach (var t in wi.Position.Tokens)
-                                    {
-                                        var tp = t.Financials?.TotalPrice ?? 0m;
-                                        if (tp > 0) collateralUsd += tp;
-                                    }
+                                    var before = wi.Position.Tokens.Count;
+                                    wi.Position.Tokens = wi.Position.Tokens
+                                        .Where(t => string.IsNullOrEmpty(t?.ContractAddress) || !wrappers.Contains(t.ContractAddress))
+                                        .ToList();
+                                    aaveRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
                                 }
+                                if (aaveRemoved > 0)
+                                    _logger.LogInformation("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain}", aaveRemoved, chainEnum);
                             }
-                            else if (label == "borrowed")
+                            
+                            // 2. Remove general protocol tokens using ProtocolTokenFilter (pattern-based)
+                            int protocolRemoved = 0;
+                            foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
                             {
-                                if (wi.Position?.Tokens != null)
-                                {
-                                    foreach (var t in wi.Position.Tokens)
-                                    {
-                                        var tp = t.Financials?.TotalPrice ?? 0m;
-                                        if (tp > 0) debtUsd += tp;
-                                    }
-                                }
+                                var before = wi.Position.Tokens.Count;
+                                wi.Position.Tokens = wi.Position.Tokens
+                                    .Where(t => !ProtocolTokenFilter.ShouldFilterToken(t?.Symbol, t?.ContractAddress))
+                                    .ToList();
+                                protocolRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
                             }
+                            if (protocolRemoved > 0)
+                                _logger.LogInformation("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain}", protocolRemoved, chainEnum);
+                            
+                            // Remove empty wallet items after filtering
+                            newlyMapped.RemoveAll(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && (i.Position?.Tokens == null || i.Position.Tokens.Count == 0));
                         }
-                        const decimal assumedLT = 0.8m;
-                        decimal healthFactor = debtUsd == 0m ? decimal.MaxValue : (collateralUsd * assumedLT) / debtUsd;
-                        foreach (var wi in consolidated.Items.Where(i => i.Protocol?.Id == "aave-v3" && i.Type == WalletItemType.LendingAndBorrowing))
+
+                        if (newlyMapped.Count > 0)
                         {
-                            wi.AdditionalData ??= new AdditionalData();
-                            wi.AdditionalData.HealthFactor = healthFactor;
+                            // 1. Logos via ITokenMetadataService
+                            var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
+                            var hydrationHelper = new TokenHydrationHelper(metadataService);
+                            var logos = await hydrationHelper.HydrateTokenLogosAsync(newlyMapped, chainEnum);
+                            hydrationHelper.ApplyTokenLogosToWalletItems(newlyMapped, logos);
+
+                            // 2. Prices
+                            try
+                            {
+                                var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
+                                var prices = await priceService.HydratePricesAsync(newlyMapped, chainEnum, ct);
+                                if (prices.Count > 0)
+                                {
+                                    int applied = 0;
+                                    foreach (var wi in newlyMapped)
+                                    {
+                                        if (wi.Position?.Tokens == null) continue;
+                                        foreach (var tk in wi.Position.Tokens)
+                                        {
+                                            if (tk?.Financials == null) continue;
+                                            if (tk.Financials.Price is > 0) continue;
+                                            var key = BuildPriceKey(tk);
+                                            if (string.IsNullOrEmpty(key)) continue;
+                                            if (prices.TryGetValue(key, out var price) && price > 0)
+                                            {
+                                                tk.Financials.Price = price;
+                                                var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
+                                                if (formatted.HasValue)
+                                                    tk.Financials.TotalPrice = formatted.Value * price;
+                                                applied++;
+                                            }
+                                        }
+                                    }
+                                    if (applied > 0)
+                                        _logger.LogDebug("Applied {Applied} prices (initial mapping) jobId={JobId} chain={Chain} account={Account}", applied, jobId, chainEnum, account);
+                                }
+                            }
+                            catch (Exception pxEx)
+                            {
+                                _logger.LogWarning(pxEx, "Price hydration failed (initial) jobId={JobId} chain={Chain} account={Account}", jobId, chainEnum, account);
+                            }
                         }
                     }
-                    catch (Exception hfEx)
+                    catch (Exception ex)
                     {
-                        _logger.LogDebug(hfEx, "HF compute failed jobId={JobId}", jobId);
+                        _logger.LogWarning(ex, "Mapping payload failed JobId={JobId} Provider={Provider} Chain={Chain} Account={Account}", jobId, result.Provider, chainEnum, account);
+                    }
+                    foreach (var item in newlyMapped)
+                    {
+                        consolidated.Items.Add(item);
+                    }
+                    consolidated.Providers.Add(providerChainKey);
+                }
+
+                // If both Aave supplies & borrows present for this chain, compute HealthFactor (simple heuristic)
+                if (isAaveProvider)
+                {
+                    bool hasSupplies = consolidated.Providers.Any(p => p.StartsWith("aavesupplies", StringComparison.OrdinalIgnoreCase));
+                    bool hasBorrows = consolidated.Providers.Any(p => p.StartsWith("aaveborrows", StringComparison.OrdinalIgnoreCase));
+                    if (hasSupplies && hasBorrows)
+                    {
+                        try
+                        {
+                            decimal collateralUsd = 0m;
+                            decimal debtUsd = 0m;
+                            foreach (var wi in consolidated.Items.Where(i => i.Protocol?.Id == "aave-v3" && i.Type == WalletItemType.LendingAndBorrowing))
+                            {
+                                var label = wi.Position?.Label?.ToLowerInvariant();
+                                if (label == "supplied")
+                                {
+                                    var isCollateral = wi.AdditionalData?.IsCollateral ?? true;
+                                    if (isCollateral && wi.Position?.Tokens != null)
+                                    {
+                                        foreach (var t in wi.Position.Tokens)
+                                        {
+                                            var tp = t.Financials?.TotalPrice ?? 0m;
+                                            if (tp > 0) collateralUsd += tp;
+                                        }
+                                    }
+                                }
+                                else if (label == "borrowed")
+                                {
+                                    if (wi.Position?.Tokens != null)
+                                    {
+                                        foreach (var t in wi.Position.Tokens)
+                                        {
+                                            var tp = t.Financials?.TotalPrice ?? 0m;
+                                            if (tp > 0) debtUsd += tp;
+                                        }
+                                    }
+                                }
+                            }
+                            const decimal assumedLT = 0.8m;
+                            decimal healthFactor = debtUsd == 0m ? decimal.MaxValue : (collateralUsd * assumedLT) / debtUsd;
+                            foreach (var wi in consolidated.Items.Where(i => i.Protocol?.Id == "aave-v3" && i.Type == WalletItemType.LendingAndBorrowing))
+                            {
+                                wi.AdditionalData ??= new AdditionalData();
+                                wi.AdditionalData.HealthFactor = healthFactor;
+                            }
+                        }
+                        catch (Exception hfEx)
+                        {
+                            _logger.LogDebug(hfEx, "HF compute failed jobId={JobId}", jobId);
+                        }
                     }
                 }
-            }
 
-            await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(consolidated, _jsonOptions), ttl);
+                await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(consolidated, _jsonOptions), ttl);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed consolidating wallet jobId={JobId}", jobId);
+            _logger.LogWarning(ex, "Failed consolidating wallet jobId={JobId} account={Account}", jobId, account);
         }
 
         // Summary (counts + health flag)
@@ -360,10 +563,16 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                             summary.TotalPendleDeposits += depositsArr.GetArrayLength();
                         break;
                     
+                    case IntegrationProvider.SolanaRaydiumPositions:
+                        if (payloadEl.ValueKind == JsonValueKind.Array)
+                        {
+                            summary.TotalRaydiumPositions += payloadEl.GetArrayLength();
+                        }
+                        break;
+                    
                     // Kamino and Raydium payloads are arrays, no specific count needed for summary yet.
                     // This case prevents the "requires an element of type 'Object'" error.
                     case IntegrationProvider.SolanaKaminoPositions:
-                    case IntegrationProvider.SolanaRaydiumPositions:
                         // No action needed, payload is an empty array.
                         break;
                 }
@@ -400,103 +609,230 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             }
         }
 
-        if (remaining == 0 && !finalAlready)
+        // CRITICAL: Check if we should consolidate (either remaining=0 OR all succeeded even if timedOut before)
+        bool shouldConsolidate = (remaining == 0 && !finalAlready) || 
+                                 (succeeded == expectedTotal && failed == 0 && finalAlready);
+        
+        if (shouldConsolidate)
         {
-            try
+            // Check if consolidation already done
+            var consolidationDoneKey = $"wallet:agg:{jobId}:consolidation_done";
+            var alreadyConsolidated = await db.StringGetAsync(consolidationDoneKey);
+            
+            if (!alreadyConsolidated.HasValue)
             {
-                var consolidatedJson = await db.StringGetAsync(consolidatedKey);
-                if (consolidatedJson.HasValue)
-                {
-                    var wallet = JsonSerializer.Deserialize<ConsolidatedWallet>(consolidatedJson!, _jsonOptions) ?? new ConsolidatedWallet();
-                    if (wallet.Items.Count > 0)
-                    {
-                        // Price hydration final (agrupa por chain textual dos tokens)
-                        try
-                        {
-                            using var scope = _rootProvider.CreateScope();
-                            var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
-                            var tokensByChain = wallet.Items
-                                .SelectMany(w => w.Position?.Tokens ?? Enumerable.Empty<Token>())
-                                .GroupBy(t => (t.Chain ?? string.Empty).ToLowerInvariant());
-                            int filled = 0;
-                            foreach (var g in tokensByChain)
-                            {
-                                if (string.IsNullOrEmpty(g.Key)) continue;
-                                if (!Enum.TryParse<ChainEnum>(g.Key, true, out var parsedChain)) parsedChain = ChainEnum.Base;
-                                // Build synthetic wallet subset for this chain
-                                var subsetItems = wallet.Items.Where(w => (w.Position?.Tokens?.Any(tk => (tk.Chain ?? "").Equals(g.Key, StringComparison.OrdinalIgnoreCase)) ?? false)).ToList();
-                                if (subsetItems.Count == 0) continue;
-                                var prices = await priceService.HydratePricesAsync(subsetItems, parsedChain, ct);
-                                if (prices.Count == 0) continue;
-                                foreach (var wi in subsetItems)
-                                {
-                                    if (wi.Position?.Tokens == null) continue;
-                                    foreach (var tk in wi.Position.Tokens)
-                                    {
-                                        if (tk.Financials == null) continue;
-                                        if (tk.Financials.Price is > 0) continue;
-                                        var key = BuildPriceKey(tk);
-                                        if (prices.TryGetValue(key, out var price) && price > 0)
-                                        {
-                                            tk.Financials.Price = price;
-                                            var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
-                                            if (formatted.HasValue)
-                                                tk.Financials.TotalPrice = formatted.Value * price;
-                                            filled++;
-                                        }
-                                    }
-                                }
-                            }
-                            if (filled > 0)
-                            {
-                                await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(wallet, _jsonOptions), ttl);
-                                _logger.LogInformation("Final price hydration applied {Filled} prices jobId={JobId}", filled, jobId);
-                            }
-                        }
-                        catch (Exception finalPxEx)
-                        {
-                            _logger.LogWarning(finalPxEx, "Final price hydration failed jobId={JobId}", jobId);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "PRICE_HYDRATION_FINAL: failed jobId={JobId}", jobId);
-            }
-
-            AggregationStatus aggStatus;
-            if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
-            else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
-            else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
-            else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
-            else aggStatus = AggregationStatus.CompletedWithErrors;
-
-            var tran2 = db.CreateTransaction();
-            tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
-            await tran2.ExecuteAsync();
-
-            var accountVal = await db.HashGetAsync(metaKey, "account");
-            var chainsVal = await db.HashGetAsync(metaKey, "chains");
-            var completedEvent = new WalletAggregationCompleted(jobId, accountVal, aggStatus, DateTime.UtcNow, expectedTotal, succeeded, failed, timedOut);
-            await _publisher.PublishAsync("aggregation.completed", completedEvent, ct);
-            var doneKey = $"wallet:agg:{jobId}:done"; await db.StringSetAsync(doneKey, "1", ttl);
-
-            if (accountVal.HasValue && chainsVal.HasValue)
-            {
+                await db.StringSetAsync(consolidationDoneKey, "1", ttl);
+                
+                _logger.LogInformation("Starting final consolidation for job {JobId} (remaining={Remaining} finalAlready={FinalAlready})", 
+                    jobId, remaining, finalAlready);
+                
                 try
                 {
-                    foreach (var activeChainStr in chainsVal.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    // CRITICAL: For multi-wallet jobs, consolidate all per-wallet data into final key
+                    if (isMultiWallet)
                     {
-                        if (Enum.TryParse<ChainEnum>(activeChainStr, true, out var activeChain))
+                        // Read accounts from meta
+                        var accountsStr = await db.HashGetAsync(metaKey, "accounts");
+                        if (accountsStr.HasValue)
                         {
-                            var activeKey = $"wallet:agg:active:{accountVal.ToString().ToLowerInvariant()}:{activeChain}";
-                            var activeVal = await db.StringGetAsync(activeKey);
-                            if (activeVal.HasValue && activeVal.ToString() == jobId.ToString()) await db.KeyDeleteAsync(activeKey);
+                            var accountsList = accountsStr.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                            var consolidatedWallet = new ConsolidatedWallet();
+                            
+                            _logger.LogInformation("Multi-wallet job {JobId} final consolidation: {Count} wallets", jobId, accountsList.Count);
+                            
+                            // Read per-wallet data and merge into final
+                            foreach (var acc in accountsList)
+                            {
+                                var walletConsolidatedKey = $"wallet:agg:{jobId}:wallet:{acc.ToLowerInvariant()}";
+                                var walletJson = await db.StringGetAsync(walletConsolidatedKey);
+                                if (walletJson.HasValue)
+                                {
+                                    try
+                                    {
+                                        var walletData = JsonSerializer.Deserialize<ConsolidatedWallet>(walletJson!, _jsonOptions);
+                                        if (walletData != null)
+                                        {
+                                            consolidatedWallet.Items.AddRange(walletData.Items);
+                                            foreach (var p in walletData.Providers)
+                                            {
+                                                consolidatedWallet.Providers.Add(p);
+                                            }
+                                            _logger.LogDebug("Multi-wallet merge: {Account} contributed {Count} items", acc, walletData.Items.Count);
+                                        }
+                                    }
+                                    catch (Exception mergeEx)
+                                    {
+                                        _logger.LogWarning(mergeEx, "Failed merging wallet {Account} for job {JobId}", acc, jobId);
+                                    }
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("No consolidated data found for wallet {Account} in job {JobId}", acc, jobId);
+                                }
+                            }
+                            
+                            // Price hydration final (same as single wallet)
+                            if (consolidatedWallet.Items.Count > 0)
+                            {
+                                try
+                                {
+                                    using var scope = _rootProvider.CreateScope();
+                                    var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
+                                    var tokensByChain = consolidatedWallet.Items
+                                        .SelectMany(w => w.Position?.Tokens ?? Enumerable.Empty<Token>())
+                                        .GroupBy(t => (t.Chain ?? string.Empty).ToLowerInvariant());
+                                    int filled = 0;
+                                    foreach (var g in tokensByChain)
+                                    {
+                                        if (string.IsNullOrEmpty(g.Key)) continue;
+                                        if (!Enum.TryParse<ChainEnum>(g.Key, true, out var parsedChain)) parsedChain = ChainEnum.Base;
+                                        var subsetItems = consolidatedWallet.Items.Where(w => (w.Position?.Tokens?.Any(tk => (tk.Chain ?? "").Equals(g.Key, StringComparison.OrdinalIgnoreCase)) ?? false)).ToList();
+                                        if (subsetItems.Count == 0) continue;
+                                        var prices = await priceService.HydratePricesAsync(subsetItems, parsedChain, ct);
+                                        if (prices.Count == 0) continue;
+                                        foreach (var wi in subsetItems)
+                                        {
+                                            if (wi.Position?.Tokens == null) continue;
+                                            foreach (var tk in wi.Position.Tokens)
+                                            {
+                                                if (tk.Financials == null) continue;
+                                                if (tk.Financials.Price is > 0) continue;
+                                                var key = BuildPriceKey(tk);
+                                                if (prices.TryGetValue(key, out var price) && price > 0)
+                                                {
+                                                    tk.Financials.Price = price;
+                                                    var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
+                                                    if (formatted.HasValue)
+                                                        tk.Financials.TotalPrice = formatted.Value * price;
+                                                    filled++;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (filled > 0)
+                                    {
+                                        _logger.LogInformation("Multi-wallet final price hydration applied {Filled} prices jobId={JobId}", filled, jobId);
+                                    }
+                                }
+                                catch (Exception finalPxEx)
+                                {
+                                    _logger.LogWarning(finalPxEx, "Multi-wallet final price hydration failed jobId={JobId}", jobId);
+                                }
+                            }
+                            
+                            // Write final consolidated key
+                            await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(consolidatedWallet, _jsonOptions), ttl);
+                            _logger.LogInformation("Multi-wallet job {JobId} final consolidation complete: {Total} items", jobId, consolidatedWallet.Items.Count);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Multi-wallet job {JobId} has no accounts field in meta", jobId);
+                        }
+                    }
+                    else
+                    {
+                        // Single wallet price hydration (existing code)
+                        var consolidatedJson = await db.StringGetAsync(consolidatedKey);
+                        if (consolidatedJson.HasValue)
+                        {
+                            var wallet = JsonSerializer.Deserialize<ConsolidatedWallet>(consolidatedJson!, _jsonOptions) ?? new ConsolidatedWallet();
+                            if (wallet.Items.Count > 0)
+                            {
+                                try
+                                {
+                                    using var scope = _rootProvider.CreateScope();
+                                    var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
+                                    var tokensByChain = wallet.Items
+                                        .SelectMany(w => w.Position?.Tokens ?? Enumerable.Empty<Token>())
+                                        .GroupBy(t => (t.Chain ?? string.Empty).ToLowerInvariant());
+                                    int filled = 0;
+                                    foreach (var g in tokensByChain)
+                                    {
+                                        if (string.IsNullOrEmpty(g.Key)) continue;
+                                        if (!Enum.TryParse<ChainEnum>(g.Key, true, out var parsedChain)) parsedChain = ChainEnum.Base;
+                                        var subsetItems = wallet.Items.Where(w => (w.Position?.Tokens?.Any(tk => (tk.Chain ?? "").Equals(g.Key, StringComparison.OrdinalIgnoreCase)) ?? false)).ToList();
+                                        if (subsetItems.Count == 0) continue;
+                                        var prices = await priceService.HydratePricesAsync(subsetItems, parsedChain, ct);
+                                        if (prices.Count == 0) continue;
+                                        foreach (var wi in subsetItems)
+                                        {
+                                            if (wi.Position?.Tokens == null) continue;
+                                            foreach (var tk in wi.Position.Tokens)
+                                            {
+                                                if (tk.Financials == null) continue;
+                                                if (tk.Financials.Price is > 0) continue;
+                                                var key = BuildPriceKey(tk);
+                                                if (prices.TryGetValue(key, out var price) && price > 0)
+                                                {
+                                                    tk.Financials.Price = price;
+                                                    var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
+                                                    if (formatted.HasValue)
+                                                        tk.Financials.TotalPrice = formatted.Value * price;
+                                                    filled++;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (filled > 0)
+                                    {
+                                        await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(wallet, _jsonOptions), ttl);
+                                        _logger.LogInformation("Final price hydration applied {Filled} prices jobId={JobId}", filled, jobId);
+                                    }
+                                }
+                                catch (Exception finalPxEx)
+                                {
+                                    _logger.LogWarning(finalPxEx, "Final price hydration failed jobId={JobId}", jobId);
+                                }
+                            }
                         }
                     }
                 }
-                catch (Exception ex) { _logger.LogWarning(ex, "Failed clearing active job keys for jobId={JobId}", jobId); }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "CONSOLIDATION_FINAL: failed jobId={JobId}", jobId);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("Skipping consolidation for job {JobId} - already done", jobId);
+            }
+
+            // Only emit completed event if not already emitted
+            if (!finalAlready)
+            {
+                AggregationStatus aggStatus;
+                if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
+                else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
+                else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
+                else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
+                else aggStatus = AggregationStatus.CompletedWithErrors;
+
+                var tran2 = db.CreateTransaction();
+                tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
+                await tran2.ExecuteAsync();
+
+                var accountVal = await db.HashGetAsync(metaKey, "account");
+                var chainsVal = await db.HashGetAsync(metaKey, "chains");
+                var completedEvent = new WalletAggregationCompleted(jobId, accountVal, aggStatus, DateTime.UtcNow, expectedTotal, succeeded, failed, timedOut);
+                await _publisher.PublishAsync("aggregation.completed", completedEvent, ct);
+                var doneKey = $"wallet:agg:{jobId}:done"; await db.StringSetAsync(doneKey, "1", ttl);
+
+                if (accountVal.HasValue && chainsVal.HasValue)
+                {
+                    try
+                    {
+                        foreach (var activeChainStr in chainsVal.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        {
+                            if (Enum.TryParse<ChainEnum>(activeChainStr, true, out var activeChain))
+                            {
+                                var activeKey = $"wallet:agg:active:{accountVal.ToString().ToLowerInvariant()}:{activeChain}";
+                                var activeVal = await db.StringGetAsync(activeKey);
+                                if (activeVal.HasValue && activeVal.ToString() == jobId.ToString()) await db.KeyDeleteAsync(activeKey);
+                            }
+                        }
+                    }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed clearing active job keys for jobId={JobId}", jobId); }
+                }
             }
         }
     }
@@ -568,8 +904,11 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             case IntegrationProvider.SolanaRaydiumPositions:
                 if (result.Payload is JsonElement raydiumEl)
                 {
-                    var positions = JsonSerializer.Deserialize<IEnumerable<RaydiumPosition>>(raydiumEl.GetRawText()) ?? Enumerable.Empty<RaydiumPosition>();
-                    list.AddRange(await factory.CreateSolanaRaydiumMapper().MapAsync(positions, chain));
+                    var positions = JsonSerializer.Deserialize<IEnumerable<RaydiumPosition>>(raydiumEl.GetRawText());
+                    if (positions != null)
+                    {
+                        list.AddRange(await factory.CreateSolanaRaydiumMapper().MapAsync(positions, chain));
+                    }
                 }
                 break;
         }

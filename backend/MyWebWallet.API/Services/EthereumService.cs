@@ -25,6 +25,7 @@ public class EthereumService : IBlockchainService
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<EthereumService> _logger;
     private readonly ISystemClock _clock;
+    private readonly IConfiguration _configuration;
 
     private readonly string _instanceId = Guid.NewGuid().ToString("N");
     private const ChainEnum DEFAULT_CHAIN = ChainEnum.Base;
@@ -55,6 +56,7 @@ public class EthereumService : IBlockchainService
         _redis = redis;
         _logger = logger;
         _clock = clock;
+        _configuration = configuration;
         var ttlSeconds = Math.Clamp(aggOptions.Value.JobTtlSeconds, 30, 1800);
         _aggregationTtl = TimeSpan.FromSeconds(ttlSeconds);
         _logger.LogInformation("EthereumService instance created id={Id} ttl={Ttl}s", _instanceId, ttlSeconds);
@@ -153,6 +155,124 @@ public class EthereumService : IBlockchainService
         return newJob;
     }
 
+    /// <summary>
+    /// Starts async aggregation for multiple wallet addresses (multi-wallet group).
+    /// Each (wallet, chain, provider) combination creates a separate integration request.
+    /// IMPORTANT: Allows mixing EVM and Solana wallets - each wallet is only paired with compatible chains.
+    /// </summary>
+    public async Task<Guid> StartAsyncAggregationMultiWallet(IReadOnlyList<string> accounts, IEnumerable<ChainEnum> chains, Guid? walletGroupId = null)
+    {
+        var accountsList = accounts.Distinct().ToList();
+        var chainsList = chains.Distinct().ToList();
+        
+        if (accountsList.Count == 0) throw new ArgumentException("No accounts provided");
+        if (chainsList.Count == 0) throw new ArgumentException("No chains provided");
+        
+        // CRITICAL FIX: Validate each address only for its compatible chains
+        // Do NOT require all addresses to be valid for all chains (allows EVM + Solana mixing)
+        foreach (var account in accountsList)
+        {
+            // Check if this wallet is compatible with AT LEAST ONE chain
+            var compatibleChains = chainsList.Where(c => IsValidAddressForChain(account, c)).ToList();
+            
+            if (compatibleChains.Count == 0)
+            {
+                throw new ArgumentException(
+                    $"Wallet '{account}' is not compatible with any of the requested chains. " +
+                    $"Requested chains: {string.Join(", ", chainsList)}"
+                );
+            }
+            
+            _logger.LogDebug(
+                "Wallet {Account} compatible with {Count}/{Total} chains: {Chains}",
+                account,
+                compatibleChains.Count,
+                chainsList.Count,
+                string.Join(", ", compatibleChains)
+            );
+        }
+        
+        foreach (var c in chainsList) ValidateChainSupport(c);
+        
+        var db = _redis.GetDatabase();
+        var jobId = Guid.NewGuid();
+        
+        // Build all (wallet, chain, provider) combinations
+        var candidate = new List<IntegrationProvider>
+        {
+            IntegrationProvider.MoralisTokens,
+            IntegrationProvider.AaveSupplies,
+            IntegrationProvider.AaveBorrows,
+            IntegrationProvider.UniswapV3Positions,
+            IntegrationProvider.PendleVePositions,
+            IntegrationProvider.PendleDeposits,
+            IntegrationProvider.SolanaTokens,
+            IntegrationProvider.SolanaKaminoPositions,
+            IntegrationProvider.SolanaRaydiumPositions, // Raydium CLMM pools
+        };
+
+        var combos = new List<(string account, ChainEnum chain, IntegrationProvider provider)>();
+        
+        // CRITICAL: Only pair wallet with compatible chains
+        foreach (var account in accountsList)
+        {
+            foreach (var chain in chainsList)
+            {
+                // Skip if wallet not compatible with this chain
+                if (!IsValidAddressForChain(account, chain))
+                {
+                    _logger.LogDebug(
+                        "Skipping wallet {Account} for chain {Chain} (incompatible address type)",
+                        account,
+                        chain
+                    );
+                    continue;
+                }
+                
+                foreach (var provider in candidate)
+                {
+                    if (ProviderSupportsChain(provider, chain))
+                    {
+                        combos.Add((account, chain, provider));
+                    }
+                }
+            }
+        }
+        
+        if (combos.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "No valid provider combinations found. " +
+                $"Wallets: {string.Join(", ", accountsList)} " +
+                $"Chains: {string.Join(", ", chainsList)}"
+            );
+        }
+        
+        _logger.LogInformation(
+            "Multi-wallet aggregation: {Wallets} wallets × {Chains} chains = {Total} requests (mixed wallet types allowed)",
+            accountsList.Count,
+            chainsList.Count,
+            combos.Count
+        );
+        
+        // Initialize meta with walletGroupId support
+        await InitializeAggregationMetaMultiWalletAsync(jobId, accountsList, combos, chainsList, walletGroupId);
+        
+        // Publish all requests
+        var now = _clock.UtcNow;
+        var tasks = combos.Select(c => PublishAsync(jobId, c.account, new List<string> { c.chain.ToString() }, c.provider, now));
+        await Task.WhenAll(tasks);
+        
+        _logger.LogInformation(
+            "Multi-wallet aggregation started job={Job} walletGroupId={GroupId} total={Total}",
+            jobId,
+            walletGroupId,
+            combos.Count
+        );
+        
+        return jobId;
+    }
+
     private static string GetActiveJobKey(string accountLower, ChainEnum chain) => RedisKeys.ActiveSingle(accountLower, chain);
     private static string GetMultiActiveJobKey(string accountLower, List<ChainEnum> chains) => RedisKeys.ActiveMulti(accountLower, chains);
 
@@ -216,6 +336,55 @@ public class EthereumService : IBlockchainService
         await db.KeyExpireAsync(pendingKey, _aggregationTtl);
     }
 
+    private async Task InitializeAggregationMetaMultiWalletAsync(
+        Guid jobId, 
+        List<string> accounts, 
+        List<(string account, ChainEnum chain, IntegrationProvider provider)> combos, 
+        List<ChainEnum> chains,
+        Guid? walletGroupId)
+    {
+        var db = _redis.GetDatabase();
+        var metaKey = RedisKeys.Meta(jobId);
+        var pendingKey = RedisKeys.Pending(jobId);
+        
+        if (await db.KeyExistsAsync(metaKey)) return;
+        
+        var now = _clock.UtcNow;
+        var hashEntries = new List<HashEntry>
+        {
+            new("accounts", string.Join(',', accounts)),
+            new("chains", string.Join(',', chains)),
+            new("created_at", now.ToString("o")),
+            new("expected_total", combos.Count),
+            new("status", AggregationStatus.Running.ToString()),
+            new("succeeded", 0),
+            new("failed", 0),
+            new("timed_out", 0),
+            new("final_emitted", 0),
+            new("processed_count", 0)
+        };
+        
+        if (walletGroupId.HasValue)
+        {
+            hashEntries.Add(new("wallet_group_id", walletGroupId.Value.ToString()));
+        }
+        
+        await db.HashSetAsync(metaKey, hashEntries.ToArray());
+        
+        // Pending set: provider:chain:wallet format
+        foreach (var combo in combos)
+        {
+            var pendingEntry = $"{ProviderSlug(combo.provider)}:{combo.chain.ToString().ToLowerInvariant()}:{combo.account.ToLowerInvariant()}";
+            await db.SetAddAsync(pendingKey, pendingEntry);
+        }
+        
+        await db.KeyExpireAsync(metaKey, _aggregationTtl);
+        await db.KeyExpireAsync(pendingKey, _aggregationTtl);
+        
+        _logger.LogDebug("Initialized multi-wallet meta jobId={JobId} accounts={Accounts} expected={Expected}", 
+            jobId, accounts.Count, combos.Count);
+    }
+
     private bool ProviderSupportsChain(IntegrationProvider provider, ChainEnum chain)
     {
         try
@@ -253,12 +422,11 @@ public class EthereumService : IBlockchainService
             IntegrationProvider.PendleVePositions,
             IntegrationProvider.PendleDeposits,
             IntegrationProvider.SolanaTokens,
-            IntegrationProvider.SolanaKaminoPositions, // REATIVADO
-            // IntegrationProvider.SolanaRaydiumPositions // Mantém Raydium desativado por enquanto
+            IntegrationProvider.SolanaKaminoPositions,
+            IntegrationProvider.SolanaRaydiumPositions, // Raydium CLMM pools
         };
         
-        // CRITICAL: Filter providers to only those that support this specific chain
-        // This prevents sending Solana addresses to EVM providers and vice versa
+        // Filter providers to only those that support this chain
         var supported = candidate.Where(p => ProviderSupportsChain(p, chain)).ToList();
         
         if (supported.Count == 0) 
@@ -284,8 +452,8 @@ public class EthereumService : IBlockchainService
             IntegrationProvider.PendleVePositions,
             IntegrationProvider.PendleDeposits,
             IntegrationProvider.SolanaTokens,
-            IntegrationProvider.SolanaKaminoPositions, // REATIVADO
-            // IntegrationProvider.SolanaRaydiumPositions // Mantém Raydium desativado por enquanto
+            IntegrationProvider.SolanaKaminoPositions,
+            IntegrationProvider.SolanaRaydiumPositions, // Raydium CLMM pools
         };
         
         // Build combos of (provider, chain) only when provider supports that chain

@@ -13,6 +13,7 @@ using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Solana;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
+using Solnet.Rpc; // added for IRpcClient registration
 
 var builder = WebApplication.CreateBuilder(args);
 var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
@@ -36,6 +37,7 @@ builder.Services.AddSingleton<IProtocolPluginRegistry, ProtocolPluginRegistry>()
 // Core services
 builder.Services.AddSingleton<ISystemClock, SystemClock>();
 builder.Services.AddSingleton<IRedisDatabase, RedisDatabaseWrapper>();
+builder.Services.AddScoped<IWalletGroupService, WalletGroupService>();
 
 // Read allowed origins from configuration (env or appsettings) e.g. Cors:AllowedOrigins:0
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
@@ -82,8 +84,21 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 });
 
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
-builder.Services.AddSingleton<ITokenLogoService, TokenLogoService>();
+// TokenLogoService descontinuado - use ITokenMetadataService
 builder.Services.AddScoped<MyWebWallet.API.Services.Helpers.TokenHydrationHelper>();
+
+// Register Solana IRpcClient (Raydium/Kamino on-chain usage)
+builder.Services.AddSingleton<IRpcClient>(sp =>
+{
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    // Preferred explicit Solana RPC URL
+    var rpcUrl = "https://api.mainnet-beta.solana.com";// cfg["Solana:RpcUrl"]
+                 //?? cfg["ChainConfiguration:Chains:Solana:Rpc:Primary"]
+                 //?? "https://api.mainnet-beta.solana.com";
+
+    var rpcClient = ClientFactory.GetClient(rpcUrl); // retorna RpcClient que implementa IRpcClient
+    return rpcClient;
+});
 
 // Blockchain / protocol services
 builder.Services.AddScoped<IBlockchainService, EthereumService>();
@@ -98,6 +113,12 @@ builder.Services.AddScoped<IPendleService, PendleService>();
 // Using Kamino REST API for better reliability and no RPC rate limits
 builder.Services.AddScoped<ISolanaService, KaminoService>();
 builder.Services.AddScoped<IMoralisSolanaService, MoralisSolanaService>();
+// Raydium: On-chain CLMM fetching only (no REST API service)
+builder.Services.AddScoped<IRaydiumOnChainService, RaydiumOnChainService>();
+// Token metadata and pricing cache service
+builder.Services.AddScoped<ITokenMetadataService, TokenMetadataService>();
+// Label enricher (runs after metadata is loaded)
+builder.Services.AddScoped<WalletItemLabelEnricher>();
 
 builder.Services.AddHttpClient<KaminoService>();
 builder.Services.AddHttpClient<MoralisSolanaService>();
@@ -163,18 +184,8 @@ catch (Exception ex)
     logger.LogWarning(ex, "Redis connection failed");
 }
 
-try
-{
-    var tokenLogoService = app.Services.GetRequiredService<ITokenLogoService>();
-    await tokenLogoService.LoadAllTokensIntoMemoryAsync();
-    var baseCount = await tokenLogoService.GetCachedTokenCountAsync(MyWebWallet.API.Models.Chain.Base);
-    var bnbCount = await tokenLogoService.GetCachedTokenCountAsync(MyWebWallet.API.Models.Chain.BNB);
-    logger.LogInformation("Token logos loaded - Base: {Base}, BNB: {BNB}", baseCount, bnbCount);
-}
-catch (Exception ex)
-{
-    logger.LogWarning(ex, "Token logo service initialization failed");
-}
+// TokenLogoService descontinuado - logos agora vêm via ITokenMetadataService
+// Metadata é carregado sob demanda com cache Redis (7 dias TTL)
 
 // Initialize Plugin System
 try

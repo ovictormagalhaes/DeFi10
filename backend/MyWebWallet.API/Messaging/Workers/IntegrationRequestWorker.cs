@@ -6,6 +6,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
+using MyWebWallet.API.Services.Solana; // Added for IRaydiumOnChainService
+using MyWebWallet.API.Services.Models; // Added for RaydiumPosition
 using MyWebWallet.API.Messaging.Extensions;
 using System.Numerics;
 using ChainEnum = MyWebWallet.API.Models.Chain;
@@ -151,15 +153,50 @@ public class IntegrationRequestWorker : BaseConsumer
                     payload = await svc.GetKaminoPositionsAsync(request.Account, chainEnum);
                     status = IntegrationStatus.Success; break;
                 }
-                // MANTÉM RAYDIUM DESATIVADO POR ENQUANTO
-                /*
                 case IntegrationProvider.SolanaRaydiumPositions:
                 {
-                    var svc = scope.ServiceProvider.GetRequiredService<ISolanaService>();
-                    payload = await svc.GetRaydiumPositionsAsync(request.Account, chainEnum);
-                    status = IntegrationStatus.Success; break;
+                    // Use on-chain service directly (no REST API available)
+                    _logger.LogInformation("[Worker] ========== Processing Raydium CLMM Positions ==========");
+                    _logger.LogInformation("[Worker] Account: {Account}, Chain: {Chain}", request.Account, chainEnum);
+                    
+                    try
+                    {
+                        var svc = scope.ServiceProvider.GetRequiredService<IRaydiumOnChainService>();
+                        _logger.LogInformation("[Worker] RaydiumOnChainService resolved successfully");
+                        
+                        payload = await svc.GetPositionsAsync(request.Account);
+                        
+                        // Log detailed payload info
+                        if (payload is IEnumerable<RaydiumPosition> positions)
+                        {
+                            var positionsList = positions.ToList();
+                            _logger.LogInformation("[Worker] Raydium returned {Count} positions", positionsList.Count);
+                            
+                            foreach (var pos in positionsList)
+                            {
+                                _logger.LogInformation("[Worker] Position: Pool={Pool}, Tokens={TokenCount}, Value={Value:C}", 
+                                    pos.Pool, pos.Tokens?.Count ?? 0, pos.TotalValueUsd);
+                            }
+                            
+                            payload = positionsList; // Ensure it's materialized
+                        }
+                        else
+                        {
+                            _logger.LogWarning("[Worker] Raydium payload is not IEnumerable<RaydiumPosition>: {Type}", 
+                                payload?.GetType().FullName ?? "null");
+                        }
+                        
+                        status = IntegrationStatus.Success;
+                        _logger.LogInformation("[Worker] Raydium processing completed successfully");
+                    }
+                    catch (Exception raydiumEx)
+                    {
+                        _logger.LogError(raydiumEx, "[Worker] Raydium processing failed: {Message}", raydiumEx.Message);
+                        throw;
+                    }
+                    
+                    break;
                 }
-                */
                 default:
                     status = IntegrationStatus.Failed;
                     errorCode = "NOT_IMPLEMENTED";

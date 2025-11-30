@@ -139,6 +139,16 @@ public sealed record WalletAggregationRequested(
     int ExpectedIntegrations
 );
 
+// Multi-wallet aggregation support (v2)
+public sealed record WalletAggregationRequestedV2(
+    Guid JobId,
+    Guid? WalletGroupId,
+    IReadOnlyList<string> Accounts,
+    IReadOnlyList<string> Chains,
+    DateTime RequestedAtUtc,
+    int ExpectedIntegrations
+);
+
 // Novos contratos para operações granulares Uniswap V3
 public sealed record UniswapV3PositionDataRequest(
     Guid JobId,
@@ -201,4 +211,17 @@ public sealed record UniswapV3TickInfoResult(
     object? UpperTickInfo,
     bool Success,
     string? ErrorMessage
+);
+
+// Multi-wallet completion (v2)
+public sealed record WalletAggregationCompletedV2(
+    Guid JobId,
+    Guid? WalletGroupId,
+    IReadOnlyList<string> Accounts,
+    AggregationStatus Status,
+    DateTime CompletedAtUtc,
+    int Total,
+    int Succeeded,
+    int Failed,
+    int TimedOut
 );

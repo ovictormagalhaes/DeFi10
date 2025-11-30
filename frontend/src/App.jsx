@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import HeaderBar from './components/HeaderBar';
+import WalletGroupModal from './components/WalletGroupModal';
 import ProtocolsSection from './components/ProtocolsSection';
 import SectionTable from './components/SectionTable';
 import { ChainIconsProvider } from './context/ChainIconsProvider';
@@ -105,6 +106,24 @@ function App() {
   const [showPulse, setShowPulse] = useState(false);
   // Hover state for account badge (to reveal disconnect inside badge)
   const [showAccountHover, setShowAccountHover] = useState(false);
+  
+  // Wallet Groups modal state
+  const [isWalletGroupModalOpen, setIsWalletGroupModalOpen] = useState(false);
+  const [selectedWalletGroupId, setSelectedWalletGroupId] = useState(null);
+  
+  // Detect wallet group from URL on mount
+  useEffect(() => {
+    const pathname = window.location.pathname;
+    // Remove leading/trailing slashes and check if it's a GUID
+    const path = pathname.replace(/^\/|\/$/g, '');
+    const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    if (path && guidRegex.test(path)) {
+      // It's a wallet group GUID
+      setSelectedWalletGroupId(path);
+    }
+  }, []);
+  
   useEffect(() => {
     if (account && !hasPulsedRef.current) {
       setShowPulse(true);
@@ -324,23 +343,37 @@ function App() {
 
   // Endereço alvo para agregação pode ser conta conectada ou endereço buscado manualmente
   const [activeAggregationAddress, setActiveAggregationAddress] = useState(null);
+  const [activeAggregationGroupId, setActiveAggregationGroupId] = useState(null);
   const [refreshNonce, setRefreshNonce] = useState(0); // força restart
 
   // Sempre que conectar wallet e não houver endereço buscado manualmente, usar a conta conectada
   useEffect(() => {
-    if (account && !searchAddress) {
+    if (account && !searchAddress && !selectedWalletGroupId) {
       setActiveAggregationAddress(account);
+      setActiveAggregationGroupId(null);
     }
-  }, [account, searchAddress]);
+  }, [account, searchAddress, selectedWalletGroupId]);
+
+  // Quando selecionar wallet group, usar o groupId para aggregation
+  useEffect(() => {
+    if (selectedWalletGroupId) {
+      setActiveAggregationGroupId(selectedWalletGroupId);
+      setActiveAggregationAddress(null); // Clear single address
+    }
+  }, [selectedWalletGroupId]);
 
   // Se usuário digita novo searchAddress mas ainda não clicou buscar, não alterar; somente quando busca (handleSearch)
 
   // Auto ensure: em conectar, buscar ou refresh (via refreshNonce)
   useEffect(() => {
-    if (!activeAggregationAddress) return;
-    ensureAggregation(activeAggregationAddress, 'Base');
+    if (activeAggregationGroupId) {
+      console.log('[Aggregation] Wallet Group selected:', activeAggregationGroupId);
+      ensureAggregation(activeAggregationGroupId, 'Base', { isGroup: true });
+    } else if (activeAggregationAddress) {
+      ensureAggregation(activeAggregationAddress, 'Base');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAggregationAddress, refreshNonce]);
+  }, [activeAggregationAddress, activeAggregationGroupId, refreshNonce]);
 
   // Expor função manual de restart (pode ser ligada a botão futuro)
   const restartAggregation = () => {
@@ -1040,6 +1073,13 @@ function App() {
           onRefresh={() => account && callAccountAPI(account, setLoading)}
           onDisconnect={disconnect}
           onConnect={connectWallet}
+          onManageGroups={() => setIsWalletGroupModalOpen(true)}
+          selectedWalletGroupId={selectedWalletGroupId}
+          onSelectWalletGroup={(groupId) => {
+            setSelectedWalletGroupId(groupId);
+            // Update URL
+            window.history.pushState({}, '', groupId ? `/${groupId}` : '/');
+          }}
           copyToClipboard={(val) => {
             try {
               navigator.clipboard.writeText(val);
@@ -1588,6 +1628,18 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Wallet Group Modal */}
+        <WalletGroupModal
+          isOpen={isWalletGroupModalOpen}
+          onClose={() => setIsWalletGroupModalOpen(false)}
+          onGroupCreated={(groupId) => {
+            // Auto-select the created group
+            setSelectedWalletGroupId(groupId);
+            window.history.pushState({}, '', `/${groupId}`);
+            setIsWalletGroupModalOpen(false);
+          }}
+        />
       </ChainIconsProvider>
     </MaskValuesProvider>
   );

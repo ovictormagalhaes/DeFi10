@@ -50,17 +50,23 @@ export function useAggregationJob() {
     currentInterval.current = 5000;
   }, []);
 
-  const start = useCallback(async (account, chains = null) => {
+  const start = useCallback(async (accountOrGroupId, chains = null, { isGroup = false } = {}) => {
     // Evita starts concorrentes
     if (ensureInFlightRef.current) return null;
     ensureInFlightRef.current = true;
     try {
       reset();
       setLoading(true);
+      
+      // Escolhe o body builder baseado em se é grupo ou endereço único
+      const body = isGroup 
+        ? api.buildStartAggregationBodyV2({ walletGroupId: accountOrGroupId })
+        : api.buildStartAggregationBody(accountOrGroupId, chains || undefined);
+      
       const res = await fetch(api.startAggregation(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: api.buildStartAggregationBody(account, chains || undefined),
+        body,
       });
       if (!res.ok) throw new Error(`Start failed: ${res.status}`);
       const data = await res.json();
@@ -71,7 +77,7 @@ export function useAggregationJob() {
       }
       if (!pickedJobId) throw new Error('Missing jobId in start response');
       setJobId(pickedJobId);
-      lastAccountRef.current = account;
+      lastAccountRef.current = isGroup ? null : accountOrGroupId;
       lastChainRef.current = null; // multi-chain ou indefinido
       attemptRef.current = 0;
       currentInterval.current = 5000; // Reset para intervalo inicial
@@ -86,15 +92,15 @@ export function useAggregationJob() {
   }, [reset]);
 
   // Tenta reutilizar job ativo antes de criar outro
-  const ensure = useCallback(async (account, _unusedChain = null, { force = false } = {}) => {
-    if (!account) return null;
+  const ensure = useCallback(async (accountOrGroupId, _unusedChain = null, { force = false, isGroup = false } = {}) => {
+    if (!accountOrGroupId) return null;
     const now = Date.now();
     // Throttle: ignora ensures repetidos em < 500ms
     if (!force && now - lastEnsureTsRef.current < 500) return jobId;
     lastEnsureTsRef.current = now;
 
     // Se já temos job para mesmo account/chain ativo e não expirado e não force -> reutiliza
-    if (!force && jobId && !expired && lastAccountRef.current === account) {
+    if (!force && jobId && !expired && !isGroup && lastAccountRef.current === accountOrGroupId) {
       return jobId;
     }
     if (ensureInFlightRef.current) return jobId; // evita corrida
@@ -104,10 +110,16 @@ export function useAggregationJob() {
       // Endpoint GET por account deprecado: sempre inicia (idempotente no backend)
       reset(); // agora sim reset global antes de criar
       setLoading(true);
+      
+      // Escolhe o body builder baseado em se é grupo ou endereço único
+      const body = isGroup 
+        ? api.buildStartAggregationBodyV2({ walletGroupId: accountOrGroupId })
+        : api.buildStartAggregationBody(accountOrGroupId);
+      
       const res = await fetch(api.startAggregation(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: api.buildStartAggregationBody(account),
+        body,
       });
       if (!res.ok) throw new Error(`Start failed: ${res.status}`);
       const data = await res.json();
@@ -117,7 +129,7 @@ export function useAggregationJob() {
       }
       if (!pickedJobId) throw new Error('Missing jobId in start response');
       setJobId(pickedJobId);
-      lastAccountRef.current = account;
+      lastAccountRef.current = isGroup ? null : accountOrGroupId;
       lastChainRef.current = null;
       attemptRef.current = 0;
       currentInterval.current = 5000; // Reset para intervalo inicial
