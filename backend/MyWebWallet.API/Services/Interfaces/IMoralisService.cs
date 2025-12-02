@@ -7,5 +7,6 @@ namespace MyWebWallet.API.Services.Interfaces
     {
         Task<MoralisGetERC20TokenResponse> GetERC20TokenBalanceAsync(string address, string chain);
         Task<MoralisGetDeFiPositionsResponse> GetDeFiPositionsAsync(string address, string chain);
+        Task<MoralisGetNFTsResponse> GetNFTsAsync(string address, string chain);
     }
 }

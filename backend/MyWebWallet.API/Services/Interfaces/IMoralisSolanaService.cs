@@ -8,5 +8,6 @@ namespace MyWebWallet.API.Services.Interfaces
     public interface IMoralisSolanaService : IChainSupportService
     {
         Task<SolanaTokenResponse> GetTokensAsync(string address, ChainEnum chain);
+        Task<SolanaNFTResponse> GetNFTsAsync(string address, ChainEnum chain);
     }
 }

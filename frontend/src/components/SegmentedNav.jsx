@@ -10,7 +10,7 @@ const TABS = [
   { key: 'strategies', label: 'Strategies' }, // maps to previous rebalancing view
 ];
 
-export default function SegmentedNav({ value, onChange, disabled }) {
+export default function SegmentedNav({ value, onChange, disabled, selectedWalletGroupId }) {
   const { theme } = useTheme();
 
   const baseBtn = {
@@ -54,27 +54,34 @@ export default function SegmentedNav({ value, onChange, disabled }) {
         boxShadow: theme.shadow || '0 1px 2px rgba(0,0,0,0.06)',
       }}
     >
-      {TABS.map((it) => (
-        <button
-          key={it.key}
-          role="tab"
-          aria-selected={value === it.key}
-          tabIndex={value === it.key ? 0 : -1}
-          onClick={() => !disabled && onChange(it.key)}
-          style={{
-            ...baseBtn,
-            ...(value === it.key ? activeStyle : {}),
-          }}
-          onMouseEnter={(e) => {
-            if (value !== it.key) e.currentTarget.style.background = theme.bgPanelHover;
-          }}
-          onMouseLeave={(e) => {
-            if (value !== it.key) e.currentTarget.style.background = 'transparent';
-          }}
-        >
-          {it.label}
-        </button>
-      ))}
+      {TABS.map((it) => {
+        // Hide Strategies tab if no wallet group is selected
+        if (it.key === 'strategies' && !selectedWalletGroupId) {
+          return null;
+        }
+
+        return (
+          <button
+            key={it.key}
+            role="tab"
+            aria-selected={value === it.key}
+            tabIndex={value === it.key ? 0 : -1}
+            onClick={() => !disabled && onChange(it.key)}
+            style={{
+              ...baseBtn,
+              ...(value === it.key ? activeStyle : {}),
+            }}
+            onMouseEnter={(e) => {
+              if (value !== it.key) e.currentTarget.style.background = theme.bgPanelHover;
+            }}
+            onMouseLeave={(e) => {
+              if (value !== it.key) e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            {it.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

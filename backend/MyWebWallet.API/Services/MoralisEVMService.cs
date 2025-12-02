@@ -73,4 +73,13 @@ public class MoralisEVMService : BaseHttpService, IMoralisService, IChainSupport
         
         return await GetAsync<MoralisGetDeFiPositionsResponse>(url, headers);
     }
+
+    public async Task<MoralisGetNFTsResponse> GetNFTsAsync(string address, string chain)
+    {
+        var apiChain = ResolveApiChain(chain);
+        var url = $"{_baseUrl}/{address}/nft?chain={apiChain}&format=decimal&media_items=false&exclude_spam=true";
+        var headers = new Dictionary<string, string> { ["X-API-Key"] = _apiKey };
+        
+        return await GetAsync<MoralisGetNFTsResponse>(url, headers);
+    }
 }

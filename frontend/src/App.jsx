@@ -1160,6 +1160,13 @@ function App() {
   // Navigation view mode (segmented)
   const [viewMode, setViewMode] = useState('overview');
 
+  // Redirect from Strategies if no wallet group is selected
+  useEffect(() => {
+    if (viewMode === 'strategies' && !selectedWalletGroupId) {
+      setViewMode('overview');
+    }
+  }, [viewMode, selectedWalletGroupId]);
+
   // Gated rebalances: só buscar quando usuário abre a view de strategies
   useEffect(() => {
     let cancelled = false;
@@ -1272,6 +1279,7 @@ function App() {
                     value={viewMode}
                     onChange={setViewMode}
                     disabled={!isAggregationReady}
+                    selectedWalletGroupId={selectedWalletGroupId}
                   />
                 </div>
                 {/* Supported Chains: only on Overview after aggregation ready */}

@@ -23,6 +23,7 @@ using MyWebWallet.API.Aggregation;
 using MyWebWallet.API.Services.Solana;
 using MyWebWallet.API.Services.Filters;
 using MyWebWallet.API.Configuration;
+using MyWebWallet.API.Messaging.Workers.TriggerRules;
 
 namespace MyWebWallet.API.Messaging.Workers;
 
@@ -37,6 +38,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
     private readonly IMessagePublisher _publisher;
     private readonly IServiceProvider _rootProvider;
     private readonly TimeSpan _walletCacheTtl;
+    private readonly JobExpansionService _jobExpansionService;
+    private readonly IEnumerable<IProtocolTriggerDetector> _triggerDetectors;
 
     protected override string QueueName => "integration.results";
 
@@ -47,7 +50,9 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         IConnectionMultiplexer redis,
         IMessagePublisher publisher,
         IServiceProvider rootProvider,
-        IOptions<AggregationOptions> aggOptions)
+        IOptions<AggregationOptions> aggOptions,
+        JobExpansionService jobExpansionService,
+        IEnumerable<IProtocolTriggerDetector> triggerDetectors)
         : base(connectionFactory, options, logger)
     {
         _logger = logger;
@@ -55,7 +60,10 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         _publisher = publisher;
         _rootProvider = rootProvider;
         _walletCacheTtl = TimeSpan.FromMinutes(Math.Clamp(aggOptions.Value.WalletCacheTtlMinutes, 1, 60));
-        _logger.LogInformation("IntegrationResultAggregatorWorker initialized with WalletCacheTTL={TTL}min", _walletCacheTtl.TotalMinutes);
+        _jobExpansionService = jobExpansionService;
+        _triggerDetectors = triggerDetectors;
+        _logger.LogInformation("IntegrationResultAggregatorWorker initialized with WalletCacheTTL={TTL}min, TriggerDetectors={Count}", 
+            _walletCacheTtl.TotalMinutes, _triggerDetectors.Count());
     }
 
     protected override void DeclareQueues(IModel channel)
@@ -615,6 +623,9 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
         _logger.LogInformation("Job {JobId} progress: expected={Expected} remaining={Remaining} success={Succeeded} failed={Failed} timedOut={TimedOut}", jobId, expectedTotal, remaining, succeeded, failed, timedOut);
 
+        // DYNAMIC JOB EXPANSION: Check if this result should trigger additional protocol queries
+        await EvaluateAndTriggerDependentJobsAsync(result, chainEnum, account);
+
         var finalEmittedVal = await db.HashGetAsync(metaKey, "final_emitted");
         var finalAlready = finalEmittedVal.HasValue && finalEmittedVal == "1";
 
@@ -791,8 +802,27 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     _logger.LogInformation("[FINAL HYDRATION] Starting metadata hydration for {Count} items (single wallet), jobId={JobId}", 
                                         wallet.Items.Count, jobId);
                                     
-                                    var logos = await hydrationHelper.HydrateTokenLogosAsync(wallet.Items, ChainEnum.Base);
-                                    await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(wallet.Items, logos);
+                                    // Hidratar logos para todas as chains presentes no wallet (não só Base)
+                                    var allChains = wallet.Items
+                                        .SelectMany(w => w.Position?.Tokens ?? Enumerable.Empty<Token>())
+                                        .Select(t => t.Chain ?? "Base")
+                                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                                        .Select(c => Enum.TryParse<ChainEnum>(c, true, out var ch) ? ch : ChainEnum.Base)
+                                        .Distinct()
+                                        .ToList();
+                                    
+                                    foreach (var chain in allChains)
+                                    {
+                                        var chainItems = wallet.Items
+                                            .Where(w => w.Position?.Tokens?.Any(tk => (tk.Chain ?? "Base").Equals(chain.ToString(), StringComparison.OrdinalIgnoreCase)) ?? false)
+                                            .ToList();
+                                        
+                                        if (chainItems.Count > 0)
+                                        {
+                                            var logos = await hydrationHelper.HydrateTokenLogosAsync(chainItems, chain);
+                                            await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(chainItems, logos);
+                                        }
+                                    }
                                     
                                     _logger.LogInformation("[FINAL HYDRATION] Completed metadata hydration for {TotalItems} items (single wallet), jobId={JobId}", 
                                         wallet.Items.Count, jobId);
@@ -983,6 +1013,74 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                 break;
         }
         return list;
+    }
+
+    /// <summary>
+    /// Evaluates if an integration result should trigger additional protocol queries
+    /// </summary>
+    private async Task EvaluateAndTriggerDependentJobsAsync(
+        IntegrationResult result,
+        ChainEnum chain,
+        string account)
+    {
+        // Only evaluate successful results from trigger-capable providers
+        if (result.Status != IntegrationStatus.Success || result.Payload == null)
+        {
+            return;
+        }
+
+        // Check if this provider can trigger others
+        var detector = _triggerDetectors.FirstOrDefault(d => d.HandlesProvider == result.Provider);
+        
+        if (detector == null)
+        {
+            // Not a trigger provider, skip evaluation
+            return;
+        }
+
+        _logger.LogInformation(
+            "TriggerEvaluation: Evaluating {Provider} result for job {JobId} chain {Chain}",
+            result.Provider, result.JobId, chain);
+
+        try
+        {
+            // Detect which protocols should be triggered based on the payload
+            var triggers = detector.DetectTriggersFromPayload(result.Payload, chain);
+
+            if (triggers.Count == 0)
+            {
+                _logger.LogInformation(
+                    "TriggerEvaluation: No triggers detected from {Provider} for job {JobId} chain {Chain}",
+                    result.Provider, result.JobId, chain);
+                return;
+            }
+
+            _logger.LogInformation(
+                "TriggerEvaluation: Detected {Count} triggers from {Provider} for job {JobId}: {Triggers}",
+                triggers.Count, result.Provider, result.JobId,
+                string.Join(", ", triggers.Select(t => $"{t.Provider}:{t.Chain}")));
+
+            // Expand the job with the detected triggers
+            var addedCount = await _jobExpansionService.ExpandJobAsync(
+                result.JobId,
+                account,
+                triggers,
+                result.Provider,
+                CancellationToken.None);
+
+            if (addedCount > 0)
+            {
+                _logger.LogInformation(
+                    "TriggerEvaluation: Successfully expanded job {JobId} with {Count} new providers triggered by {Provider}",
+                    result.JobId, addedCount, result.Provider);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "TriggerEvaluation: Error evaluating triggers for {Provider} job {JobId} chain {Chain}",
+                result.Provider, result.JobId, chain);
+        }
     }
 
     private static string BuildPriceKey(Token t)

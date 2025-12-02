@@ -120,5 +120,94 @@ namespace MyWebWallet.API.Services.Solana
                 throw;
             }
         }
+
+        public async Task<SolanaNFTResponse> GetNFTsAsync(string address, ChainEnum chain)
+        {
+            if (chain != ChainEnum.Solana)
+                throw new NotSupportedException($"MoralisSolanaService only supports Solana chain, got {chain}");
+
+            try
+            {
+                // Moralis NFT endpoint for Solana
+                var url = $"{_baseUrl}/account/mainnet/{address}/nft?network=mainnet";
+                
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+                _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
+
+                _logger.LogInformation("Fetching Solana NFTs for address {Address}", address);
+                
+                var response = await _httpClient.GetAsync(url);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogWarning("Moralis Solana NFT API error - Status: {Status}, Content: {Content}", response.StatusCode, errorContent);
+                    
+                    // Return empty list on error instead of throwing
+                    return new SolanaNFTResponse { Nfts = new List<SolanaNftDetail>() };
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug("Moralis Solana NFT API response: {Response}", responseJson);
+                
+                // Try to parse as generic object first to understand structure
+                var genericResponse = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseJson);
+                
+                if (genericResponse == null || !genericResponse.Any())
+                {
+                    _logger.LogWarning("Failed to deserialize Solana NFT response for address {Address}", address);
+                    return new SolanaNFTResponse { Nfts = new List<SolanaNftDetail>() };
+                }
+
+                // Check if response is an array or has nfts property
+                SolanaNFTResponse? nftResponse = null;
+                
+                if (genericResponse.ContainsKey("result") && genericResponse["result"].ValueKind == JsonValueKind.Array)
+                {
+                    // Format: { "result": [...] }
+                    var nfts = JsonSerializer.Deserialize<List<SolanaNftDetail>>(genericResponse["result"].GetRawText());
+                    nftResponse = new SolanaNFTResponse { Nfts = nfts ?? new List<SolanaNftDetail>() };
+                }
+                else if (genericResponse.ContainsKey("nfts") && genericResponse["nfts"].ValueKind == JsonValueKind.Array)
+                {
+                    // Format: { "nfts": [...] }
+                    var nfts = JsonSerializer.Deserialize<List<SolanaNftDetail>>(genericResponse["nfts"].GetRawText());
+                    nftResponse = new SolanaNFTResponse { Nfts = nfts ?? new List<SolanaNftDetail>() };
+                }
+                else
+                {
+                    // Try direct array parse
+                    var directParse = JsonSerializer.Deserialize<List<SolanaNftDetail>>(responseJson);
+                    nftResponse = new SolanaNFTResponse { Nfts = directParse ?? new List<SolanaNftDetail>() };
+                }
+
+                if (nftResponse == null)
+                {
+                    _logger.LogWarning("Failed to deserialize Solana NFT response for address {Address}", address);
+                    return new SolanaNFTResponse { Nfts = new List<SolanaNftDetail>() };
+                }
+
+                _logger.LogInformation("Successfully fetched {Count} Solana NFTs for address {Address}", 
+                    nftResponse.Nfts.Count, address);
+                
+                return nftResponse;
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "HTTP error fetching Solana NFTs for address {Address}", address);
+                return new SolanaNFTResponse { Nfts = new List<SolanaNftDetail>() };
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "JSON parsing error for Solana NFT response");
+                return new SolanaNFTResponse { Nfts = new List<SolanaNftDetail>() };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error fetching Solana NFTs for address {Address}", address);
+                return new SolanaNFTResponse { Nfts = new List<SolanaNftDetail>() };
+            }
+        }
     }
 }

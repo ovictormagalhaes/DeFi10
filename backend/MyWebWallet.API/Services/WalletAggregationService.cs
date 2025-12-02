@@ -204,18 +204,28 @@ public class WalletAggregationService : IWalletAggregationService
         
         var jobId = Guid.NewGuid();
 
+        // TIER 1: Always-on providers (token scanning, NFT scanning, lending protocols)
+        // These providers run first and may trigger Tier 2 providers dynamically
         var candidate = new List<IntegrationProvider>
         {
-            IntegrationProvider.MoralisTokens,
-            IntegrationProvider.AaveSupplies,
-            IntegrationProvider.AaveBorrows,
-            IntegrationProvider.UniswapV3Positions,
-            IntegrationProvider.PendleVePositions,
-            IntegrationProvider.PendleDeposits,
-            IntegrationProvider.SolanaTokens,
-            IntegrationProvider.SolanaKaminoPositions,
-            IntegrationProvider.SolanaRaydiumPositions,
+            IntegrationProvider.MoralisTokens,      // EVM wallet tokens
+            IntegrationProvider.MoralisNfts,        // EVM NFTs (triggers Uniswap V3 if found)
+            IntegrationProvider.AaveSupplies,       // Aave lending (independent)
+            IntegrationProvider.AaveBorrows,        // Aave borrowing (independent)
+            IntegrationProvider.PendleVePositions,  // Pendle vePENDLE (independent)
+            IntegrationProvider.PendleDeposits,     // Pendle PT deposits (independent)
+            IntegrationProvider.SolanaTokens,       // Solana wallet tokens
+            IntegrationProvider.SolanaNfts,         // Solana NFTs (triggers Raydium if found)
+            IntegrationProvider.SolanaKaminoPositions,  // Kamino (independent)
         };
+
+        // TIER 2: Conditional providers (triggered by Tier 1 NFT detection)
+        // UniswapV3Positions - triggered by MoralisNfts when position NFTs detected
+        // SolanaRaydiumPositions - triggered by SolanaNfts when CLMM position NFTs detected
+
+        _logger.LogInformation(
+            "Multi-wallet aggregation: Using Tier 1 providers (count={Count}), Tier 2 providers will be triggered dynamically",
+            candidate.Count);
 
         var combos = new List<(string account, ChainEnum chain, IntegrationProvider provider)>();
 
@@ -411,6 +421,10 @@ public class WalletAggregationService : IWalletAggregationService
                 IntegrationProvider.SolanaKaminoPositions => chain == ChainEnum.Solana && _mapperFactory.CreateSolanaKaminoMapper().SupportsChain(chain),
                 IntegrationProvider.SolanaRaydiumPositions => chain == ChainEnum.Solana && _mapperFactory.CreateSolanaRaydiumMapper().SupportsChain(chain),
                 
+                // NFT Screening Providers (Tier 1 - trigger other protocols)
+                IntegrationProvider.MoralisNfts => chain != ChainEnum.Solana, // EVM chains only
+                IntegrationProvider.SolanaNfts => chain == ChainEnum.Solana,
+                
                 _ => false
             };
         }
@@ -420,17 +434,18 @@ public class WalletAggregationService : IWalletAggregationService
     private async Task PublishIntegrationRequestsAsync(Guid jobId, string account, ChainEnum chain)
     {
 
+        // TIER 1: Always-on providers - Tier 2 will be triggered dynamically
         var candidate = new List<IntegrationProvider>
         {
             IntegrationProvider.MoralisTokens,
+            IntegrationProvider.MoralisNfts,
             IntegrationProvider.AaveSupplies,
             IntegrationProvider.AaveBorrows,
-            IntegrationProvider.UniswapV3Positions,
             IntegrationProvider.PendleVePositions,
             IntegrationProvider.PendleDeposits,
             IntegrationProvider.SolanaTokens,
+            IntegrationProvider.SolanaNfts,
             IntegrationProvider.SolanaKaminoPositions,
-            IntegrationProvider.SolanaRaydiumPositions,
         };
 
         var supported = candidate.Where(p => ProviderSupportsChain(p, chain)).ToList();

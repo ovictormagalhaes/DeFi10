@@ -12,13 +12,13 @@
   
   <!-- D shape with white stroke first (border), then gradient on top -->
   <path d="M 45 35 L 45 165 L 110 165 Q 160 165 160 100 Q 160 35 110 35 Z" 
-        fill="none" stroke="white" stroke-width="18"/>
+        fill="none" stroke="white" stroke-width="22"/>
   <path d="M 45 35 L 45 165 L 110 165 Q 160 165 160 100 Q 160 35 110 35 Z" 
         fill="none" stroke="url(#logoGradient)" stroke-width="12"/>
   
   <!-- Number 10 with white stroke (border) -->
   <text x="100" y="128" font-family="Arial, sans-serif" font-weight="bold" 
-        font-size="70" stroke="white" stroke-width="8" fill="white" text-anchor="middle">10</text>
+        font-size="70" stroke="white" stroke-width="10" fill="white" text-anchor="middle">10</text>
   <text x="100" y="128" font-family="Arial, sans-serif" font-weight="bold" 
         font-size="70" fill="url(#logoGradient)" text-anchor="middle">10</text>
 

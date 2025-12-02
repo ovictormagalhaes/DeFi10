@@ -4,6 +4,7 @@ using MyWebWallet.API.Infrastructure;
 using MyWebWallet.API.Infrastructure.Redis;
 using MyWebWallet.API.Messaging.Rabbit;
 using MyWebWallet.API.Messaging.Workers;
+using MyWebWallet.API.Messaging.Workers.TriggerRules;
 using MyWebWallet.API.Middleware;
 using MyWebWallet.API.Services;
 using MyWebWallet.API.Services.Interfaces;
@@ -206,6 +207,11 @@ builder.Services.AddScoped<IProtocolStatusService, ProtocolStatusService>();
 
 builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
 builder.Services.AddSingleton<IMessagePublisher, RabbitMqPublisher>();
+
+// Dynamic Job Expansion Services (for event-driven protocol triggering)
+builder.Services.AddSingleton<JobExpansionService>();
+builder.Services.AddSingleton<IProtocolTriggerDetector, UniswapV3NftDetector>();
+builder.Services.AddSingleton<IProtocolTriggerDetector, RaydiumNftDetector>();
 
 builder.Services.AddHostedService<IntegrationRequestWorker>();
 builder.Services.AddHostedService<IntegrationResultAggregatorWorker>();

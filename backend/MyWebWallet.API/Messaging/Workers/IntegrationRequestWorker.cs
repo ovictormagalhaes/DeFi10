@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 using MyWebWallet.API.Models;
 using MyWebWallet.API.Services.Interfaces;
 using MyWebWallet.API.Services.Solana;
+using MyWebWallet.API.Services.Models;
 using MyWebWallet.API.Services.Models.Solana.Raydium;
 using System.Numerics;
 using ChainEnum = MyWebWallet.API.Models.Chain;
@@ -89,6 +90,32 @@ public class IntegrationRequestWorker : BaseConsumer
                     payload = await svc.GetERC20TokenBalanceAsync(request.Account, chainEnum.ToChainId());
                     status = IntegrationStatus.Success; break;
                 }
+                case IntegrationProvider.MoralisNfts:
+                {
+                    var svc = scope.ServiceProvider.GetRequiredService<IMoralisService>();
+                    _logger.LogInformation("MoralisNfts: Fetching NFTs for account {Account} chain {Chain}", 
+                        request.Account, chainEnum);
+                    
+                    try
+                    {
+                        payload = await svc.GetNFTsAsync(request.Account, chainEnum.ToChainId());
+                        status = IntegrationStatus.Success;
+                        
+                        if (payload is MoralisGetNFTsResponse nftResponse)
+                        {
+                            _logger.LogInformation("MoralisNfts: Successfully fetched {Count} NFTs for account {Account} chain {Chain}", 
+                                nftResponse.Result.Count, request.Account, chainEnum);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "MoralisNfts: Error fetching NFTs for account {Account} chain {Chain}", 
+                            request.Account, chainEnum);
+                        payload = new MoralisGetNFTsResponse { Result = new List<MoralisNftDetail>() };
+                        status = IntegrationStatus.Success; // Return empty list on error
+                    }
+                    break;
+                }
                 case IntegrationProvider.AaveSupplies:
                 {
                     var svc = scope.ServiceProvider.GetRequiredService<IAaveeService>();
@@ -148,6 +175,30 @@ public class IntegrationRequestWorker : BaseConsumer
                     var svc = scope.ServiceProvider.GetRequiredService<IMoralisSolanaService>();
                     payload = await svc.GetTokensAsync(request.Account, chainEnum);
                     status = IntegrationStatus.Success; break;
+                }
+                case IntegrationProvider.SolanaNfts:
+                {
+                    var svc = scope.ServiceProvider.GetRequiredService<IMoralisSolanaService>();
+                    _logger.LogInformation("SolanaNfts: Fetching NFTs for account {Account}", request.Account);
+                    
+                    try
+                    {
+                        payload = await svc.GetNFTsAsync(request.Account, chainEnum);
+                        status = IntegrationStatus.Success;
+                        
+                        if (payload is SolanaNFTResponse nftResponse)
+                        {
+                            _logger.LogInformation("SolanaNfts: Successfully fetched {Count} NFTs for account {Account}", 
+                                nftResponse.Nfts.Count, request.Account);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "SolanaNfts: Error fetching NFTs for account {Account}", request.Account);
+                        payload = new SolanaNFTResponse { Nfts = new List<SolanaNftDetail>() };
+                        status = IntegrationStatus.Success; // Return empty list on error
+                    }
+                    break;
                 }
                 case IntegrationProvider.SolanaKaminoPositions:
                 {

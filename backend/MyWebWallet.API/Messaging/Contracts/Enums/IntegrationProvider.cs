@@ -22,6 +22,10 @@ public enum IntegrationProvider
     PendleVePositions = 30,
     PendleDeposits = 31,
 
+    // NFT Screening Providers (Tier 1 - can trigger protocol queries)
+    MoralisNfts = 50,
+    SolanaNfts = 51,
+
     SolanaTokens = 80,
     SolanaKaminoPositions = 81,
     SolanaRaydiumPositions = 82
