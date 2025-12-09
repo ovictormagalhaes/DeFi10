@@ -22,7 +22,7 @@ public sealed class PriceService : IPriceService
         var fullyPriced = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        _logger.LogInformation("[PriceService] Starting price hydration for chain={Chain}", chain);
+        _logger.LogDebug("[PriceService] Starting price hydration for chain={Chain}", chain);
         int tokenCount = 0;
 
         foreach (var item in walletItems)
@@ -55,7 +55,7 @@ public sealed class PriceService : IPriceService
             }
         }
 
-        _logger.LogInformation("[PriceService] Found {TotalTokens} tokens, {FullyPriced} already priced, {Candidates} need pricing", 
+        _logger.LogDebug("[PriceService] Found {TotalTokens} tokens, {FullyPriced} already priced, {Candidates} need pricing", 
             tokenCount, fullyPriced.Count, candidates.Count);
 
         foreach (var kv in fullyPriced) result[kv.Key] = kv.Value;
@@ -81,11 +81,11 @@ public sealed class PriceService : IPriceService
 
         if (remaining.Count == 0) 
         {
-            _logger.LogInformation("[PriceService] All prices resolved from existing data (no CMC needed)");
+            _logger.LogDebug("[PriceService] All prices resolved from existing data (no CMC needed)");
             return result;
         }
 
-        _logger.LogInformation("[PriceService] Need to fetch {Count} prices from cache/CMC", remaining.Count);
+        _logger.LogDebug("[PriceService] Need to fetch {Count} prices from cache/CMC", remaining.Count);
 
         var toFetchSymbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var tup in remaining)
@@ -106,7 +106,7 @@ public sealed class PriceService : IPriceService
         if (toFetchSymbols.Count > 0)
         {
 
-            _logger.LogInformation("[PriceService] Fetching {Count} symbols from CoinMarketCap: {Symbols}", 
+            _logger.LogDebug("[PriceService] Fetching {Count} symbols from CoinMarketCap: {Symbols}", 
                 toFetchSymbols.Count, string.Join(", ", toFetchSymbols));
             
             try
@@ -115,7 +115,7 @@ public sealed class PriceService : IPriceService
 
                 if (cmcResp?.Data != null)
                 {
-                    _logger.LogInformation("[PriceService] CoinMarketCap returned {Count} results", cmcResp.Data.Count);
+                    _logger.LogDebug("[PriceService] CoinMarketCap returned {Count} results", cmcResp.Data.Count);
 
                     var cmcKeys = string.Join(", ", cmcResp.Data.Keys);
                     _logger.LogDebug("[PriceService] CMC keys: {Keys}", cmcKeys);
@@ -131,7 +131,7 @@ public sealed class PriceService : IPriceService
                         {
                             var price = asset.Quote.TryGetValue("USD", out var usd) ? (usd.Price ?? 0m) : 0m;
 
-                            _logger.LogInformation("[PriceService] ? CMC price found: {Symbol} = ${Price}", sym, price);
+                            _logger.LogDebug("[PriceService] CMC price found: {Symbol} = ${Price}", sym, price);
                             
                             if (price > 0)
                             {
@@ -153,7 +153,7 @@ public sealed class PriceService : IPriceService
                             var fallbackPrice = TryGetFallbackPrice(sym, remaining, walletItems);
                             if (fallbackPrice.HasValue && fallbackPrice.Value > 0)
                             {
-                                _logger.LogInformation("[PriceService] ? Applied fallback price for {Symbol}: ${Price}", sym, fallbackPrice.Value);
+                                _logger.LogDebug("[PriceService] Applied fallback price for {Symbol}: ${Price}", sym, fallbackPrice.Value);
                                 
                                 // Cache the fallback price with shorter TTL
                                 await _cache.SetAsync(CacheKey(sym), new PriceCacheEntry { Price = fallbackPrice.Value, ExpiresAtUtc = DateTime.UtcNow + TimeSpan.FromMinutes(30) }, TimeSpan.FromMinutes(30));
@@ -175,7 +175,7 @@ public sealed class PriceService : IPriceService
             }
         }
 
-        _logger.LogInformation("[PriceService] Price hydration complete: {ResultCount} prices resolved", result.Count);
+        _logger.LogDebug("[PriceService] Price hydration complete: {ResultCount} prices resolved", result.Count);
         return result;
     }
 

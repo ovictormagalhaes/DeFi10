@@ -1,11 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using DeFi10.API.Services.Solana.Raydium.Clmm;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace DeFi10.API.Tests
@@ -190,7 +184,7 @@ namespace DeFi10.API.Tests
             Assert.True(result.FeeRate > 0, "FeeRate should be positive");
             Assert.True(result.Tvl > 0, "TVL should be positive");
             
-            _output.WriteLine("✅ All required fields present and valid");
+            _output.WriteLine("All required fields present and valid");
         }
 
         [Fact]

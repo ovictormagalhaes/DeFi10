@@ -46,7 +46,7 @@ namespace DeFi10.API.Services.Solana
                 _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
                 _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
 
-                _logger.LogInformation("Fetching Solana portfolio for address {Address}", address);
+                _logger.LogDebug("Fetching Solana portfolio for address {Address}", address);
                 
                 var response = await _httpClient.GetAsync(url);
                 
@@ -109,7 +109,7 @@ namespace DeFi10.API.Services.Solana
                     }
                 }
 
-                _logger.LogInformation("Successfully fetched {Count} Solana tokens from portfolio for address {Address}", tokens.Count, address);
+                _logger.LogDebug("Successfully fetched {Count} Solana tokens from portfolio for address {Address}", tokens.Count, address);
 
                 return new SolanaTokenResponse
                 {
@@ -148,7 +148,7 @@ namespace DeFi10.API.Services.Solana
                 _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
                 _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
 
-                _logger.LogInformation("Fetching Solana NFTs for address {Address}", address);
+                _logger.LogDebug("Fetching Solana NFTs for address {Address}", address);
                 
                 var response = await _httpClient.GetAsync(url);
                 
@@ -167,7 +167,7 @@ namespace DeFi10.API.Services.Solana
                 // Handle empty or null response
                 if (string.IsNullOrWhiteSpace(responseJson) || responseJson == "null")
                 {
-                    _logger.LogInformation("Empty or null NFT response for address {Address}", address);
+                    _logger.LogDebug("Empty or null NFT response for address {Address}", address);
                     return new SolanaNFTResponse { Nfts = new List<SolanaNftDetail>() };
                 }
 
@@ -191,7 +191,7 @@ namespace DeFi10.API.Services.Solana
                         var directParse = JsonSerializer.Deserialize<List<SolanaNftDetail>>(responseJson);
                         if (directParse != null)
                         {
-                            _logger.LogInformation("Successfully parsed {Count} Solana NFTs (direct array) for address {Address}", 
+                            _logger.LogDebug("Successfully parsed {Count} Solana NFTs (direct array) for address {Address}", 
                                 directParse.Count, address);
                             return new SolanaNFTResponse { Nfts = directParse };
                         }
@@ -226,7 +226,7 @@ namespace DeFi10.API.Services.Solana
                     return new SolanaNFTResponse { Nfts = new List<SolanaNftDetail>() };
                 }
 
-                _logger.LogInformation("Successfully fetched {Count} Solana NFTs for address {Address}", 
+                _logger.LogDebug("Successfully fetched {Count} Solana NFTs for address {Address}", 
                     nftResponse.Nfts.Count, address);
                 
                 return nftResponse;

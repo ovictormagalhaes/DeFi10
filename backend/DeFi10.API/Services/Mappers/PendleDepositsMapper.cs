@@ -31,7 +31,7 @@ public class PendleDepositsMapper : IWalletItemMapper<PendleDepositsResponse>
 
     public async Task<List<WalletItem>> MapAsync(PendleDepositsResponse response, ChainEnum chain)
     {
-        _logger.LogInformation("[PendleDepositsMapper] MapAsync called - Chain: {Chain}", chain);
+        _logger.LogDebug("[PendleDepositsMapper] MapAsync called - Chain: {Chain}", chain);
         
         var items = new List<WalletItem>();
         
@@ -53,16 +53,16 @@ public class PendleDepositsMapper : IWalletItemMapper<PendleDepositsResponse>
             return items;
         }
         
-        _logger.LogInformation("[PendleDepositsMapper] Found {Count} deposits to map", response.Data.Deposits.Count);
+        _logger.LogDebug("[PendleDepositsMapper] Found {Count} deposits to map", response.Data.Deposits.Count);
         
         var protocol = GetProtocolDefinition(chain);
-        _logger.LogInformation("[PendleDepositsMapper] Protocol: {Name} ({Id})", protocol.Name, protocol.Id);
+        _logger.LogDebug("[PendleDepositsMapper] Protocol: {Name} ({Id})", protocol.Name, protocol.Id);
 
         foreach (var d in response.Data.Deposits)
         {
             try
             {
-                _logger.LogInformation("[PendleDepositsMapper] Mapping deposit: {Symbol} amount={Amount} underlying={Underlying}", 
+                _logger.LogDebug("[PendleDepositsMapper] Mapping deposit: {Symbol} amount={Amount} underlying={Underlying}", 
                     d.MarketSymbol, d.AmountFormatted, d.UnderlyingSymbol);
                 
                 var supplied = _tokenFactory.CreateSupplied(
@@ -91,7 +91,7 @@ public class PendleDepositsMapper : IWalletItemMapper<PendleDepositsResponse>
                 };
                 
                 items.Add(wi);
-                _logger.LogInformation("[PendleDepositsMapper] ? Successfully mapped deposit: {Symbol} (underlying: {Underlying})", 
+                _logger.LogDebug("[PendleDepositsMapper] Successfully mapped deposit: {Symbol} (underlying: {Underlying})", 
                     d.MarketSymbol, d.UnderlyingSymbol);
             }
             catch (Exception ex)
@@ -100,7 +100,7 @@ public class PendleDepositsMapper : IWalletItemMapper<PendleDepositsResponse>
             }
         }
 
-        _logger.LogInformation("[PendleDepositsMapper] MapAsync complete - Returning {Count} items", items.Count);
+        _logger.LogDebug("[PendleDepositsMapper] MapAsync complete - Returning {Count} items", items.Count);
         return await Task.FromResult(items);
     }
 }

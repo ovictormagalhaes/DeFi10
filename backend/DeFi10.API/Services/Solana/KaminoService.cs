@@ -81,17 +81,17 @@ namespace DeFi10.API.Services.Solana
                 await Task.Delay(_rateLimitDelayMs);
             }
 
-            _logger.LogInformation("========== KAMINO: Fetching positions for address {Address} ==========", address);
+            _logger.LogDebug("KAMINO: Fetching positions for address {Address}", address);
 
             var endpoint = $"kamino-market/{MainMarketPubkey}/users/{address}/obligations";
             
             try
             {
-                _logger.LogInformation("KAMINO: GET {Endpoint}", endpoint);
+                _logger.LogDebug("KAMINO: GET {Endpoint}", endpoint);
                 
                 var response = await _httpClient.GetAsync(endpoint);
                 
-                _logger.LogInformation("KAMINO: Response status: {StatusCode}", response.StatusCode);
+                _logger.LogDebug("KAMINO: Response status: {StatusCode}", response.StatusCode);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -99,7 +99,7 @@ namespace DeFi10.API.Services.Solana
                     
                     if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     {
-                        _logger.LogInformation("KAMINO: No obligations found for address {Address} (404)", address);
+                        _logger.LogDebug("KAMINO: No obligations found for address {Address} (404)", address);
                         return Enumerable.Empty<KaminoPosition>();
                     }
                     
@@ -116,15 +116,15 @@ namespace DeFi10.API.Services.Solana
                 
                 if (obligations == null || !obligations.Any())
                 {
-                    _logger.LogInformation("KAMINO: No obligations found for address {Address}", address);
+                    _logger.LogDebug("KAMINO: No obligations found for address {Address}", address);
                     return Enumerable.Empty<KaminoPosition>();
                 }
 
-                _logger.LogInformation("KAMINO: Found {Count} obligations", obligations.Count);
+                _logger.LogDebug("KAMINO: Found {Count} obligations", obligations.Count);
 
                 var positions = obligations.Select(MapObligationToPosition).ToList();
 
-                _logger.LogInformation("KAMINO: Successfully mapped {Count} positions", positions.Count);
+                _logger.LogDebug("KAMINO: Successfully mapped {Count} positions", positions.Count);
                 return positions;
             }
             catch (HttpRequestException ex)
@@ -148,7 +148,7 @@ namespace DeFi10.API.Services.Solana
         {
             var tokens = new List<SplToken>();
 
-            _logger.LogInformation("KAMINO Mapping obligation: {Id}, State: {HasState}, Deposits: {DepCount}, Borrows: {BorCount}",
+            _logger.LogDebug("KAMINO Mapping obligation: {Id}, State: {HasState}, Deposits: {DepCount}, Borrows: {BorCount}",
                 obligation.ObligationAddress,
                 obligation.State != null,
                 obligation.State?.Deposits?.Count ?? 0,

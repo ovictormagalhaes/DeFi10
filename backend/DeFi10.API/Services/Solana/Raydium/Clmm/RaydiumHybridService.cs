@@ -37,7 +37,7 @@ namespace DeFi10.API.Services.Solana.Raydium.Clmm
         public async Task<List<RaydiumPosition>> GetPositionsByOwnerAsync(string ownerAddress)
         {
 
-            _logger.LogInformation("Fetching positions on-chain for owner {Owner}", ownerAddress);
+            _logger.LogDebug("Fetching positions on-chain for owner {Owner}", ownerAddress);
             return await _onChainService.GetPositionsAsync(ownerAddress);
         }
     }

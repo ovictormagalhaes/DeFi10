@@ -53,7 +53,7 @@ public sealed class MongoWalletGroupRepository : IWalletGroupRepository
                 isDeletedIndexModel
             });
 
-            _logger.LogInformation("MongoDB indexes created successfully for WalletGroups collection");
+            _logger.LogDebug("MongoDB indexes created successfully for WalletGroups collection");
         }
         catch (Exception ex)
         {
@@ -84,7 +84,7 @@ public sealed class MongoWalletGroupRepository : IWalletGroupRepository
         try
         {
             await _collection.InsertOneAsync(walletGroup, cancellationToken: ct);
-            _logger.LogInformation("Created WalletGroup Id={Id}", walletGroup.Id);
+            _logger.LogDebug("Created WalletGroup Id={Id}", walletGroup.Id);
             return walletGroup;
         }
         catch (Exception ex)
@@ -110,7 +110,7 @@ public sealed class MongoWalletGroupRepository : IWalletGroupRepository
                 throw new InvalidOperationException($"WalletGroup with Id={walletGroup.Id} not found or already deleted");
             }
 
-            _logger.LogInformation("Updated WalletGroup Id={Id}", walletGroup.Id);
+            _logger.LogDebug("Updated WalletGroup Id={Id}", walletGroup.Id);
             return walletGroup;
         }
         catch (Exception ex)
@@ -138,7 +138,7 @@ public sealed class MongoWalletGroupRepository : IWalletGroupRepository
 
             if (result.MatchedCount > 0)
             {
-                _logger.LogInformation("Deleted (soft) WalletGroup Id={Id}", id);
+                _logger.LogDebug("Deleted (soft) WalletGroup Id={Id}", id);
                 return true;
             }
 

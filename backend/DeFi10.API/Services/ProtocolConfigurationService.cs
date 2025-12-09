@@ -23,17 +23,17 @@ public class ProtocolConfigurationService : IProtocolConfigurationService
 
     private void LogProtocolConfiguration()
     {
-        _logger.LogInformation("=== Protocol Configuration Loaded ===");
-        _logger.LogInformation("Total protocols in map: {Count}", _map.Count);
+        _logger.LogDebug("Protocol configuration loaded");
+        _logger.LogDebug("Total protocols in map: {Count}", _map.Count);
         foreach (var kv in _map)
         {
-            _logger.LogInformation("Protocol Key: '{ProtocolId}'", kv.Key);
+            _logger.LogDebug("Protocol Key: '{ProtocolId}'", kv.Key);
             if (kv.Value.ChainSupports != null)
             {
                 foreach (var support in kv.Value.ChainSupports)
                 {
                     var enabledValue = support.Options?.TryGetValue("Enabled", out var enabled) == true ? enabled : "NOT_SET";
-                    _logger.LogInformation("  Chain: {Chain}, Enabled: {Enabled}", support.Chain, enabledValue);
+                    _logger.LogDebug("  Chain: {Chain}, Enabled: {Enabled}", support.Chain, enabledValue);
                 }
             }
         }

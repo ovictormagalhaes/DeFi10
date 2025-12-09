@@ -35,7 +35,7 @@ public static class WebApplicationExtensions
         {
             var redis = app.Services.GetRequiredService<IConnectionMultiplexer>();
             await redis.GetDatabase().PingAsync();
-            logger.LogInformation("Redis connection established successfully");
+            logger.LogDebug("Redis connection established successfully");
         }
         catch (Exception ex)
         {
@@ -47,7 +47,7 @@ public static class WebApplicationExtensions
         {
             var chainConfigService = app.Services.GetRequiredService<IChainConfigurationService>();
             var enabledChains = chainConfigService.GetEnabledChains().ToList();
-            logger.LogInformation("Chain configuration loaded - {Count} enabled chains: {Chains}", 
+            logger.LogDebug("Chain configuration loaded - {Count} enabled chains: {Chains}", 
                 enabledChains.Count, string.Join(", ", enabledChains));
 
             foreach (var chain in enabledChains)
@@ -73,7 +73,7 @@ public static class WebApplicationExtensions
         var uniV3Options = app.Configuration.GetSection("UniswapV3Workers").Get<UniswapV3WorkerOptions>();
         if (uniV3Options != null)
         {
-            logger.LogInformation("Uniswap V3 granular processing configured - Enabled: {Enabled}, Timeout: {Timeout}s, MaxRetry: {MaxRetry}, MinSuccess: {MinSuccess}%", 
+            logger.LogDebug("Uniswap V3 granular processing configured - Enabled: {Enabled}, Timeout: {Timeout}s, MaxRetry: {MaxRetry}, MinSuccess: {MinSuccess}%", 
                 uniV3Options.EnableGranularProcessing, 
                 uniV3Options.GranularOperationTimeout.TotalSeconds, 
                 uniV3Options.MaxRetryAttempts, 

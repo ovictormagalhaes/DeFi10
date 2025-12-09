@@ -30,7 +30,7 @@ public class UniswapV3NftDetector : IProtocolTriggerDetector
     {
         var triggers = new List<(IntegrationProvider, Chain)>();
 
-        _logger.LogInformation("=== UniswapV3NftDetector: Starting detection for chain {Chain} ===", chain);
+        _logger.LogDebug("UniswapV3NftDetector: Starting detection for chain {Chain}", chain);
 
         if (payload == null)
         {
@@ -48,17 +48,17 @@ public class UniswapV3NftDetector : IProtocolTriggerDetector
             if (jsonElement.ValueKind == JsonValueKind.Object && jsonElement.TryGetProperty("result", out var resultProp))
             {
                 nftArray = resultProp;
-                _logger.LogInformation("UniswapV3NftDetector: Extracted 'result' property from payload");
+                _logger.LogDebug("UniswapV3NftDetector: Extracted 'result' property from payload");
             }
             else if (jsonElement.ValueKind == JsonValueKind.Object && jsonElement.TryGetProperty("Result", out var resultPropUpper))
             {
                 nftArray = resultPropUpper;
-                _logger.LogInformation("UniswapV3NftDetector: Extracted 'Result' property from payload");
+                _logger.LogDebug("UniswapV3NftDetector: Extracted 'Result' property from payload");
             }
             else if (jsonElement.ValueKind == JsonValueKind.Array)
             {
                 nftArray = jsonElement; // Already an array
-                _logger.LogInformation("UniswapV3NftDetector: Payload is already an array");
+                _logger.LogDebug("UniswapV3NftDetector: Payload is already an array");
             }
             else
             {
@@ -68,13 +68,13 @@ public class UniswapV3NftDetector : IProtocolTriggerDetector
             }
 
             var nftCount = nftArray.GetArrayLength();
-            _logger.LogInformation("UniswapV3NftDetector: Scanning {Count} NFTs for chain {Chain}", nftCount, chain);
+            _logger.LogDebug("UniswapV3NftDetector: Scanning {Count} NFTs for chain {Chain}", nftCount, chain);
 
             // Check if any NFT matches Uniswap V3 position manager contract
             if (UniswapV3NftContracts.TryGetValue(chain, out var uniswapContract))
             {
                 var uniswapContractLower = uniswapContract.ToLowerInvariant();
-                _logger.LogInformation("UniswapV3NftDetector: Looking for Uniswap V3 contract: {Contract}", uniswapContract);
+                _logger.LogDebug("UniswapV3NftDetector: Looking for Uniswap V3 contract: {Contract}", uniswapContract);
                 
                 var nftIndex = 0;
                 foreach (var nft in nftArray.EnumerateArray())
@@ -143,13 +143,13 @@ public class UniswapV3NftDetector : IProtocolTriggerDetector
                 
                 if (triggers.Count == 0)
                 {
-                    _logger.LogInformation("UniswapV3NftDetector: No Uniswap V3 NFTs found after scanning {Count} NFTs on {Chain}", 
+                    _logger.LogDebug("UniswapV3NftDetector: No Uniswap V3 NFTs found after scanning {Count} NFTs on {Chain}", 
                         nftCount, chain);
                 }
             }
             else
             {
-                _logger.LogInformation("UniswapV3NftDetector: Chain {Chain} not configured for Uniswap V3", chain);
+                _logger.LogDebug("UniswapV3NftDetector: Chain {Chain} not configured for Uniswap V3", chain);
             }
         }
         catch (Exception ex)
@@ -163,7 +163,7 @@ public class UniswapV3NftDetector : IProtocolTriggerDetector
         }
         else
         {
-            _logger.LogInformation("UniswapV3NftDetector: No triggers detected for chain {Chain}", chain);
+            _logger.LogDebug("UniswapV3NftDetector: No triggers detected for chain {Chain}", chain);
         }
 
         return triggers;

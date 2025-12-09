@@ -62,7 +62,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         _walletCacheTtl = TimeSpan.FromMinutes(Math.Clamp(aggOptions.Value.WalletCacheTtlMinutes, 1, 60));
         _jobExpansionService = jobExpansionService;
         _triggerDetectors = triggerDetectors;
-        _logger.LogInformation("IntegrationResultAggregatorWorker initialized with WalletCacheTTL={TTL}min, TriggerDetectors={Count}", 
+        _logger.LogDebug("IntegrationResultAggregatorWorker initialized with WalletCacheTTL={TTL}min, TriggerDetectors={Count}", 
             _walletCacheTtl.TotalMinutes, _triggerDetectors.Count());
     }
 
@@ -121,7 +121,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         
         if (cachedResult.HasValue)
         {
-            _logger.LogInformation("CACHE HIT: Reusing cached result for {Account} {Provider} {Chain} in job {JobId}", 
+            _logger.LogDebug("CACHE HIT: Reusing cached result for {Account} {Provider} {Chain} in job {JobId}", 
                 account, result.Provider, chainEnum, jobId);
             
             try
@@ -143,11 +143,11 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         {
             // 2. SALVAR NO CACHE (TTL configurável para reutilização cross-job)
             await db.StringSetAsync(cacheKey, JsonSerializer.Serialize(result, _jsonOptions), _walletCacheTtl);
-            _logger.LogInformation("CACHE SAVED: Cached result for {Account} {Provider} {Chain} (TTL={TTL}min)", 
+            _logger.LogDebug("CACHE SAVED: Cached result for {Account} {Provider} {Chain} (TTL={TTL}min)", 
                 account, result.Provider, chainEnum, _walletCacheTtl.TotalMinutes);
         }
 
-        _logger.LogInformation("Aggregating result JobId={JobId} Provider={Provider} Chain={Chain} Account={Account} Status={Status}", 
+        _logger.LogDebug("Aggregating result JobId={JobId} Provider={Provider} Chain={Chain} Account={Account} Status={Status}", 
             result.JobId, result.Provider, chainEnum, result.Account, result.Status);
 
         var providerChainKey = string.IsNullOrWhiteSpace(chainStr) ? providerSlug : $"{providerSlug}:{chainStr.ToLowerInvariant()}";
@@ -174,7 +174,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
         if (await db.KeyExistsAsync(resultKey))
         {
-            _logger.LogInformation("Result already processed for JobId={JobId} Provider={Provider} Chain={Chain} Account={Account}", 
+            _logger.LogDebug("Result already processed for JobId={JobId} Provider={Provider} Chain={Chain} Account={Account}", 
                 jobId, result.Provider, chainEnum, account);
             return;
         }
@@ -248,7 +248,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     aaveRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
                                 }
                                 if (aaveRemoved > 0)
-                                    _logger.LogInformation("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain} account={Account}", 
+                                    _logger.LogDebug("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain} account={Account}", 
                                         aaveRemoved, chainEnum, account);
                             }
 
@@ -262,7 +262,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                 protocolRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
                             }
                             if (protocolRemoved > 0)
-                                _logger.LogInformation("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain} account={Account}", 
+                                _logger.LogDebug("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain} account={Account}", 
                                     protocolRemoved, chainEnum, account);
 
                             newlyMapped.RemoveAll(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && (i.Position?.Tokens == null || i.Position.Tokens.Count == 0));
@@ -416,7 +416,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     aaveRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
                                 }
                                 if (aaveRemoved > 0)
-                                    _logger.LogInformation("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain}", aaveRemoved, chainEnum);
+                                    _logger.LogDebug("Deduplicated {Count} Moralis tokens (Aave wrappers by address) chain={Chain}", aaveRemoved, chainEnum);
                             }
 
                             int protocolRemoved = 0;
@@ -429,7 +429,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                 protocolRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
                             }
                             if (protocolRemoved > 0)
-                                _logger.LogInformation("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain}", protocolRemoved, chainEnum);
+                                _logger.LogDebug("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain}", protocolRemoved, chainEnum);
 
                             newlyMapped.RemoveAll(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && (i.Position?.Tokens == null || i.Position.Tokens.Count == 0));
                         }
@@ -622,7 +622,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         var timedOut = (int)(long)(await db.HashGetAsync(metaKey, "timed_out"));
         var expectedTotal = (int)(long)(await db.HashGetAsync(metaKey, "expected_total"));
 
-        _logger.LogInformation("Job {JobId} progress: expected={Expected} remaining={Remaining} success={Succeeded} failed={Failed} timedOut={TimedOut}", jobId, expectedTotal, remaining, succeeded, failed, timedOut);
+        _logger.LogDebug("Job {JobId} progress: expected={Expected} remaining={Remaining} success={Succeeded} failed={Failed} timedOut={TimedOut}", jobId, expectedTotal, remaining, succeeded, failed, timedOut);
 
         // DYNAMIC JOB EXPANSION: Check if this result should trigger additional protocol queries
         await EvaluateAndTriggerDependentJobsAsync(result, chainEnum, account);
@@ -640,7 +640,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     // Status is being upgraded to Completed - clear pending list to maintain consistency
                     await db.KeyDeleteAsync(pendingKey);
                     await db.HashSetAsync(metaKey, new HashEntry[] { new("status", AggregationStatus.Completed.ToString()) });
-                    _logger.LogInformation("Upgraded status to Completed after late successes jobId={JobId}, cleared pending list", jobId);
+                    _logger.LogDebug("Upgraded status to Completed after late successes jobId={JobId}, cleared pending list", jobId);
                 }
             }
         }
@@ -658,7 +658,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             {
                 await db.StringSetAsync(consolidationDoneKey, "1", ttl);
                 
-                _logger.LogInformation("Starting final consolidation for job {JobId} (remaining={Remaining} finalAlready={FinalAlready})", 
+                _logger.LogDebug("Starting final consolidation for job {JobId} (remaining={Remaining} finalAlready={FinalAlready})", 
                     jobId, remaining, finalAlready);
                 
                 try
@@ -673,7 +673,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                             var accountsList = accountsStr.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
                             var consolidatedWallet = new ConsolidatedWallet();
                             
-                            _logger.LogInformation("Multi-wallet job {JobId} final consolidation: {Count} wallets", jobId, accountsList.Count);
+                            _logger.LogDebug("Multi-wallet job {JobId} final consolidation: {Count} wallets", jobId, accountsList.Count);
 
                             foreach (var acc in accountsList)
                             {
@@ -716,13 +716,13 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     var hydrationLogger = metadataScope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
                                     var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
                                     
-                                    _logger.LogInformation("[FINAL HYDRATION] Starting metadata hydration for {Count} items, jobId={JobId}", 
+                                    _logger.LogDebug("[FINAL HYDRATION] Starting metadata hydration for {Count} items, jobId={JobId}", 
                                         consolidatedWallet.Items.Count, jobId);
                                     
                                     var logos = await hydrationHelper.HydrateTokenLogosAsync(consolidatedWallet.Items, ChainEnum.Base);
                                     await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(consolidatedWallet.Items, logos);
                                     
-                                    _logger.LogInformation("[FINAL HYDRATION] Completed metadata hydration for {TotalItems} items, jobId={JobId}", 
+                                    _logger.LogDebug("[FINAL HYDRATION] Completed metadata hydration for {TotalItems} items, jobId={JobId}", 
                                         consolidatedWallet.Items.Count, jobId);
                                 }
                                 catch (Exception metadataEx)
@@ -768,7 +768,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     }
                                     if (filled > 0)
                                     {
-                                        _logger.LogInformation("Multi-wallet final price hydration applied {Filled} prices jobId={JobId}", filled, jobId);
+                                        _logger.LogDebug("Multi-wallet final price hydration applied {Filled} prices jobId={JobId}", filled, jobId);
                                     }
                                 }
                                 catch (Exception finalPxEx)
@@ -790,11 +790,11 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                 var tran2 = db.CreateTransaction();
                                 tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
                                 await tran2.ExecuteAsync();
-                                _logger.LogInformation("Job {JobId} marked as {Status}, final_emitted=1 BEFORE writing wallet", jobId, aggStatus);
+                                _logger.LogDebug("Job {JobId} marked as {Status}, final_emitted=1 BEFORE writing wallet", jobId, aggStatus);
                             }
 
                             await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(consolidatedWallet, _jsonOptions), ttl);
-                            _logger.LogInformation("Multi-wallet job {JobId} final consolidation complete: {Total} items", jobId, consolidatedWallet.Items.Count);
+                            _logger.LogDebug("Multi-wallet job {JobId} final consolidation complete: {Total} items", jobId, consolidatedWallet.Items.Count);
                         }
                         else
                         {
@@ -818,7 +818,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     var hydrationLogger = metadataScope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
                                     var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
                                     
-                                    _logger.LogInformation("[FINAL HYDRATION] Starting metadata hydration for {Count} items (single wallet), jobId={JobId}", 
+                                    _logger.LogDebug("[FINAL HYDRATION] Starting metadata hydration for {Count} items (single wallet), jobId={JobId}", 
                                         wallet.Items.Count, jobId);
                                     
                                     // Hidratar logos para todas as chains presentes no wallet (não só Base)
@@ -843,7 +843,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                         }
                                     }
                                     
-                                    _logger.LogInformation("[FINAL HYDRATION] Completed metadata hydration for {TotalItems} items (single wallet), jobId={JobId}", 
+                                    _logger.LogDebug("[FINAL HYDRATION] Completed metadata hydration for {TotalItems} items (single wallet), jobId={JobId}", 
                                         wallet.Items.Count, jobId);
                                 }
                                 catch (Exception metadataEx)
@@ -889,7 +889,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     }
                                     if (filled > 0)
                                     {
-                                        _logger.LogInformation("Final price hydration applied {Filled} prices (single wallet) jobId={JobId}", filled, jobId);
+                                        _logger.LogDebug("Final price hydration applied {Filled} prices (single wallet) jobId={JobId}", filled, jobId);
                                     }
                                 }
                                 catch (Exception finalPxEx)
@@ -910,7 +910,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                     var tran2 = db.CreateTransaction();
                                     tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
                                     await tran2.ExecuteAsync();
-                                    _logger.LogInformation("Job {JobId} marked as {Status}, final_emitted=1 BEFORE writing wallet", jobId, aggStatus);
+                                    _logger.LogDebug("Job {JobId} marked as {Status}, final_emitted=1 BEFORE writing wallet", jobId, aggStatus);
                                 }
                                 
                                 // Salvar wallet consolidado atualizado
@@ -919,7 +919,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                         }
                     }
 
-                    _logger.LogInformation("Consolidation data written to Redis for job {JobId}", jobId);
+                    _logger.LogDebug("Consolidation data written to Redis for job {JobId}", jobId);
                 }
                 catch (Exception ex)
                 {
@@ -1065,7 +1065,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             return;
         }
 
-        _logger.LogInformation(
+        _logger.LogDebug(
             "TriggerEvaluation: Evaluating {Provider} result for job {JobId} chain {Chain}",
             result.Provider, result.JobId, chain);
 
@@ -1076,13 +1076,13 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
             if (triggers.Count == 0)
             {
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "TriggerEvaluation: No triggers detected from {Provider} for job {JobId} chain {Chain}",
                     result.Provider, result.JobId, chain);
                 return;
             }
 
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "TriggerEvaluation: Detected {Count} triggers from {Provider} for job {JobId}: {Triggers}",
                 triggers.Count, result.Provider, result.JobId,
                 string.Join(", ", triggers.Select(t => $"{t.Provider}:{t.Chain}")));
@@ -1097,7 +1097,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
             if (addedCount > 0)
             {
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "TriggerEvaluation: Successfully expanded job {JobId} with {Count} new providers triggered by {Provider}",
                     result.JobId, addedCount, result.Provider);
             }

@@ -84,7 +84,7 @@ public class IntegrationRequestWorker : BaseConsumer
         }
 
         var started = DateTime.UtcNow;
-        _logger.LogInformation("Processing IntegrationRequest JobId={JobId} Provider={Provider} Attempt={Attempt} Chains={Chains}", 
+        _logger.LogDebug("Processing IntegrationRequest JobId={JobId} Provider={Provider} Attempt={Attempt} Chains={Chains}", 
             request.JobId, request.Provider, request.Attempt, string.Join(',', request.Chains));
 
         IntegrationStatus status;
@@ -109,7 +109,7 @@ public class IntegrationRequestWorker : BaseConsumer
                 case IntegrationProvider.MoralisNfts:
                 {
                     var svc = scope.ServiceProvider.GetRequiredService<IMoralisService>();
-                    _logger.LogInformation("MoralisNfts: Fetching NFTs for account {Account} chain {Chain}", 
+                    _logger.LogDebug("MoralisNfts: Fetching NFTs for account {Account} chain {Chain}", 
                         request.Account, chainEnum);
                     
                     try
@@ -119,11 +119,11 @@ public class IntegrationRequestWorker : BaseConsumer
                         
                         if (payload is MoralisGetNFTsResponse nftResponse)
                         {
-                            _logger.LogInformation("MoralisNfts: Successfully fetched {Count} NFTs for account {Account} chain {Chain}", 
+                            _logger.LogDebug("MoralisNfts: Successfully fetched {Count} NFTs for account {Account} chain {Chain}", 
                                 nftResponse.Result.Count, request.Account, chainEnum);
                             
                             // Log detailed info about each NFT for debugging
-                            _logger.LogInformation("=== MoralisNfts: Detailed NFT List for {Chain} ===", chainEnum);
+                            _logger.LogDebug("=== MoralisNfts: Detailed NFT List for {Chain} ===", chainEnum);
                             for (int i = 0; i < Math.Min(nftResponse.Result.Count, 50); i++) // Log first 50 NFTs
                             {
                                 var nft = nftResponse.Result[i];
@@ -131,13 +131,13 @@ public class IntegrationRequestWorker : BaseConsumer
                                 var tokenId = nft.TokenId ?? "unknown";
                                 var name = nft.Name ?? "unnamed";
                                 
-                                _logger.LogInformation("MoralisNfts: NFT #{Index} - Contract: {Contract}, TokenId: {TokenId}, Name: {Name}",
+                                _logger.LogDebug("MoralisNfts: NFT #{Index} - Contract: {Contract}, TokenId: {TokenId}, Name: {Name}",
                                     i + 1, contractAddr, tokenId, name);
                             }
                             
                             if (nftResponse.Result.Count > 50)
                             {
-                                _logger.LogInformation("MoralisNfts: ... and {More} more NFTs (showing first 50 only)",
+                                _logger.LogDebug("MoralisNfts: ... and {More} more NFTs (showing first 50 only)",
                                     nftResponse.Result.Count - 50);
                             }
                         }
@@ -214,7 +214,7 @@ public class IntegrationRequestWorker : BaseConsumer
                 case IntegrationProvider.SolanaNfts:
                 {
                     var svc = scope.ServiceProvider.GetRequiredService<IMoralisSolanaService>();
-                    _logger.LogInformation("SolanaNfts: Fetching NFTs for account {Account}", request.Account);
+                    _logger.LogDebug("SolanaNfts: Fetching NFTs for account {Account}", request.Account);
                     
                     try
                     {
@@ -223,11 +223,11 @@ public class IntegrationRequestWorker : BaseConsumer
                         
                         if (payload is SolanaNFTResponse nftResponse)
                         {
-                            _logger.LogInformation("SolanaNfts: Successfully fetched {Count} NFTs for account {Account}", 
+                            _logger.LogDebug("SolanaNfts: Successfully fetched {Count} NFTs for account {Account}", 
                                 nftResponse.Nfts.Count, request.Account);
                             
                             // Log detailed info about each NFT for debugging
-                            _logger.LogInformation("=== SolanaNfts: Detailed NFT List ===");
+                            _logger.LogDebug("=== SolanaNfts: Detailed NFT List ===");
                             for (int i = 0; i < Math.Min(nftResponse.Nfts.Count, 50); i++) // Log first 50 NFTs
                             {
                                 var nft = nftResponse.Nfts[i];
@@ -236,13 +236,13 @@ public class IntegrationRequestWorker : BaseConsumer
                                 var amount = nft.Amount;
                                 var decimals = nft.Decimals;
                                 
-                                _logger.LogInformation("SolanaNfts: NFT #{Index} - Mint: {Mint}, Name: {Name}, Amount: {Amount}, Decimals: {Decimals}",
+                                _logger.LogDebug("SolanaNfts: NFT #{Index} - Mint: {Mint}, Name: {Name}, Amount: {Amount}, Decimals: {Decimals}",
                                     i + 1, mint, name, amount, decimals);
                             }
                             
                             if (nftResponse.Nfts.Count > 50)
                             {
-                                _logger.LogInformation("SolanaNfts: ... and {More} more NFTs (showing first 50 only)",
+                                _logger.LogDebug("SolanaNfts: ... and {More} more NFTs (showing first 50 only)",
                                     nftResponse.Nfts.Count - 50);
                             }
                         }
@@ -264,24 +264,24 @@ public class IntegrationRequestWorker : BaseConsumer
                 case IntegrationProvider.SolanaRaydiumPositions:
                 {
 
-                    _logger.LogInformation("[Worker] ========== Processing Raydium CLMM Positions ==========");
-                    _logger.LogInformation("[Worker] Account: {Account}, Chain: {Chain}", request.Account, chainEnum);
+                    _logger.LogDebug("[Worker] ========== Processing Raydium CLMM Positions ==========");
+                    _logger.LogDebug("[Worker] Account: {Account}, Chain: {Chain}", request.Account, chainEnum);
                     
                     try
                     {
                         var svc = scope.ServiceProvider.GetRequiredService<IRaydiumOnChainService>();
-                        _logger.LogInformation("[Worker] RaydiumOnChainService resolved successfully");
+                        _logger.LogDebug("[Worker] RaydiumOnChainService resolved successfully");
                         
                         payload = await svc.GetPositionsAsync(request.Account);
 
                         if (payload is IEnumerable<RaydiumPosition> positions)
                         {
                             var positionsList = positions.ToList();
-                            _logger.LogInformation("[Worker] Raydium returned {Count} positions", positionsList.Count);
+                            _logger.LogDebug("[Worker] Raydium returned {Count} positions", positionsList.Count);
                             
                             foreach (var pos in positionsList)
                             {
-                                _logger.LogInformation("[Worker] Position: Pool={Pool}, Tokens={TokenCount}, Value={Value:C}", 
+                                _logger.LogDebug("[Worker] Position: Pool={Pool}, Tokens={TokenCount}, Value={Value:C}", 
                                     pos.Pool, pos.Tokens?.Count ?? 0, pos.TotalValueUsd);
                             }
                             
@@ -294,7 +294,7 @@ public class IntegrationRequestWorker : BaseConsumer
                         }
                         
                         status = IntegrationStatus.Success;
-                        _logger.LogInformation("[Worker] Raydium processing completed successfully");
+                        _logger.LogDebug("[Worker] Raydium processing completed successfully");
                     }
                     catch (Exception raydiumEx)
                     {
@@ -311,7 +311,7 @@ public class IntegrationRequestWorker : BaseConsumer
                     break;
             }
         }
-        // Tratamento específico para timeouts de RPC/Network
+        // Tratamento especï¿½fico para timeouts de RPC/Network
         catch (Exception ex) when (ex.GetType().Name == "RpcClientTimeoutException")
         {
             status = IntegrationStatus.TimedOut;
@@ -340,7 +340,7 @@ public class IntegrationRequestWorker : BaseConsumer
         {
             var statusCodeInt = (int)httpEx.StatusCode.Value;
             
-            // Erros permanentes (4xx) - não retenta
+            // Erros permanentes (4xx) - nï¿½o retenta
             if (statusCodeInt >= 400 && statusCodeInt < 500)
             {
                 status = IntegrationStatus.Failed;
@@ -356,7 +356,7 @@ public class IntegrationRequestWorker : BaseConsumer
                 _logger.LogWarning(httpEx, "[Worker] HTTP {StatusCode} error for JobId={JobId} Provider={Provider}", 
                     statusCodeInt, request.JobId, request.Provider);
             }
-            // Erros temporários (5xx) - retenta
+            // Erros temporï¿½rios (5xx) - retenta
             else
             {
                 status = IntegrationStatus.Failed;
@@ -385,7 +385,7 @@ public class IntegrationRequestWorker : BaseConsumer
 
         var finished = DateTime.UtcNow;
 
-        // Retry logic: apenas retenta se for apropriado e não excedeu o limite de tentativas
+        // Retry logic: apenas retenta se for apropriado e nï¿½o excedeu o limite de tentativas
         if (ShouldRetry(status, errorCode) && request.Attempt < 3)
         {
             var nextAttempt = request.Attempt + 1;
@@ -411,7 +411,7 @@ public class IntegrationRequestWorker : BaseConsumer
                         Metadata: request.Metadata);
                     var rk = RoutingKeys.ForIntegrationRequest(request.Provider);
                     await _publisher.PublishAsync(rk, retryReq);
-                    _logger.LogInformation("[Worker] Retry published Attempt={Attempt} JobId={JobId} Provider={Provider}", 
+                    _logger.LogDebug("[Worker] Retry published Attempt={Attempt} JobId={JobId} Provider={Provider}", 
                         nextAttempt, request.JobId, request.Provider);
                 }
                 catch (Exception rex)
@@ -424,7 +424,7 @@ public class IntegrationRequestWorker : BaseConsumer
         }
         else if (!ShouldRetry(status, errorCode))
         {
-            _logger.LogInformation("[Worker] Not retrying JobId={JobId} Provider={Provider} Status={Status} ErrorCode={ErrorCode} - error is permanent", 
+            _logger.LogDebug("[Worker] Not retrying JobId={JobId} Provider={Provider} Status={Status} ErrorCode={ErrorCode} - error is permanent", 
                 request.JobId, request.Provider, status, errorCode);
         }
         else if (request.Attempt >= 3)
@@ -448,7 +448,7 @@ public class IntegrationRequestWorker : BaseConsumer
 
         try
         {
-            _logger.LogInformation("[Worker] Publishing IntegrationResult JobId={JobId} Provider={Provider} Status={Status} Attempt={Attempt}", 
+            _logger.LogDebug("[Worker] Publishing IntegrationResult JobId={JobId} Provider={Provider} Status={Status} Attempt={Attempt}", 
                 request.JobId, request.Provider, status, request.Attempt);
 
             await _publisher.PublishAsync(RoutingKeys.ForIntegrationResult(request.Provider), result, ct);

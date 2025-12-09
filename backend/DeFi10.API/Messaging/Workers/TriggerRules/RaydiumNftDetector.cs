@@ -22,7 +22,7 @@ public class RaydiumNftDetector : IProtocolTriggerDetector
     {
         var triggers = new List<(IntegrationProvider, Chain)>();
 
-        _logger.LogInformation("=== RaydiumNftDetector: Starting detection for chain {Chain} ===", chain);
+        _logger.LogDebug("RaydiumNftDetector: Starting detection for chain {Chain}", chain);
 
         if (chain != Chain.Solana)
         {
@@ -44,17 +44,17 @@ public class RaydiumNftDetector : IProtocolTriggerDetector
             if (jsonElement.ValueKind == JsonValueKind.Object && jsonElement.TryGetProperty("nfts", out var nftsProp))
             {
                 nftArray = nftsProp;
-                _logger.LogInformation("RaydiumNftDetector: Extracted 'nfts' property from payload");
+                _logger.LogDebug("RaydiumNftDetector: Extracted 'nfts' property from payload");
             }
             else if (jsonElement.ValueKind == JsonValueKind.Object && jsonElement.TryGetProperty("Nfts", out var nftsPropUpper))
             {
                 nftArray = nftsPropUpper;
-                _logger.LogInformation("RaydiumNftDetector: Extracted 'Nfts' property from payload");
+                _logger.LogDebug("RaydiumNftDetector: Extracted 'Nfts' property from payload");
             }
             else if (jsonElement.ValueKind == JsonValueKind.Array)
             {
                 nftArray = jsonElement; // Already an array
-                _logger.LogInformation("RaydiumNftDetector: Payload is already an array");
+                _logger.LogDebug("RaydiumNftDetector: Payload is already an array");
             }
             else
             {
@@ -64,7 +64,7 @@ public class RaydiumNftDetector : IProtocolTriggerDetector
             }
 
             var tokenCount = nftArray.GetArrayLength();
-            _logger.LogInformation("RaydiumNftDetector: Scanning {Count} Solana tokens for NFTs", tokenCount);
+            _logger.LogDebug("RaydiumNftDetector: Scanning {Count} Solana tokens for NFTs", tokenCount);
 
             // Raydium CLMM positions are NFTs with amount=1 and decimals=0
             var nftCandidatesFound = 0;
@@ -103,7 +103,7 @@ public class RaydiumNftDetector : IProtocolTriggerDetector
                     // Try to get mint address for logging
                     var mint = token.TryGetProperty("mint", out var mintProp) ? mintProp.GetString() : "unknown";
                     
-                    _logger.LogInformation("RaydiumNftDetector: NFT candidate #{CandidateIndex} found at token #{TokenIndex} - mint={Mint}, amount=1, decimals=0",
+                    _logger.LogDebug("RaydiumNftDetector: NFT candidate #{CandidateIndex} found at token #{TokenIndex} - mint={Mint}, amount=1, decimals=0",
                         nftCandidatesFound, tokenIndex, mint);
                     
                     // Check if Raydium is enabled on Solana before triggering
@@ -125,12 +125,12 @@ public class RaydiumNftDetector : IProtocolTriggerDetector
             
             if (nftCandidatesFound == 0)
             {
-                _logger.LogInformation("RaydiumNftDetector: No NFT candidates (amount=1, decimals=0) found after scanning {Count} tokens",
+                _logger.LogDebug("RaydiumNftDetector: No NFT candidates (amount=1, decimals=0) found after scanning {Count} tokens",
                     tokenCount);
             }
             else if (triggers.Count == 0)
             {
-                _logger.LogInformation("RaydiumNftDetector: Found {Count} NFT candidates but no triggers generated (protocol may be disabled)",
+                _logger.LogDebug("RaydiumNftDetector: Found {Count} NFT candidates but no triggers generated (protocol may be disabled)",
                     nftCandidatesFound);
             }
         }
@@ -145,7 +145,7 @@ public class RaydiumNftDetector : IProtocolTriggerDetector
         }
         else
         {
-            _logger.LogInformation("RaydiumNftDetector: No triggers detected for Solana");
+            _logger.LogDebug("RaydiumNftDetector: No triggers detected for Solana");
         }
 
         return triggers;

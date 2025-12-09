@@ -27,7 +27,7 @@ namespace DeFi10.API.Services.Solana.Raydium.Clmm
         {
             try
             {
-                _logger.LogInformation("Fetching pool info from Raydium API for pool {PoolId}", poolId);
+                _logger.LogDebug("Fetching pool info from Raydium API for pool {PoolId}", poolId);
                 
                 var url = $"{API_BASE_URL}/pools/info/ids?ids={poolId}";
                 var response = await _httpClient.GetAsync(url);
@@ -48,7 +48,7 @@ namespace DeFi10.API.Services.Solana.Raydium.Clmm
                 if (apiResponse?.Success == true && apiResponse.Data?.Count > 0)
                 {
                     var poolData = apiResponse.Data[0];
-                    _logger.LogInformation("Successfully fetched pool info for {PoolId} from Raydium API", poolId);
+                    _logger.LogDebug("Successfully fetched pool info for {PoolId} from Raydium API", poolId);
                     return poolData;
                 }
 
@@ -71,7 +71,7 @@ namespace DeFi10.API.Services.Solana.Raydium.Clmm
         {
             try
             {
-                _logger.LogInformation("Fetching positions from Raydium API for owner {Owner}", ownerAddress);
+                _logger.LogDebug("Fetching positions from Raydium API for owner {Owner}", ownerAddress);
                 
                 var url = $"{API_BASE_URL}/clmm/positions?owner={ownerAddress}";
                 var response = await _httpClient.GetAsync(url);

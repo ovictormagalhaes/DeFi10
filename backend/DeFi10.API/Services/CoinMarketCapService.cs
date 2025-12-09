@@ -59,7 +59,7 @@ public class CoinMarketCapService : ICoinMarketCapService
         var joined = string.Join(',', list.Select(s => s.ToUpperInvariant()));
         var url = $"{_opts.BaseUrl}/cryptocurrency/quotes/latest?symbol={joined}";
         
-        _logger.LogInformation("[CMC] ?? Requesting prices: symbols={Symbols} url={Url}", joined, url);
+        _logger.LogDebug("[CMC] Requesting prices: symbols={Symbols} url={Url}", joined, url);
         
         try
         {
@@ -69,13 +69,13 @@ public class CoinMarketCapService : ICoinMarketCapService
             
             if (resp.StatusCode == (HttpStatusCode)429)
             {
-                _logger.LogWarning("[CMC] ?? Rate limited (429) - symbols={Count}", list.Length);
+                _logger.LogWarning("[CMC] Rate limited (429) - symbols={Count}", list.Length);
                 return new CmcQuotesLatestV2Response();
             }
             if (!resp.IsSuccessStatusCode)
             {
                 var errorContent = await resp.Content.ReadAsStringAsync(ct);
-                _logger.LogWarning("[CMC] ? Request failed - status={Status} symbols={Count} error={Error}", 
+                _logger.LogWarning("[CMC] Request failed - status={Status} symbols={Count} error={Error}", 
                     resp.StatusCode, list.Length, errorContent);
                 return new CmcQuotesLatestV2Response();
             }
@@ -114,10 +114,10 @@ public class CoinMarketCapService : ICoinMarketCapService
             var dataNode = node["data"] as JsonObject;
             if (dataNode != null)
             {
-                _logger.LogInformation("[CMC] Processing {Count} assets from response", dataNode.Count);
+                _logger.LogDebug("[CMC] Processing {Count} assets from response", dataNode.Count);
                 
                 var returnedKeys = string.Join(", ", dataNode.Select(kv => $"\"{kv.Key}\""));
-                _logger.LogInformation("[CMC] Keys returned by CMC: {Keys}", returnedKeys);
+                _logger.LogDebug("[CMC] Keys returned by CMC: {Keys}", returnedKeys);
                 
                 foreach (var kv in dataNode)
                 {
@@ -173,7 +173,7 @@ public class CoinMarketCapService : ICoinMarketCapService
                     result.Data[kv.Key] = asset;
                 }
                 
-                _logger.LogInformation("[CMC] ? Successfully parsed {Count} assets with prices", result.Data.Count);
+                _logger.LogDebug("[CMC] Successfully parsed {Count} assets with prices", result.Data.Count);
             }
             else
             {
@@ -184,12 +184,12 @@ public class CoinMarketCapService : ICoinMarketCapService
         }
         catch (TaskCanceledException) when (ct.IsCancellationRequested)
         {
-            _logger.LogInformation("[CMC] Request canceled symbols={Count}", symbols.Count());
+            _logger.LogDebug("[CMC] Request canceled symbols={Count}", symbols.Count());
             throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[CMC] ? Exception while fetching prices for symbols={Symbols}", joined);
+            _logger.LogError(ex, "[CMC] Exception while fetching prices for symbols={Symbols}", joined);
             return null;
         }
     }

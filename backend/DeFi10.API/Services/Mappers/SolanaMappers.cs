@@ -107,7 +107,7 @@ namespace DeFi10.API.Services.Mappers
 
         public Task<List<WalletItem>> MapAsync(IEnumerable<KaminoPosition> input, ChainEnum chain)
         {
-            _logger.LogInformation("========== KAMINO MAPPER: Starting mapping ==========");
+            _logger.LogDebug("KAMINO MAPPER: Starting mapping");
             
             if (input == null || !input.Any())
             {
@@ -115,11 +115,11 @@ namespace DeFi10.API.Services.Mappers
                 return Task.FromResult(new List<WalletItem>());
             }
 
-            _logger.LogInformation("KAMINO MAPPER: Input has {Count} positions", input.Count());
+            _logger.LogDebug("KAMINO MAPPER: Input has {Count} positions", input.Count());
 
             var walletItems = input.Select((p, idx) =>
             {
-                _logger.LogInformation("KAMINO MAPPER: Processing position {Index}: ID={Id}, Market={Market}, TokenCount={TokenCount}", 
+                _logger.LogDebug("KAMINO MAPPER: Processing position {Index}: ID={Id}, Market={Market}, TokenCount={TokenCount}", 
                     idx, p.Id, p.Market, p.Tokens?.Count ?? 0);
 
                 if (p.Tokens == null || !p.Tokens.Any())
@@ -130,7 +130,7 @@ namespace DeFi10.API.Services.Mappers
                 {
                     foreach (var token in p.Tokens)
                     {
-                        _logger.LogInformation("KAMINO MAPPER: Token in position - Symbol={Symbol}, Amount={Amount}, PriceUsd={Price}, Type={Type}",
+                        _logger.LogDebug("KAMINO MAPPER: Token in position - Symbol={Symbol}, Amount={Amount}, PriceUsd={Price}, Type={Type}",
                             token.Symbol, token.Amount, token.PriceUsd, token.Type);
                     }
                 }
@@ -141,7 +141,7 @@ namespace DeFi10.API.Services.Mappers
                     {
                         var unitPrice = t.PriceUsd ?? 0;
                         
-                        _logger.LogInformation("KAMINO MAPPER: Creating SUPPLIED token - Symbol={Symbol}, Amount={Amount}, UnitPrice={Price}",
+                        _logger.LogDebug("KAMINO MAPPER: Creating SUPPLIED token - Symbol={Symbol}, Amount={Amount}, UnitPrice={Price}",
                             t.Symbol, t.Amount, unitPrice);
                         
                         var token = _tokenFactory.CreateSupplied(
@@ -155,13 +155,13 @@ namespace DeFi10.API.Services.Mappers
                         );
                         token.Logo = t.Logo;
                         
-                        _logger.LogInformation("KAMINO MAPPER: Created token - Symbol={Symbol}, TotalPrice={TotalPrice}, BalanceFormatted={Balance}",
+                        _logger.LogDebug("KAMINO MAPPER: Created token - Symbol={Symbol}, TotalPrice={TotalPrice}, BalanceFormatted={Balance}",
                             token.Symbol, token.Financials?.TotalPrice, token.Financials?.BalanceFormatted);
                         
                         return token;
                     }).ToList();
 
-                _logger.LogInformation("KAMINO MAPPER: Supplied tokens count: {Count}", suppliedTokens.Count);
+                _logger.LogDebug("KAMINO MAPPER: Supplied tokens count: {Count}", suppliedTokens.Count);
 
                 var borrowedTokens = p.Tokens
                     .Where(t => t.Type == TokenType.Borrowed)
@@ -169,7 +169,7 @@ namespace DeFi10.API.Services.Mappers
                     {
                         var unitPrice = t.PriceUsd ?? 0;
                         
-                        _logger.LogInformation("KAMINO MAPPER: Creating BORROWED token - Symbol={Symbol}, Amount={Amount}, UnitPrice={Price}",
+                        _logger.LogDebug("KAMINO MAPPER: Creating BORROWED token - Symbol={Symbol}, Amount={Amount}, UnitPrice={Price}",
                             t.Symbol, t.Amount, unitPrice);
                         
                         var token = _tokenFactory.CreateBorrowed(
@@ -183,16 +183,16 @@ namespace DeFi10.API.Services.Mappers
                         );
                         token.Logo = t.Logo;
                         
-                        _logger.LogInformation("KAMINO MAPPER: Created token - Symbol={Symbol}, TotalPrice={TotalPrice}, BalanceFormatted={Balance}",
+                        _logger.LogDebug("KAMINO MAPPER: Created token - Symbol={Symbol}, TotalPrice={TotalPrice}, BalanceFormatted={Balance}",
                             token.Symbol, token.Financials?.TotalPrice, token.Financials?.BalanceFormatted);
                         
                         return token;
                     }).ToList();
 
-                _logger.LogInformation("KAMINO MAPPER: Borrowed tokens count: {Count}", borrowedTokens.Count);
+                _logger.LogDebug("KAMINO MAPPER: Borrowed tokens count: {Count}", borrowedTokens.Count);
 
                 var allTokens = suppliedTokens.Concat(borrowedTokens).ToList();
-                _logger.LogInformation("KAMINO MAPPER: Total tokens in position: {Count}", allTokens.Count);
+                _logger.LogDebug("KAMINO MAPPER: Total tokens in position: {Count}", allTokens.Count);
 
                 var walletItem = new WalletItem
                 {
@@ -210,25 +210,25 @@ namespace DeFi10.API.Services.Mappers
                     }
                 };
 
-                _logger.LogInformation("KAMINO MAPPER: Created WalletItem - Type={Type}, Protocol={Protocol}, TokensCount={Count}, HealthFactor={HF}",
+                _logger.LogDebug("KAMINO MAPPER: Created WalletItem - Type={Type}, Protocol={Protocol}, TokensCount={Count}, HealthFactor={HF}",
                     walletItem.Type, walletItem.Protocol.Name, walletItem.Position.Tokens.Count, walletItem.AdditionalData.HealthFactor);
 
                 return walletItem;
 
             }).ToList();
 
-            _logger.LogInformation("KAMINO MAPPER: Completed mapping - Total WalletItems: {Count}", walletItems.Count);
+            _logger.LogDebug("KAMINO MAPPER: Completed mapping - Total WalletItems: {Count}", walletItems.Count);
             
             if (walletItems.Any())
             {
                 var firstItem = walletItems.First();
-                _logger.LogInformation("KAMINO MAPPER: First item summary - Tokens={Count}, Protocol={Name}", 
+                _logger.LogDebug("KAMINO MAPPER: First item summary - Tokens={Count}, Protocol={Name}", 
                     firstItem.Position.Tokens.Count, firstItem.Protocol.Name);
                 
                 if (firstItem.Position.Tokens.Any())
                 {
                     var firstToken = firstItem.Position.Tokens.First();
-                    _logger.LogInformation("KAMINO MAPPER: First token details - Symbol={Symbol}, Type={Type}, Amount={Amount}, TotalPrice={Price}",
+                    _logger.LogDebug("KAMINO MAPPER: First token details - Symbol={Symbol}, Type={Type}, Amount={Amount}, TotalPrice={Price}",
                         firstToken.Symbol, firstToken.Type, firstToken.Financials?.BalanceFormatted, firstToken.Financials?.TotalPrice);
                 }
             }

@@ -82,7 +82,7 @@ public static class WebApplicationBuilderExtensions
                 OnTokenValidated = context =>
                 {
                     var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                    logger.LogInformation("JWT Token validated successfully for user {User}", context.Principal?.Identity?.Name);
+                    logger.LogDebug("JWT Token validated successfully for user {User}", context.Principal?.Identity?.Name);
                     return Task.CompletedTask;
                 }
             };

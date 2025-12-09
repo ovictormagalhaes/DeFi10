@@ -212,21 +212,21 @@ public class TokenHydrationHelper
                             {
                                 token.Symbol = foundMetadata.Symbol;
                                 metadataChanged = true;
-                                _logger.LogInformation("[TokenHydration] ✅ Filled symbol by address: {Symbol} (address: {Address})", 
+                                _logger.LogDebug("[TokenHydration] Filled symbol by address: {Symbol} (address: {Address})", 
                                     foundMetadata.Symbol, token.ContractAddress);
                             }
                             if (string.IsNullOrEmpty(token.Name) && !string.IsNullOrEmpty(foundMetadata.Name))
                             {
                                 token.Name = foundMetadata.Name;
                                 metadataChanged = true;
-                                _logger.LogInformation("[TokenHydration] ✅ Filled name by address: {Name} (address: {Address})", 
+                                _logger.LogDebug("[TokenHydration] Filled name by address: {Name} (address: {Address})", 
                                     foundMetadata.Name, token.ContractAddress);
                             }
                             if (string.IsNullOrEmpty(token.Logo) && !string.IsNullOrEmpty(foundMetadata.LogoUrl))
                             {
                                 token.Logo = foundMetadata.LogoUrl;
                                 metadataChanged = true;
-                                _logger.LogInformation("[TokenHydration] ✅ Filled logo by address: {Address}", token.ContractAddress);
+                                _logger.LogDebug("[TokenHydration] Filled logo by address: {Address}", token.ContractAddress);
                             }
                             
                             // Se preenchemos dados, salvar no Redis para futura reutilização
@@ -274,7 +274,7 @@ public class TokenHydrationHelper
                         {
                             token.Logo = foundMetadata.LogoUrl;
                             metadataChanged = true;
-                            _logger.LogInformation("[TokenHydration] ✅ Filled logo by symbol+name: {Symbol}/{Name}", token.Symbol, token.Name);
+                            _logger.LogDebug("[TokenHydration] Filled logo by symbol+name: {Symbol}/{Name}", token.Symbol, token.Name);
                             
                             // Salvar no Redis por address se disponível
                             if (!string.IsNullOrEmpty(token.ContractAddress))
@@ -298,7 +298,7 @@ public class TokenHydrationHelper
                         if (symbolToLogo.TryGetValue(normalizedSymbol, out var logoUrl) && !string.IsNullOrEmpty(logoUrl))
                         {
                             token.Logo = logoUrl;
-                            _logger.LogDebug("[TokenHydration] ✅ Filled logo by symbol fallback: {Symbol}", token.Symbol);
+                            _logger.LogDebug("[TokenHydration] Filled logo by symbol fallback: {Symbol}", token.Symbol);
                         }
                     }
                     
@@ -310,7 +310,7 @@ public class TokenHydrationHelper
                     
                     if (missingFields.Any())
                     {
-                        _logger.LogWarning("[TokenHydration] ❌ Token still missing [{Missing}]: address={Address}, symbol={Symbol}, name={Name}", 
+                        _logger.LogWarning("[TokenHydration] Token still missing [{Missing}]: address={Address}, symbol={Symbol}, name={Name}", 
                             string.Join(", ", missingFields), 
                             token.ContractAddress ?? "N/A", 
                             token.Symbol ?? "N/A", 

@@ -53,7 +53,7 @@ public sealed class MongoStrategyRepository : IStrategyRepository
                 isDeletedIndexModel
             });
 
-            _logger.LogInformation("MongoDB indexes created successfully for Strategies collection");
+            _logger.LogDebug("MongoDB indexes created successfully for Strategies collection");
         }
         catch (Exception ex)
         {
@@ -102,7 +102,7 @@ public sealed class MongoStrategyRepository : IStrategyRepository
         try
         {
             await _collection.InsertOneAsync(strategy, cancellationToken: ct);
-            _logger.LogInformation("Created Strategy Id={Id} for WalletGroupId={WalletGroupId}", strategy.Id, strategy.WalletGroupId);
+            _logger.LogDebug("Created Strategy Id={Id} for WalletGroupId={WalletGroupId}", strategy.Id, strategy.WalletGroupId);
             return strategy;
         }
         catch (Exception ex)
@@ -128,7 +128,7 @@ public sealed class MongoStrategyRepository : IStrategyRepository
                 throw new InvalidOperationException($"Strategy with Id={strategy.Id} not found or already deleted");
             }
 
-            _logger.LogInformation("Updated Strategy Id={Id} for WalletGroupId={WalletGroupId}", strategy.Id, strategy.WalletGroupId);
+            _logger.LogDebug("Updated Strategy Id={Id} for WalletGroupId={WalletGroupId}", strategy.Id, strategy.WalletGroupId);
             return strategy;
         }
         catch (Exception ex)
@@ -156,7 +156,7 @@ public sealed class MongoStrategyRepository : IStrategyRepository
 
             if (result.MatchedCount > 0)
             {
-                _logger.LogInformation("Deleted (soft) Strategy Id={Id}", id);
+                _logger.LogDebug("Deleted (soft) Strategy Id={Id}", id);
                 return true;
             }
 

@@ -137,7 +137,7 @@ public class PendleService : IPendleService
             return resp; 
         }
 
-        _logger.LogInformation("[Pendle] ?? Starting deposits query: account={Account} on Base", addr);
+        _logger.LogDebug("[Pendle] Starting deposits query: account={Account} on Base", addr);
 
         try
         {
@@ -149,7 +149,7 @@ public class PendleService : IPendleService
                 return resp;
             }
 
-            _logger.LogInformation("[Pendle] ?? Found {Count} PT tokens from Pendle API for Base chain", ptTokens.Count);
+            _logger.LogDebug("[Pendle] Found {Count} PT tokens from Pendle API for Base chain", ptTokens.Count);
 
             var web3 = new Web3(rpc);
 
@@ -169,7 +169,7 @@ public class PendleService : IPendleService
                     {
                         var balanceFormatted = ConvertToDecimal(balance, ptToken.Decimals);
                         
-                        _logger.LogInformation("[Pendle] ? Found PT token balance: {Symbol} = {Balance} (raw: {Raw})", 
+                        _logger.LogDebug("[Pendle] Found PT token balance: {Symbol} = {Balance} (raw: {Raw})", 
                             ptToken.Symbol, balanceFormatted, balance);
 
                         resp.Data.Deposits.Add(new PendleDepositItem
@@ -194,12 +194,12 @@ public class PendleService : IPendleService
 
             if (resp.Data.Deposits.Count > 0)
             {
-                _logger.LogInformation("[Pendle] ? Successfully found {Count} PT token deposits for account={Account}", 
+                _logger.LogDebug("[Pendle] Successfully found {Count} PT token deposits for account={Account}", 
                     resp.Data.Deposits.Count, addr);
             }
             else
             {
-                _logger.LogInformation("[Pendle] No PT token deposits found for account={Account} on Base", addr);
+                _logger.LogDebug("[Pendle] No PT token deposits found for account={Account} on Base", addr);
             }
 
             return resp;
@@ -225,7 +225,7 @@ public class PendleService : IPendleService
             const string chainId = "8453";
             var url = $"{PENDLE_API_BASE}/v1/{chainId}/markets";
             
-            _logger.LogInformation("[Pendle] ?? Fetching PT tokens from Pendle API: {Url}", url);
+            _logger.LogDebug("[Pendle] Fetching PT tokens from Pendle API: {Url}", url);
 
             var response = await _httpClient.GetAsync(url);
             

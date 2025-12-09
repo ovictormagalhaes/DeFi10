@@ -58,7 +58,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
                 if (metadata != null)
                 {
                     await SetTokenMetadataAsync(mintAddress, metadata);
-                    _logger.LogInformation("[TokenMetadata] Fetched and cached metadata from CMC for mint={Mint}, symbol={Symbol}", 
+                    _logger.LogDebug("[TokenMetadata] Fetched and cached metadata from CMC for mint={Mint}, symbol={Symbol}", 
                         mintAddress, metadata.Symbol);
                     return metadata;
                 }
@@ -110,7 +110,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
                         string json = JsonSerializer.Serialize(metadata);
                         await _cache.SetAsync(compositeKey, json, METADATA_TTL);
                         
-                        _logger.LogInformation("[TokenMetadata] Fetched and cached metadata from CMC by symbol+name: {Symbol}/{Name}", 
+                        _logger.LogDebug("[TokenMetadata] Fetched and cached metadata from CMC by symbol+name: {Symbol}/{Name}", 
                             symbol, name);
                         return metadata;
                     }
@@ -229,7 +229,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
             string json = JsonSerializer.Serialize(metadata);
             await _cache.SetAsync(key, json, METADATA_TTL);
             
-            _logger.LogInformation("[TokenMetadata] Cached metadata for mint={Mint}, symbol={Symbol}, name={Name}", 
+            _logger.LogDebug("[TokenMetadata] Cached metadata for mint={Mint}, symbol={Symbol}, name={Name}", 
                 mintAddress, metadata.Symbol, metadata.Name);
 
             // Salvar também com chave composite symbol+name para cross-chain lookup
@@ -259,7 +259,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
             string key = $"{PRICE_PREFIX}{identifier.ToLowerInvariant()}";
             await _cache.SetAsync(key, priceUsd.ToString(System.Globalization.CultureInfo.InvariantCulture), PRICE_TTL);
             
-            _logger.LogInformation("[TokenPrice] Cached price for identifier={Identifier}, price={Price}", 
+            _logger.LogDebug("[TokenPrice] Cached price for identifier={Identifier}, price={Price}", 
                 identifier, priceUsd);
         }
         catch (Exception ex)
