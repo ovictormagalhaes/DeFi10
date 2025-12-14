@@ -20,15 +20,6 @@ This repository uses GitHub Actions for automated testing, code coverage, and co
 - PRs: Only unit tests (`--filter "Category!=Integration&Category!=E2E"`)
 - Main/Develop: Only unit tests (`--filter "Category!=Integration&Category!=E2E"`)
 
-### 3. Nightly Tests (`nightly.yml`)
-**Triggers:** Daily at 2 AM UTC, manual workflow dispatch
-
-**Features:**
-- Comprehensive test suite with all tests
-- Detailed coverage reports with multiple formats
-- Creates GitHub issue on failure
-- 90-day artifact retention
-
 ## Test Categories
 
 To enable test filtering, add traits to your test methods:
