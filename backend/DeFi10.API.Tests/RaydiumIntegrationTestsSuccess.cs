@@ -268,7 +268,7 @@ namespace DeFi10.API.Tests
                 new PublicKey(RAYDIUM_CLMM_PROGRAM),
                 out PublicKey positionPda,
                 out byte bump);
-            Assert.True(success, "Falha ao derivar PDA da posi��o.");
+            Assert.True(success, "Failed to derive position PDA.");
             _output.WriteLine($"Position PDA = {positionPda.Key}");
 
             // 3) Read position data
