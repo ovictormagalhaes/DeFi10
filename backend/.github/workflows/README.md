@@ -18,7 +18,7 @@ This repository uses GitHub Actions for automated testing, code coverage, and co
 
 **Test Filtering:**
 - PRs: Only unit tests (`--filter "Category!=Integration&Category!=E2E"`)
-- Main/Develop: All tests
+- Main/Develop: Only unit tests (`--filter "Category!=Integration&Category!=E2E"`)
 
 ### 2. Integration Tests (`test.yml` - separate job)
 **Triggers:** Pushes to `main` branch and manual workflow dispatch
