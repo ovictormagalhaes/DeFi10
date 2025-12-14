@@ -7,6 +7,7 @@ using System.Text;
 using Xunit.Abstractions;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
+using Microsoft.Extensions.Configuration;
 
 namespace DeFi10.API.Tests
 {
@@ -14,49 +15,79 @@ namespace DeFi10.API.Tests
     {
         private readonly ITestOutputHelper _output;
         private readonly IRpcClient _rpcClient;
-        private const string TEST_WALLET_ADDRESS = "GSyqNADxpnyo57KDWXHGE7gjd63ovGB2FuYCtnZQZSWu";
-        private const string POSITION_NFT_MINT = "5jzVQdESbretaB6JRvvHejjQhRwFCS1jr3ystKJDrwK4";
-        private const string CLMM_PROGRAM = "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK";
-        private const string FALLBACK_POOL_ID = "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv";
+        private readonly IConfiguration _configuration;
+        private readonly string _testWalletAddress;
+        private readonly string _positionNftMint;
+        private readonly string _clmmProgram;
+        private readonly string _fallbackPoolId;
 
         public RaydiumIntegrationTests(ITestOutputHelper output)
         {
             _output = output;
-            _rpcClient = ClientFactory.GetClient("https://api.mainnet-beta.solana.com");
+            
+            // Load configuration from appsettings.json
+            _configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+                .Build();
+
+            // Read test configuration
+            _testWalletAddress = _configuration["Testing:Raydium:TestWalletAddress"] 
+                ?? throw new InvalidOperationException("TestWalletAddress not found in appsettings.json");
+            _positionNftMint = _configuration["Testing:Raydium:PositionNftMint"] 
+                ?? throw new InvalidOperationException("PositionNftMint not found in appsettings.json");
+            _clmmProgram = _configuration["Testing:Raydium:ClmmProgram"] 
+                ?? throw new InvalidOperationException("ClmmProgram not found in appsettings.json");
+            _fallbackPoolId = _configuration["Testing:Raydium:FallbackPoolId"] 
+                ?? throw new InvalidOperationException("FallbackPoolId not found in appsettings.json");
+
+            var rpcUrl = _configuration["Testing:Raydium:SolanaRpcUrl"] 
+                ?? "https://api.mainnet-beta.solana.com";
+            
+            _rpcClient = ClientFactory.GetClient(rpcUrl);
+            
+            _output.WriteLine("=== Test Configuration ===");
+            _output.WriteLine($"Test Wallet: {_testWalletAddress}");
+            _output.WriteLine($"Position NFT Mint: {_positionNftMint}");
+            _output.WriteLine($"CLMM Program: {_clmmProgram}");
+            _output.WriteLine($"Fallback Pool ID: {_fallbackPoolId}");
+            _output.WriteLine($"RPC URL: {rpcUrl}");
+            _output.WriteLine("========================\n");
         }
+
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Step5_Should_Read_Real_Raydium_Position_Token_Amounts()
         {
             // ARRANGE
             const string TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
-            const string RAYDIUM_CLMM_PROGRAM = "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK";
 
-            // 1) Buscar NFT Token-2022 da wallet
+            // 1) Search for Token-2022 NFT from wallet
             var accounts = await _rpcClient.GetTokenAccountsByOwnerAsync(
-                TEST_WALLET_ADDRESS, null, TOKEN_2022_PROGRAM, Commitment.Finalized);
-            Assert.True(accounts.WasSuccessful, "Falha ao buscar Token-2022 accounts.");
+                _testWalletAddress, null, TOKEN_2022_PROGRAM, Commitment.Finalized);
+            Assert.True(accounts.WasSuccessful, "Failed to fetch Token-2022 accounts.");
             Assert.NotEmpty(accounts.Result.Value);
 
             var ata = accounts.Result.Value.First();
             string nftMint = ata.Account.Data.Parsed.Info.Mint;
-            _output.WriteLine($"NFT encontrado: {nftMint}");
-            Assert.Equal(POSITION_NFT_MINT, nftMint);
+            _output.WriteLine($"NFT found: {nftMint}");
+            Assert.Equal(_positionNftMint, nftMint);
 
-            // 2) Derivar PDA da posição
+            // 2) Derive position PDA
             var mintPk = new PublicKey(nftMint);
             var seed = Encoding.UTF8.GetBytes("position");
             bool success = PublicKey.TryFindProgramAddress(
                 new[] { seed, mintPk.KeyBytes },
-                new PublicKey(RAYDIUM_CLMM_PROGRAM),
+                new PublicKey(_clmmProgram),
                 out PublicKey positionPda,
                 out byte bump);
-            Assert.True(success, "Falha ao derivar PDA da posição.");
+            Assert.True(success, "Failed to derive position PDA.");
             _output.WriteLine($"Position PDA = {positionPda.Key}");
 
-            // 3) Ler dados da posição
+            // 3) Read position data
             var posAcc = await _rpcClient.GetAccountInfoAsync(positionPda.Key, Commitment.Finalized);
             Assert.True(posAcc.WasSuccessful && posAcc.Result?.Value?.Data?.Count > 0,
-                "Position PDA não contém dados.");
+                "Position PDA does not contain data.");
 
             var rawPos = Convert.FromBase64String(posAcc.Result.Value.Data[0]);
             var position = RaydiumPositionParser.Parse(rawPos);
@@ -66,10 +97,9 @@ namespace DeFi10.API.Tests
             _output.WriteLine($"Liquidity: {position.Liquidity}");
             _output.WriteLine($"Tick Range: {position.TickLower} ? {position.TickUpper}");
 
-            // 4) Ler pool
-            const string PUBLIC_POOL_ID = "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv";
+            // 4) Read pool
             RaydiumPool? pool = null;
-            var poolCandidates = new List<string> { position.PoolId, PUBLIC_POOL_ID };
+            var poolCandidates = new List<string> { position.PoolId, _fallbackPoolId };
 
             foreach (var poolId in poolCandidates)
             {
@@ -90,23 +120,23 @@ namespace DeFi10.API.Tests
                 }
                 catch (Exception ex)
                 {
-                    _output.WriteLine($"Falha ao ler pool {poolId}: {ex.Message}");
+                    _output.WriteLine($"Failed to read pool {poolId}: {ex.Message}");
                 }
             }
 
             Assert.NotNull(pool);
 
-            // 5) Corrigir ticks
+            // 5) Correct ticks
             int tickLower = position.TickLower;
             int tickUpper = position.TickUpper;
 
-            _output.WriteLine($"\n=== CORREÇÃO DE TICKS ===");
+            _output.WriteLine($"\n=== TICK CORRECTION ===");
             _output.WriteLine($"Original: tickLower={position.TickLower}, tickUpper={position.TickUpper}");
-            _output.WriteLine($"Corrigido: tickLower={tickLower}, tickUpper={tickUpper}");
+            _output.WriteLine($"Corrected: tickLower={tickLower}, tickUpper={tickUpper}");
             _output.WriteLine($"Current Tick: {pool.TickCurrent}");
-            _output.WriteLine($"Motivo: Ticks estão invertidos semanticamente no par USDC/SOL");
+            _output.WriteLine($"Reason: Ticks are semantically inverted in USDC/SOL pair");
 
-            // LOGAR sqrtPrice dos ticks antes do cálculo
+            // LOGAR sqrtPrice dos ticks antes do cï¿½lculo
             BigInteger sqrtLower = RaydiumMath.GetSqrtPriceAtTick(tickLower, _output);
             BigInteger sqrtUpper = RaydiumMath.GetSqrtPriceAtTick(tickUpper, _output);
             _output.WriteLine($"sqrtLowerX64 (calculado): {sqrtLower}");
@@ -144,37 +174,37 @@ namespace DeFi10.API.Tests
             _output.WriteLine($"USDC: {usdcAmount:N6}");
             _output.WriteLine($"Range Status: {rangeStatus}");
 
-            // VALIDAÇÕES
-            Assert.True(solAmount >= 0 && usdcAmount >= 0, "Amounts devem ser não-negativos");
+            // VALIDAï¿½ï¿½ES
+            Assert.True(solAmount >= 0 && usdcAmount >= 0, "Amounts devem ser nï¿½o-negativos");
             Assert.True(solAmount > 0 || usdcAmount > 0, "Position deve ter valor");
 
-            // Teste específico para posição BELOW range (~14 SOL)
+            // Teste especï¿½fico para posiï¿½ï¿½o BELOW range (~14 SOL)
             if (rangeStatus.Contains("BELOW"))
             {
-                _output.WriteLine($"\n? CORRETO: Preço abaixo do range ? 100% SOL");
+                _output.WriteLine($"\n? CORRETO: Preï¿½o abaixo do range ? 100% SOL");
                 Assert.True(solAmount > 10m && solAmount < 15m, $"Deveria ter ~14 SOL, mas tem {solAmount}");
-                Assert.True(usdcAmount < 0.1m, $"Não deveria ter USDC significativo, mas tem {usdcAmount}");
+                Assert.True(usdcAmount < 0.1m, $"Nï¿½o deveria ter USDC significativo, mas tem {usdcAmount}");
             }
 
             _output.WriteLine($"\n? SUCCESS: Position amounts calculated correctly");
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Read_Uncollected_Fees_From_RaydiumOnChain()
         {
             // Test that demonstrates the implementation can calculate real-time uncollected fees
 
             // ARRANGE
             var logger = new TestLogger<DeFi10.API.Services.Solana.Raydium.RaydiumOnChainService>(_output);
-            var rpcClient = ClientFactory.GetClient("https://api.mainnet-beta.solana.com");
             var httpClient = new HttpClient();
-            var service = new DeFi10.API.Services.Solana.Raydium.RaydiumOnChainService(rpcClient, logger, httpClient);
+            var service = new DeFi10.API.Services.Solana.Raydium.RaydiumOnChainService(_rpcClient, logger, httpClient);
 
             const string SOL_MINT = "So11111111111111111111111111111111111111112";
             const string USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
             // ACT
-            var positions = await service.GetPositionsAsync(TEST_WALLET_ADDRESS);
+            var positions = await service.GetPositionsAsync(_testWalletAddress);
 
             // ASSERT
             _output.WriteLine($"\n=== TEST RESULTS ===");
@@ -463,7 +493,7 @@ namespace DeFi10.API.Tests
             {
                 if (a.IsZero || a.CompareTo(Zero) <= 0) throw new ArgumentException("Ln domain");
                 // initial guess: use integer part's log2 approx to get coarse k
-                // Determine k so that a ˜ 2^k * m, with m in [1,2)
+                // Determine k so that a ï¿½ 2^k * m, with m in [1,2)
                 BigInteger mant = a.Mantissa;
                 int digits = mant.ToString().Length;
                 // rough initial guess using low-precision double fallback for speed of convergence:

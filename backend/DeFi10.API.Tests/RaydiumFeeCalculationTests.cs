@@ -19,7 +19,7 @@ namespace DeFi10.API.Tests
         [Fact]
         public void Should_Calculate_Fees_Matching_Raydium_UI()
         {
-            // Arrange - Valores reais da posição do usuário
+            // Arrange - Real values from user's position
             // Expected fees from Raydium UI: 0.058 SOL (58,000,000 lamports) and 8.259 USDC (8,259,000 micro)
             
             // Position data
@@ -38,7 +38,7 @@ namespace DeFi10.API.Tests
             BigInteger feeGrowthGlobal0 = BigInteger.Parse("4189810223468773134");
             BigInteger feeGrowthGlobal1 = BigInteger.Parse("737876030265694371");
             
-            // Ticks não inicializados (liquidityGross = 0)
+            // Uninitialized ticks (liquidityGross = 0)
             var tickLowerState = new TickState
             {
                 Tick = tickLower,

@@ -40,7 +40,6 @@ namespace DeFi10.API.Tests
         public void IntegrationTest_Database_ShouldConnect()
         {
             // This test requires external dependencies (database, APIs, etc.)
-            // It will only run on main branch pushes and nightly builds
             
             Assert.True(true, "Integration test placeholder");
         }
@@ -49,9 +48,7 @@ namespace DeFi10.API.Tests
         [Trait("Category", "Integration")]
         public void IntegrationTest_ExternalAPI_ShouldReturnData()
         {
-            // This test makes real API calls
-            // It will only run on main branch pushes and nightly builds
-            
+            // This test makes real API calls      
             Assert.True(true, "API integration test placeholder");
         }
 
