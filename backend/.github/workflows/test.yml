@@ -89,8 +89,6 @@ jobs:
         with:
           recreate: true
           path: code-coverage-results
-        with:'**/test-results.trx'
-          retention-days: 30
 
       - name: Upload coverage report
         if: always()
