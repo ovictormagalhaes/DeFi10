@@ -5,16 +5,26 @@ on:
     branches:
       - main
       - develop
+    paths:
+      - 'backend/**'
+      - '.github/workflows/test.yml'
   pull_request:
     branches:
       - main
       - develop
+    paths:
+      - 'backend/**'
+      - '.github/workflows/test.yml'
   workflow_dispatch:
 
 env:
   DOTNET_VERSION: '9.0.x'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+defaults:
+  run:
+    working-directory: backend
 
 jobs:
   test:
@@ -25,8 +35,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Full history for better coverage reports
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -37,7 +45,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('backend/**/*.csproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
@@ -59,26 +67,11 @@ jobs:
             --filter "Category!=Integration&Category!=E2E" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
-      - name: Parse test results
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: Test Results
-          path: '**/test-results.trx'
-          reporter: dotnet-trx
-          fail-on-error: true
-
-      - name: Generate coverage report
-        if: always()
-        uses: danielpalme/ReportGenerator-GitHub-Action@5.3.11
-        with:
-          reports: '**/coverage.cobertura.xml'
-          targetdir: 'CoverageReport'
-          repoCode Coverage Summary
+      - name: Code Coverage Summary
         if: github.event_name == 'pull_request'
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
-          filename: '**/coverage.cobertura.xml'
+          filename: backend/TestResults/**/coverage.cobertura.xml
           badge: true
           format: markdown
           output: both
@@ -88,11 +81,20 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           recreate: true
-          path: code-coverage-results
+          path: code-coverage-results.md
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: backend/TestResults/**/*.trx
+          retention-days: 30
 
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: '**/coverage.cobertura.xml
+          path: backend/TestResults/**/coverage.cobertura.xml
+          retention-days: 30
