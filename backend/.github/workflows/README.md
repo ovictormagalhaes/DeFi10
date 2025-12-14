@@ -11,7 +11,7 @@ This repository uses GitHub Actions for automated testing, code coverage, and co
 - ✅ Runs unit tests on all PRs (filters out integration tests)
 - ✅ Runs full test suite on main/develop branch pushes
 - ✅ Collects code coverage using Coverlet
-- ✅ Generates coverage reports (Cobertura, LCOV, HTML)
+- ✅ Generates coverage reports (Cobertura)
 - ✅ Adds coverage summary as PR comment
 - ✅ Uploads test results and coverage artifacts
 - ✅ Fails the build if tests fail
