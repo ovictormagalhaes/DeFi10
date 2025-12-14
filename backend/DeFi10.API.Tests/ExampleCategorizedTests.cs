@@ -64,7 +64,7 @@ namespace DeFi10.API.Tests
         public void E2ETest_FullWorkflow_ShouldCompleteSuccessfully()
         {
             // This test runs complete end-to-end scenarios
-            // It will only run on main branch pushes and nightly builds
+            // E2E tests are filtered out for all triggers and do not run in CI
             
             Assert.True(true, "E2E test placeholder");
         }
