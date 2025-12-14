@@ -136,14 +136,14 @@ namespace DeFi10.API.Tests
             _output.WriteLine($"Current Tick: {pool.TickCurrent}");
             _output.WriteLine($"Reason: Ticks are semantically inverted in USDC/SOL pair");
 
-            // LOGAR sqrtPrice dos ticks antes do c�lculo
+            // LOG sqrtPrice of ticks before calculation
             BigInteger sqrtLower = RaydiumMath.GetSqrtPriceAtTick(tickLower, _output);
             BigInteger sqrtUpper = RaydiumMath.GetSqrtPriceAtTick(tickUpper, _output);
-            _output.WriteLine($"sqrtLowerX64 (calculado): {sqrtLower}");
-            _output.WriteLine($"sqrtUpperX64 (calculado): {sqrtUpper}");
+            _output.WriteLine($"sqrtLowerX64 (calculated): {sqrtLower}");
+            _output.WriteLine($"sqrtUpperX64 (calculated): {sqrtUpper}");
             _output.WriteLine($"sqrtPriceX64 (pool): {pool.SqrtPrice}");
 
-            // Determinar range status
+            // Determine range status
             string rangeStatus;
             if (pool.TickCurrent < tickLower)
                 rangeStatus = "BELOW (all in SOL)";
@@ -154,7 +154,7 @@ namespace DeFi10.API.Tests
 
             _output.WriteLine($"Status range: {rangeStatus}");
 
-            // 6) Calcular position amounts usando RaydiumMath atualizado
+            // 6) Calculate position amounts using updated RaydiumMath
             var (rawA, rawB) = RaydiumMath.CalculateTokenAmounts(
                 position.Liquidity,
                 (int)tickLower,
@@ -166,24 +166,24 @@ namespace DeFi10.API.Tests
             _output.WriteLine($"RawA: {rawA}");
             _output.WriteLine($"RawB: {rawB}");
 
-            decimal solAmount = (decimal)rawA / 1_000_000_000m;  // WSOL 9 decimais
-            decimal usdcAmount = (decimal)rawB / 1_000_000m;     // USDC 6 decimais
+            decimal solAmount = (decimal)rawA / 1_000_000_000m;  // WSOL 9 decimals
+            decimal usdcAmount = (decimal)rawB / 1_000_000m;     // USDC 6 decimals
 
             _output.WriteLine($"\n=== FINAL AMOUNTS ===");
             _output.WriteLine($"SOL: {solAmount:N9}");
             _output.WriteLine($"USDC: {usdcAmount:N6}");
             _output.WriteLine($"Range Status: {rangeStatus}");
 
-            // VALIDA��ES
-            Assert.True(solAmount >= 0 && usdcAmount >= 0, "Amounts devem ser n�o-negativos");
-            Assert.True(solAmount > 0 || usdcAmount > 0, "Position deve ter valor");
+            // VALIDATIONS
+            Assert.True(solAmount >= 0 && usdcAmount >= 0, "Amounts must be non-negative");
+            Assert.True(solAmount > 0 || usdcAmount > 0, "Position must have value");
 
-            // Teste espec�fico para posi��o BELOW range (~14 SOL)
+            // Specific test for BELOW range position (~14 SOL)
             if (rangeStatus.Contains("BELOW"))
             {
-                _output.WriteLine($"\n? CORRETO: Pre�o abaixo do range ? 100% SOL");
-                Assert.True(solAmount > 10m && solAmount < 15m, $"Deveria ter ~14 SOL, mas tem {solAmount}");
-                Assert.True(usdcAmount < 0.1m, $"N�o deveria ter USDC significativo, mas tem {usdcAmount}");
+                _output.WriteLine($"\n✓ CORRECT: Price below range → 100% SOL");
+                Assert.True(solAmount > 10m && solAmount < 15m, $"Should have ~14 SOL, but has {solAmount}");
+                Assert.True(usdcAmount < 0.1m, $"Should not have significant USDC, but has {usdcAmount}");
             }
 
             _output.WriteLine($"\n? SUCCESS: Position amounts calculated correctly");
@@ -279,7 +279,7 @@ namespace DeFi10.API.Tests
         {
             public static RaydiumPosition Parse(ReadOnlySpan<byte> data)
             {
-                // Layout da struct PersonalPositionState do Raydium:
+                // Layout of Raydium's PersonalPositionState struct:
                 // discriminator(8) + bump(1) + nft_mint(32) + pool_id(32) + tick_lower_index(4) + tick_upper_index(4) + liquidity(16)
                 const int OFFSET_BUMP = 8;
                 const int OFFSET_NFT_MINT = OFFSET_BUMP + 1;
@@ -315,7 +315,7 @@ namespace DeFi10.API.Tests
         {
             public static RaydiumPool Parse(ReadOnlySpan<byte> data)
             {
-                // Offsets com discriminator Anchor (8 bytes)
+                // Offsets with Anchor discriminator (8 bytes)
                 return new RaydiumPool
                 {
                     TokenMintA = new PublicKey(data.Slice(8 + 1 + 32 + 32, 32)).Key, // skip discriminator(8) + bump(1) + ammConfig(32) + owner(32)
