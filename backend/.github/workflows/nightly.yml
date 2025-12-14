@@ -1,0 +1,101 @@
+name: Nightly Tests
+
+on:
+  schedule:
+    # Run every night at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  nightly-test:
+    name: Comprehensive Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run all tests with coverage
+        run: |
+          dotnet test \
+            --configuration Release \
+            --no-build \
+            --verbosity detailed \
+            --logger "trx;LogFileName=nightly-test-results.trx" \
+            --logger "console;verbosity=detailed" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura,lcov,opencover
+
+      - name: Generate comprehensive coverage report
+        if: always()
+        uses: danielpalme/ReportGenerator-GitHub-Action@5.3.11
+        with:
+          reports: '**/coverage.cobertura.xml'
+          targetdir: 'CoverageReport'
+          reporttypes: 'Html;HtmlSummary;Badges;Cobertura;lcov;MarkdownSummaryGithub;TextSummary'
+          assemblyfilters: '+DeFi10.API;-DeFi10.API.Tests'
+          verbosity: 'Info'
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-test-results
+          path: |
+            **/nightly-test-results.trx
+            TestResults/**/coverage.*.xml
+            TestResults/**/coverage.info
+          retention-days: 90
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-coverage-report
+          path: CoverageReport/
+          retention-days: 90
+
+      - name: Display coverage summary
+        if: always()
+        run: |
+          if [ -f CoverageReport/Summary.txt ]; then
+            echo "## 🌙 Nightly Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat CoverageReport/Summary.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🌙 Nightly Test Suite Failed',
+              body: `The nightly test suite has failed on ${new Date().toISOString()}.\n\n` +
+                    `**Workflow Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n` +
+                    `Please investigate and fix the failing tests.`,
+              labels: ['testing', 'nightly-failure']
+            })

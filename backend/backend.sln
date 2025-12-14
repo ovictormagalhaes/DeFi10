@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeFi10.API", "DeFi10.API\DeFi10.API.csproj", "{21DE95FA-ABB2-D4F3-3E03-1DB505C5D200}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeFi10.API.Tests", "DeFi10.API.Tests\DeFi10.API.Tests.csproj", "{8A46D648-EDB8-BD08-9333-F300230D4A93}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{21DE95FA-ABB2-D4F3-3E03-1DB505C5D200}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{21DE95FA-ABB2-D4F3-3E03-1DB505C5D200}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{21DE95FA-ABB2-D4F3-3E03-1DB505C5D200}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{21DE95FA-ABB2-D4F3-3E03-1DB505C5D200}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8A46D648-EDB8-BD08-9333-F300230D4A93}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A46D648-EDB8-BD08-9333-F300230D4A93}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A46D648-EDB8-BD08-9333-F300230D4A93}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A46D648-EDB8-BD08-9333-F300230D4A93}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D6F095D6-BED7-44BF-8E37-506347021BCA}
+	EndGlobalSection
+EndGlobal
