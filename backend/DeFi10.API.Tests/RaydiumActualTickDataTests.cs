@@ -19,6 +19,7 @@ public class RaydiumActualTickDataTests
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task Fetch_Actual_Tick_Array_Lower()
     {
         // Tick array for tick -19663 (starts at -19680)
@@ -62,6 +63,7 @@ public class RaydiumActualTickDataTests
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task Fetch_Actual_Tick_Array_Upper()
     {
         // Tick array for tick -18327 (starts at -18360)
@@ -103,6 +105,7 @@ public class RaydiumActualTickDataTests
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task Analyze_Why_SDK_Works()
     {
         _output.WriteLine("=== Analysis: Why SDK calculation works ===");
