@@ -20,14 +20,6 @@ This repository uses GitHub Actions for automated testing, code coverage, and co
 - PRs: Only unit tests (`--filter "Category!=Integration&Category!=E2E"`)
 - Main/Develop: Only unit tests (`--filter "Category!=Integration&Category!=E2E"`)
 
-### 2. Integration Tests (`test.yml` - separate job)
-**Triggers:** Pushes to `main` branch and manual workflow dispatch
-
-**Features:**
-- Runs integration and E2E tests
-- Only executes on main branch to save CI time
-- Separate job with longer timeout (30 minutes)
-
 ### 3. Nightly Tests (`nightly.yml`)
 **Triggers:** Daily at 2 AM UTC, manual workflow dispatch
 
