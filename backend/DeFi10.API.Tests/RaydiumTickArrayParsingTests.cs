@@ -3,7 +3,7 @@ using System.Linq;
 using System.Numerics;
 using Xunit;
 using Xunit.Abstractions;
-using DeFi10.API.Services.Solana;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
 
 namespace DeFi10.API.Tests;
 

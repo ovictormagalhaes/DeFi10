@@ -1,3 +1,4 @@
+using DeFi10.API.Configuration;
 using DeFi10.API.Services;
 using Xunit;
 

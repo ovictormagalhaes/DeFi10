@@ -2,8 +2,8 @@ using System;
 using System.Numerics;
 using Xunit;
 using Xunit.Abstractions;
-using DeFi10.API.Services.Solana;
-using DeFi10.API.Services.Solana.Raydium.Clmm;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
+using DeFi10.API.Services.Protocols.Raydium.Clmm;
 
 namespace DeFi10.API.Tests
 {

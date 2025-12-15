@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace DeFi10.API.Services;
+namespace DeFi10.API.Configuration;
 
 public sealed class CoinMarketCapOptions : IValidateOptions<CoinMarketCapOptions>
 {

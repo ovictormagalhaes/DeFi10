@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using DeFi10.API.Messaging.Contracts.Enums;
 using DeFi10.API.Messaging.Contracts.Results;
@@ -9,21 +8,22 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using StackExchange.Redis;
 using ChainEnum = DeFi10.API.Models.Chain;
-using DeFi10.API.Services.Mappers;
-using DeFi10.API.Services.Models;
-using DeFi10.API.Services.Models.Aave.Supplies;
-using DeFi10.API.Services.Models.Solana.Common;
-using DeFi10.API.Services.Models.Solana.Kamino;
-using DeFi10.API.Services.Models.Solana.Raydium;
+using DeFi10.API.Services.Domain.Mappers;
+using DeFi10.API.Services.Protocols.Aave;
+using DeFi10.API.Services.Protocols.Aave.Models;
+using DeFi10.API.Services.Protocols.Aave.Models.Supplies;
+using DeFi10.API.Services.Protocols.Pendle.Models;
+using DeFi10.API.Services.Protocols.Uniswap.Models;
+using DeFi10.API.Services.Protocols.Kamino.Models;
+using DeFi10.API.Services.Protocols.Raydium.Models;
+using DeFi10.API.Services.Infrastructure.Moralis.Models;
 using DeFi10.API.Models;
-using DeFi10.API.Services.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
 using DeFi10.API.Services.Helpers;
 using DeFi10.API.Aggregation;
-using DeFi10.API.Services.Solana;
 using DeFi10.API.Services.Filters;
 using DeFi10.API.Configuration;
 using DeFi10.API.Messaging.Workers.TriggerRules;
+using DeFi10.API.Services.Infrastructure.MoralisSolana.Models;
 
 namespace DeFi10.API.Messaging.Workers;
 

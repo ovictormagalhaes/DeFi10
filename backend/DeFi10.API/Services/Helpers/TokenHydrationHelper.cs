@@ -1,6 +1,6 @@
 using DeFi10.API.Models;
 using DeFi10.API.Services.Interfaces;
-using DeFi10.API.Services.Solana;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
 
 namespace DeFi10.API.Services.Helpers;
 

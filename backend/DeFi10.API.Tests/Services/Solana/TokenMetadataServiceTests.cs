@@ -1,11 +1,14 @@
 using System.Text.Json;
 using DeFi10.API.Configuration;
 using DeFi10.API.Services.Interfaces;
-using DeFi10.API.Services.Solana;
+using DeFi10.API.Services.Infrastructure.CoinMarketCap;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using DeFi10.API.Services.Helpers;
 using Xunit;
+using DeFi10.API.Models;
 
 namespace DeFi10.API.Tests.Services.Solana;
 

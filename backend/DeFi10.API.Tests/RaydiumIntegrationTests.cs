@@ -8,6 +8,7 @@ using Xunit.Abstractions;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
+using DeFi10.API.Services.Protocols.Raydium;
 
 namespace DeFi10.API.Tests
 {
@@ -137,8 +138,8 @@ namespace DeFi10.API.Tests
             _output.WriteLine($"Reason: Ticks are semantically inverted in USDC/SOL pair");
 
             // LOG sqrtPrice of ticks before calculation
-            BigInteger sqrtLower = RaydiumMath.GetSqrtPriceAtTick(tickLower, _output);
-            BigInteger sqrtUpper = RaydiumMath.GetSqrtPriceAtTick(tickUpper, _output);
+            BigInteger sqrtLower = Raydium.RaydiumMath.GetSqrtPriceAtTick(tickLower, _output);
+            BigInteger sqrtUpper = Raydium.RaydiumMath.GetSqrtPriceAtTick(tickUpper, _output);
             _output.WriteLine($"sqrtLowerX64 (calculated): {sqrtLower}");
             _output.WriteLine($"sqrtUpperX64 (calculated): {sqrtUpper}");
             _output.WriteLine($"sqrtPriceX64 (pool): {pool.SqrtPrice}");
@@ -155,7 +156,7 @@ namespace DeFi10.API.Tests
             _output.WriteLine($"Status range: {rangeStatus}");
 
             // 6) Calculate position amounts using updated RaydiumMath
-            var (rawA, rawB) = RaydiumMath.CalculateTokenAmounts(
+            var (rawA, rawB) = Raydium.RaydiumMath.CalculateTokenAmounts(
                 position.Liquidity,
                 (int)tickLower,
                 (int)tickUpper,
@@ -196,9 +197,9 @@ namespace DeFi10.API.Tests
             // Test that demonstrates the implementation can calculate real-time uncollected fees
 
             // ARRANGE
-            var logger = new TestLogger<DeFi10.API.Services.Solana.Raydium.RaydiumOnChainService>(_output);
+            var logger = new TestLogger<RaydiumOnChainService>(_output);
             var httpClient = new HttpClient();
-            var service = new DeFi10.API.Services.Solana.Raydium.RaydiumOnChainService(_rpcClient, logger, httpClient);
+            var service = new RaydiumOnChainService(_rpcClient, logger, httpClient);
 
             const string SOL_MINT = "So11111111111111111111111111111111111111112";
             const string USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";

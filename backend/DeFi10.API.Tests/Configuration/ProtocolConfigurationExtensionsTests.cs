@@ -1,6 +1,7 @@
 using DeFi10.API.Configuration;
 using DeFi10.API.Models;
 using DeFi10.API.Services.Interfaces;
+using DeFi10.API.Services.Configuration;
 using Moq;
 using Xunit;
 using ChainEnum = DeFi10.API.Models.Chain;
