@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using DeFi10.API.Services.Solana.Raydium.Clmm;
+using DeFi10.API.Services.Protocols.Raydium.Clmm;
 using Xunit.Abstractions;
 
 namespace DeFi10.API.Tests

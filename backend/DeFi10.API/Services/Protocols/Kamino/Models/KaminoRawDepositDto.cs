@@ -1,0 +1,15 @@
+using System.Text.Json.Serialization;
+
+namespace DeFi10.API.Services.Protocols.Kamino.Models;
+
+internal class KaminoRawDepositDto
+{
+    [JsonPropertyName("depositReserve")]
+    public string? DepositReserve { get; set; }
+
+    [JsonPropertyName("depositedAmount")]
+    public string? DepositedAmount { get; set; }
+
+    [JsonPropertyName("marketValueSf")]
+    public string? MarketValueSf { get; set; }
+}

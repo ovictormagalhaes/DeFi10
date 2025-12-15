@@ -1,5 +1,6 @@
 using DeFi10.API.Models;
 using DeFi10.API.Services.Interfaces;
+using DeFi10.API.Services.Configuration;
 using ChainEnum = DeFi10.API.Models.Chain;
 
 namespace DeFi10.API.Configuration;

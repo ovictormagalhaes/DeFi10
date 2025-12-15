@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using DeFi10.API.Models;
 using DeFi10.API.Services.Interfaces;
+using DeFi10.API.Services.Configuration;
 
 namespace DeFi10.API.Controllers;
 

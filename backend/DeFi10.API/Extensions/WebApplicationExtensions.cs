@@ -1,6 +1,7 @@
 using DeFi10.API.Configuration;
 using DeFi10.API.Middleware;
 using DeFi10.API.Services.Interfaces;
+using DeFi10.API.Services.Configuration;
 using StackExchange.Redis;
 
 namespace DeFi10.API.Extensions;

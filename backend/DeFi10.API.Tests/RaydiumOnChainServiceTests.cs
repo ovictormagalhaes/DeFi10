@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using DeFi10.API.Services.Solana;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
 using Solnet.Rpc;
 using Xunit;
 using Xunit.Abstractions;
 using System.Net.Http;
-using DeFi10.API.Services.Solana.Raydium;
+using DeFi10.API.Services.Protocols.Raydium;
 
 namespace DeFi10.API.Tests
 {

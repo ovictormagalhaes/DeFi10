@@ -1,4 +1,4 @@
-using DeFi10.API.Services.Solana;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
 using Solnet.Programs;
 using Solnet.Rpc;
 using Solnet.Rpc.Core.Http;

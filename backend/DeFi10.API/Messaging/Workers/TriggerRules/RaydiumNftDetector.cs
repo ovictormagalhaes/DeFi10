@@ -1,6 +1,7 @@
 using DeFi10.API.Messaging.Contracts.Enums;
 using DeFi10.API.Models;
 using DeFi10.API.Services.Interfaces;
+using DeFi10.API.Services.Configuration;
 using System.Text.Json;
 
 namespace DeFi10.API.Messaging.Workers.TriggerRules;

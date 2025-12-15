@@ -52,6 +52,13 @@ appsettings.Local.json
 *.coverage
 *.coveragexml
 
+# Coverlet coverage reports
+TestResults/
+coveragereport/
+coverage.json
+coverage.cobertura.xml
+coverage.opencover.xml
+
 # Node modules (if any frontend)
 node_modules/
 package-lock.json

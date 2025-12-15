@@ -7,6 +7,8 @@ using Microsoft.Extensions.Options;
 using DeFi10.API.Configuration;
 using DeFi10.API.Models;
 using DeFi10.API.Services.Interfaces;
+using DeFi10.API.Services.Core;
+using DeFi10.API.Services.Domain;
 using DeFi10.API.Controllers.Requests;
 using DeFi10.API.Controllers.Responses;
 
