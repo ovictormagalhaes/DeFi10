@@ -24,11 +24,12 @@ jobs:
     - name: Build
       run: dotnet build backend/backend.sln --no-restore --configuration Release
     
-    - name: Run Tests with Coverage
+    - name: Run Unit Tests with Coverage
       run: |
         dotnet test backend/DeFi10.API.Tests/DeFi10.API.Tests.csproj \
           --no-build \
           --configuration Release \
+          --filter "Category!=Integration" \
           --collect:"XPlat Code Coverage" \
           --results-directory ./coverage \
           --logger "trx;LogFileName=test-results.trx" \
@@ -90,6 +91,8 @@ jobs:
           |--------|-------|
           | Line Coverage | ${lineCoverage} |
           | Branch Coverage | ${branchCoverage} |
+          
+          > **Note:** Integration tests are excluded from coverage to avoid external dependencies.
           
           <details>
           <summary>Full Coverage Summary</summary>
