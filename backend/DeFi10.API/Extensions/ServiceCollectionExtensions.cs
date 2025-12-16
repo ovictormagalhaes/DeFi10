@@ -7,20 +7,39 @@ using DeFi10.API.Messaging.Rabbit;
 using DeFi10.API.Messaging.Workers;
 using DeFi10.API.Messaging.Workers.TriggerRules;
 using DeFi10.API.Repositories;
-using DeFi10.API.Services;
+using DeFi10.API.Services.Core;
+using DeFi10.API.Services.Configuration;
+using DeFi10.API.Services.Domain;
+using DeFi10.API.Services.Protocols.Aave;
+using DeFi10.API.Services.Protocols.Uniswap;
+using DeFi10.API.Services.Protocols.Pendle;
+using DeFi10.API.Services.Protocols.Kamino;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
+using DeFi10.API.Services.Protocols.Raydium;
+using DeFi10.API.Services.Infrastructure.Moralis;
+using DeFi10.API.Services.Infrastructure.Alchemy;
+using DeFi10.API.Services.Infrastructure.CoinMarketCap;
 using DeFi10.API.Services.Helpers;
 using DeFi10.API.Services.Interfaces;
-using DeFi10.API.Services.Mappers;
-using DeFi10.API.Services.Models;
-using DeFi10.API.Services.Models.Aave.Supplies;
-using DeFi10.API.Services.Models.Solana.Common;
-using DeFi10.API.Services.Models.Solana.Kamino;
-using DeFi10.API.Services.Models.Solana.Raydium;
-using DeFi10.API.Services.Solana;
-using DeFi10.API.Services.Solana.Raydium;
+using DeFi10.API.Services.Infrastructure.Moralis.Models;
+using DeFi10.API.Services.Protocols.Aave.Models;
+using DeFi10.API.Services.Protocols.Aave.Models.Supplies;
+using DeFi10.API.Services.Protocols.Pendle.Models;
+using DeFi10.API.Services.Protocols.Uniswap.Models;
+using DeFi10.API.Services.Protocols.Kamino.Models;
+using DeFi10.API.Services.Protocols.Raydium.Models;
 using Microsoft.Extensions.Options;
 using Solnet.Rpc;
 using StackExchange.Redis;
+using DeFi10.API.Services.Protocols.Aave.Mappers;
+using DeFi10.API.Services.Protocols.Pendle.Mappers;
+using DeFi10.API.Services.Protocols.Uniswap.Mappers;
+using DeFi10.API.Services.Infrastructure.Moralis.Mappers;
+using DeFi10.API.Services.Domain.Mappers;
+using DeFi10.API.Services.Protocols.Kamino.Mappers;
+using DeFi10.API.Services.Protocols.Raydium.Mappers;
+using DeFi10.API.Services.Infrastructure.MoralisSolana.Mappers;
+using DeFi10.API.Services.Infrastructure.MoralisSolana.Models;
 
 namespace DeFi10.API.Extensions;
 
@@ -124,13 +143,13 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddProtocolServices(this IServiceCollection services)
     {
-        services.AddScoped<IMoralisService, MoralisEVMService>();
+        services.AddScoped<IMoralisEVMService, MoralisEVMService>();
         services.AddScoped<IAaveeService, AaveeService>();
         services.AddScoped<IUniswapV3Service, UniswapV3Service>();
         services.AddSingleton<IUniswapV3OnChainService, UniswapV3OnChainService>();
         services.AddScoped<IAlchemyNftService, AlchemyNftService>();
         services.AddScoped<IPendleService, PendleService>();
-        services.AddScoped<ISolanaService, KaminoService>();
+        services.AddScoped<IKaminioService, KaminoService>();
         services.AddScoped<IMoralisSolanaService, MoralisSolanaService>();
         services.AddScoped<IRaydiumOnChainService, RaydiumOnChainService>();
         services.AddScoped<ITokenMetadataService, TokenMetadataService>();
@@ -156,9 +175,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWalletItemMapper<UniswapV3GetActivePoolsResponse>, UniswapV3Mapper>();
         services.AddScoped<IWalletItemMapper<PendleVePositionsResponse>, PendleVeMapper>();
         services.AddScoped<IWalletItemMapper<PendleDepositsResponse>, PendleDepositsMapper>();
-        services.AddScoped<IWalletItemMapper<SolanaTokenResponse>, SolanaTokenMapper>();
-        services.AddScoped<IWalletItemMapper<IEnumerable<KaminoPosition>>, SolanaKaminoMapper>();
-        services.AddScoped<IWalletItemMapper<IEnumerable<RaydiumPosition>>, SolanaRaydiumMapper>();
+        services.AddScoped<IWalletItemMapper<SolanaTokenResponse>, MoralisSolanaMapper>();
+        services.AddScoped<IWalletItemMapper<IEnumerable<KaminoPosition>>, KaminoMapper>();
+        services.AddScoped<IWalletItemMapper<IEnumerable<RaydiumPosition>>, RaydiumMapper>();
         services.AddScoped<IWalletItemMapperFactory, WalletItemMapperFactory>();
 
         return services;

@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using DeFi10.API.Services.Solana.Raydium.Clmm;
+using DeFi10.API.Services.Protocols.Raydium.Clmm;
 using Xunit.Abstractions;
 
 namespace DeFi10.API.Tests
@@ -21,6 +21,7 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Get_Pool_Info_From_Raydium_API()
         {
             // Arrange
@@ -109,6 +110,7 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Return_Null_For_Invalid_Pool_Id()
         {
             // Arrange
@@ -123,13 +125,14 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Handle_Multiple_Pool_Requests()
         {
             // Arrange
             var poolIds = new[]
             {
                 "3ucNos4NbumPLZNWztqGHNFFgkHeRMBQAVemeeomsUxv", // SOL/USDC
-                // Adicionar mais pool IDs se necessário
+                // Add more pool IDs if needed
             };
 
             // Act
@@ -150,6 +153,7 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Parse_All_Required_Fields()
         {
             // Arrange
@@ -188,6 +192,7 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Have_Valid_Token_Decimals()
         {
             // Arrange

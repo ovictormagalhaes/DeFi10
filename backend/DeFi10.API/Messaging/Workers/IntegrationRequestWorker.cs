@@ -9,12 +9,18 @@ using RabbitMQ.Client;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeFi10.API.Models;
-using DeFi10.API.Services.Interfaces;
-using DeFi10.API.Services.Solana;
-using DeFi10.API.Services.Models;
-using DeFi10.API.Services.Models.Solana.Raydium;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
+using DeFi10.API.Services.Protocols.Raydium;
+using DeFi10.API.Services.Protocols.Aave;
+using DeFi10.API.Services.Protocols.Uniswap;
+using DeFi10.API.Services.Protocols.Pendle;
+using DeFi10.API.Services.Infrastructure.Moralis;
+using DeFi10.API.Services.Infrastructure.Moralis.Models;
+using DeFi10.API.Services.Infrastructure.MoralisSolana.Models;
+using DeFi10.API.Services.Protocols.Raydium.Models;
 using System.Numerics;
 using ChainEnum = DeFi10.API.Models.Chain;
+using DeFi10.API.Services.Protocols.Kamino;
 
 namespace DeFi10.API.Messaging.Workers;
 
@@ -102,13 +108,13 @@ public class IntegrationRequestWorker : BaseConsumer
             {
                 case IntegrationProvider.MoralisTokens:
                 {
-                    var svc = scope.ServiceProvider.GetRequiredService<IMoralisService>();
+                    var svc = scope.ServiceProvider.GetRequiredService<IMoralisEVMService>();
                     payload = await svc.GetERC20TokenBalanceAsync(request.Account, chainEnum.ToChainId());
                     status = IntegrationStatus.Success; break;
                 }
                 case IntegrationProvider.MoralisNfts:
                 {
-                    var svc = scope.ServiceProvider.GetRequiredService<IMoralisService>();
+                    var svc = scope.ServiceProvider.GetRequiredService<IMoralisEVMService>();
                     _logger.LogDebug("MoralisNfts: Fetching NFTs for account {Account} chain {Chain}", 
                         request.Account, chainEnum);
                     
@@ -257,8 +263,8 @@ public class IntegrationRequestWorker : BaseConsumer
                 }
                 case IntegrationProvider.SolanaKaminoPositions:
                 {
-                    var svc = scope.ServiceProvider.GetRequiredService<ISolanaService>();
-                    payload = await svc.GetKaminoPositionsAsync(request.Account, chainEnum);
+                    var svc = scope.ServiceProvider.GetRequiredService<IKaminioService>();
+                    payload = await svc.GetPositionsAsync(request.Account, chainEnum);
                     status = IntegrationStatus.Success; break;
                 }
                 case IntegrationProvider.SolanaRaydiumPositions:

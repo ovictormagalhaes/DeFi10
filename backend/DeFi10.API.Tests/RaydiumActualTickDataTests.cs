@@ -19,6 +19,7 @@ public class RaydiumActualTickDataTests
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task Fetch_Actual_Tick_Array_Lower()
     {
         // Tick array for tick -19663 (starts at -19680)
@@ -62,6 +63,7 @@ public class RaydiumActualTickDataTests
     }
 
     [Fact]
+    [Trait("Category", "Integration")]
     public async Task Fetch_Actual_Tick_Array_Upper()
     {
         // Tick array for tick -18327 (starts at -18360)
@@ -100,20 +102,6 @@ public class RaydiumActualTickDataTests
                 Assert.Equal(-18327, tick);
             }
         }
-    }
-
-    [Fact]
-    public async Task Analyze_Why_SDK_Works()
-    {
-        _output.WriteLine("=== Analysis: Why SDK calculation works ===");
-        _output.WriteLine("");
-        _output.WriteLine("The SDK must be:");
-        _output.WriteLine("1. Using ACTUAL tick data from blockchain (not assuming 0)");
-        _output.WriteLine("2. OR handling uninitialized ticks differently");
-        _output.WriteLine("3. OR using a different data source (API/indexer)");
-        _output.WriteLine("");
-        _output.WriteLine("We need to check ACTUAL fee_growth_outside values from blockchain");
-        _output.WriteLine("to see if they are really 0 or have some other values.");
     }
 
     private async Task<SolanaAccountInfo?> GetAccountInfo(string address)

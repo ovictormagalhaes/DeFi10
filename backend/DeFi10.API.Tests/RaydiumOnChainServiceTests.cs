@@ -1,11 +1,11 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using DeFi10.API.Services.Solana;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
 using Solnet.Rpc;
 using Xunit;
 using Xunit.Abstractions;
 using System.Net.Http;
-using DeFi10.API.Services.Solana.Raydium;
+using DeFi10.API.Services.Protocols.Raydium;
 
 namespace DeFi10.API.Tests
 {
@@ -53,6 +53,7 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Get_Raydium_Positions_For_Test_Wallet()
         {
             // Arrange
@@ -142,6 +143,7 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Handle_Invalid_Wallet_Address()
         {
             // Arrange
@@ -157,6 +159,7 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Handle_Wallet_Without_Positions()
         {
             // Arrange
@@ -173,6 +176,7 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Calculate_Correct_Amounts_For_Known_Position()
         {
             // Arrange & Act
@@ -220,6 +224,7 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public async Task Should_Use_Correct_Token_Order()
         {
             // Act

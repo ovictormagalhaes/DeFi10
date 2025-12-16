@@ -1,5 +1,3 @@
-using DeFi10.API.Services.Models;
-
 namespace DeFi10.API.Models;
 
 public class WalletResponse
