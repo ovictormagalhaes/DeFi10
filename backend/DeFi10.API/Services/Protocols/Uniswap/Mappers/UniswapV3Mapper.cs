@@ -7,6 +7,7 @@ using DeFi10.API.Configuration;
 using DeFi10.API.Services.Domain.Mappers;
 using DeFi10.API.Services.Configuration;
 using DeFi10.API.Services.Protocols.Uniswap.Models;
+using DeFi10.API.Services.Helpers;
 
 namespace DeFi10.API.Services.Protocols.Uniswap.Mappers;
 
@@ -17,9 +18,23 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     private readonly ITokenFactory _tokenFactory;
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
+    private readonly ITokenMetadataService _metadataService;
 
-    public UniswapV3Mapper(IUniswapV3OnChainService uniswapV3OnChainService, ILogger<UniswapV3Mapper> logger, ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
-    { _uniswapV3OnChainService = uniswapV3OnChainService; _logger = logger; _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; }
+    public UniswapV3Mapper(
+        IUniswapV3OnChainService uniswapV3OnChainService, 
+        ILogger<UniswapV3Mapper> logger, 
+        ITokenFactory tokenFactory, 
+        IProtocolConfigurationService protocolConfig, 
+        IChainConfigurationService chainConfig,
+        ITokenMetadataService metadataService)
+    { 
+        _uniswapV3OnChainService = uniswapV3OnChainService; 
+        _logger = logger; 
+        _tokenFactory = tokenFactory; 
+        _protocolConfig = protocolConfig; 
+        _chainConfig = chainConfig; 
+        _metadataService = metadataService;
+    }
 
     public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
     
@@ -44,15 +59,17 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
 
         var walletItems = new List<WalletItem>();
         var protocol = GetProtocolDefinition(chain);
+        
         foreach (var position in response.Data.Positions)
         {
-            var item = ProcessPosition(position, chain, nativePriceUSD, protocol);
+            var item = await ProcessPositionAsync(position, chain, nativePriceUSD, protocol);
             if (item != null) walletItems.Add(item);
         }
-        return await Task.FromResult(walletItems);
+        
+        return walletItems;
     }
-
-    private WalletItem? ProcessPosition(UniswapV3Position position, ChainEnum chain, decimal nativePriceUSD, Protocol protocol)
+    
+    private async Task<WalletItem?> ProcessPositionAsync(UniswapV3Position position, ChainEnum chain, decimal nativePriceUSD, Protocol protocol)
     {
         try
         {
@@ -85,10 +102,55 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             if (token0PriceUSD < 0) token0PriceUSD = 0; if (token1PriceUSD < 0) token1PriceUSD = 0;
             var lower = TryParseInvariant(position.MinPriceToken1PerToken0); var upper = TryParseInvariant(position.MaxPriceToken1PerToken0); var current = TryParseInvariant(position.CurrentPriceToken1PerToken0); bool? inRange = position.RangeStatus?.Equals("in-range", StringComparison.OrdinalIgnoreCase);
             int? tickSpacing = TryParseInvariantInt(position.Pool?.TickSpacing); long? createdAt = TryParseInvariantLong(position.Pool?.CreatedAtUnix); var sqrtPriceX96 = string.IsNullOrEmpty(position.Pool?.SqrtPriceX96) ? null : position.Pool!.SqrtPriceX96;
+            
             var supplied0 = _tokenFactory.CreateSupplied(position.Token0.Name, position.Token0.Symbol, position.Token0.Id, chain, token0Decimals, currentSupplyToken0, token0PriceUSD);
             var supplied1 = _tokenFactory.CreateSupplied(position.Token1.Name, position.Token1.Symbol, position.Token1.Id, chain, token1Decimals, currentSupplyToken1, token1PriceUSD);
             var reward0 = _tokenFactory.CreateUncollectedReward(position.Token0.Name, position.Token0.Symbol, position.Token0.Id, chain, token0Decimals, feesToken0, token0PriceUSD);
             var reward1 = _tokenFactory.CreateUncollectedReward(position.Token1.Name, position.Token1.Symbol, position.Token1.Id, chain, token1Decimals, feesToken1, token1PriceUSD);
+            
+            // ? FETCH LOGOS FROM TOKENMETADATASERVICE (uses in-memory cache -> Redis -> CMC)
+            // Strategy 1: Lookup by address (most specific)
+            var metadata0 = await _metadataService.GetTokenMetadataAsync(position.Token0.Id);
+            if (metadata0?.LogoUrl != null)
+            {
+                supplied0.Logo = metadata0.LogoUrl;
+                reward0.Logo = metadata0.LogoUrl;
+                _logger.LogDebug("[UniswapV3Mapper] Applied logo to token0 {Symbol} via address lookup", position.Token0.Symbol);
+            }
+            else if (!string.IsNullOrEmpty(position.Token0.Symbol) && !string.IsNullOrEmpty(position.Token0.Name))
+            {
+                // Strategy 2: Fallback to symbol+name lookup (cross-chain sharing)
+                var metadata0ByName = await _metadataService.GetTokenMetadataBySymbolAndNameAsync(position.Token0.Symbol, position.Token0.Name);
+                if (metadata0ByName?.LogoUrl != null)
+                {
+                    supplied0.Logo = metadata0ByName.LogoUrl;
+                    reward0.Logo = metadata0ByName.LogoUrl;
+                    _logger.LogDebug("[UniswapV3Mapper] Applied logo to token0 {Symbol} via symbol+name lookup", position.Token0.Symbol);
+                }
+            }
+            
+            var metadata1 = await _metadataService.GetTokenMetadataAsync(position.Token1.Id);
+            if (metadata1?.LogoUrl != null)
+            {
+                supplied1.Logo = metadata1.LogoUrl;
+                reward1.Logo = metadata1.LogoUrl;
+                _logger.LogDebug("[UniswapV3Mapper] Applied logo to token1 {Symbol} via address lookup", position.Token1.Symbol);
+            }
+            else if (!string.IsNullOrEmpty(position.Token1.Symbol) && !string.IsNullOrEmpty(position.Token1.Name))
+            {
+                var metadata1ByName = await _metadataService.GetTokenMetadataBySymbolAndNameAsync(position.Token1.Symbol, position.Token1.Name);
+                if (metadata1ByName?.LogoUrl != null)
+                {
+                    supplied1.Logo = metadata1ByName.LogoUrl;
+                    reward1.Logo = metadata1ByName.LogoUrl;
+                    _logger.LogDebug("[UniswapV3Mapper] Applied logo to token1 {Symbol} via symbol+name lookup", position.Token1.Symbol);
+                }
+            }
+            
+            // ? SAVE METADATA TO REDIS (for future use / cross-chain sharing)
+            await SaveTokenMetadataIfNeededAsync(position.Token0, chain);
+            await SaveTokenMetadataIfNeededAsync(position.Token1, chain);
+            
             return new WalletItem
             {
                 Type = WalletItemType.LiquidityPool,
@@ -106,7 +168,40 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
         }
         catch (Exception ex) { _logger.LogError(ex, "UniV3 process position failed id={Id}", position.Id); return null; }
     }
-
+    
+    private async Task SaveTokenMetadataIfNeededAsync(UniswapV3Token? token, ChainEnum chain)
+    {
+        if (token == null || string.IsNullOrEmpty(token.TokenAddress))
+            return;
+            
+        try
+        {
+            // Check if metadata exists
+            var existing = await _metadataService.GetTokenMetadataAsync(token.TokenAddress);
+            
+            // Save if doesn't exist OR if exists but is incomplete
+            if (existing == null || 
+                string.IsNullOrEmpty(existing.Symbol) || 
+                string.IsNullOrEmpty(existing.Name))
+            {
+                var metadata = new TokenMetadata
+                {
+                    Symbol = token.Symbol ?? string.Empty,
+                    Name = token.Name ?? string.Empty,
+                    LogoUrl = null // Uniswap doesn't provide logos, will be filled by Moralis later
+                };
+                
+                await _metadataService.SetTokenMetadataAsync(token.TokenAddress, metadata);
+                _logger.LogDebug("[UniswapV3Mapper] Saved metadata for {Address}: symbol={Symbol}, name={Name}",
+                    token.TokenAddress, token.Symbol, token.Name);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[UniswapV3Mapper] Failed to save metadata for {Address}", token.TokenAddress);
+        }
+    }
+    
     private decimal ValidateTokenAmount(decimal amount, string positionId, string fieldName)
     { const decimal MAX_REASONABLE_AMOUNT = 100_000_000m; if (amount > MAX_REASONABLE_AMOUNT) { _logger.LogWarning("UniV3 capping extreme amount pos={Id} field={Field} original={Original} capped={Capped}", positionId, fieldName, amount, MAX_REASONABLE_AMOUNT); return MAX_REASONABLE_AMOUNT; } if (amount < 0) { _logger.LogWarning("UniV3 negative amount pos={Id} field={Field} amount={Amount}", positionId, fieldName, amount); return 0; } if (amount > 1_000_000) { _logger.LogInformation("UniV3 large amount detected pos={Id} field={Field} amount={Amount}", positionId, fieldName, amount); } return amount; }
     private static decimal SafeMultiply(decimal a, decimal b) { try { if (a == 0 || b == 0) return 0; if (a > 0 && b > 0 && a > decimal.MaxValue / b) return decimal.MaxValue; if (a < 0 && b < 0 && a < decimal.MaxValue / b) return decimal.MaxValue; if ((a > 0 && b < 0 && b < decimal.MinValue / a) || (a < 0 && b > 0 && a < decimal.MinValue / b)) return decimal.MinValue; return a * b; } catch (OverflowException) { return a > 0 == b > 0 ? decimal.MaxValue : decimal.MinValue; } }

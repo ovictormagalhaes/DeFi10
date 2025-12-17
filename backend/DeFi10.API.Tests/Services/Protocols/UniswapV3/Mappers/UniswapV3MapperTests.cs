@@ -11,6 +11,7 @@ using DeFi10.API.Services.Interfaces;
 using DeFi10.API.Services.Configuration;
 using DeFi10.API.Services.Protocols.Uniswap;
 using DeFi10.API.Services.Protocols.Uniswap.Models;
+using DeFi10.API.Services.Helpers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -24,6 +25,7 @@ public class UniswapV3MapperTests
     private readonly Mock<ITokenFactory> _tokenFactory;
     private readonly Mock<IProtocolConfigurationService> _protocolConfig;
     private readonly Mock<IChainConfigurationService> _chainConfig;
+    private readonly Mock<ITokenMetadataService> _metadataService;
     private readonly UniswapV3Mapper _mapper;
 
     public UniswapV3MapperTests()
@@ -33,9 +35,10 @@ public class UniswapV3MapperTests
         _tokenFactory = new Mock<ITokenFactory>();
         _protocolConfig = new Mock<IProtocolConfigurationService>();
         _chainConfig = new Mock<IChainConfigurationService>();
+        _metadataService = new Mock<ITokenMetadataService>();
 
         SetupDefaultMocks();
-        _mapper = new UniswapV3Mapper(_onChainService.Object, _logger.Object, _tokenFactory.Object, _protocolConfig.Object, _chainConfig.Object);
+        _mapper = new UniswapV3Mapper(_onChainService.Object, _logger.Object, _tokenFactory.Object, _protocolConfig.Object, _chainConfig.Object, _metadataService.Object);
     }
 
     private void SetupDefaultMocks()
