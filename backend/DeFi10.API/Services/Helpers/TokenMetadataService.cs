@@ -590,7 +590,7 @@ public sealed class TokenMetadataService : ITokenMetadataService
             // 3. Save composite symbol+name key
             if (!string.IsNullOrWhiteSpace(metadata.Symbol) && !string.IsNullOrWhiteSpace(metadata.Name))
             {
-                var compositeKey = $"{metadata.Symbol.ToUpperInvariant()}:{metadata.Name}";
+                var compositeKey = $"{metadata.Symbol.ToUpperInvariant()}:{metadata.Name.ToUpperInvariant()}";
                 string compositeRedisKey = $"{METADATA_BY_SYMBOL_PREFIX}{compositeKey}";
                 await _cache.SetAsync(compositeRedisKey, json, METADATA_TTL);
                 

@@ -157,7 +157,7 @@ public class TokenMetadataServiceTests
         
         await _sut.GetTokenMetadataBySymbolAndNameAsync("usdc", "USD Coin");
         
-        _mockCache.Verify(c => c.GetAsync<string>(It.Is<string>(k => k.Contains("USDC:USD Coin"))), Times.Once);
+        _mockCache.Verify(c => c.GetAsync<string>(It.Is<string>(k => k.Contains("USDC:USD COIN"))), Times.Once);
     }
 
     #endregion
@@ -266,7 +266,7 @@ public class TokenMetadataServiceTests
         await _sut.SetTokenMetadataAsync("MINT123", metadata);
         
         _mockCache.Verify(c => c.SetAsync(
-            It.Is<string>(k => k.Contains("USDC:USD Coin")),
+            It.Is<string>(k => k.Contains("USDC:USD COIN")),
             It.IsAny<string>(),
             It.IsAny<TimeSpan>()), Times.Once);
     }
