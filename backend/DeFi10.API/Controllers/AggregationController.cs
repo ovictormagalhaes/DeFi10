@@ -420,10 +420,16 @@ public class AggregationController : ControllerBase
                 string keyStr = rk.ToString();
                 string chainFromKey = "";
                 var parts = keyStr.Split(':');
+                
+                // Redis key format:
+                // Single wallet: wallet:agg:{jobId}:result:{provider}:{chain}
+                // Multi wallet:  wallet:agg:{jobId}:result:{provider}:{chain}:{account}
+                // Chain is ALWAYS at parts[5], regardless of multi/single wallet
                 if (parts.Length >= 6)
                 {
-                    chainFromKey = parts[^1];
+                    chainFromKey = parts[5];  // ? Chain position (not last)
                 }
+                
                 IntegrationResult? data = null;
                 try { data = JsonSerializer.Deserialize<IntegrationResult>(raw!, EnumJsonOptions); } catch { }
                 if (data == null)

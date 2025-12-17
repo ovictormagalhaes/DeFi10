@@ -4,7 +4,6 @@ using DeFi10.API.Services.Infrastructure.MoralisSolana;
 
 namespace DeFi10.API.Services.Helpers;
 
-
 public class TokenHydrationHelper
 {
     private readonly ITokenMetadataService _metadataService;
@@ -15,7 +14,6 @@ public class TokenHydrationHelper
         _metadataService = metadataService;
         _logger = logger;
     }
-
 
     public async Task<Dictionary<string, string?>> HydrateTokenLogosAsync(
         IEnumerable<WalletItem> walletItems, 
@@ -31,6 +29,26 @@ public class TokenHydrationHelper
 
         var existingLogos = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         var tokensToStore = new Dictionary<string, TokenMetadata>();
+        
+        // Build a map of address -> token data for reference
+        var addressToTokenData = new Dictionary<string, Token>(StringComparer.OrdinalIgnoreCase);
+        foreach (var walletItem in walletItems)
+        {
+            if (walletItem.Position?.Tokens != null)
+            {
+                foreach (var token in walletItem.Position.Tokens)
+                {
+                    if (!string.IsNullOrEmpty(token.ContractAddress))
+                    {
+                        var normalizedAddress = token.ContractAddress.ToLowerInvariant();
+                        if (!addressToTokenData.ContainsKey(normalizedAddress))
+                        {
+                            addressToTokenData[normalizedAddress] = token;
+                        }
+                    }
+                }
+            }
+        }
 
         foreach (var tokenAddress in uniqueTokens)
         {
@@ -44,17 +62,24 @@ public class TokenHydrationHelper
             }
             else
             {
+                // Try to get token data for this address
+                Token? tokenData = null;
+                addressToTokenData.TryGetValue(normalizedAddress, out tokenData);
 
                 if (incomingLogos?.TryGetValue(normalizedAddress, out var incomingLogo) == true && !string.IsNullOrEmpty(incomingLogo))
                 {
                     existingLogos[normalizedAddress] = incomingLogo;
 
+                    // ✅ Extract symbol and name from token data
                     tokensToStore[normalizedAddress] = new TokenMetadata
                     {
-                        Symbol = string.Empty,
-                        Name = string.Empty,
+                        Symbol = tokenData?.Symbol ?? string.Empty,
+                        Name = tokenData?.Name ?? string.Empty,
                         LogoUrl = incomingLogo
                     };
+                    
+                    _logger.LogDebug("[TokenHydration] Prepared to store metadata: address={Address}, symbol={Symbol}, name={Name}, hasLogo={HasLogo}",
+                        normalizedAddress, tokenData?.Symbol ?? "EMPTY", tokenData?.Name ?? "EMPTY", true);
                 }
             }
         }
@@ -68,18 +93,36 @@ public class TokenHydrationHelper
             {
                 existingLogos[normalizedAddress] = kvp.Value;
                 
+                // ✅ Extract symbol and name from token data
+                Token? tokenData = null;
+                addressToTokenData.TryGetValue(normalizedAddress, out tokenData);
+                
                 tokensToStore[normalizedAddress] = new TokenMetadata
                 {
-                    Symbol = string.Empty,
-                    Name = string.Empty,
+                    Symbol = tokenData?.Symbol ?? string.Empty,
+                    Name = tokenData?.Name ?? string.Empty,
                     LogoUrl = kvp.Value
                 };
+                
+                _logger.LogDebug("[TokenHydration] Prepared to store metadata from existing token: address={Address}, symbol={Symbol}, name={Name}, hasLogo={HasLogo}",
+                    normalizedAddress, tokenData?.Symbol ?? "EMPTY", tokenData?.Name ?? "EMPTY", true);
             }
         }
 
+        // ✅ Save all metadata to Redis/cache - NOW SAVES BY BOTH ADDRESS AND SYMBOL+NAME!
         foreach (var kvp in tokensToStore)
         {
             await _metadataService.SetTokenMetadataAsync(kvp.Key, kvp.Value);
+            _logger.LogInformation("[TokenHydration] Stored metadata to Redis BY ADDRESS: address={Address}, symbol={Symbol}, name={Name}, logo={HasLogo}",
+                kvp.Key, kvp.Value.Symbol, kvp.Value.Name, !string.IsNullOrEmpty(kvp.Value.LogoUrl));
+            
+            // ✅ ALSO save by symbol+name if available (for cross-chain sharing)
+            if (!string.IsNullOrEmpty(kvp.Value.Symbol) && !string.IsNullOrEmpty(kvp.Value.Name))
+            {
+                // SetTokenMetadataAsync already saves by symbol+name internally, but let's be explicit
+                _logger.LogInformation("[TokenHydration] Metadata also indexed BY SYMBOL+NAME: {Symbol}/{Name}",
+                    kvp.Value.Symbol, kvp.Value.Name);
+            }
         }
 
         if (tokensToStore.Any())
@@ -90,17 +133,14 @@ public class TokenHydrationHelper
         return existingLogos;
     }
 
-
     public async Task ApplyTokenLogosToWalletItemsAsync(IEnumerable<WalletItem> walletItems, Dictionary<string, string?> tokenLogos)
     {
-        // Construir mapas de metadados para cross-chain sharing
         var addressToMetadata = new Dictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
         var symbolNameToMetadata = new Dictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
         var symbolToLogo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var allTokens = walletItems.SelectMany(wi => wi.Position?.Tokens ?? Enumerable.Empty<Token>()).ToList();
         
-        // Primeira passagem: coletar todos os metadados existentes de tokens já completos
         foreach (var token in allTokens)
         {
             var hasSymbol = !string.IsNullOrEmpty(token.Symbol);
@@ -108,12 +148,10 @@ public class TokenHydrationHelper
             var hasLogo = !string.IsNullOrEmpty(token.Logo);
             var hasAddress = !string.IsNullOrEmpty(token.ContractAddress);
             
-            // Se tem address e algum metadado, registrar
             if (hasAddress && (hasSymbol || hasName || hasLogo))
             {
                 var normalizedAddress = token.ContractAddress!.ToLowerInvariant();
                 
-                // Criar metadata com os dados disponíveis
                 var metadata = new TokenMetadata
                 {
                     Symbol = token.Symbol ?? string.Empty,
@@ -121,7 +159,6 @@ public class TokenHydrationHelper
                     LogoUrl = token.Logo
                 };
                 
-                // Registrar no mapa de addresses
                 if (!addressToMetadata.ContainsKey(normalizedAddress))
                 {
                     addressToMetadata[normalizedAddress] = metadata;
@@ -129,7 +166,6 @@ public class TokenHydrationHelper
                         token.ContractAddress, token.Symbol ?? "EMPTY", token.Name ?? "EMPTY", hasLogo);
                 }
                 
-                // Se veio do cache, também adicionar ao symbolToLogo
                 if (hasSymbol && hasLogo && tokenLogos.TryGetValue(normalizedAddress, out var cachedLogo))
                 {
                     var normalizedSymbol = token.Symbol!.ToUpperInvariant();
@@ -140,7 +176,6 @@ public class TokenHydrationHelper
                 }
             }
             
-            // Se tem symbol+name, registrar independente de ter address
             if (hasSymbol && hasName)
             {
                 var compositeKey = $"{token.Symbol!.ToUpperInvariant()}:{token.Name!.ToUpperInvariant()}";
@@ -159,7 +194,6 @@ public class TokenHydrationHelper
                 }
             }
             
-            // Registrar logo standalone por symbol
             if (hasSymbol && hasLogo)
             {
                 var normalizedSymbol = token.Symbol!.ToUpperInvariant();
@@ -173,7 +207,6 @@ public class TokenHydrationHelper
         _logger.LogInformation("[TokenHydration] Collected metadata maps: addressToMetadata={AddressCount}, symbolNameToMetadata={SymbolNameCount}, symbolToLogo={SymbolCount}",
             addressToMetadata.Count, symbolNameToMetadata.Count, symbolToLogo.Count);
 
-        // Segunda passagem: hidratar metadados faltantes em tokens incompletos
         foreach (var walletItem in walletItems)
         {
             if (walletItem.Position?.Tokens != null)
@@ -183,29 +216,24 @@ public class TokenHydrationHelper
                     TokenMetadata? foundMetadata = null;
                     bool metadataChanged = false;
                     
-                    // Estratégia 1: Buscar por ContractAddress (mais específico)
                     if (!string.IsNullOrEmpty(token.ContractAddress))
                     {
                         var normalizedAddress = token.ContractAddress.ToLowerInvariant();
                         
-                        // 1a. Verificar no mapa local de metadados
                         if (addressToMetadata.TryGetValue(normalizedAddress, out foundMetadata))
                         {
                             _logger.LogDebug("[TokenHydration] Found metadata by address (local): {Address}", token.ContractAddress);
                         }
-                        // 1b. Buscar no Redis cache
                         else
                         {
                             foundMetadata = await _metadataService.GetTokenMetadataAsync(normalizedAddress);
                             if (foundMetadata != null)
                             {
                                 _logger.LogDebug("[TokenHydration] Found metadata by address (Redis): {Address}", token.ContractAddress);
-                                // Adicionar ao mapa local para próximos tokens
                                 addressToMetadata[normalizedAddress] = foundMetadata;
                             }
                         }
                         
-                        // Aplicar metadados encontrados
                         if (foundMetadata != null)
                         {
                             if (string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(foundMetadata.Symbol))
@@ -229,7 +257,6 @@ public class TokenHydrationHelper
                                 _logger.LogDebug("[TokenHydration] Filled logo by address: {Address}", token.ContractAddress);
                             }
                             
-                            // Se preenchemos dados, salvar no Redis para futura reutilização
                             if (metadataChanged)
                             {
                                 var completeMetadata = new TokenMetadata
@@ -241,42 +268,35 @@ public class TokenHydrationHelper
                                 await _metadataService.SetTokenMetadataAsync(normalizedAddress, completeMetadata);
                             }
                             
-                            // Se tudo foi preenchido, ir para próximo token
                             if (!string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name) && !string.IsNullOrEmpty(token.Logo))
                                 continue;
                         }
                     }
                     
-                    // Estratégia 2: Buscar por Symbol+Name (cross-chain)
-                    if (!string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name))
+                    if (!string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name) && string.IsNullOrEmpty(token.Logo))
                     {
                         var compositeKey = $"{token.Symbol.ToUpperInvariant()}:{token.Name.ToUpperInvariant()}";
                         
-                        // 2a. Verificar no mapa local
                         if (symbolNameToMetadata.TryGetValue(compositeKey, out foundMetadata))
                         {
                             _logger.LogDebug("[TokenHydration] Found metadata by symbol+name (local): {Symbol}/{Name}", token.Symbol, token.Name);
                         }
-                        // 2b. Buscar no Redis cache
                         else
                         {
                             foundMetadata = await _metadataService.GetTokenMetadataBySymbolAndNameAsync(token.Symbol, token.Name);
                             if (foundMetadata != null)
                             {
-                                _logger.LogDebug("[TokenHydration] Found metadata by symbol+name (Redis): {Symbol}/{Name}", token.Symbol, token.Name);
-                                // Adicionar ao mapa local para próximos tokens
+                                _logger.LogInformation("[TokenHydration] Found metadata by symbol+name (Redis/CMC): {Symbol}/{Name}", token.Symbol, token.Name);
                                 symbolNameToMetadata[compositeKey] = foundMetadata;
                             }
                         }
                         
-                        // Aplicar logo se encontrado (symbol e name já estão preenchidos)
                         if (foundMetadata != null && string.IsNullOrEmpty(token.Logo) && !string.IsNullOrEmpty(foundMetadata.LogoUrl))
                         {
                             token.Logo = foundMetadata.LogoUrl;
                             metadataChanged = true;
-                            _logger.LogDebug("[TokenHydration] Filled logo by symbol+name: {Symbol}/{Name}", token.Symbol, token.Name);
+                            _logger.LogInformation("[TokenHydration] Filled logo by symbol+name: {Symbol}/{Name}", token.Symbol, token.Name);
                             
-                            // Salvar no Redis por address se disponível
                             if (!string.IsNullOrEmpty(token.ContractAddress))
                             {
                                 var completeMetadata = new TokenMetadata
@@ -291,7 +311,6 @@ public class TokenHydrationHelper
                         }
                     }
                     
-                    // Estratégia 3: Buscar logo apenas por Symbol (fallback menos específico)
                     if (!string.IsNullOrEmpty(token.Symbol) && string.IsNullOrEmpty(token.Logo))
                     {
                         var normalizedSymbol = token.Symbol.ToUpperInvariant();
@@ -302,7 +321,6 @@ public class TokenHydrationHelper
                         }
                     }
                     
-                    // Log para tokens que ainda estão incompletos
                     var missingFields = new List<string>();
                     if (string.IsNullOrEmpty(token.Symbol)) missingFields.Add("symbol");
                     if (string.IsNullOrEmpty(token.Name)) missingFields.Add("name");

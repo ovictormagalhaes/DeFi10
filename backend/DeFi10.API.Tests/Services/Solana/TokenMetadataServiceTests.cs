@@ -2,13 +2,13 @@ using System.Text.Json;
 using DeFi10.API.Configuration;
 using DeFi10.API.Services.Interfaces;
 using DeFi10.API.Services.Infrastructure.CoinMarketCap;
-using DeFi10.API.Services.Infrastructure.MoralisSolana;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using DeFi10.API.Services.Helpers;
 using Xunit;
 using DeFi10.API.Models;
+using StackExchange.Redis;
 
 namespace DeFi10.API.Tests.Services.Solana;
 
@@ -19,6 +19,7 @@ public class TokenMetadataServiceTests
 {
     private readonly Mock<ICacheService> _mockCache;
     private readonly Mock<ICoinMarketCapService> _mockCmc;
+    private readonly Mock<IConnectionMultiplexer> _mockRedis;
     private readonly Mock<ILogger<TokenMetadataService>> _mockLogger;
     private readonly IOptions<AggregationOptions> _options;
     private readonly TokenMetadataService _sut;
@@ -27,10 +28,11 @@ public class TokenMetadataServiceTests
     {
         _mockCache = new Mock<ICacheService>();
         _mockCmc = new Mock<ICoinMarketCapService>();
+        _mockRedis = new Mock<IConnectionMultiplexer>();
         _mockLogger = new Mock<ILogger<TokenMetadataService>>();
         _options = Options.Create(new AggregationOptions { EnableCoinMarketCapLookup = true });
         
-        _sut = new TokenMetadataService(_mockCache.Object, _mockCmc.Object, _mockLogger.Object, _options);
+        _sut = new TokenMetadataService(_mockCache.Object, _mockCmc.Object, _mockRedis.Object, _mockLogger.Object, _options);
     }
 
     #region GetTokenMetadataAsync Tests
@@ -80,7 +82,7 @@ public class TokenMetadataServiceTests
     public async Task GetTokenMetadataAsync_CacheMiss_CMCDisabled_ReturnsNull()
     {
         var optionsDisabled = Options.Create(new AggregationOptions { EnableCoinMarketCapLookup = false });
-        var sut = new TokenMetadataService(_mockCache.Object, _mockCmc.Object, _mockLogger.Object, optionsDisabled);
+        var sut = new TokenMetadataService(_mockCache.Object, _mockCmc.Object, _mockRedis.Object, _mockLogger.Object, optionsDisabled);
         
         _mockCache.Setup(c => c.GetAsync<string>(It.IsAny<string>())).ReturnsAsync((string?)null);
         

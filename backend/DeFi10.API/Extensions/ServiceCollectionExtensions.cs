@@ -40,6 +40,7 @@ using DeFi10.API.Services.Protocols.Kamino.Mappers;
 using DeFi10.API.Services.Protocols.Raydium.Mappers;
 using DeFi10.API.Services.Infrastructure.MoralisSolana.Mappers;
 using DeFi10.API.Services.Infrastructure.MoralisSolana.Models;
+using DeFi10.API.Services.HostedServices;
 
 namespace DeFi10.API.Extensions;
 
@@ -205,6 +206,9 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<IntegrationRequestWorker>();
         services.AddHostedService<IntegrationResultAggregatorWorker>();
         services.AddHostedService<AggregationTimeoutMonitorWorker>();
+
+        // Token Metadata Cache Warmup Service (loads token metadata on startup)
+        services.AddHostedService<TokenMetadataCacheWarmupService>();
 
         return services;
     }
