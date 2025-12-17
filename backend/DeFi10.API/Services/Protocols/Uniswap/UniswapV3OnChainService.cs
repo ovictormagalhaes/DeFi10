@@ -602,9 +602,17 @@ namespace DeFi10.API.Services.Protocols.Uniswap
                 
                 return ids;
             }
+            catch (Exception ex) when (ex.GetType().Name == "RpcClientTimeoutException" || ex is TaskCanceledException)
+            {
+                // Timeout/cancellation - propagate to allow retry logic in worker
+                _logger.LogError(ex, "RPC timeout while enumerating positions for owner {Owner} on chain {Chain}", ownerAddress, chain);
+                throw;
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to enumerate positions for owner {Owner}", ownerAddress);
+                // Other errors (contract not found, invalid address, etc.) - log and return empty
+                // This is expected for wallets that don't have Uniswap positions
+                _logger.LogWarning(ex, "Failed to enumerate positions for owner {Owner} on chain {Chain}, returning empty", ownerAddress, chain);
                 return Enumerable.Empty<BigInteger>();
             }
         }
