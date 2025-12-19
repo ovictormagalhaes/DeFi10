@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using DeFi10.API.Infrastructure;
 using DeFi10.API.Aggregation;
 using DeFi10.API.Services.Infrastructure.Moralis;
+using DeFi10.API.Messaging.Constants;
 
 namespace DeFi10.API.Services.Domain;
 
@@ -70,7 +71,7 @@ public class WalletAggregationService : IWalletAggregationService
     {
         if (!IsValidAddressForChain(account, chain)) throw new ArgumentException($"Invalid address for chain {chain}");
         ValidateChainSupport(chain);
-        var jobId = await StartAsyncAggregation(account, chain);
+        var jobId = await StartAsyncAggregationMultiWallet(new List<string> { account }, new List<ChainEnum> { chain }, null);
         return new WalletResponse
         {
             Account = account,
@@ -79,70 +80,6 @@ public class WalletAggregationService : IWalletAggregationService
             LastUpdated = _clock.UtcNow
         };
     }
-
-    public async Task<Guid> StartAsyncAggregation(string account, ChainEnum chain)
-    {
-        if (!IsValidAddressForChain(account, chain)) throw new ArgumentException($"Invalid address for chain {chain}");
-        ValidateChainSupport(chain);
-        var db = _redis.GetDatabase();
-
-
-        var acct = chain == ChainEnum.Solana ? account : account.ToLowerInvariant();
-        
-        var activeKey = GetActiveJobKey(acct.ToLowerInvariant(), chain);
-        var existing = await db.StringGetAsync(activeKey);
-        
-        if (existing.HasValue && Guid.TryParse(existing.ToString(), out var existingJobId))
-        {
-            var metaKeyCheck = RedisKeys.Meta(existingJobId);
-            if (await db.KeyExistsAsync(metaKeyCheck))
-            {
-                _logger.LogDebug("Aggregation reuse single job={Job} chain={Chain}", existingJobId, chain);
-                return existingJobId;
-            }
-        }
-        var jobId = Guid.NewGuid();
-        await PublishIntegrationRequestsAsync(jobId, acct, chain);
-        await db.StringSetAsync(activeKey, jobId.ToString(), _aggregationTtl);
-        _logger.LogInformation("Aggregation new single job={Job} chain={Chain}", jobId, chain);
-        return jobId;
-    }
-
-    public async Task<Guid> StartAsyncAggregation(string account, IEnumerable<ChainEnum> chains)
-    {
-        var list = chains.Distinct().ToList();
-        if (list.Count == 0) throw new ArgumentException("No chains provided");
-
-        foreach (var c in list)
-        {
-            if (!IsValidAddressForChain(account, c))
-                throw new ArgumentException($"Invalid address for chain {c}");
-        }
-        foreach (var c in list) ValidateChainSupport(c);
-        var db = _redis.GetDatabase();
-
-
-        var hasSolana = list.Contains(ChainEnum.Solana);
-        var acct = hasSolana ? account : account.ToLowerInvariant();
-        
-        var multiKey = GetMultiActiveJobKey(acct.ToLowerInvariant(), list);
-        var existing = await db.StringGetAsync(multiKey);
-        if (existing.HasValue && Guid.TryParse(existing.ToString(), out var existingJobId))
-        {
-            var metaKeyCheck = RedisKeys.Meta(existingJobId);
-            if (await db.KeyExistsAsync(metaKeyCheck))
-            {
-                _logger.LogDebug("Aggregation reuse multi job={Job} chains={Chains}", existingJobId, string.Join(',', list));
-                return existingJobId;
-            }
-        }
-        var newJob = Guid.NewGuid();
-        await PublishIntegrationRequestsMultiAsync(newJob, acct, list);
-        await db.StringSetAsync(multiKey, newJob.ToString(), _aggregationTtl);
-        _logger.LogInformation("Aggregation new multi job={Job} chains={Chains}", newJob, string.Join(',', list));
-        return newJob;
-    }
-
 
     public async Task<Guid> StartAsyncAggregationMultiWallet(IReadOnlyList<string> accounts, IEnumerable<ChainEnum> chains, Guid? walletGroupId = null)
     {
@@ -289,9 +226,6 @@ public class WalletAggregationService : IWalletAggregationService
         return jobId;
     }
 
-    private static string GetActiveJobKey(string accountLower, ChainEnum chain) => RedisKeys.ActiveSingle(accountLower, chain);
-    private static string GetMultiActiveJobKey(string accountLower, List<ChainEnum> chains) => RedisKeys.ActiveMulti(accountLower, chains);
-
     private void ValidateChainSupport(ChainEnum chain)
     {
         var supported = _mapperFactory.GetAllMappers().Any(m => m.SupportsChain(chain));
@@ -368,21 +302,21 @@ public class WalletAggregationService : IWalletAggregationService
         var now = _clock.UtcNow;
         var hashEntries = new List<HashEntry>
         {
-            new("accounts", string.Join(',', accounts)),
-            new("chains", string.Join(',', chains)),
-            new("created_at", now.ToString("o")),
-            new("expected_total", combos.Count),
-            new("status", AggregationStatus.Running.ToString()),
-            new("succeeded", 0),
-            new("failed", 0),
-            new("timed_out", 0),
-            new("final_emitted", 0),
-            new("processed_count", 0)
+            new(RedisKeys.MetaFields.Accounts, RedisKeys.SerializeAccounts(accounts)),
+            new(RedisKeys.MetaFields.Chains, string.Join(',', chains)),
+            new(RedisKeys.MetaFields.CreatedAt, now.ToString("o")),
+            new(RedisKeys.MetaFields.ExpectedTotal, combos.Count),
+            new(RedisKeys.MetaFields.Status, AggregationStatus.Running.ToString()),
+            new(RedisKeys.MetaFields.Succeeded, 0),
+            new(RedisKeys.MetaFields.Failed, 0),
+            new(RedisKeys.MetaFields.TimedOut, 0),
+            new(RedisKeys.MetaFields.FinalEmitted, 0),
+            new(RedisKeys.MetaFields.ProcessedCount, 0)
         };
         
         if (walletGroupId.HasValue)
         {
-            hashEntries.Add(new("wallet_group_id", walletGroupId.Value.ToString()));
+            hashEntries.Add(new(RedisKeys.MetaFields.WalletGroupId, walletGroupId.Value.ToString()));
         }
         
         await db.HashSetAsync(metaKey, hashEntries.ToArray());
@@ -502,7 +436,7 @@ public class WalletAggregationService : IWalletAggregationService
     private Task PublishAsync(Guid jobId, string account, IReadOnlyList<string> chains, IntegrationProvider provider, DateTime now)
     {
         var req = new IntegrationRequest(jobId, Guid.NewGuid(), account, chains, provider, now, 1, null, null);
-        var rk = $"integration.request.{ProviderSlug(provider)}";
+        var rk = RoutingKeys.ForIntegrationRequest(provider);
         _logger.LogInformation("EVENT publish provider={Provider} chains={Chains} job={Job}", provider, string.Join(',', chains), jobId);
         return _publisher.PublishAsync(rk, req);
     }

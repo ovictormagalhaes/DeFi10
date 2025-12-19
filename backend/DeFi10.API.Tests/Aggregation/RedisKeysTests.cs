@@ -6,90 +6,67 @@ namespace DeFi10.API.Tests.Aggregation;
 
 public class RedisKeysTests
 {
-    #region ActiveSingle Tests
+    #region ActiveJob Tests
 
     [Fact]
-    public void ActiveSingle_CreatesCorrectKey()
+    public void ActiveJob_SingleChain_CreatesCorrectKey()
     {
-        var result = RedisKeys.ActiveSingle("0xabc123", ChainEnum.Ethereum);
-        
-        Assert.Equal("wallet:agg:active:0xabc123:Ethereum", result);
-    }
-
-    [Theory]
-    [InlineData("0x123", ChainEnum.Ethereum, "wallet:agg:active:0x123:Ethereum")]
-    [InlineData("wallet1", ChainEnum.Polygon, "wallet:agg:active:wallet1:Polygon")]
-    [InlineData("ABC", ChainEnum.BNB, "wallet:agg:active:ABC:BNB")]
-    [InlineData("0xdeadbeef", ChainEnum.Arbitrum, "wallet:agg:active:0xdeadbeef:Arbitrum")]
-    public void ActiveSingle_VariousInputs_CreatesExpectedKeys(string account, ChainEnum chain, string expected)
-    {
-        var result = RedisKeys.ActiveSingle(account, chain);
-        
-        Assert.Equal(expected, result);
-    }
-
-    [Fact]
-    public void ActiveSingle_EmptyAccount_CreatesKeyWithEmpty()
-    {
-        var result = RedisKeys.ActiveSingle("", ChainEnum.Ethereum);
-        
-        Assert.Equal("wallet:agg:active::Ethereum", result);
-    }
-
-    #endregion
-
-    #region ActiveMulti Tests
-
-    [Fact]
-    public void ActiveMulti_SingleChain_CreatesCorrectKey()
-    {
+        var accounts = new[] { "0xabc123" };
         var chains = new[] { ChainEnum.Ethereum };
         
-        var result = RedisKeys.ActiveMulti("0xabc123", chains);
+        var result = RedisKeys.ActiveJob(accounts, chains);
         
-        Assert.Equal("wallet:agg:active:0xabc123:Ethereum", result);
+        Assert.NotEmpty(result);
+        Assert.StartsWith("wallet:agg:active:", result);
     }
 
     [Fact]
-    public void ActiveMulti_MultipleChains_CreatesKeyWithSortedChains()
+    public void ActiveJob_MultipleChains_CreatesConsistentHash()
     {
+        var accounts = new[] { "0xabc123" };
         var chains = new[] { ChainEnum.Polygon, ChainEnum.Ethereum, ChainEnum.BNB };
         
-        var result = RedisKeys.ActiveMulti("0xabc123", chains);
+        var result = RedisKeys.ActiveJob(accounts, chains);
         
-        Assert.Equal("wallet:agg:active:0xabc123:BNB+Ethereum+Polygon", result);
+        Assert.NotEmpty(result);
+        Assert.StartsWith("wallet:agg:active:", result);
     }
 
     [Fact]
-    public void ActiveMulti_ChainsInDifferentOrder_ProducesSameKey()
+    public void ActiveJob_ChainsInDifferentOrder_ProducesSameKey()
     {
+        var accounts = new[] { "0xabc123" };
         var chains1 = new[] { ChainEnum.Ethereum, ChainEnum.Polygon, ChainEnum.BNB };
         var chains2 = new[] { ChainEnum.BNB, ChainEnum.Polygon, ChainEnum.Ethereum };
         
-        var result1 = RedisKeys.ActiveMulti("0xabc123", chains1);
-        var result2 = RedisKeys.ActiveMulti("0xabc123", chains2);
+        var result1 = RedisKeys.ActiveJob(accounts, chains1);
+        var result2 = RedisKeys.ActiveJob(accounts, chains2);
         
         Assert.Equal(result1, result2);
     }
 
     [Fact]
-    public void ActiveMulti_EmptyChains_CreatesKeyWithNoChains()
+    public void ActiveJob_EmptyChains_CreatesValidHash()
     {
+        var accounts = new[] { "0xabc123" };
         var chains = Array.Empty<ChainEnum>();
         
-        var result = RedisKeys.ActiveMulti("0xabc123", chains);
+        var result = RedisKeys.ActiveJob(accounts, chains);
         
-        Assert.Equal("wallet:agg:active:0xabc123:", result);
+        Assert.NotEmpty(result);
+        Assert.StartsWith("wallet:agg:active:", result);
     }
 
     [Fact]
-    public void ActiveMulti_DuplicateChains_IncludesBoth()
+    public void ActiveJob_DuplicateChains_CreatesValidHash()
     {
+        var accounts = new[] { "0xabc123" };
         var chains = new[] { ChainEnum.Ethereum, ChainEnum.Ethereum };
         
-        var result = RedisKeys.ActiveMulti("0xabc123", chains);
+        var result = RedisKeys.ActiveJob(accounts, chains);
         
-        Assert.Equal("wallet:agg:active:0xabc123:Ethereum+Ethereum", result);
+        Assert.NotEmpty(result);
+        Assert.StartsWith("wallet:agg:active:", result);
     }
 
     #endregion
@@ -407,25 +384,12 @@ public class RedisKeysTests
     {
         var activePrefix = "wallet:agg:active:";
         
-        var single = RedisKeys.ActiveSingle("0xabc", ChainEnum.Ethereum);
-        var multi = RedisKeys.ActiveMulti("0xabc", new[] { ChainEnum.Ethereum });
+        var accounts = new[] { "0xabc" };
+        var job = RedisKeys.ActiveJob(accounts, new[] { ChainEnum.Ethereum });
         var group = RedisKeys.ActiveWalletGroup(Guid.NewGuid(), new[] { ChainEnum.Ethereum });
         
-        Assert.StartsWith(activePrefix, single);
-        Assert.StartsWith(activePrefix, multi);
+        Assert.StartsWith(activePrefix, job);
         Assert.StartsWith(activePrefix, group);
-    }
-
-    [Fact]
-    public void CacheKeys_AllStartWithCachePrefix()
-    {
-        var cachePrefix = "wallet:cache:";
-        
-        var cache = RedisKeys.WalletCache("0xabc", ChainEnum.Ethereum, "provider");
-        var pattern = RedisKeys.WalletCachePattern("0xabc");
-        
-        Assert.StartsWith(cachePrefix, cache);
-        Assert.StartsWith(cachePrefix, pattern);
     }
 
     #endregion

@@ -36,7 +36,7 @@ public sealed class AggregationJobStore : IAggregationJobStore
     public async Task<Guid> CreateOrReuseSingleAsync(string accountLower, ChainEnum chain, IEnumerable<IntegrationProvider> providers, TimeSpan ttl, Guid? walletGroupId = null, CancellationToken ct = default)
     {
         var db = _redis.GetDatabase();
-        var activeKey = RedisKeys.ActiveSingle(accountLower, chain);
+        var activeKey = RedisKeys.ActiveJob(new List<string> { accountLower }, new List<ChainEnum> { chain });
         var existing = await db.StringGetAsync(activeKey);
         if (existing.HasValue && Guid.TryParse(existing.ToString(), out var jobId) && await db.KeyExistsAsync(RedisKeys.Meta(jobId)))
         {
@@ -54,7 +54,7 @@ public sealed class AggregationJobStore : IAggregationJobStore
     public async Task<Guid> CreateOrReuseMultiAsync(string accountLower, IReadOnlyList<ChainEnum> chains, IEnumerable<(IntegrationProvider provider, ChainEnum chain)> combos, TimeSpan ttl, Guid? walletGroupId = null, CancellationToken ct = default)
     {
         var db = _redis.GetDatabase();
-        var activeKey = RedisKeys.ActiveMulti(accountLower, chains);
+        var activeKey = RedisKeys.ActiveJob(new List<string> { accountLower }, chains.ToList());
         var existing = await db.StringGetAsync(activeKey);
         if (existing.HasValue && Guid.TryParse(existing.ToString(), out var jobId) && await db.KeyExistsAsync(RedisKeys.Meta(jobId)))
         {

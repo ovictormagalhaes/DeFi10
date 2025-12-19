@@ -3,18 +3,19 @@ using MongoDB.Driver;
 using DeFi10.API.Configuration;
 using DeFi10.API.Infrastructure.MongoDB;
 using DeFi10.API.Models;
+using DeFi10.API.Repositories.Interfaces;
 
 namespace DeFi10.API.Repositories;
 
-public sealed class MongoWalletGroupRepository : IWalletGroupRepository
+public sealed class WalletGroupRepository : IWalletGroupRepository
 {
     private readonly IMongoCollection<WalletGroup> _collection;
-    private readonly ILogger<MongoWalletGroupRepository> _logger;
+    private readonly ILogger<WalletGroupRepository> _logger;
 
-    public MongoWalletGroupRepository(
+    public WalletGroupRepository(
         IMongoDBContext context,
         IOptions<MongoDBOptions> options,
-        ILogger<MongoWalletGroupRepository> logger)
+        ILogger<WalletGroupRepository> logger)
     {
         _logger = logger;
         var collectionName = options.Value.Collections.WalletGroups;

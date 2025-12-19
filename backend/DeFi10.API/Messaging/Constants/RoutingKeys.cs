@@ -5,12 +5,12 @@ namespace DeFi10.API.Messaging.Constants;
 
 public static class RoutingKeys
 {
-
     public const string IntegrationRequestPattern = "integration.request.*";
     public const string IntegrationResultPattern = "integration.result.*";
-
     public const string AggregationStatusPattern = "aggregation.status.*";
-
+    
+    public const string ConsolidationRequested = "consolidation.requested";
+    public const string IntegrationResults = "integration.results";
 
     public static string ForIntegrationRequest(IntegrationProvider provider) 
         => $"integration.request.{ProviderSlug(provider)}";

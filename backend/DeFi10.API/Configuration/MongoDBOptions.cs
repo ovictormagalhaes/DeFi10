@@ -30,6 +30,11 @@ public sealed class MongoDBOptions : IValidateOptions<MongoDBOptions>
             return ValidateOptionsResult.Fail("MongoDB:Collections:Strategies is required");
         }
 
+        if (string.IsNullOrWhiteSpace(options.Collections.Tokens))
+        {
+            return ValidateOptionsResult.Fail("MongoDB:Collections:Tokens is required");
+        }
+
         return ValidateOptionsResult.Success;
     }
 
@@ -37,5 +42,6 @@ public sealed class MongoDBOptions : IValidateOptions<MongoDBOptions>
     {
         public string WalletGroups { get; set; } = "wallet_groups";
         public string Strategies { get; set; } = "strategies";
+        public string Tokens { get; set; } = "tokens";
     }
 }

@@ -2,10 +2,6 @@ using DeFi10.API.Services.Helpers;
 
 namespace DeFi10.API.Services.HostedServices;
 
-/// <summary>
-/// Background service that preloads all token metadata from Redis into memory on startup.
-/// This improves performance by avoiding cold cache misses on first requests.
-/// </summary>
 public class TokenMetadataCacheWarmupService : IHostedService
 {
     private readonly IServiceProvider _serviceProvider;
@@ -25,24 +21,13 @@ public class TokenMetadataCacheWarmupService : IHostedService
         
         try
         {
-            // Create a scope to resolve scoped services
             using var scope = _serviceProvider.CreateScope();
             var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
             
-            // Trigger the warmup (loads from Redis to in-memory dictionaries)
+            // Load all token metadata from MongoDB into memory
             await metadataService.LoadAllMetadataIntoMemoryAsync();
             
-            // Get cache statistics
-            var stats = metadataService.GetCacheStats();
-            
-            _logger.LogInformation(
-                "[TokenMetadataCacheWarmup] SUCCESS: Token metadata cache warmup completed!\n" +
-                "  Cache Statistics:\n" +
-                "    - Addresses indexed: {AddressCount}\n" +
-                "    - Symbols indexed: {SymbolCount}\n" +
-                "    - Symbol+Name pairs: {SymbolNameCount}\n" +
-                "    - Prices cached: {PriceCount}",
-                stats.addresses, stats.symbols, stats.symbolNames, stats.prices);
+            _logger.LogInformation("[TokenMetadataCacheWarmup] SUCCESS: Token metadata cache warmup completed!");
         }
         catch (Exception ex)
         {

@@ -24,6 +24,7 @@ using DeFi10.API.Services.Filters;
 using DeFi10.API.Configuration;
 using DeFi10.API.Messaging.Workers.TriggerRules;
 using DeFi10.API.Services.Infrastructure.MoralisSolana.Models;
+using DeFi10.API.Messaging.Constants;
 
 namespace DeFi10.API.Messaging.Workers;
 
@@ -41,7 +42,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
     private readonly JobExpansionService _jobExpansionService;
     private readonly IEnumerable<IProtocolTriggerDetector> _triggerDetectors;
 
-    protected override string QueueName => "integration.results";
+    protected override string QueueName => RoutingKeys.IntegrationResults;
 
     public IntegrationResultAggregatorWorker(
         IRabbitMqConnectionFactory connectionFactory,
@@ -152,19 +153,17 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
 
         var providerChainKey = string.IsNullOrWhiteSpace(chainStr) ? providerSlug : $"{providerSlug}:{chainStr.ToLowerInvariant()}";
 
-        var metaKey = $"wallet:agg:{jobId}:meta";
+        var metaKey = RedisKeys.Meta(jobId);
 
-        var accountsField = await db.HashGetAsync(metaKey, "accounts");
+        var accountsField = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Accounts);
         bool isMultiWallet = accountsField.HasValue && accountsField.ToString().Contains(',');
 
-        var pendingKey = $"wallet:agg:{jobId}:pending";
+        var pendingKey = RedisKeys.Pending(jobId);
 
-        var resultKey = isMultiWallet 
-            ? $"wallet:agg:{jobId}:result:{providerSlug}:{chainEnum.ToString().ToLowerInvariant()}:{account.ToLowerInvariant()}"
-            : $"wallet:agg:{jobId}:result:{providerSlug}:{chainEnum.ToString().ToLowerInvariant()}";
+        var resultKey = RedisKeys.Result(jobId, providerSlug, chainEnum, isMultiWallet ? account : null);
         
-        var summaryKey = $"wallet:agg:{jobId}:summary";
-        var consolidatedKey = $"wallet:agg:{jobId}:wallet";
+        var summaryKey = RedisKeys.Summary(jobId);
+        var consolidatedKey = RedisKeys.Wallet(jobId);
 
         if (!await db.KeyExistsAsync(metaKey))
         {
@@ -183,9 +182,16 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         var ttl = await db.KeyTimeToLiveAsync(metaKey) ?? TimeSpan.FromMinutes(15);
         await db.StringSetAsync(resultKey, json, ttl);
 
-        var pendingEntry = isMultiWallet 
-            ? $"{providerSlug}:{chainStr?.ToLowerInvariant()}:{account.ToLowerInvariant()}"
-            : providerChainKey;
+        // Track provider duration
+        var duration = result.FinishedAtUtc - result.StartedAtUtc;
+        var durationKey = RedisKeys.Durations(jobId);
+        var durationEntry = RedisKeys.DurationEntry(providerSlug, chainStr ?? "", isMultiWallet ? account : null);
+        await db.HashSetAsync(durationKey, durationEntry, duration.TotalMilliseconds.ToString("F0"), flags: CommandFlags.FireAndForget);
+        
+        _logger.LogInformation("[Aggregator] Provider completed: {Provider} chain={Chain} account={Account} status={Status} duration={Duration}ms jobId={JobId}",
+            result.Provider, chainEnum, account, result.Status, duration.TotalMilliseconds, jobId);
+
+        var pendingEntry = RedisKeys.DurationEntry(providerSlug, chainStr ?? "", isMultiWallet ? account : null);
         
         var removed = await db.SetRemoveAsync(pendingKey, pendingEntry);
         if (!removed && !isMultiWallet)
@@ -194,13 +200,13 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         }
 
         var tran = db.CreateTransaction();
-        tran.HashIncrementAsync(metaKey, "processed_count", 1);
+        tran.HashIncrementAsync(metaKey, RedisKeys.MetaFields.ProcessedCount, 1);
         switch (result.Status)
         {
-            case IntegrationStatus.Success: tran.HashIncrementAsync(metaKey, "succeeded", 1); break;
-            case IntegrationStatus.Failed: tran.HashIncrementAsync(metaKey, "failed", 1); break;
-            case IntegrationStatus.TimedOut: tran.HashIncrementAsync(metaKey, "timed_out", 1); break;
-            default: tran.HashIncrementAsync(metaKey, "failed", 1); break;
+            case IntegrationStatus.Success: tran.HashIncrementAsync(metaKey, RedisKeys.MetaFields.Succeeded, 1); break;
+            case IntegrationStatus.Failed: tran.HashIncrementAsync(metaKey, RedisKeys.MetaFields.Failed, 1); break;
+            case IntegrationStatus.TimedOut: tran.HashIncrementAsync(metaKey, RedisKeys.MetaFields.TimedOut, 1); break;
+            default: tran.HashIncrementAsync(metaKey, RedisKeys.MetaFields.Failed, 1); break;
         }
         await tran.ExecuteAsync();
 
@@ -210,7 +216,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             if (isMultiWallet)
             {
 
-                var walletConsolidatedKey = $"wallet:agg:{jobId}:wallet:{account.ToLowerInvariant()}";
+                var walletConsolidatedKey = RedisKeys.WalletForAccount(jobId, account);
                 
                 var consolidated = new ConsolidatedWallet();
                 var existingWalletJson = await db.StringGetAsync(walletConsolidatedKey);
@@ -287,7 +293,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                         {
                                             if (tk?.Financials == null) continue;
                                             if (tk.Financials.Price is > 0) continue;
-                                            var key = BuildPriceKey(tk);
+                                            var key = PriceKeyBuilder.BuildKey(tk);
                                             if (string.IsNullOrEmpty(key)) continue;
                                             if (prices.TryGetValue(key, out var price) && price > 0)
                                             {
@@ -453,7 +459,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                                         {
                                             if (tk?.Financials == null) continue;
                                             if (tk.Financials.Price is > 0) continue;
-                                            var key = BuildPriceKey(tk);
+                                            var key = PriceKeyBuilder.BuildKey(tk);
                                             if (string.IsNullOrEmpty(key)) continue;
                                             if (prices.TryGetValue(key, out var price) && price > 0)
                                             {
@@ -471,7 +477,8 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                             }
                             catch (Exception pxEx)
                             {
-                                _logger.LogWarning(pxEx, "Price hydration failed (initial) jobId={JobId} chain={Chain} account={Account}", jobId, chainEnum, account);
+                                _logger.LogWarning(pxEx, "Price hydration failed (initial) jobId={JobId} chain={Chain} account={Account}", 
+                                    jobId, chainEnum, account);
                             }
                         }
                     }
@@ -617,29 +624,29 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         }
 
         var remaining = await db.SetLengthAsync(pendingKey);
-        var succeeded = (int)(long)(await db.HashGetAsync(metaKey, "succeeded"));
-        var failed = (int)(long)(await db.HashGetAsync(metaKey, "failed"));
-        var timedOut = (int)(long)(await db.HashGetAsync(metaKey, "timed_out"));
-        var expectedTotal = (int)(long)(await db.HashGetAsync(metaKey, "expected_total"));
+        var succeeded = (int)(long)(await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Succeeded));
+        var failed = (int)(long)(await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Failed));
+        var timedOut = (int)(long)(await db.HashGetAsync(metaKey, RedisKeys.MetaFields.TimedOut));
+        var expectedTotal = (int)(long)(await db.HashGetAsync(metaKey, RedisKeys.MetaFields.ExpectedTotal));
 
         _logger.LogDebug("Job {JobId} progress: expected={Expected} remaining={Remaining} success={Succeeded} failed={Failed} timedOut={TimedOut}", jobId, expectedTotal, remaining, succeeded, failed, timedOut);
 
         // DYNAMIC JOB EXPANSION: Check if this result should trigger additional protocol queries
         await EvaluateAndTriggerDependentJobsAsync(result, chainEnum, account);
 
-        var finalEmittedVal = await db.HashGetAsync(metaKey, "final_emitted");
+        var finalEmittedVal = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.FinalEmitted);
         var finalAlready = finalEmittedVal.HasValue && finalEmittedVal == "1";
 
         if (finalAlready)
         {
-            var currentStatusVal = await db.HashGetAsync(metaKey, "status");
+            var currentStatusVal = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Status);
             if (currentStatusVal.HasValue && (currentStatusVal == AggregationStatus.TimedOut.ToString() || currentStatusVal == AggregationStatus.CompletedWithErrors.ToString()))
             {
                 if (succeeded == expectedTotal && failed == 0)
                 {
                     // Status is being upgraded to Completed - clear pending list to maintain consistency
                     await db.KeyDeleteAsync(pendingKey);
-                    await db.HashSetAsync(metaKey, new HashEntry[] { new("status", AggregationStatus.Completed.ToString()) });
+                    await db.HashSetAsync(metaKey, new HashEntry[] { new(RedisKeys.MetaFields.Status, AggregationStatus.Completed.ToString()) });
                     _logger.LogDebug("Upgraded status to Completed after late successes jobId={JobId}, cleared pending list", jobId);
                 }
             }
@@ -650,315 +657,75 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         
         if (shouldConsolidate)
         {
-
-            var consolidationDoneKey = $"wallet:agg:{jobId}:consolidation_done";
+            // NEW: Emit consolidation event instead of doing it inline
+            var consolidationDoneKey = RedisKeys.ConsolidationDone(jobId);
             var alreadyConsolidated = await db.StringGetAsync(consolidationDoneKey);
             
             if (!alreadyConsolidated.HasValue)
             {
                 await db.StringSetAsync(consolidationDoneKey, "1", ttl);
                 
-                _logger.LogDebug("Starting final consolidation for job {JobId} (remaining={Remaining} finalAlready={FinalAlready})", 
-                    jobId, remaining, finalAlready);
+                _logger.LogInformation("[Aggregator] All providers completed for job {JobId}, requesting consolidation (remaining={Remaining})", 
+                    jobId, remaining);
                 
-                try
-                {
-
-                    if (isMultiWallet)
-                    {
-
-                        var accountsStr = await db.HashGetAsync(metaKey, "accounts");
-                        if (accountsStr.HasValue)
-                        {
-                            var accountsList = accountsStr.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-                            var consolidatedWallet = new ConsolidatedWallet();
-                            
-                            _logger.LogDebug("Multi-wallet job {JobId} final consolidation: {Count} wallets", jobId, accountsList.Count);
-
-                            foreach (var acc in accountsList)
-                            {
-                                var walletConsolidatedKey = $"wallet:agg:{jobId}:wallet:{acc.ToLowerInvariant()}";
-                                var walletJson = await db.StringGetAsync(walletConsolidatedKey);
-                                if (walletJson.HasValue)
-                                {
-                                    try
-                                    {
-                                        var walletData = JsonSerializer.Deserialize<ConsolidatedWallet>(walletJson!, _jsonOptions);
-                                        if (walletData != null)
-                                        {
-                                            consolidatedWallet.Items.AddRange(walletData.Items);
-                                            foreach (var p in walletData.Providers)
-                                            {
-                                                consolidatedWallet.Providers.Add(p);
-                                            }
-                                            _logger.LogDebug("Multi-wallet merge: {Account} contributed {Count} items", acc, walletData.Items.Count);
-                                        }
-                                    }
-                                    catch (Exception mergeEx)
-                                    {
-                                        _logger.LogWarning(mergeEx, "Failed merging wallet {Account} for job {JobId}", acc, jobId);
-                                    }
-                                }
-                                else
-                                {
-                                    _logger.LogWarning("No consolidated data found for wallet {Account} in job {JobId}", acc, jobId);
-                                }
-                            }
-
-                            if (consolidatedWallet.Items.Count > 0)
-                            {
-                                // PASSO 1: HIDRATAÇÃO DE METADADOS - DEVE VIR ANTES DOS PREÇOS
-                                // Preenche name, symbol, logo usando cross-chain sharing
-                                try
-                                {
-                                    using var metadataScope = _rootProvider.CreateScope();
-                                    var metadataService = metadataScope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
-                                    var hydrationLogger = metadataScope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
-                                    var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
-                                    
-                                    _logger.LogDebug("[FINAL HYDRATION] Starting metadata hydration for {Count} items, jobId={JobId}", 
-                                        consolidatedWallet.Items.Count, jobId);
-                                    
-                                    var logos = await hydrationHelper.HydrateTokenLogosAsync(consolidatedWallet.Items, ChainEnum.Base);
-                                    await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(consolidatedWallet.Items, logos);
-                                    
-                                    _logger.LogDebug("[FINAL HYDRATION] Completed metadata hydration for {TotalItems} items, jobId={JobId}", 
-                                        consolidatedWallet.Items.Count, jobId);
-                                }
-                                catch (Exception metadataEx)
-                                {
-                                    _logger.LogError(metadataEx, "[FINAL HYDRATION] Failed metadata hydration jobId={JobId}", jobId);
-                                }
-
-                                // PASSO 2: HIDRATAÇÃO DE PREÇOS - DEPENDE DO SYMBOL ESTAR PREENCHIDO
-                                try
-                                {
-                                    using var scope = _rootProvider.CreateScope();
-                                    var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
-                                    var tokensByChain = consolidatedWallet.Items
-                                        .SelectMany(w => w.Position?.Tokens ?? Enumerable.Empty<Token>())
-                                        .GroupBy(t => (t.Chain ?? string.Empty).ToLowerInvariant());
-                                    int filled = 0;
-                                    foreach (var g in tokensByChain)
-                                    {
-                                        if (string.IsNullOrEmpty(g.Key)) continue;
-                                        if (!Enum.TryParse<ChainEnum>(g.Key, true, out var parsedChain)) parsedChain = ChainEnum.Base;
-                                        var subsetItems = consolidatedWallet.Items.Where(w => (w.Position?.Tokens?.Any(tk => (tk.Chain ?? "").Equals(g.Key, StringComparison.OrdinalIgnoreCase)) ?? false)).ToList();
-                                        if (subsetItems.Count == 0) continue;
-                                        var prices = await priceService.HydratePricesAsync(subsetItems, parsedChain, ct);
-                                        if (prices.Count == 0) continue;
-                                        foreach (var wi in subsetItems)
-                                        {
-                                            if (wi.Position?.Tokens == null) continue;
-                                            foreach (var tk in wi.Position.Tokens)
-                                            {
-                                                if (tk.Financials == null) continue;
-                                                if (tk.Financials.Price is > 0) continue;
-                                                var key = BuildPriceKey(tk);
-                                                if (prices.TryGetValue(key, out var price) && price > 0)
-                                                {
-                                                    tk.Financials.Price = price;
-                                                    var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
-                                                    if (formatted.HasValue)
-                                                        tk.Financials.TotalPrice = formatted.Value * price;
-                                                    filled++;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (filled > 0)
-                                    {
-                                        _logger.LogDebug("Multi-wallet final price hydration applied {Filled} prices jobId={JobId}", filled, jobId);
-                                    }
-                                }
-                                catch (Exception finalPxEx)
-                                {
-                                    _logger.LogWarning(finalPxEx, "Multi-wallet final price hydration failed jobId={JobId}", jobId);
-                                }
-                            }
-
-                            // Mark as completed BEFORE writing wallet to prevent race condition
-                            if (!finalAlready)
-                            {
-                                AggregationStatus aggStatus;
-                                if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
-                                else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
-                                else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
-                                else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
-                                else aggStatus = AggregationStatus.CompletedWithErrors;
-
-                                var tran2 = db.CreateTransaction();
-                                tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
-                                await tran2.ExecuteAsync();
-                                _logger.LogDebug("Job {JobId} marked as {Status}, final_emitted=1 BEFORE writing wallet", jobId, aggStatus);
-                            }
-
-                            await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(consolidatedWallet, _jsonOptions), ttl);
-                            _logger.LogDebug("Multi-wallet job {JobId} final consolidation complete: {Total} items", jobId, consolidatedWallet.Items.Count);
-                        }
-                        else
-                        {
-                            _logger.LogWarning("Multi-wallet job {JobId} has no accounts field in meta", jobId);
-                        }
-                    }
-                    else
-                    {
-                        // SINGLE WALLET - precisa de hidratação de metadados também!
-                        var consolidatedJson = await db.StringGetAsync(consolidatedKey);
-                        if (consolidatedJson.HasValue)
-                        {
-                            var wallet = JsonSerializer.Deserialize<ConsolidatedWallet>(consolidatedJson!, _jsonOptions) ?? new ConsolidatedWallet();
-                            if (wallet.Items.Count > 0)
-                            {
-                                // PASSO 1: HIDRATAÇÃO DE METADADOS (logos, symbols, names)
-                                try
-                                {
-                                    using var metadataScope = _rootProvider.CreateScope();
-                                    var metadataService = metadataScope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
-                                    var hydrationLogger = metadataScope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
-                                    var hydrationHelper = new TokenHydrationHelper(metadataService, hydrationLogger);
-                                    
-                                    _logger.LogDebug("[FINAL HYDRATION] Starting metadata hydration for {Count} items (single wallet), jobId={JobId}", 
-                                        wallet.Items.Count, jobId);
-                                    
-                                    // Hidratar logos para todas as chains presentes no wallet (não só Base)
-                                    var allChains = wallet.Items
-                                        .SelectMany(w => w.Position?.Tokens ?? Enumerable.Empty<Token>())
-                                        .Select(t => t.Chain ?? "Base")
-                                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                                        .Select(c => Enum.TryParse<ChainEnum>(c, true, out var ch) ? ch : ChainEnum.Base)
-                                        .Distinct()
-                                        .ToList();
-                                    
-                                    foreach (var chain in allChains)
-                                    {
-                                        var chainItems = wallet.Items
-                                            .Where(w => w.Position?.Tokens?.Any(tk => (tk.Chain ?? "Base").Equals(chain.ToString(), StringComparison.OrdinalIgnoreCase)) ?? false)
-                                            .ToList();
-                                        
-                                        if (chainItems.Count > 0)
-                                        {
-                                            var logos = await hydrationHelper.HydrateTokenLogosAsync(chainItems, chain);
-                                            await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(chainItems, logos);
-                                        }
-                                    }
-                                    
-                                    _logger.LogDebug("[FINAL HYDRATION] Completed metadata hydration for {TotalItems} items (single wallet), jobId={JobId}", 
-                                        wallet.Items.Count, jobId);
-                                }
-                                catch (Exception metadataEx)
-                                {
-                                    _logger.LogError(metadataEx, "[FINAL HYDRATION] Failed metadata hydration (single wallet) jobId={JobId}", jobId);
-                                }
-                                
-                                // PASSO 2: HIDRATAÇÃO DE PREÇOS
-                                try
-                                {
-                                    using var scope = _rootProvider.CreateScope();
-                                    var priceService = scope.ServiceProvider.GetRequiredService<IPriceService>();
-                                    var tokensByChain = wallet.Items
-                                        .SelectMany(w => w.Position?.Tokens ?? Enumerable.Empty<Token>())
-                                        .GroupBy(t => (t.Chain ?? string.Empty).ToLowerInvariant());
-                                    int filled = 0;
-                                    foreach (var g in tokensByChain)
-                                    {
-                                        if (string.IsNullOrEmpty(g.Key)) continue;
-                                        if (!Enum.TryParse<ChainEnum>(g.Key, true, out var parsedChain)) parsedChain = ChainEnum.Base;
-                                        var subsetItems = wallet.Items.Where(w => (w.Position?.Tokens?.Any(tk => (tk.Chain ?? "").Equals(g.Key, StringComparison.OrdinalIgnoreCase)) ?? false)).ToList();
-                                        if (subsetItems.Count == 0) continue;
-                                        var prices = await priceService.HydratePricesAsync(subsetItems, parsedChain, ct);
-                                        if (prices.Count == 0) continue;
-                                        foreach (var wi in subsetItems)
-                                        {
-                                            if (wi.Position?.Tokens == null) continue;
-                                            foreach (var tk in wi.Position.Tokens)
-                                            {
-                                                if (tk.Financials == null) continue;
-                                                if (tk.Financials.Price is > 0) continue;
-                                                var key = BuildPriceKey(tk);
-                                                if (prices.TryGetValue(key, out var price) && price > 0)
-                                                {
-                                                    tk.Financials.Price = price;
-                                                    var formatted = tk.Financials.BalanceFormatted ?? tk.Financials.AmountFormatted;
-                                                    if (formatted.HasValue)
-                                                        tk.Financials.TotalPrice = formatted.Value * price;
-                                                    filled++;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (filled > 0)
-                                    {
-                                        _logger.LogDebug("Final price hydration applied {Filled} prices (single wallet) jobId={JobId}", filled, jobId);
-                                    }
-                                }
-                                catch (Exception finalPxEx)
-                                {
-                                    _logger.LogWarning(finalPxEx, "Final price hydration failed (single wallet) jobId={JobId}", jobId);
-                                }
-                                
-                                // Mark as completed BEFORE writing wallet to prevent race condition
-                                if (!finalAlready)
-                                {
-                                    AggregationStatus aggStatus;
-                                    if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
-                                    else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
-                                    else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
-                                    else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
-                                    else aggStatus = AggregationStatus.CompletedWithErrors;
-
-                                    var tran2 = db.CreateTransaction();
-                                    tran2.HashSetAsync(metaKey, new HashEntry[] { new("status", aggStatus.ToString()), new("final_emitted", 1) });
-                                    await tran2.ExecuteAsync();
-                                    _logger.LogDebug("Job {JobId} marked as {Status}, final_emitted=1 BEFORE writing wallet", jobId, aggStatus);
-                                }
-                                
-                                // Salvar wallet consolidado atualizado
-                                await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(wallet, _jsonOptions), ttl);
-                            }
-                        }
-                    }
-
-                    _logger.LogDebug("Consolidation data written to Redis for job {JobId}", jobId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "CONSOLIDATION_FINAL: failed jobId={JobId}", jobId);
-                }
-
+                // Mark status as Consolidating
                 if (!finalAlready)
                 {
-                    // Status already updated before wallet write (above), now publish events
-                    AggregationStatus aggStatus;
-                    if (succeeded == expectedTotal && failed == 0) aggStatus = AggregationStatus.Completed;
-                    else if (timedOut > 0 && succeeded == 0 && failed == 0) aggStatus = AggregationStatus.TimedOut;
-                    else if (failed == 0 && timedOut == 0) aggStatus = AggregationStatus.Completed;
-                    else if (timedOut > 0) aggStatus = AggregationStatus.TimedOut;
-                    else aggStatus = AggregationStatus.CompletedWithErrors;
-
-                    var accountVal = await db.HashGetAsync(metaKey, "account");
-                    var chainsVal = await db.HashGetAsync(metaKey, "chains");
-                    var completedEvent = new WalletAggregationCompleted(jobId, accountVal, aggStatus, DateTime.UtcNow, expectedTotal, succeeded, failed, timedOut);
-                    await _publisher.PublishAsync("aggregation.completed", completedEvent, ct);
-                    var doneKey = $"wallet:agg:{jobId}:done"; await db.StringSetAsync(doneKey, "1", ttl);
-
-                    if (accountVal.HasValue && chainsVal.HasValue)
-                    {
-                        try
-                        {
-                            foreach (var activeChainStr in chainsVal.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                            {
-                                if (Enum.TryParse<ChainEnum>(activeChainStr, true, out var activeChain))
-                                {
-                                    var activeKey = $"wallet:agg:active:{accountVal.ToString().ToLowerInvariant()}:{activeChain}";
-                                    var activeVal = await db.StringGetAsync(activeKey);
-                                    if (activeVal.HasValue && activeVal.ToString() == jobId.ToString()) await db.KeyDeleteAsync(activeKey);
-                                }
-                            }
-                        }
-                        catch (Exception ex) { _logger.LogWarning(ex, "Failed clearing active job keys for jobId={JobId}", jobId); }
-                    }
+                    await db.HashSetAsync(metaKey, RedisKeys.MetaFields.Status, AggregationStatus.Consolidating.ToString());
+                    _logger.LogDebug("[Aggregator] Job {JobId} marked as Consolidating", jobId);
                 }
+                
+                // Get accounts and chains
+                var accountVal = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Accounts);
+                var accountsVal = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Accounts);
+                var chainsVal = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Chains);
+                var walletGroupIdVal = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.WalletGroupId);
+                
+                Guid? walletGroupId = null;
+                if (walletGroupIdVal.HasValue && Guid.TryParse(walletGroupIdVal.ToString(), out var wgId))
+                    walletGroupId = wgId;
+                
+                string[] accounts;
+                if (accountsVal.HasValue && !string.IsNullOrEmpty(accountsVal.ToString()))
+                {
+                    // Multi-wallet
+                    accounts = accountsVal.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                }
+                else if (accountVal.HasValue)
+                {
+                    // Single wallet
+                    accounts = new[] { accountVal.ToString() };
+                }
+                else
+                {
+                    accounts = Array.Empty<string>();
+                }
+                
+                string[] chains = Array.Empty<string>();
+                if (chainsVal.HasValue && !string.IsNullOrEmpty(chainsVal.ToString()))
+                {
+                    chains = chainsVal.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                }
+                
+                // Emit consolidation request event
+                var consolidationRequest = new WalletConsolidationRequested(
+                    jobId,
+                    walletGroupId,
+                    accounts,
+                    chains,
+                    expectedTotal,
+                    succeeded,
+                    failed,
+                    timedOut,
+                    DateTime.UtcNow
+                );
+                
+                await _publisher.PublishAsync(RoutingKeys.ConsolidationRequested, consolidationRequest, ct);
+                
+                _logger.LogInformation("[Aggregator] Published consolidation request for job {JobId}, accounts={Count}, chains={Chains}", 
+                    jobId, accounts.Length, string.Join(",", chains));
+                
+                return; // Exit - consolidation worker will take over
             }
             else
             {
@@ -1110,11 +877,4 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         }
     }
 
-    private static string BuildPriceKey(Token t)
-    {
-        if (t == null) return string.Empty;
-        var sym = t.Symbol; if (string.IsNullOrWhiteSpace(sym)) return string.Empty;
-        var chain = t.Chain ?? string.Empty;
-        return (sym + "|" + chain).ToLowerInvariant();
-    }
 }
