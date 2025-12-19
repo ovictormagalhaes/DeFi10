@@ -36,6 +36,15 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
     private const string PRICE_PREFIX = "token:price:";
     private static readonly TimeSpan PRICE_TTL = TimeSpan.FromMinutes(5);
+    
+    // JsonSerializerOptions for flexible deserialization (handles extra properties from legacy data)
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        AllowTrailingCommas = true,
+        ReadCommentHandling = JsonCommentHandling.Skip
+    };
 
     // JsonSerializerOptions for flexible deserialization
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -277,6 +286,12 @@ public sealed class TokenMetadataService : ITokenMetadataService
         // Remove entries from the pending dictionary (we'll re-add on failure)
         foreach (var k in tokens.Select(t => $"{(int)t.Chain}:{t.Address}"))
             _staleTokens.TryRemove(k, out _);
+
+        // Ensure cache is initialized
+        if (!_isInitialized)
+            await LoadAllMetadataIntoMemoryAsync();
+
+        var compositeKey = $"{symbol.ToUpperInvariant()}:{name.ToUpperInvariant()}";
 
         try
         {
@@ -544,6 +559,8 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         var normalizedAddress = address.ToLowerInvariant();
         var chainAddressKey = $"{(int)chain}:{normalizedAddress}";
+
+        var normalizedAddress = mintAddress.ToLowerInvariant();
 
         try
         {

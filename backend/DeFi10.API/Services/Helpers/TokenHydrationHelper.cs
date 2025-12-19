@@ -115,6 +115,10 @@ public class TokenHydrationHelper
                 
                 existingLogos[normalizedAddress] = kvp.Value;
                 
+                // ✅ Extract symbol and name from token data
+                Token? tokenData = null;
+                addressToTokenData.TryGetValue(normalizedAddress, out tokenData);
+                
                 tokensToStore[normalizedAddress] = new TokenMetadata
                 {
                     Symbol = tokenData?.Symbol ?? string.Empty,
