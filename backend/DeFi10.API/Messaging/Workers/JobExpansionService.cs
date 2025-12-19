@@ -2,9 +2,11 @@ using DeFi10.API.Aggregation;
 using DeFi10.API.Messaging.Contracts.Enums;
 using DeFi10.API.Messaging.Contracts.Requests;
 using DeFi10.API.Messaging.Rabbit;
+using DeFi10.API.Messaging.Constants;
 using DeFi10.API.Models;
 using StackExchange.Redis;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace DeFi10.API.Messaging.Workers;
 
@@ -17,6 +19,9 @@ public class JobExpansionService
     {
         Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
+    
+    private static readonly Regex EthAddressRegex = new("^0x[a-fA-F0-9]{40}$", RegexOptions.Compiled);
+    private static readonly Regex SolAddressRegex = new("^[1-9A-HJ-NP-Za-km-z]{32,44}$", RegexOptions.Compiled);
 
     public JobExpansionService(
         IConnectionMultiplexer redis,
@@ -90,19 +95,51 @@ public class JobExpansionService
             return 0;
         }
 
-        _logger.LogInformation("JobExpansion: Adding {NewCount}/{RequestedCount} new providers to job {JobId}",
-            providersToAdd.Count, newProviders.Count, jobId);
+        // Check if this is a multi-wallet job
+        var accountsField = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Accounts);
+        bool isMultiWallet = accountsField.HasValue && accountsField.ToString().Contains(',');
+        var accounts = isMultiWallet 
+            ? RedisKeys.DeserializeAccounts(accountsField.ToString())
+            : new List<string> { account };
+
+        // Filter account-chain combinations by compatibility
+        var validCombos = new List<(IntegrationProvider Provider, Chain Chain, string Account)>();
+        foreach (var (provider, chain) in providersToAdd)
+        {
+            foreach (var acc in accounts)
+            {
+                if (IsValidAddressForChain(acc, chain))
+                {
+                    validCombos.Add((provider, chain, acc));
+                }
+                else
+                {
+                    _logger.LogDebug("JobExpansion: Skipping {Provider}:{Chain} for account {Account} (incompatible address type)",
+                        provider, chain, acc);
+                }
+            }
+        }
+        
+        if (validCombos.Count == 0)
+        {
+            _logger.LogWarning("JobExpansion: No valid account-chain combinations for job {JobId} - all accounts incompatible with requested chains",
+                jobId);
+            return 0;
+        }
+        
+        _logger.LogInformation("JobExpansion: Adding {ValidCount}/{TotalCount} valid combinations to job {JobId}",
+            validCombos.Count, providersToAdd.Count * accounts.Count, jobId);
 
         // Atomic transaction: increment expected_total and add to pending set
         var tran = db.CreateTransaction();
         tran.AddCondition(Condition.KeyExists(metaKey)); // Ensure job still exists
 
-        tran.HashIncrementAsync(metaKey, "expected_total", providersToAdd.Count);
+        tran.HashIncrementAsync(metaKey, RedisKeys.MetaFields.ExpectedTotal, validCombos.Count);
         
-        foreach (var (provider, chain) in providersToAdd)
+        foreach (var (provider, chain, acc) in validCombos)
         {
-            var providerChainKey = $"{ProviderSlug(provider)}:{chain.ToString().ToLowerInvariant()}";
-            tran.SetAddAsync(pendingKey, providerChainKey);
+            var pendingEntry = RedisKeys.DurationEntry(ProviderSlug(provider), chain.ToString(), isMultiWallet ? acc : null);
+            tran.SetAddAsync(pendingKey, pendingEntry);
         }
 
         // Track expansion history for debugging
@@ -118,45 +155,55 @@ public class JobExpansionService
         }
 
         _logger.LogInformation("JobExpansion: Successfully updated metadata for job {JobId} - expanded by {Count}",
-            jobId, providersToAdd.Count);
+            jobId, validCombos.Count);
 
-        // Publish new integration requests
+        // Publish new integration requests for valid combinations
         var publishedCount = 0;
         
-        foreach (var (provider, chain) in providersToAdd)
+        foreach (var (provider, chain, acc) in validCombos)
         {
             try
             {
                 var request = new IntegrationRequest(
                     JobId: jobId,
                     RequestId: Guid.NewGuid(),
-                    Account: account,
+                    Account: acc,
                     Chains: new List<string> { chain.ToString() },
                     Provider: provider,
                     RequestedAtUtc: DateTime.UtcNow,
                     Attempt: 1
                 );
 
-                var routingKey = $"integration.request.{ProviderSlug(provider)}";
+                var routingKey = RoutingKeys.ForIntegrationRequest(provider);
                 await _publisher.PublishAsync(routingKey, request, ct);
 
                 publishedCount++;
 
-                _logger.LogDebug("JobExpansion: Published {Provider}:{Chain} for job {JobId}",
-                    provider, chain, jobId);
+                _logger.LogDebug("JobExpansion: Published {Provider}:{Chain}:{Account} for job {JobId}",
+                    provider, chain, acc, jobId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "JobExpansion: Failed to publish {Provider}:{Chain} for job {JobId}",
-                    provider, chain, jobId);
+                _logger.LogError(ex, "JobExpansion: Failed to publish {Provider}:{Chain}:{Account} for job {JobId}",
+                    provider, chain, acc, jobId);
             }
         }
 
         _logger.LogInformation(
             "JobExpansion: Completed expansion for job {JobId} - published {Published}/{Total} requests (triggered by {Trigger})",
-            jobId, publishedCount, providersToAdd.Count, triggeredBy);
+            jobId, publishedCount, validCombos.Count, triggeredBy);
 
         return publishedCount;
+    }
+
+    private static bool IsValidAddressForChain(string address, Chain chain)
+    {
+        return chain switch
+        {
+            Chain.Solana => SolAddressRegex.IsMatch(address),
+            Chain.Base or Chain.Ethereum or Chain.Arbitrum or Chain.Optimism or Chain.BNB or Chain.Polygon => EthAddressRegex.IsMatch(address),
+            _ => false
+        };
     }
 
     private static string ProviderSlug(IntegrationProvider p) => p.ToString().ToLowerInvariant();

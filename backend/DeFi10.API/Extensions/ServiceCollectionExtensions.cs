@@ -41,6 +41,8 @@ using DeFi10.API.Services.Protocols.Raydium.Mappers;
 using DeFi10.API.Services.Infrastructure.MoralisSolana.Mappers;
 using DeFi10.API.Services.Infrastructure.MoralisSolana.Models;
 using DeFi10.API.Services.HostedServices;
+using DeFi10.API.Repositories.Interfaces;
+using DeFi10.API.Services.Events;
 
 namespace DeFi10.API.Extensions;
 
@@ -98,8 +100,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISystemClock, SystemClock>();
         services.AddSingleton<IRedisDatabase, RedisDatabaseWrapper>();
         services.AddSingleton<IMongoDBContext, MongoDBContext>();
-        services.AddScoped<IWalletGroupRepository, MongoWalletGroupRepository>();
-        services.AddScoped<IStrategyRepository, MongoStrategyRepository>();
+        services.AddScoped<IWalletGroupRepository, WalletGroupRepository>();
+        services.AddScoped<IStrategyRepository, StrategyRepository>();
+        services.AddScoped<ITokenMetadataRepository, TokenMetadataRepository>();
 
         services.AddSingleton<IConnectionMultiplexer>(sp =>
         {
@@ -203,8 +206,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IProtocolTriggerDetector, UniswapV3NftDetector>();
         services.AddSingleton<IProtocolTriggerDetector, RaydiumNftDetector>();
 
+        // Token price update publisher for TokenMetadataService batch events
+        services.AddScoped<ITokenPriceUpdatePublisher, TokenPriceUpdatePublisher>();
+
         services.AddHostedService<IntegrationRequestWorker>();
         services.AddHostedService<IntegrationResultAggregatorWorker>();
+        services.AddHostedService<WalletConsolidationWorker>();
         services.AddHostedService<AggregationTimeoutMonitorWorker>();
 
         // Token Metadata Cache Warmup Service (loads token metadata on startup)

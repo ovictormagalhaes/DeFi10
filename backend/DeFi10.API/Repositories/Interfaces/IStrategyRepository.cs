@@ -1,6 +1,6 @@
 using DeFi10.API.Models;
 
-namespace DeFi10.API.Repositories;
+namespace DeFi10.API.Repositories.Interfaces;
 
 public interface IStrategyRepository
 {

@@ -1,46 +1,43 @@
-using System.Text.Json;
 using System.Collections.Concurrent;
-using DeFi10.API.Services.Interfaces;
-using DeFi10.API.Services.Infrastructure.CoinMarketCap;
+using System.Linq;
+using System.Text.Json;
 using DeFi10.API.Configuration;
-using Microsoft.Extensions.Options;
+using DeFi10.API.Events;
 using DeFi10.API.Models;
-using StackExchange.Redis;
+using DeFi10.API.Models.Persistence;
+using DeFi10.API.Repositories.Interfaces;
+using DeFi10.API.Services.Events;
+using DeFi10.API.Services.Infrastructure.CoinMarketCap;
+using DeFi10.API.Services.Interfaces;
+using Microsoft.Extensions.Options;
+using System.Threading;
 
 namespace DeFi10.API.Services.Helpers;
 
-/// <summary>
-/// Token metadata service with in-memory cache for single-pod deployment.
-/// Strategy: Memory -> Redis -> CoinMarketCap -> null
-/// 
-/// Supports multiple lookup strategies:
-/// - By address (contract address)
-/// - By symbol
-/// - By symbol + name (cross-chain)
-/// </summary>
 public sealed class TokenMetadataService : ITokenMetadataService
 {
-    private readonly ICacheService _cache;
+    private readonly ITokenMetadataRepository _repository;
+    private readonly ICacheService _priceCache; // Still use Redis for prices (short TTL)
     private readonly ICoinMarketCapService _cmcService;
-    private readonly IConnectionMultiplexer _redis;
+    private readonly ITokenPriceUpdatePublisher _priceUpdatePublisher;
     private readonly ILogger<TokenMetadataService> _logger;
     private readonly bool _enableCoinMarketCapLookup;
-    
+    private readonly TokenCacheOptions _cacheOptions;
+
     // In-memory caches for fast lookup (single pod optimization)
-    private readonly ConcurrentDictionary<string, TokenMetadata> _memoryByAddress;
-    private readonly ConcurrentDictionary<string, TokenMetadata> _memoryBySymbol;
-    private readonly ConcurrentDictionary<string, TokenMetadata> _memoryBySymbolName;
+    private readonly ConcurrentDictionary<string, TokenMetadata> _memoryByChainAddress; // "chainId:address" -> metadata
+    private readonly ConcurrentDictionary<string, TokenMetadata> _memoryBySymbol; // "SYMBOL" -> metadata
+    private readonly ConcurrentDictionary<string, TokenMetadata> _memoryBySymbolName; // "SYMBOL:NAME" -> metadata
     private readonly ConcurrentDictionary<string, decimal> _memoryPrices;
     private readonly SemaphoreSlim _loadingSemaphore;
     private volatile bool _isInitialized = false;
-    
-    private const string METADATA_PREFIX = "token:metadata:";
-    private const string METADATA_BY_SYMBOL_PREFIX = "token:metadata:symbol:";
+
+    private readonly ConcurrentDictionary<string, TokenPriceUpdateRequest> _staleTokens;
+
     private const string PRICE_PREFIX = "token:price:";
-    private static readonly TimeSpan METADATA_TTL = TimeSpan.FromDays(7);
     private static readonly TimeSpan PRICE_TTL = TimeSpan.FromMinutes(5);
-    
-    // JsonSerializerOptions for flexible deserialization (handles extra properties from legacy data)
+
+    // JsonSerializerOptions for flexible deserialization
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -50,23 +47,29 @@ public sealed class TokenMetadataService : ITokenMetadataService
     };
 
     public TokenMetadataService(
-        ICacheService cache,
+        ITokenMetadataRepository repository,
+        ICacheService priceCache,
         ICoinMarketCapService cmcService,
-        IConnectionMultiplexer redis,
+        ITokenPriceUpdatePublisher priceUpdatePublisher,
         ILogger<TokenMetadataService> logger,
-        IOptions<AggregationOptions> aggregationOptions)
+        IOptions<AggregationOptions> aggregationOptions,
+        IOptions<TokenCacheOptions> cacheOptions)
     {
-        _cache = cache;
+        _repository = repository;
+        _priceCache = priceCache;
         _cmcService = cmcService;
-        _redis = redis;
+        _priceUpdatePublisher = priceUpdatePublisher;
         _logger = logger;
         _enableCoinMarketCapLookup = aggregationOptions.Value.EnableCoinMarketCapLookup;
-        
-        _memoryByAddress = new ConcurrentDictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
+        _cacheOptions = cacheOptions.Value;
+
+        _memoryByChainAddress = new ConcurrentDictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
         _memoryBySymbol = new ConcurrentDictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
         _memoryBySymbolName = new ConcurrentDictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
         _memoryPrices = new ConcurrentDictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         _loadingSemaphore = new SemaphoreSlim(1, 1);
+
+        _staleTokens = new ConcurrentDictionary<string, TokenPriceUpdateRequest>(StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task LoadAllMetadataIntoMemoryAsync()
@@ -78,179 +81,69 @@ public sealed class TokenMetadataService : ITokenMetadataService
         {
             if (_isInitialized) return;
 
-            _logger.LogInformation("[TokenMetadata] Loading all metadata from Redis into memory...");
-            
-            var db = _redis.GetDatabase();
-            
-            // ? DIAGNOSTIC: Check if Redis is connected
-            try
+            _logger.LogInformation("[TokenMetadata] Loading all metadata from MongoDB into memory...");
+
+            var allTokens = await _repository.GetAllAsync();
+
+            if (allTokens.Count == 0)
             {
-                var pingResult = await db.PingAsync();
-                _logger.LogInformation("[TokenMetadata] Redis PING: {Latency}ms", pingResult.TotalMilliseconds);
-            }
-            catch (Exception pingEx)
-            {
-                _logger.LogError(pingEx, "[TokenMetadata] Redis PING FAILED - connection issue detected!");
+                _logger.LogWarning("[TokenMetadata] WARMUP EMPTY: No metadata found in MongoDB. This is expected on first run.");
                 _isInitialized = true;
                 return;
             }
-            
-            var server = _redis.GetServer(_redis.GetEndPoints().First());
-            
-            // ? DIAGNOSTIC: Check if server.Keys() is working
-            try
-            {
-                _logger.LogInformation("[TokenMetadata] Redis server: {Server}", server.EndPoint);
-                
-                // Test with a simple pattern first to see if ANY keys exist
-                var allKeysTest = server.Keys(pattern: "*", pageSize: 10).Take(10).ToList();
-                _logger.LogInformation("[TokenMetadata] Redis total keys sample (first 10): {Count}", allKeysTest.Count);
-                if (allKeysTest.Count > 0)
-                {
-                    _logger.LogInformation("[TokenMetadata] Sample keys: {Keys}", 
-                        string.Join(", ", allKeysTest.Take(5).Select(k => k.ToString())));
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "[TokenMetadata] Failed to enumerate Redis keys - permissions issue?");
-            }
-            
-            // Load metadata by address AND by symbol+name (composite keys)
-            var metadataPattern = $"{METADATA_PREFIX}*";
-            _logger.LogInformation("[TokenMetadata] Searching for metadata keys with pattern: {Pattern}", metadataPattern);
-            
-            var metadataKeys = server.Keys(pattern: metadataPattern).ToList();
-            _logger.LogInformation("[TokenMetadata] Found {Count} metadata keys in Redis", metadataKeys.Count);
-            
-            var loadedByAddress = 0;
+
+            var loadedByChainAddress = 0;
             var loadedBySymbolName = 0;
-            var skippedInvalid = 0;
-            
-            foreach (var key in metadataKeys)
+            var loadedBySymbol = 0;
+
+            foreach (var doc in allTokens)
             {
                 try
                 {
-                    var json = await db.StringGetAsync(key);
-                    if (!json.HasValue) continue;
-                    
-                    // Try to deserialize with flexible options (handles legacy data)
-                    var metadata = TryDeserializeMetadata(json!);
-                    if (metadata == null)
+                    var metadata = new TokenMetadata
                     {
-                        skippedInvalid++;
-                        continue;
+                        Symbol = doc.Symbol,
+                        Name = doc.Name,
+                        LogoUrl = doc.LogoUrl,
+                        PriceUsd = doc.PriceUsd,
+                        UpdatedAt = doc.UpdatedAt
+                    };
+
+                    // Index by chain + address
+                    var chainAddressKey = $"{doc.ChainId}:{doc.Address}";
+                    _memoryByChainAddress[chainAddressKey] = metadata;
+                    loadedByChainAddress++;
+
+                    // Index by symbol
+                    if (!string.IsNullOrEmpty(doc.Symbol))
+                    {
+                        _memoryBySymbol.TryAdd(doc.Symbol, metadata);
+                        loadedBySymbol++;
                     }
-                    
-                    var keyStr = key.ToString();
-                    
-                    // ? FIX: Detect key type and index accordingly
-                    // Key format 1: "token:metadata:{address}" (address-based)
-                    // Key format 2: "token:metadata:symbol:{SYMBOL}:{NAME}" (composite)
-                    
-                    if (keyStr.StartsWith(METADATA_BY_SYMBOL_PREFIX))
+
+                    // Index by symbol + name
+                    if (!string.IsNullOrEmpty(doc.Symbol) && !string.IsNullOrEmpty(doc.Name))
                     {
-                        // Composite key: token:metadata:symbol:{SYMBOL}:{NAME}
-                        var compositeKey = keyStr.Substring(METADATA_BY_SYMBOL_PREFIX.Length);
-                        _memoryBySymbolName[compositeKey] = metadata;
+                        var compositeKey = $"{doc.Symbol}:{doc.Name}";
+                        _memoryBySymbolName.TryAdd(compositeKey, metadata);
                         loadedBySymbolName++;
-                        
-                        // Also index by symbol alone if available
-                        if (!string.IsNullOrEmpty(metadata.Symbol))
-                        {
-                            _memoryBySymbol.TryAdd(metadata.Symbol, metadata);
-                        }
-                        
-                        _logger.LogDebug("[TokenMetadata] Loaded composite key: {Key}", compositeKey);
                     }
-                    else if (keyStr.StartsWith(METADATA_PREFIX))
-                    {
-                        // Address-based key: token:metadata:{address}
-                        var address = keyStr.Substring(METADATA_PREFIX.Length);
-                        
-                        // Validate it's not a composite key that slipped through
-                        if (!address.Contains(':'))
-                        {
-                            _memoryByAddress[address] = metadata;
-                            loadedByAddress++;
-                            
-                            // Index by symbol if available
-                            if (!string.IsNullOrEmpty(metadata.Symbol))
-                            {
-                                _memoryBySymbol.TryAdd(metadata.Symbol, metadata);
-                            }
-                            
-                            // Index by symbol+name if both available
-                            if (!string.IsNullOrEmpty(metadata.Symbol) && !string.IsNullOrEmpty(metadata.Name))
-                            {
-                                var compositeKey = $"{metadata.Symbol}:{metadata.Name}";
-                                _memoryBySymbolName.TryAdd(compositeKey, metadata);
-                            }
-                            
-                            _logger.LogDebug("[TokenMetadata] Loaded address key: {Address}", address);
-                        }
-                        else
-                        {
-                            _logger.LogWarning("[TokenMetadata] Skipping ambiguous key (contains ':'): {Key}", keyStr);
-                            skippedInvalid++;
-                        }
-                    }
+
+                    _logger.LogDebug("[TokenMetadata] Loaded: chain={ChainId}, address={Address}, symbol={Symbol}, price={Price}",
+                        doc.ChainId, doc.Address, doc.Symbol, doc.PriceUsd);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "[TokenMetadata] Failed to load metadata key: {Key}", key);
-                    skippedInvalid++;
+                    _logger.LogWarning(ex, "[TokenMetadata] Failed to load token: chain={ChainId}, address={Address}",
+                        doc.ChainId, doc.Address);
                 }
             }
-            
-            // Load prices
-            var pricePattern = $"{PRICE_PREFIX}*";
-            _logger.LogInformation("[TokenMetadata] Searching for price keys with pattern: {Pattern}", pricePattern);
-            
-            var priceKeys = server.Keys(pattern: pricePattern).ToList();
-            _logger.LogInformation("[TokenMetadata] Found {Count} price keys in Redis", priceKeys.Count);
-            
-            var loadedPrices = 0;
-            
-            foreach (var key in priceKeys)
-            {
-                try
-                {
-                    var value = await db.StringGetAsync(key);
-                    if (!value.HasValue) continue;
-                    
-                    if (decimal.TryParse(value!, out var price))
-                    {
-                        var identifier = key.ToString().Substring(PRICE_PREFIX.Length);
-                        _memoryPrices[identifier] = price;
-                        loadedPrices++;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "[TokenMetadata] Failed to load price key: {Key}", key);
-                }
-            }
-            
+
             _isInitialized = true;
-            
-            var totalLoaded = loadedByAddress + loadedBySymbolName;
-            
-            if (totalLoaded == 0 && loadedPrices == 0)
-            {
-                _logger.LogWarning(
-                    "[TokenMetadata] ?? WARMUP EMPTY: No metadata or prices found in Redis! " +
-                    "This is expected on first run. Data will be populated as wallets are aggregated.");
-            }
-            else
-            {
-                _logger.LogInformation(
-                    "[TokenMetadata] SUCCESS: Loaded {MetadataCount} metadata entries ({AddressCount} by address, {CompositeCount} by symbol+name) and {PriceCount} prices into memory. " +
-                    "Indexed: {ByAddress} addresses, {BySymbol} symbols, {BySymbolName} symbol+name pairs. " +
-                    "Skipped {SkippedCount} invalid/legacy entries.",
-                    totalLoaded, loadedByAddress, loadedBySymbolName, loadedPrices, 
-                    _memoryByAddress.Count, _memoryBySymbol.Count, _memoryBySymbolName.Count, skippedInvalid);
-            }
+
+            _logger.LogInformation(
+                "[TokenMetadata] SUCCESS: Loaded {TotalCount} tokens into memory. Indexed: {ByChainAddress} by chain+address, {BySymbol} by symbol, {BySymbolName} by symbol+name.",
+                allTokens.Count, loadedByChainAddress, _memoryBySymbol.Count, _memoryBySymbolName.Count);
         }
         catch (Exception ex)
         {
@@ -262,136 +155,234 @@ public sealed class TokenMetadataService : ITokenMetadataService
             _loadingSemaphore.Release();
         }
     }
-    
-    /// <summary>
-    /// Tries to deserialize token metadata from JSON, handling legacy formats gracefully.
-    /// Returns null if the data is invalid or incompatible.
-    /// </summary>
-    private TokenMetadata? TryDeserializeMetadata(string json)
-    {
-        try
-        {
-            // First, try standard deserialization
-            var metadata = JsonSerializer.Deserialize<TokenMetadata>(json, JsonOptions);
-            if (metadata != null && (!string.IsNullOrEmpty(metadata.Symbol) || !string.IsNullOrEmpty(metadata.Name)))
-            {
-                return metadata;
-            }
-            
-            // If that fails, try to parse as a generic JSON object and extract known fields
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            
-            var symbol = root.TryGetProperty("Symbol", out var symProp) ? symProp.GetString() : 
-                         root.TryGetProperty("symbol", out var symProp2) ? symProp2.GetString() : null;
-            
-            var name = root.TryGetProperty("Name", out var nameProp) ? nameProp.GetString() :
-                       root.TryGetProperty("name", out var nameProp2) ? nameProp2.GetString() : null;
-            
-            var logoUrl = root.TryGetProperty("LogoUrl", out var logoProp) ? logoProp.GetString() :
-                          root.TryGetProperty("logoUrl", out var logoProp2) ? logoProp2.GetString() :
-                          root.TryGetProperty("logo", out var logoProp3) ? logoProp3.GetString() : null;
-            
-            // Valid metadata must have at least symbol or name
-            if (!string.IsNullOrEmpty(symbol) || !string.IsNullOrEmpty(name))
-            {
-                return new TokenMetadata
-                {
-                    Symbol = symbol ?? string.Empty,
-                    Name = name ?? string.Empty,
-                    LogoUrl = logoUrl
-                };
-            }
-            
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "[TokenMetadata] Could not deserialize metadata, skipping entry");
-            return null;
-        }
-    }
 
-    public async Task<TokenMetadata?> GetTokenMetadataAsync(string mintAddress)
+    public async Task<TokenMetadata?> GetTokenMetadataAsync(Chain chain, string address)
     {
-        if (string.IsNullOrWhiteSpace(mintAddress))
+        if (string.IsNullOrWhiteSpace(address))
             return null;
 
-        // Ensure cache is initialized
         if (!_isInitialized)
             await LoadAllMetadataIntoMemoryAsync();
 
-        var normalizedAddress = mintAddress.ToLowerInvariant();
+        var normalizedAddress = address.ToLowerInvariant();
+        var chainAddressKey = $"{(int)chain}:{normalizedAddress}";
 
         try
         {
-            // 1. Check in-memory cache (FASTEST - no network)
-            if (_memoryByAddress.TryGetValue(normalizedAddress, out var memoryMetadata))
+            if (_memoryByChainAddress.TryGetValue(chainAddressKey, out var memoryMetadata))
             {
-                _logger.LogDebug("[TokenMetadata] MEMORY HIT for address={Address}", mintAddress);
+                _logger.LogDebug("[TokenMetadata] MEMORY HIT for chain={Chain}, address={Address}", chain, address);
+
+                if (ShouldUpdatePrice(memoryMetadata))
+                {
+                    // collect for batch publishing
+                    var key = chainAddressKey;
+                    _staleTokens.TryAdd(key, new TokenPriceUpdateRequest
+                    {
+                        Chain = chain,
+                        Address = normalizedAddress,
+                        Symbol = memoryMetadata.Symbol ?? string.Empty,
+                        CurrentPrice = memoryMetadata.PriceUsd ?? 0m
+                    });
+                }
+
                 return memoryMetadata;
             }
-            
-            _logger.LogDebug("[TokenMetadata] Memory cache MISS for address={Address}, checking Redis...", mintAddress);
 
-            // 2. Check Redis cache (FALLBACK - network call)
-            string key = $"{METADATA_PREFIX}{normalizedAddress}";
-            string? cached = await _cache.GetAsync<string>(key);
-            
-            if (cached != null)
+            _logger.LogDebug("[TokenMetadata] Memory MISS for chain={Chain}, address={Address}, checking MongoDB...", chain, address);
+
+            var doc = await _repository.GetByChainAndAddressAsync((int)chain, normalizedAddress);
+
+            if (doc != null)
             {
-                var metadata = TryDeserializeMetadata(cached);
-                if (metadata != null)
+                var metadata = new TokenMetadata
                 {
-                    // Add to memory cache for next time
-                    _memoryByAddress[normalizedAddress] = metadata;
-                    
-                    if (!string.IsNullOrEmpty(metadata.Symbol))
-                        _memoryBySymbol.TryAdd(metadata.Symbol, metadata);
-                    
-                    if (!string.IsNullOrEmpty(metadata.Symbol) && !string.IsNullOrEmpty(metadata.Name))
-                    {
-                        var compositeKey = $"{metadata.Symbol}:{metadata.Name}";
-                        _memoryBySymbolName.TryAdd(compositeKey, metadata);
-                    }
-                    
-                    _logger.LogDebug("[TokenMetadata] Redis cache HIT for address={Address}, added to memory", mintAddress);
-                    return metadata;
-                }
-            }
-            
-            _logger.LogDebug("[TokenMetadata] Redis cache MISS for address={Address}", mintAddress);
+                    Symbol = doc.Symbol,
+                    Name = doc.Name,
+                    LogoUrl = doc.LogoUrl,
+                    PriceUsd = doc.PriceUsd,
+                    UpdatedAt = doc.UpdatedAt
+                };
 
-            // 3. Try CoinMarketCap (LAST RESORT - external API)
+                _memoryByChainAddress[chainAddressKey] = metadata;
+
+                if (!string.IsNullOrEmpty(metadata.Symbol))
+                    _memoryBySymbol.TryAdd(metadata.Symbol, metadata);
+
+                if (!string.IsNullOrEmpty(metadata.Symbol) && !string.IsNullOrEmpty(metadata.Name))
+                {
+                    var compositeKey = $"{metadata.Symbol}:{metadata.Name}";
+                    _memoryBySymbolName.TryAdd(compositeKey, metadata);
+                }
+
+                if (ShouldUpdatePrice(metadata))
+                {
+                    var key = chainAddressKey;
+                    _staleTokens.TryAdd(key, new TokenPriceUpdateRequest
+                    {
+                        Chain = chain,
+                        Address = normalizedAddress,
+                        Symbol = metadata.Symbol ?? string.Empty,
+                        CurrentPrice = metadata.PriceUsd ?? 0m
+                    });
+                }
+
+                _logger.LogDebug("[TokenMetadata] MongoDB HIT for chain={Chain}, address={Address}, added to memory", 
+                    chain, address);
+                return metadata;
+            }
+
+            _logger.LogDebug("[TokenMetadata] MongoDB MISS for chain={Chain}, address={Address}", chain, address);
+
             if (_enableCoinMarketCapLookup)
             {
-                var cmcMetadata = await FetchMetadataFromCMCByAddressAsync(normalizedAddress);
-                
-                if (cmcMetadata != null)
-                {
-                    await SetTokenMetadataAsync(normalizedAddress, cmcMetadata);
-                    _logger.LogDebug("[TokenMetadata] Fetched from CMC for address={Address}, symbol={Symbol}", 
-                        mintAddress, cmcMetadata.Symbol);
-                    return cmcMetadata;
-                }
+                _logger.LogDebug("[TokenMetadata] CMC does not support address lookup");
             }
-            
-            _logger.LogDebug("[TokenMetadata] No metadata found for address={Address}", mintAddress);
+
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[TokenMetadata] Failed to get metadata for address={Address}", mintAddress);
+            _logger.LogError(ex, "[TokenMetadata] Failed to get metadata for chain={Chain}, address={Address}", 
+                chain, address);
             return null;
         }
     }
-    
+
+    private bool ShouldUpdatePrice(TokenMetadata metadata)
+    {
+        if (!_cacheOptions.EnableAutoPriceUpdate)
+            return false;
+
+        if (!metadata.UpdatedAt.HasValue)
+            return true;
+
+        if (!metadata.PriceUsd.HasValue || metadata.PriceUsd.Value <= 0)
+            return true;
+
+        var elapsed = DateTime.UtcNow - metadata.UpdatedAt.Value;
+        return elapsed >= TimeSpan.FromMinutes(_cacheOptions.PriceUpdateIntervalMinutes);
+    }
+
+    public async Task FlushStaleTokensAsync()
+    {
+        // Snapshot tokens to process
+        var tokens = _staleTokens.Values.ToList();
+        if (tokens == null || tokens.Count == 0)
+        {
+            _logger.LogDebug("[TokenMetadata] No stale tokens to flush");
+            return;
+        }
+
+        // Remove entries from the pending dictionary (we'll re-add on failure)
+        foreach (var k in tokens.Select(t => $"{(int)t.Chain}:{t.Address}"))
+            _staleTokens.TryRemove(k, out _);
+
+        try
+        {
+            // Prepare symbol list for CMC lookup
+            var symbols = tokens
+                .Select(t => t.Symbol)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var cmcResp = symbols.Count > 0 ? await _cmcService.GetQuotesLatestV2Async(symbols) : null;
+            var cmcData = cmcResp?.Data;
+
+            var updatesForEvent = new List<TokenPriceUpdateRequest>();
+
+            foreach (var t in tokens)
+            {
+                try
+                {
+                    if (string.IsNullOrWhiteSpace(t.Symbol))
+                    {
+                        _logger.LogDebug("[TokenMetadata] Skipping stale token without symbol: {Chain}:{Address}", (int)t.Chain, t.Address);
+                        continue;
+                    }
+
+                    var keySym = t.Symbol.ToUpperInvariant();
+                    decimal? price = null;
+
+                    if (cmcData != null && cmcData.TryGetValue(keySym, out var quote))
+                    {
+                        if (quote.Quote.TryGetValue("USD", out var usdQuote) && usdQuote.Price.HasValue)
+                        {
+                            price = usdQuote.Price.Value;
+                        }
+                    }
+
+                    if (!price.HasValue || price.Value <= 0)
+                    {
+                        _logger.LogDebug("[TokenMetadata] No valid CMC price for {Symbol}, skipping update", t.Symbol);
+                        continue;
+                    }
+
+                    // 1) Update memory first
+                    var chainAddressKey = $"{(int)t.Chain}:{t.Address}";
+                    if (_memoryByChainAddress.TryGetValue(chainAddressKey, out var mem))
+                    {
+                        mem.PriceUsd = price.Value;
+                        mem.UpdatedAt = DateTime.UtcNow;
+                        _memoryByChainAddress[chainAddressKey] = mem;
+                    }
+
+                    // also update price caches (Redis + memory)
+                    try { await SetTokenPriceAsync(t.Symbol, price.Value); } catch (Exception ex) { _logger.LogDebug(ex, "[TokenMetadata] Failed to set token price cache for {Symbol}", t.Symbol); }
+
+                    // 2) Add to event list to update DB
+                    updatesForEvent.Add(new TokenPriceUpdateRequest
+                    {
+                        Chain = t.Chain,
+                        Address = t.Address,
+                        Symbol = t.Symbol,
+                        CurrentPrice = price.Value
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "[TokenMetadata] Error processing stale token {Token}", t.GetDeduplicationKey());
+                }
+            }
+
+            if (updatesForEvent.Count == 0)
+            {
+                _logger.LogDebug("[TokenMetadata] No valid price updates to publish");
+                return;
+            }
+
+            // Deduplicate
+            var unique = updatesForEvent.GroupBy(x => x.GetDeduplicationKey(), StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
+
+            var evt = new TokenPriceUpdateEvent
+            {
+                Tokens = unique,
+                RequestedAt = DateTime.UtcNow,
+                Source = "UserRequest"
+            };
+
+            await _priceUpdatePublisher.PublishPriceUpdateEventAsync(evt);
+            _logger.LogInformation("[TokenMetadata] Published batch event with {Count} tokens", unique.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[TokenMetadata] Failed to publish batch price update event");
+
+            // On failure, restore tokens so they'll be retried later
+            foreach (var t in tokens)
+            {
+                var k = $"{(int)t.Chain}:{t.Address}";
+                _staleTokens.TryAdd(k, t);
+            }
+        }
+    }
+
     public async Task<TokenMetadata?> GetTokenMetadataBySymbolAndNameAsync(string symbol, string name)
     {
         if (string.IsNullOrWhiteSpace(symbol) || string.IsNullOrWhiteSpace(name))
             return null;
 
-        // Ensure cache is initialized
         if (!_isInitialized)
             await LoadAllMetadataIntoMemoryAsync();
 
@@ -399,68 +390,54 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-            // 1. Check in-memory cache by symbol+name (FASTEST)
             if (_memoryBySymbolName.TryGetValue(compositeKey, out var memoryMetadata))
             {
                 _logger.LogDebug("[TokenMetadata] MEMORY HIT for symbol+name={Symbol}/{Name}", symbol, name);
                 return memoryMetadata;
             }
-            
-            // 2. Check in-memory cache by symbol only (FALLBACK)
-            if (_memoryBySymbol.TryGetValue(symbol, out var symbolMetadata))
-            {
-                if (symbolMetadata.Name?.Equals(name, StringComparison.OrdinalIgnoreCase) == true)
-                {
-                    _logger.LogDebug("[TokenMetadata] Memory cache HIT by symbol for {Symbol}/{Name}", symbol, name);
-                    _memoryBySymbolName.TryAdd(compositeKey, symbolMetadata);
-                    return symbolMetadata;
-                }
-            }
-            
-            _logger.LogDebug("[TokenMetadata] Memory cache MISS for symbol+name={Symbol}/{Name}, checking Redis...", symbol, name);
 
-            // 3. Check Redis cache (FALLBACK)
-            string redisKey = $"{METADATA_BY_SYMBOL_PREFIX}{compositeKey}";
-            string? cached = await _cache.GetAsync<string>(redisKey);
-            
-            if (cached != null)
+            if (_memoryBySymbol.TryGetValue(symbol, out var symbolMetadata) &&
+                symbolMetadata.Name?.Equals(name, StringComparison.OrdinalIgnoreCase) == true)
             {
-                var metadata = TryDeserializeMetadata(cached);
-                if (metadata != null)
-                {
-                    // Add to memory cache
-                    _memoryBySymbolName[compositeKey] = metadata;
-                    if (!string.IsNullOrEmpty(metadata.Symbol))
-                        _memoryBySymbol.TryAdd(metadata.Symbol, metadata);
-                    
-                    _logger.LogDebug("[TokenMetadata] Redis cache HIT for symbol+name={Symbol}/{Name}, added to memory", symbol, name);
-                    return metadata;
-                }
+                _memoryBySymbolName.TryAdd(compositeKey, symbolMetadata);
+                return symbolMetadata;
             }
-            
-            _logger.LogDebug("[TokenMetadata] Redis cache MISS for symbol+name={Symbol}/{Name}", symbol, name);
-            
-            // 4. Try CoinMarketCap (LAST RESORT)
+
+            var docs = await _repository.GetBySymbolAndNameAsync(symbol, name);
+
+            if (docs.Count > 0)
+            {
+                var doc = docs.First();
+                var metadata = new TokenMetadata
+                {
+                    Symbol = doc.Symbol,
+                    Name = doc.Name,
+                    LogoUrl = doc.LogoUrl,
+                    PriceUsd = doc.PriceUsd,
+                    UpdatedAt = doc.UpdatedAt
+                };
+
+                _memoryBySymbolName[compositeKey] = metadata;
+                if (!string.IsNullOrEmpty(metadata.Symbol))
+                    _memoryBySymbol.TryAdd(metadata.Symbol, metadata);
+
+                return metadata;
+            }
+
             if (_enableCoinMarketCapLookup)
             {
                 var cmcMetadata = await FetchMetadataFromCMCBySymbolAsync(symbol);
-                
+
                 if (cmcMetadata != null && cmcMetadata.Name?.Equals(name, StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    // Save to Redis and memory
-                    string json = JsonSerializer.Serialize(cmcMetadata, JsonOptions);
-                    await _cache.SetAsync(redisKey, json, METADATA_TTL);
-                    
                     _memoryBySymbolName[compositeKey] = cmcMetadata;
                     if (!string.IsNullOrEmpty(cmcMetadata.Symbol))
                         _memoryBySymbol.TryAdd(cmcMetadata.Symbol, cmcMetadata);
-                    
-                    _logger.LogDebug("[TokenMetadata] Fetched from CMC by symbol+name: {Symbol}/{Name}", symbol, name);
+
                     return cmcMetadata;
                 }
             }
-            
-            _logger.LogDebug("[TokenMetadata] No metadata found for symbol+name={Symbol}/{Name}", symbol, name);
+
             return null;
         }
         catch (Exception ex)
@@ -469,64 +446,60 @@ public sealed class TokenMetadataService : ITokenMetadataService
             return null;
         }
     }
-    
-    private async Task<TokenMetadata?> FetchMetadataFromCMCByAddressAsync(string mintAddress)
-    {
-        try
-        {
-            // CMC API does not support direct address lookup
-            _logger.LogDebug("[TokenMetadata] CMC does not support address lookup: {Address}", mintAddress);
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[TokenMetadata] Error in CMC address lookup for address={Address}", mintAddress);
-            return null;
-        }
-    }
-    
+
     private async Task<TokenMetadata?> FetchMetadataFromCMCBySymbolAsync(string symbol)
     {
         try
         {
-            _logger.LogDebug("[TokenMetadata] Fetching from CMC by symbol: {Symbol}", symbol);
+            var cleanSymbol = symbol;
+            if (symbol.Contains(':'))
+            {
+                cleanSymbol = symbol.Split(':')[0];
+            }
 
-            var cmcResponse = await _cmcService.GetQuotesLatestV2Async(new[] { symbol });
-            
-            if (cmcResponse?.Data != null && cmcResponse.Data.TryGetValue(symbol.ToUpperInvariant(), out var quote))
+            if (string.IsNullOrWhiteSpace(cleanSymbol) || !IsAlphanumeric(cleanSymbol))
+            {
+                return null;
+            }
+
+            var cmcResponse = await _cmcService.GetQuotesLatestV2Async(new[] { cleanSymbol });
+
+            if (cmcResponse?.Data != null &&
+                cmcResponse.Data.TryGetValue(cleanSymbol.ToUpperInvariant(), out var quote))
             {
                 var metadata = new TokenMetadata
                 {
                     Symbol = quote.Symbol,
                     Name = quote.Name,
-                    LogoUrl = null
+                    LogoUrl = null,
+                    PriceUsd = quote.Quote.TryGetValue("USD", out var usdQuote) ? usdQuote.Price : null,
+                    UpdatedAt = DateTime.UtcNow
                 };
 
-                if (quote.Quote.TryGetValue("USD", out var usdQuote) && usdQuote.Price.HasValue)
+                if (metadata.PriceUsd.HasValue)
                 {
-                    await SetTokenPriceAsync(symbol, usdQuote.Price.Value);
-                    _logger.LogDebug("[TokenMetadata] Cached price for symbol={Symbol}: ${Price}", symbol, usdQuote.Price.Value);
+                    await SetTokenPriceAsync(cleanSymbol, metadata.PriceUsd.Value);
                 }
-                
+
                 return metadata;
             }
 
-            _logger.LogDebug("[TokenMetadata] No CMC data found for symbol={Symbol}", symbol);
             return null;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "[TokenMetadata] Error fetching from CMC for symbol={Symbol}", symbol);
             return null;
         }
     }
+
+    private static bool IsAlphanumeric(string value) =>
+        !string.IsNullOrEmpty(value) && value.All(char.IsLetterOrDigit);
 
     public async Task<decimal?> GetTokenPriceAsync(string identifier)
     {
         if (string.IsNullOrWhiteSpace(identifier))
             return null;
 
-        // Ensure cache is initialized
         if (!_isInitialized)
             await LoadAllMetadataIntoMemoryAsync();
 
@@ -534,28 +507,20 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-            // 1. Check in-memory cache (FASTEST)
             if (_memoryPrices.TryGetValue(normalizedId, out var memoryPrice))
             {
-                _logger.LogDebug("[TokenPrice] MEMORY HIT for identifier={Identifier}, price={Price}", identifier, memoryPrice);
                 return memoryPrice;
             }
-            
-            _logger.LogDebug("[TokenPrice] Memory cache MISS for identifier={Identifier}, checking Redis...", identifier);
 
-            // 2. Check Redis cache (FALLBACK)
             string key = $"{PRICE_PREFIX}{normalizedId}";
-            var cached = await _cache.GetAsync<string>(key);
-            
+            var cached = await _priceCache.GetAsync<string>(key);
+
             if (cached != null && decimal.TryParse(cached, out decimal price))
             {
-                // Add to memory cache
                 _memoryPrices[normalizedId] = price;
-                _logger.LogDebug("[TokenPrice] Redis cache HIT for identifier={Identifier}, price={Price}, added to memory", identifier, price);
                 return price;
             }
-            
-            _logger.LogDebug("[TokenPrice] Redis cache MISS for identifier={Identifier}", identifier);
+
             return null;
         }
         catch (Exception ex)
@@ -565,48 +530,56 @@ public sealed class TokenMetadataService : ITokenMetadataService
         }
     }
 
-    public async Task SetTokenMetadataAsync(string mintAddress, TokenMetadata metadata)
+    public async Task SetTokenMetadataAsync(Chain chain, string address, TokenMetadata metadata)
     {
-        if (string.IsNullOrWhiteSpace(mintAddress) || metadata == null)
+        if (string.IsNullOrWhiteSpace(address) || metadata == null)
             return;
 
-        var normalizedAddress = mintAddress.ToLowerInvariant();
+        if (metadata.PriceUsd == null || metadata.PriceUsd <= 0)
+        {
+            _logger.LogDebug("[TokenMetadata] Skipping MongoDB save for token with zero/null price: chain={Chain}, address={Address}, symbol={Symbol}", 
+                chain, address, metadata.Symbol);
+            return;
+        }
+
+        var normalizedAddress = address.ToLowerInvariant();
+        var chainAddressKey = $"{(int)chain}:{normalizedAddress}";
 
         try
         {
-            // 1. Save to Redis for persistence
-            string key = $"{METADATA_PREFIX}{normalizedAddress}";
-            string json = JsonSerializer.Serialize(metadata, JsonOptions);
-            await _cache.SetAsync(key, json, METADATA_TTL);
-            
-            // 2. Add to memory cache immediately
-            _memoryByAddress[normalizedAddress] = metadata;
-            
+            var now = DateTime.UtcNow;
+            var doc = new TokenMetadataDocument
+            {
+                Id = Guid.NewGuid(),
+                Symbol = metadata.Symbol?.ToUpperInvariant() ?? string.Empty,
+                Name = metadata.Name?.ToUpperInvariant() ?? string.Empty,
+                LogoUrl = metadata.LogoUrl,
+                ChainId = (int)chain,
+                Address = normalizedAddress,
+                PriceUsd = metadata.PriceUsd,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            await _repository.UpsertAsync(doc);
+
+            metadata.UpdatedAt = now;
+            _memoryByChainAddress[chainAddressKey] = metadata;
+
             if (!string.IsNullOrEmpty(metadata.Symbol))
             {
                 _memoryBySymbol.TryAdd(metadata.Symbol, metadata);
             }
-            
-            // 3. Save composite symbol+name key
+
             if (!string.IsNullOrWhiteSpace(metadata.Symbol) && !string.IsNullOrWhiteSpace(metadata.Name))
             {
                 var compositeKey = $"{metadata.Symbol.ToUpperInvariant()}:{metadata.Name.ToUpperInvariant()}";
-                string compositeRedisKey = $"{METADATA_BY_SYMBOL_PREFIX}{compositeKey}";
-                await _cache.SetAsync(compositeRedisKey, json, METADATA_TTL);
-                
                 _memoryBySymbolName.TryAdd(compositeKey, metadata);
-                
-                _logger.LogDebug("[TokenMetadata] Cached metadata for address={Address}, symbol={Symbol}, name={Name} (Redis + Memory)", 
-                    mintAddress, metadata.Symbol, metadata.Name);
-            }
-            else
-            {
-                _logger.LogDebug("[TokenMetadata] Cached metadata for address={Address} (Redis + Memory)", mintAddress);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[TokenMetadata] Failed to cache metadata for address={Address}", mintAddress);
+            _logger.LogError(ex, "[TokenMetadata] Failed to cache metadata for chain={Chain}, address={Address}", chain, address);
         }
     }
 
@@ -619,28 +592,14 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
-            // 1. Save to Redis for persistence
             string key = $"{PRICE_PREFIX}{normalizedId}";
-            await _cache.SetAsync(key, priceUsd.ToString(System.Globalization.CultureInfo.InvariantCulture), PRICE_TTL);
-            
-            // 2. Add to memory cache immediately
+            await _priceCache.SetAsync(key, priceUsd.ToString(System.Globalization.CultureInfo.InvariantCulture), PRICE_TTL);
+
             _memoryPrices[normalizedId] = priceUsd;
-            
-            _logger.LogDebug("[TokenPrice] Cached price for identifier={Identifier}, price={Price} (Redis + Memory)", identifier, priceUsd);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[TokenPrice] Failed to cache price for identifier={Identifier}", identifier);
         }
-    }
-    
-    public (int addresses, int symbols, int symbolNames, int prices) GetCacheStats()
-    {
-        return (
-            _memoryByAddress.Count,
-            _memoryBySymbol.Count,
-            _memoryBySymbolName.Count,
-            _memoryPrices.Count
-        );
     }
 }

@@ -34,6 +34,13 @@ public sealed class PriceService : IPriceService
                 if (t?.Financials == null) continue;
                 tokenCount++;
                 
+                // Skip tokens marked as possible spam
+                if (t.PossibleSpam == true)
+                {
+                    _logger.LogDebug("[PriceService] Skipping spam token: symbol={Symbol} contract={Contract}", t.Symbol, t.ContractAddress);
+                    continue;
+                }
+                
                 var key = BuildKey(t);
                 if (string.IsNullOrEmpty(key)) 
                 {
