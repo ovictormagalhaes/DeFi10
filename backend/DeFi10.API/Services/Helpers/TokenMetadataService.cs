@@ -46,15 +46,6 @@ public sealed class TokenMetadataService : ITokenMetadataService
         ReadCommentHandling = JsonCommentHandling.Skip
     };
 
-    // JsonSerializerOptions for flexible deserialization
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-        AllowTrailingCommas = true,
-        ReadCommentHandling = JsonCommentHandling.Skip
-    };
-
     public TokenMetadataService(
         ITokenMetadataRepository repository,
         ICacheService priceCache,
@@ -290,8 +281,6 @@ public sealed class TokenMetadataService : ITokenMetadataService
         // Ensure cache is initialized
         if (!_isInitialized)
             await LoadAllMetadataIntoMemoryAsync();
-
-        var compositeKey = $"{symbol.ToUpperInvariant()}:{name.ToUpperInvariant()}";
 
         try
         {
@@ -559,8 +548,6 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         var normalizedAddress = address.ToLowerInvariant();
         var chainAddressKey = $"{(int)chain}:{normalizedAddress}";
-
-        var normalizedAddress = mintAddress.ToLowerInvariant();
 
         try
         {
