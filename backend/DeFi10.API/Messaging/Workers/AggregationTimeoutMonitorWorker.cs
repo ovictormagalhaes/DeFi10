@@ -128,11 +128,7 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
                     {
                         tran.HashIncrementAsync(key, "timed_out", pendingCount);
                     }
-                    tran.HashSetAsync(key, new HashEntry[]
-                    {
-                        new("status", AggregationStatus.TimedOut.ToString()),
-                        new("final_emitted", 1)
-                    });
+                    tran.HashSetAsync(key, "status", AggregationStatus.TimedOut.ToString());
                     var exec = await tran.ExecuteAsync();
                     if (!exec)
                     {

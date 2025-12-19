@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using DeFi10.API.Infrastructure;
 using DeFi10.API.Models;
-using DeFi10.API.Repositories;
 using DeFi10.API.Services.Interfaces;
+using DeFi10.API.Repositories.Interfaces;
 
 namespace DeFi10.API.Services.Domain;
 public sealed class WalletGroupService : IWalletGroupService

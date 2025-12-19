@@ -76,7 +76,7 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
 
                 foreach (var t in p.Tokens)
                 {
-                    var metadata = await _metadataService.GetTokenMetadataAsync(t.Mint);
+                    var metadata = await _metadataService.GetTokenMetadataAsync(chain, t.Mint);
 
                     string? symbol = metadata?.Symbol ?? t.Symbol;
                     string? name = metadata?.Name ?? t.Name;

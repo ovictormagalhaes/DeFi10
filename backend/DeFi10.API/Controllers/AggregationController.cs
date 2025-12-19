@@ -47,8 +47,6 @@ public class AggregationController : ControllerBase
         _logger = logger;
     }
 
-    private static string ActiveJobKey(string accountLower, ChainEnum chain) => RedisKeys.ActiveSingle(accountLower, chain);
-
     private enum WalletType { Ethereum, Solana, Unknown }
 
     private static WalletType DetectWalletType(string address)
@@ -199,21 +197,10 @@ public class AggregationController : ControllerBase
                 });
             }
 
-            Guid jobId;
-            if (accounts.Count == 1)
-            {
+            // Always use multi-wallet flow (works for 1+ accounts)
+            Guid jobId = await eth.StartAsyncAggregationMultiWallet(accounts, resolved, walletGroupId);
 
-                jobId = resolved.Count == 1
-                    ? await eth.StartAsyncAggregation(accounts[0], resolved[0])
-                    : await eth.StartAsyncAggregation(accounts[0], resolved);
-            }
-            else
-            {
-
-                jobId = await eth.StartAsyncAggregationMultiWallet(accounts, resolved, walletGroupId);
-            }
-
-            var reused = await DetermineReuseAsync(accounts[0], resolved, jobId);
+            var reused = await DetermineReuseAsync(accounts, resolved, jobId);
 
             return Ok(new 
             { 
@@ -233,26 +220,14 @@ public class AggregationController : ControllerBase
         }
     }
 
-    private async Task<bool> DetermineReuseAsync(string account, List<ChainEnum> resolved, Guid jobId)
+    private async Task<bool> DetermineReuseAsync(List<string> accounts, List<ChainEnum> resolved, Guid jobId)
     {
         var db = _redis.GetDatabase();
-        var acctLower = account.ToLowerInvariant();
-        if (resolved.Count == 1)
-        {
-            var activeKey = ActiveJobKey(acctLower, resolved[0]);
-            var existingVal = await db.StringGetAsync(activeKey);
-            if (existingVal.HasValue && Guid.TryParse(existingVal.ToString(), out var existingJob) && existingJob == jobId)
-                return true;
-            return false;
-        }
-        else
-        {
-            var multiKey = RedisKeys.ActiveMulti(acctLower, resolved);
-            var existingVal = await db.StringGetAsync(multiKey);
-            if (existingVal.HasValue && Guid.TryParse(existingVal.ToString(), out var existingJob) && existingJob == jobId)
-                return true;
-            return false;
-        }
+        var activeKey = RedisKeys.ActiveJob(accounts, resolved);
+        var existingVal = await db.StringGetAsync(activeKey);
+        if (existingVal.HasValue && Guid.TryParse(existingVal.ToString(), out var existingJob) && existingJob == jobId)
+            return true;
+        return false;
     }
 
     [HttpGet("account/{account}")]
@@ -261,33 +236,60 @@ public class AggregationController : ControllerBase
         if (string.IsNullOrWhiteSpace(account)) return BadRequest("account required");
         var db = _redis.GetDatabase();
         var acctLower = account.ToLowerInvariant();
-        var activeKey = ActiveJobKey(acctLower, chain);
-        var jobIdVal = await db.StringGetAsync(activeKey);
-        if (!jobIdVal.HasValue || !Guid.TryParse(jobIdVal.ToString(), out var jobId))
+        
+        // Search for active job in unified active job keys
+        var server = _redis.GetServer(_redis.GetEndPoints().First());
+        var activePattern = "wallet:agg:active:*";
+        foreach (var activeKey in server.Keys(pattern: activePattern))
         {
-            var server = _redis.GetServer(_redis.GetEndPoints().First());
-            var db2 = _redis.GetDatabase();
-            Guid? latestJob = null; DateTime latestCreated = DateTime.MinValue;
-            foreach (var key in server.Keys(pattern: MetaPattern))
+            var jobIdVal = await db.StringGetAsync(activeKey);
+            if (jobIdVal.HasValue && Guid.TryParse(jobIdVal.ToString(), out var candidateJobId))
             {
-                try
+                var metaKey = RedisKeys.Meta(candidateJobId);
+                var accountsJson = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Accounts);
+                if (accountsJson.HasValue)
                 {
-                    var parts = key.ToString().Split(':');
-                    if (parts.Length < 4) continue;
-                    if (!Guid.TryParse(parts[2], out var candidateJob)) continue;
+                    var accounts = RedisKeys.DeserializeAccounts(accountsJson.ToString());
+                    if (accounts.Any(a => a.Equals(acctLower, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return await BuildSnapshotAsync(candidateJobId);
+                    }
+                }
+            }
+        }
+        
+        // Fallback: scan all meta keys for latest job with this account
+        var db2 = _redis.GetDatabase();
+        Guid? latestJob = null; 
+        DateTime latestCreated = DateTime.MinValue;
+        foreach (var key in server.Keys(pattern: MetaPattern))
+        {
+            try
+            {
+                var parts = key.ToString().Split(':');
+                if (parts.Length < 4) continue;
+                if (!Guid.TryParse(parts[2], out var candidateJob)) continue;
+                var accountsJson = await db2.HashGetAsync(key, RedisKeys.MetaFields.Accounts);
+                if (accountsJson.HasValue)
+                {
+                    var accounts = RedisKeys.DeserializeAccounts(accountsJson.ToString());
+                    if (!accounts.Any(a => a.Equals(acctLower, StringComparison.OrdinalIgnoreCase))) continue;
+                }
+                else
+                {
+                    // Legacy fallback: check "account" field
                     var acctVal = await db2.HashGetAsync(key, "account");
                     if (!acctVal.HasValue || !acctVal.ToString().Equals(acctLower, StringComparison.OrdinalIgnoreCase)) continue;
-                    var createdVal = await db2.HashGetAsync(key, "created_at");
-                    if (!createdVal.HasValue || !DateTime.TryParse(createdVal.ToString(), out var createdAt)) continue;
-                    if (createdAt > latestCreated) { latestCreated = createdAt; latestJob = candidateJob; }
                 }
-                catch { }
+                var createdVal = await db2.HashGetAsync(key, RedisKeys.MetaFields.CreatedAt);
+                if (!createdVal.HasValue || !DateTime.TryParse(createdVal.ToString(), out var createdAt)) continue;
+                if (createdAt > latestCreated) { latestCreated = createdAt; latestJob = candidateJob; }
             }
-            if (latestJob.HasValue)
-                return await BuildSnapshotAsync(latestJob.Value);
-            return NotFound(new { error = "no active job" });
+            catch { }
         }
-        return await BuildSnapshotAsync(jobId);
+        if (latestJob.HasValue)
+            return await BuildSnapshotAsync(latestJob.Value);
+        return NotFound(new { error = "no active job" });
     }
 
     [HttpGet("{jobId:guid}")]
@@ -295,7 +297,7 @@ public class AggregationController : ControllerBase
     {
         var db = _redis.GetDatabase();
         var metaKey = RedisKeys.Meta(jobId);
-        var walletGroupIdField = await db.HashGetAsync(metaKey, "wallet_group_id");
+        var walletGroupIdField = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.WalletGroupId);
         
         if (walletGroupIdField.HasValue && Guid.TryParse(walletGroupIdField.ToString(), out var jobWalletGroupId))
         {
@@ -331,19 +333,19 @@ public class AggregationController : ControllerBase
                 var parts = key.ToString().Split(':');
                 if (parts.Length < 4) continue;
                 if (!Guid.TryParse(parts[2], out var jobId)) continue;
-                var acctVal = await db.HashGetAsync(key, "account");
+                var acctVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Accounts);
                 if (!acctVal.HasValue || !acctVal.ToString().Equals(acctLower, StringComparison.OrdinalIgnoreCase)) continue;
-                var createdVal = await db.HashGetAsync(key, "created_at");
+                var createdVal = await db.HashGetAsync(key, RedisKeys.MetaFields.CreatedAt);
                 DateTime createdAt;
                 if (!createdVal.HasValue || !DateTime.TryParse(createdVal.ToString(), out createdAt)) createdAt = DateTime.MinValue;
-                var statusVal = await db.HashGetAsync(key, "status");
-                var chainsVal = await db.HashGetAsync(key, "chains");
-                var expectedVal = await db.HashGetAsync(key, "expected_total");
-                var succVal = await db.HashGetAsync(key, "succeeded");
-                var failVal = await db.HashGetAsync(key, "failed");
-                var toVal = await db.HashGetAsync(key, "timed_out");
-                var finalEmitted = await db.HashGetAsync(key, "final_emitted");
-                var processedCount = await db.HashGetAsync(key, "processed_count");
+                var statusVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Status);
+                var chainsVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Chains);
+                var expectedVal = await db.HashGetAsync(key, RedisKeys.MetaFields.ExpectedTotal);
+                var succVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Succeeded);
+                var failVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Failed);
+                var toVal = await db.HashGetAsync(key, RedisKeys.MetaFields.TimedOut);
+                var finalEmitted = await db.HashGetAsync(key, RedisKeys.MetaFields.FinalEmitted);
+                var processedCount = await db.HashGetAsync(key, RedisKeys.MetaFields.ProcessedCount);
                 var ttl = await db.KeyTimeToLiveAsync(key);
                 jobs.Add(new {
                     jobId,
@@ -375,17 +377,24 @@ public class AggregationController : ControllerBase
         var metaEntries = await db.HashGetAllAsync(metaKey);
         var meta = metaEntries.ToDictionary(x => x.Name.ToString(), x => x.Value.ToString());
 
-        meta.TryGetValue("status", out var statusStr);
-        meta.TryGetValue("expected_total", out var expectedStr);
-        meta.TryGetValue("succeeded", out var succStr);
-        meta.TryGetValue("failed", out var failStr);
-        meta.TryGetValue("timed_out", out var toStr);
-        meta.TryGetValue("final_emitted", out var finalStr);
-        meta.TryGetValue("account", out var accountStr);
-        meta.TryGetValue("chains", out var chainsStr);
-        meta.TryGetValue("created_at", out var createdStr);
-        meta.TryGetValue("processed_count", out var processedCountStr);
-        meta.TryGetValue("wallet_group_id", out var walletGroupIdStr);
+        meta.TryGetValue(RedisKeys.MetaFields.Status, out var statusStr);
+        meta.TryGetValue(RedisKeys.MetaFields.ExpectedTotal, out var expectedStr);
+        meta.TryGetValue(RedisKeys.MetaFields.Succeeded, out var succStr);
+        meta.TryGetValue(RedisKeys.MetaFields.Failed, out var failStr);
+        meta.TryGetValue(RedisKeys.MetaFields.TimedOut, out var toStr);
+        meta.TryGetValue(RedisKeys.MetaFields.FinalEmitted, out var finalStr);
+        meta.TryGetValue(RedisKeys.MetaFields.Accounts, out var accountsStr);
+        meta.TryGetValue(RedisKeys.MetaFields.Chains, out var chainsStr);
+        meta.TryGetValue(RedisKeys.MetaFields.CreatedAt, out var createdStr);
+        meta.TryGetValue(RedisKeys.MetaFields.ProcessedCount, out var processedCountStr);
+        meta.TryGetValue(RedisKeys.MetaFields.WalletGroupId, out var walletGroupIdStr);
+        
+        List<string>? accountsList = null;
+        if (!string.IsNullOrEmpty(accountsStr))
+        {
+            accountsList = RedisKeys.DeserializeAccounts(accountsStr);
+        }
+        
         Guid? walletGroupId = null;
         if (!string.IsNullOrEmpty(walletGroupIdStr) && Guid.TryParse(walletGroupIdStr, out var parsedWalletGroupId))
             walletGroupId = parsedWalletGroupId;
@@ -406,6 +415,14 @@ public class AggregationController : ControllerBase
         var pendingMembers = await db.SetMembersAsync(pendingKey);
         var pending = pendingMembers.Select(m => m.ToString()).OrderBy(x => x).ToList();
 
+        // Read durations hash
+        var durationsKey = RedisKeys.Durations(jobId);
+        var durationsEntries = await db.HashGetAllAsync(durationsKey);
+        var durations = durationsEntries.ToDictionary(
+            e => e.Name.ToString(),
+            e => double.TryParse(e.Value, out var d) ? (double?)d : null
+        );
+
         var server = _redis.GetServer(_redis.GetEndPoints().First());
         var resultPrefix = RedisKeys.ResultPrefix(jobId);
         var pattern = resultPrefix + "*";
@@ -419,6 +436,7 @@ public class AggregationController : ControllerBase
                 if (!raw.HasValue) continue;
                 string keyStr = rk.ToString();
                 string chainFromKey = "";
+                string? accountFromKey = null;
                 var parts = keyStr.Split(':');
                 
                 // Redis key format:
@@ -428,6 +446,10 @@ public class AggregationController : ControllerBase
                 if (parts.Length >= 6)
                 {
                     chainFromKey = parts[5];  // ? Chain position (not last)
+                }
+                if (parts.Length >= 7)
+                {
+                    accountFromKey = parts[6];  // Multi-wallet account
                 }
                 
                 IntegrationResult? data = null;
@@ -447,13 +469,17 @@ public class AggregationController : ControllerBase
                             var first = chainsEl.EnumerateArray().FirstOrDefault();
                             if (first.ValueKind == JsonValueKind.String) chainVal = first.GetString() ?? chainVal;
                         }
-                        processed.Add(new { provider, chain = chainVal, status, error });
+                        var durationLookupKey = RedisKeys.DurationEntry(provider, chainVal, accountFromKey);
+                        var durationMs = durations.TryGetValue(durationLookupKey, out var d1) ? d1 : null;
+                        processed.Add(new { provider, chain = chainVal, account = accountFromKey, status, error, durationMs });
                         continue;
                     }
                     catch { continue; }
                 }
                 var chainValue = !string.IsNullOrEmpty(chainFromKey) ? chainFromKey : (data.Chains.FirstOrDefault() ?? "");
-                processed.Add(new { provider = data.Provider.ToString(), chain = chainValue, status = data.Status.ToString(), error = data.ErrorMessage });
+                var durationLookupKey2 = RedisKeys.DurationEntry(data.Provider.ToString(), chainValue, accountFromKey);
+                var durationMs2 = durations.TryGetValue(durationLookupKey2, out var d2) ? d2 : null;
+                processed.Add(new { provider = data.Provider.ToString(), chain = chainValue, account = accountFromKey, status = data.Status.ToString(), error = data.ErrorMessage, durationMs = durationMs2 });
             }
             catch { }
         }
@@ -490,7 +516,8 @@ public class AggregationController : ControllerBase
         return Ok(new
         {
             jobId,
-            account = accountStr,
+            account = accountsList?.FirstOrDefault(),
+            accounts = accountsList,
             walletGroupId,
             chains = chainsStr,
             status = statusStr ?? AggregationStatus.Running.ToString(),

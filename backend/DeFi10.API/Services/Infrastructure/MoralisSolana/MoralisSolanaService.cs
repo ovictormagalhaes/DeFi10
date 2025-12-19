@@ -78,9 +78,10 @@ namespace DeFi10.API.Services.Infrastructure.MoralisSolana
                         Name = "Solana",
                         Decimals = 9,
                         Amount = nativeBalanceSol,
+                        PriceUsd = null, // Will be hydrated from MongoDB
                         Logo = "https://moralis.com/wp-content/uploads/2022/12/Solana.svg"
                     });
-                    _logger.LogDebug("Added native SOL balance: {Balance} SOL", nativeBalanceSol);
+                    _logger.LogDebug("Added native SOL balance: {Balance} SOL (price will be hydrated)", nativeBalanceSol);
                 }
 
                 foreach (var token in portfolio.Tokens)

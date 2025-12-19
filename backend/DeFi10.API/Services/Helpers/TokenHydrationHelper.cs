@@ -54,7 +54,7 @@ public class TokenHydrationHelper
         {
             var normalizedAddress = tokenAddress.ToLowerInvariant();
 
-            var metadata = await _metadataService.GetTokenMetadataAsync(normalizedAddress);
+            var metadata = await _metadataService.GetTokenMetadataAsync(chain, normalizedAddress);
             
             if (metadata?.LogoUrl != null)
             {
@@ -68,6 +68,15 @@ public class TokenHydrationHelper
 
                 if (incomingLogos?.TryGetValue(normalizedAddress, out var incomingLogo) == true && !string.IsNullOrEmpty(incomingLogo))
                 {
+                    // Skip tokens with price = 0 (likely spam)
+                    var tokenPrice = tokenData?.Financials?.Price;
+                    if (tokenPrice.HasValue && tokenPrice.Value == 0)
+                    {
+                        _logger.LogDebug("[TokenHydration] Skipping token with price = 0: {Symbol} ({Name}) - Address: {Address}",
+                            tokenData?.Symbol, tokenData?.Name, normalizedAddress);
+                        continue;
+                    }
+                    
                     existingLogos[normalizedAddress] = incomingLogo;
 
                     // ✅ Extract symbol and name from token data
@@ -91,17 +100,27 @@ public class TokenHydrationHelper
             
             if (!existingLogos.ContainsKey(normalizedAddress) && !string.IsNullOrEmpty(kvp.Value))
             {
-                existingLogos[normalizedAddress] = kvp.Value;
-                
                 // ✅ Extract symbol and name from token data
                 Token? tokenData = null;
                 addressToTokenData.TryGetValue(normalizedAddress, out tokenData);
+                
+                // Skip tokens with price = 0 (likely spam)
+                var tokenPrice = tokenData?.Financials?.Price;
+                if (tokenPrice.HasValue && tokenPrice.Value == 0)
+                {
+                    _logger.LogDebug("[TokenHydration] Skipping token with price = 0: {Symbol} ({Name}) - Address: {Address}",
+                        tokenData?.Symbol, tokenData?.Name, normalizedAddress);
+                    continue;
+                }
+                
+                existingLogos[normalizedAddress] = kvp.Value;
                 
                 tokensToStore[normalizedAddress] = new TokenMetadata
                 {
                     Symbol = tokenData?.Symbol ?? string.Empty,
                     Name = tokenData?.Name ?? string.Empty,
-                    LogoUrl = kvp.Value
+                    LogoUrl = kvp.Value,
+                    PriceUsd = tokenData?.Financials?.Price
                 };
                 
                 _logger.LogDebug("[TokenHydration] Prepared to store metadata from existing token: address={Address}, symbol={Symbol}, name={Name}, hasLogo={HasLogo}",
@@ -109,17 +128,16 @@ public class TokenHydrationHelper
             }
         }
 
-        // ✅ Save all metadata to Redis/cache - NOW SAVES BY BOTH ADDRESS AND SYMBOL+NAME!
+        // ✅ Save all metadata to storage via TokenMetadataService
         foreach (var kvp in tokensToStore)
         {
-            await _metadataService.SetTokenMetadataAsync(kvp.Key, kvp.Value);
-            _logger.LogInformation("[TokenHydration] Stored metadata to Redis BY ADDRESS: address={Address}, symbol={Symbol}, name={Name}, logo={HasLogo}",
+            await _metadataService.SetTokenMetadataAsync(chain, kvp.Key, kvp.Value);
+            _logger.LogInformation("[TokenHydration] Stored metadata BY ADDRESS: address={Address}, symbol={Symbol}, name={Name}, logo={HasLogo}",
                 kvp.Key, kvp.Value.Symbol, kvp.Value.Name, !string.IsNullOrEmpty(kvp.Value.LogoUrl));
             
-            // ✅ ALSO save by symbol+name if available (for cross-chain sharing)
+            // ✅ ALSO log symbol+name indexing
             if (!string.IsNullOrEmpty(kvp.Value.Symbol) && !string.IsNullOrEmpty(kvp.Value.Name))
             {
-                // SetTokenMetadataAsync already saves by symbol+name internally, but let's be explicit
                 _logger.LogInformation("[TokenHydration] Metadata also indexed BY SYMBOL+NAME: {Symbol}/{Name}",
                     kvp.Value.Symbol, kvp.Value.Name);
             }
@@ -133,7 +151,7 @@ public class TokenHydrationHelper
         return existingLogos;
     }
 
-    public async Task ApplyTokenLogosToWalletItemsAsync(IEnumerable<WalletItem> walletItems, Dictionary<string, string?> tokenLogos)
+    public async Task ApplyTokenLogosToWalletItemsAsync(IEnumerable<WalletItem> walletItems, Dictionary<string, string?> tokenLogos, Chain chain)
     {
         var addressToMetadata = new Dictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
         var symbolNameToMetadata = new Dictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
@@ -156,7 +174,8 @@ public class TokenHydrationHelper
                 {
                     Symbol = token.Symbol ?? string.Empty,
                     Name = token.Name ?? string.Empty,
-                    LogoUrl = token.Logo
+                    LogoUrl = token.Logo,
+                    PriceUsd = token.Financials?.Price
                 };
                 
                 if (!addressToMetadata.ContainsKey(normalizedAddress))
@@ -171,7 +190,7 @@ public class TokenHydrationHelper
                     var normalizedSymbol = token.Symbol!.ToUpperInvariant();
                     if (!symbolToLogo.ContainsKey(normalizedSymbol))
                     {
-                        symbolToLogo[normalizedSymbol] = cachedLogo;
+                        symbolToLogo[normalizedSymbol] = cachedLogo!;
                     }
                 }
             }
@@ -211,8 +230,13 @@ public class TokenHydrationHelper
         {
             if (walletItem.Position?.Tokens != null)
             {
+                _logger.LogInformation("[TokenHydration] Processing {TokenCount} tokens in wallet item", walletItem.Position.Tokens.Count);
+                
                 foreach (var token in walletItem.Position.Tokens)
                 {
+                    _logger.LogInformation("[TokenHydration] Processing token: address={Address}, symbol={Symbol}, name={Name}, currentPrice={Price}", 
+                        token.ContractAddress, token.Symbol, token.Name, token.Financials?.Price);
+                    
                     TokenMetadata? foundMetadata = null;
                     bool metadataChanged = false;
                     
@@ -220,44 +244,94 @@ public class TokenHydrationHelper
                     {
                         var normalizedAddress = token.ContractAddress.ToLowerInvariant();
                         
-                        if (addressToMetadata.TryGetValue(normalizedAddress, out foundMetadata))
+                        // Always try to get from MongoDB if we need price data
+                        var needsPriceFromDb = token.Financials?.Price == null || token.Financials.Price == 0;
+                        
+                        if (addressToMetadata.TryGetValue(normalizedAddress, out foundMetadata) && !needsPriceFromDb)
                         {
                             _logger.LogDebug("[TokenHydration] Found metadata by address (local): {Address}", token.ContractAddress);
                         }
                         else
                         {
-                            foundMetadata = await _metadataService.GetTokenMetadataAsync(normalizedAddress);
+                            // Fetch from MongoDB to get price data
+                            foundMetadata = await _metadataService.GetTokenMetadataAsync(chain, normalizedAddress);
                             if (foundMetadata != null)
                             {
-                                _logger.LogDebug("[TokenHydration] Found metadata by address (Redis): {Address}", token.ContractAddress);
+                                _logger.LogInformation("[TokenHydration] Found metadata by address (storage): {Address}, symbol={Symbol}, name={Name}, hasLogo={HasLogo}, priceUsd={PriceUsd}", 
+                                    token.ContractAddress, foundMetadata.Symbol, foundMetadata.Name, 
+                                    !string.IsNullOrEmpty(foundMetadata.LogoUrl), foundMetadata.PriceUsd);
                                 addressToMetadata[normalizedAddress] = foundMetadata;
+                            }
+                            else
+                            {
+                                _logger.LogWarning("[TokenHydration] Metadata NOT FOUND in storage: address={Address}, chain={Chain}", 
+                                    token.ContractAddress, chain);
                             }
                         }
                         
                         if (foundMetadata != null)
                         {
+                            bool needsMetadataUpdate = false;
+                            
                             if (string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(foundMetadata.Symbol))
                             {
                                 token.Symbol = foundMetadata.Symbol;
-                                metadataChanged = true;
+                                needsMetadataUpdate = true;
                                 _logger.LogDebug("[TokenHydration] Filled symbol by address: {Symbol} (address: {Address})", 
                                     foundMetadata.Symbol, token.ContractAddress);
                             }
                             if (string.IsNullOrEmpty(token.Name) && !string.IsNullOrEmpty(foundMetadata.Name))
                             {
                                 token.Name = foundMetadata.Name;
-                                metadataChanged = true;
+                                needsMetadataUpdate = true;
                                 _logger.LogDebug("[TokenHydration] Filled name by address: {Name} (address: {Address})", 
                                     foundMetadata.Name, token.ContractAddress);
                             }
                             if (string.IsNullOrEmpty(token.Logo) && !string.IsNullOrEmpty(foundMetadata.LogoUrl))
                             {
                                 token.Logo = foundMetadata.LogoUrl;
-                                metadataChanged = true;
+                                needsMetadataUpdate = true;
                                 _logger.LogDebug("[TokenHydration] Filled logo by address: {Address}", token.ContractAddress);
                             }
                             
-                            if (metadataChanged)
+                            // Hydrate price from MongoDB if current price is 0 or null
+                            if (foundMetadata.PriceUsd.HasValue && foundMetadata.PriceUsd.Value > 0)
+                            {
+                                var currentPrice = token.Financials?.Price;
+                                _logger.LogDebug("[TokenHydration] Checking price hydration: address={Address}, symbol={Symbol}, currentPrice={CurrentPrice}, dbPrice={DbPrice}", 
+                                    token.ContractAddress, token.Symbol, currentPrice, foundMetadata.PriceUsd.Value);
+                                    
+                                if (currentPrice == null || currentPrice == 0)
+                                {
+                                    if (token.Financials == null)
+                                        token.Financials = new TokenFinancials();
+                                        
+                                    token.Financials.Price = foundMetadata.PriceUsd.Value;
+                                    
+                                    // Calculate TotalPrice using BalanceFormatted
+                                    if (token.Financials.BalanceFormatted.HasValue)
+                                    {
+                                        token.Financials.TotalPrice = token.Financials.BalanceFormatted.Value * foundMetadata.PriceUsd.Value;
+                                    }
+                                    
+                                    metadataChanged = true;
+                                    _logger.LogInformation("[TokenHydration] ✅ Filled price by address: {Price} USD (address: {Address}, symbol: {Symbol}, balance: {Balance}, totalPrice: {TotalPrice})", 
+                                        foundMetadata.PriceUsd.Value, token.ContractAddress, token.Symbol, 
+                                        token.Financials.BalanceFormatted, token.Financials.TotalPrice);
+                                }
+                                else
+                                {
+                                    _logger.LogDebug("[TokenHydration] Price already set, skipping: address={Address}, symbol={Symbol}, price={Price}", 
+                                        token.ContractAddress, token.Symbol, currentPrice);
+                                }
+                            }
+                            else
+                            {
+                                _logger.LogDebug("[TokenHydration] No valid price in DB: address={Address}, symbol={Symbol}, dbPriceUsd={DbPrice}", 
+                                    token.ContractAddress, token.Symbol, foundMetadata.PriceUsd);
+                            }
+                            
+                            if (needsMetadataUpdate)
                             {
                                 var completeMetadata = new TokenMetadata
                                 {
@@ -265,9 +339,10 @@ public class TokenHydrationHelper
                                     Name = token.Name ?? foundMetadata.Name,
                                     LogoUrl = token.Logo ?? foundMetadata.LogoUrl
                                 };
-                                await _metadataService.SetTokenMetadataAsync(normalizedAddress, completeMetadata);
+                                await _metadataService.SetTokenMetadataAsync(chain, normalizedAddress, completeMetadata);
                             }
                             
+                            // Skip further lookups if all metadata fields are now complete
                             if (!string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name) && !string.IsNullOrEmpty(token.Logo))
                                 continue;
                         }
@@ -286,7 +361,7 @@ public class TokenHydrationHelper
                             foundMetadata = await _metadataService.GetTokenMetadataBySymbolAndNameAsync(token.Symbol, token.Name);
                             if (foundMetadata != null)
                             {
-                                _logger.LogInformation("[TokenHydration] Found metadata by symbol+name (Redis/CMC): {Symbol}/{Name}", token.Symbol, token.Name);
+                                _logger.LogInformation("[TokenHydration] Found metadata by symbol+name (storage/CMC): {Symbol}/{Name}", token.Symbol, token.Name);
                                 symbolNameToMetadata[compositeKey] = foundMetadata;
                             }
                         }
@@ -305,7 +380,7 @@ public class TokenHydrationHelper
                                     Name = token.Name,
                                     LogoUrl = token.Logo
                                 };
-                                await _metadataService.SetTokenMetadataAsync(token.ContractAddress.ToLowerInvariant(), completeMetadata);
+                                await _metadataService.SetTokenMetadataAsync(chain, token.ContractAddress.ToLowerInvariant(), completeMetadata);
                             }
                             continue;
                         }

@@ -3,18 +3,19 @@ using MongoDB.Driver;
 using DeFi10.API.Configuration;
 using DeFi10.API.Infrastructure.MongoDB;
 using DeFi10.API.Models;
+using DeFi10.API.Repositories.Interfaces;
 
 namespace DeFi10.API.Repositories;
 
-public sealed class MongoStrategyRepository : IStrategyRepository
+public sealed class StrategyRepository : IStrategyRepository
 {
     private readonly IMongoCollection<Strategy> _collection;
-    private readonly ILogger<MongoStrategyRepository> _logger;
+    private readonly ILogger<StrategyRepository> _logger;
 
-    public MongoStrategyRepository(
+    public StrategyRepository(
         IMongoDBContext context,
         IOptions<MongoDBOptions> options,
-        ILogger<MongoStrategyRepository> logger)
+        ILogger<StrategyRepository> logger)
     {
         _logger = logger;
         var collectionName = options.Value.Collections.Strategies;

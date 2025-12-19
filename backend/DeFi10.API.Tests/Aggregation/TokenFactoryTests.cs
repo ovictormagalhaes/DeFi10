@@ -5,9 +5,6 @@ using ChainEnum = DeFi10.API.Models.Chain;
 
 namespace DeFi10.API.Tests.Aggregation;
 
-/// <summary>
-/// Tests for TokenFactory covering token creation, financial calculations, and overflow handling
-/// </summary>
 public class TokenFactoryTests
 {
     private readonly TokenFactory _sut;

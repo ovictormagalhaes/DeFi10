@@ -110,7 +110,7 @@ public class AaveeService : IAaveeService
         var requestBody = new
         {
             query = @"
-                query GetReserves($marketAddress: String!, $chainId: Int!) {
+                query GetReserve($marketAddress: String!, $chainId: Int!) {
                   reserve(request: { market: { address: $marketAddress, chainId: $chainId } }) {
                     currency { address }
                     tokenAddresses {
@@ -149,17 +149,13 @@ public class AaveeService : IAaveeService
 
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
-                && data.TryGetProperty("reserve", out var reserve) && reserve.ValueKind == JsonValueKind.Array)
+                && data.TryGetProperty("reserve", out var reserve) && reserve.ValueKind == JsonValueKind.Object)
             {
-                foreach (var r in reserve.EnumerateArray())
+                if (reserve.TryGetProperty("tokenAddresses", out var ta) && ta.ValueKind == JsonValueKind.Object)
                 {
-                    if (r.ValueKind != JsonValueKind.Object) continue;
-                    if (r.TryGetProperty("tokenAddresses", out var ta) && ta.ValueKind == JsonValueKind.Object)
-                    {
-                        if (ta.TryGetProperty("aTokenAddress", out var a) && a.ValueKind == JsonValueKind.String) set.Add(a.GetString()!);
-                        if (ta.TryGetProperty("variableDebtTokenAddress", out var v) && v.ValueKind == JsonValueKind.String) set.Add(v.GetString()!);
-                        if (ta.TryGetProperty("stableDebtTokenAddress", out var s) && s.ValueKind == JsonValueKind.String) set.Add(s.GetString()!);
-                    }
+                    if (ta.TryGetProperty("aTokenAddress", out var a) && a.ValueKind == JsonValueKind.String) set.Add(a.GetString()!);
+                    if (ta.TryGetProperty("variableDebtTokenAddress", out var v) && v.ValueKind == JsonValueKind.String) set.Add(v.GetString()!);
+                    if (ta.TryGetProperty("stableDebtTokenAddress", out var s) && s.ValueKind == JsonValueKind.String) set.Add(s.GetString()!);
                 }
             }
             else

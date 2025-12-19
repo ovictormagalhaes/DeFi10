@@ -6,5 +6,6 @@ public sealed record IntegrationProgressItem(
     IntegrationProvider Provider,
     IntegrationStatus Status,
     DateTime? FinishedAtUtc,
-    string? ErrorCode
+    string? ErrorCode,
+    double? DurationMs
 );

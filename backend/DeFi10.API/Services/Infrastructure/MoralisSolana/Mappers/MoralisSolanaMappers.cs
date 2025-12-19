@@ -55,6 +55,8 @@ namespace DeFi10.API.Services.Infrastructure.MoralisSolana.Mappers
                 );
 
                 token.Logo = t.Logo;
+                // Mark tokens with price = 0 as possible spam
+                token.PossibleSpam = (t.PriceUsd ?? 0) == 0;
                 return token;
             }).ToList();
 

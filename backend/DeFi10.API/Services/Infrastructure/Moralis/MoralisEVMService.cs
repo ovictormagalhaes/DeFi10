@@ -13,8 +13,6 @@ public class MoralisEVMService : BaseHttpService, IMoralisEVMService, IChainSupp
     private readonly string _apiKey;
     private readonly string _baseUrl;
     private readonly IProtocolConfigurationService _protocolConfig;
-    
-    // Default limits to filter noise and scams
     private const int DEFAULT_TOKEN_LIMIT = 100;
     private const decimal MIN_LIQUIDITY_USD = 1000m; // $1000 minimum liquidity to filter out scams/new tokens
 
@@ -97,10 +95,6 @@ public class MoralisEVMService : BaseHttpService, IMoralisEVMService, IChainSupp
         }
     }
     
-    /// <summary>
-    /// Fetches ERC20 token balances with pagination for wallets that have too many tokens.
-    /// Returns first page only to avoid timeout - most relevant tokens are usually in first results.
-    /// </summary>
     private async Task<MoralisGetERC20TokenResponse> GetERC20TokenBalancePaginatedAsync(
         string address, 
         string chain, 

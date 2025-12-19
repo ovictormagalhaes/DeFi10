@@ -86,7 +86,7 @@ public class MoralisTokenMapper : IWalletItemMapper<IEnumerable<TokenDetail>>
                                 TotalPrice = (decimal?)token.UsdPrice * balanceFormatted
                             },
                             Native = token.VerifiedContract ? false : (bool?)null,
-                            PossibleSpam = token.PossibleSpam
+                            PossibleSpam = token.PossibleSpam || token.UsdPrice == 0
                         }
                     }
                 }

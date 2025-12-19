@@ -110,7 +110,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             
             // ? FETCH LOGOS FROM TOKENMETADATASERVICE (uses in-memory cache -> Redis -> CMC)
             // Strategy 1: Lookup by address (most specific)
-            var metadata0 = await _metadataService.GetTokenMetadataAsync(position.Token0.Id);
+            var metadata0 = await _metadataService.GetTokenMetadataAsync(chain, position.Token0.Id);
             if (metadata0?.LogoUrl != null)
             {
                 supplied0.Logo = metadata0.LogoUrl;
@@ -129,7 +129,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                 }
             }
             
-            var metadata1 = await _metadataService.GetTokenMetadataAsync(position.Token1.Id);
+            var metadata1 = await _metadataService.GetTokenMetadataAsync(chain, position.Token1.Id);
             if (metadata1?.LogoUrl != null)
             {
                 supplied1.Logo = metadata1.LogoUrl;
@@ -177,7 +177,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
         try
         {
             // Check if metadata exists
-            var existing = await _metadataService.GetTokenMetadataAsync(token.TokenAddress);
+            var existing = await _metadataService.GetTokenMetadataAsync(chain, token.TokenAddress);
             
             // Save if doesn't exist OR if exists but is incomplete
             if (existing == null || 
@@ -191,7 +191,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                     LogoUrl = null // Uniswap doesn't provide logos, will be filled by Moralis later
                 };
                 
-                await _metadataService.SetTokenMetadataAsync(token.TokenAddress, metadata);
+                await _metadataService.SetTokenMetadataAsync(chain, token.TokenAddress, metadata);
                 _logger.LogDebug("[UniswapV3Mapper] Saved metadata for {Address}: symbol={Symbol}, name={Name}",
                     token.TokenAddress, token.Symbol, token.Name);
             }
