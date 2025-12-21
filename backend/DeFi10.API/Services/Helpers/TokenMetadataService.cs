@@ -394,24 +394,36 @@ public sealed class TokenMetadataService : ITokenMetadataService
 
         try
         {
+            _logger.LogInformation("[TokenMetadata] Looking up symbol+name: compositeKey={CompositeKey}, symbol={Symbol}, name={Name}", 
+                compositeKey, symbol, name);
+            
             if (_memoryBySymbolName.TryGetValue(compositeKey, out var memoryMetadata))
             {
-                _logger.LogDebug("[TokenMetadata] MEMORY HIT for symbol+name={Symbol}/{Name}", symbol, name);
+                _logger.LogInformation("[TokenMetadata] MEMORY HIT for symbol+name={Symbol}/{Name}, priceUsd={Price}", 
+                    symbol, name, memoryMetadata.PriceUsd);
                 return memoryMetadata;
             }
 
             if (_memoryBySymbol.TryGetValue(symbol, out var symbolMetadata) &&
                 symbolMetadata.Name?.Equals(name, StringComparison.OrdinalIgnoreCase) == true)
             {
+                _logger.LogInformation("[TokenMetadata] SYMBOL MATCH for symbol={Symbol}, comparing names: metadata.Name={MetadataName}, requested.Name={RequestedName}", 
+                    symbol, symbolMetadata.Name, name);
                 _memoryBySymbolName.TryAdd(compositeKey, symbolMetadata);
                 return symbolMetadata;
             }
 
+            _logger.LogInformation("[TokenMetadata] Memory lookups failed, checking repository for symbol={Symbol}, name={Name}", 
+                symbol, name);
+            
             var docs = await _repository.GetBySymbolAndNameAsync(symbol, name);
 
             if (docs.Count > 0)
             {
                 var doc = docs.First();
+                _logger.LogInformation("[TokenMetadata] Repository returned {Count} docs for symbol={Symbol}, name={Name}. First doc: Symbol={DocSymbol}, Name={DocName}, Price={Price}", 
+                    docs.Count, symbol, name, doc.Symbol, doc.Name, doc.PriceUsd);
+                
                 var metadata = new TokenMetadata
                 {
                     Symbol = doc.Symbol,
@@ -426,6 +438,11 @@ public sealed class TokenMetadataService : ITokenMetadataService
                     _memoryBySymbol.TryAdd(metadata.Symbol, metadata);
 
                 return metadata;
+            }
+            else
+            {
+                _logger.LogWarning("[TokenMetadata] Repository returned ZERO docs for symbol={Symbol}, name={Name}", 
+                    symbol, name);
             }
 
             if (_enableCoinMarketCapLookup)
