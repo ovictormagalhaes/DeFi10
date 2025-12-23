@@ -7,5 +7,6 @@ namespace DeFi10.API.Services.Protocols.Kamino
     public interface IKaminioService : IChainSupportService
     {
         Task<IEnumerable<KaminoPosition>> GetPositionsAsync(string address, Chain chain);
+        Task<KaminoReservesResponseDto?> GetReservesDataAsync();
     }
 }

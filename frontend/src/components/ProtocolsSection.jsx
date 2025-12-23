@@ -286,6 +286,7 @@ const ProtocolsSection = ({
         let lendingGroup = null;
         let lendingRewardsValue = 0;
         let lendingHealthFactor = null;
+        let lendingNetApy = null;
 
         if (lendingPositions.length > 0) {
           // EXTRAIR HEALTH FACTOR ANTES DE QUEBRAR A ESTRUTURA - usando função TypeScript
@@ -321,6 +322,46 @@ const ProtocolsSection = ({
             (sum, token) => sum + (parseFloat(token.totalPrice) || 0),
             0
           );
+
+          // Calculate weighted average NET APY from lendingPositions
+          // Uses equity-based calculation with per-token APY (Opção 1)
+          let totalSuppliedValue = 0;
+          let totalBorrowedValue = 0;
+          let weightedApySum = 0;
+
+          lendingPositions.forEach((pos) => {
+            // Get APY from position's additionalData (not per token)
+            const positionApy = pos.additionalData?.apy;
+            
+            // Iterate through each token to get values
+            (pos.tokens || []).forEach((token) => {
+              const tokenValue = parseFloat(
+                token.totalPrice || 
+                token.financials?.totalPrice || 
+                token.totalValueUsd || 
+                token.totalValue || 
+                0
+              );
+
+              // Only count Supplied and Borrowed types
+              if (positionApy != null && !isNaN(positionApy) && tokenValue > 0) {
+                if (token.type === 'Supplied') {
+                  totalSuppliedValue += tokenValue;
+                  weightedApySum += positionApy * tokenValue;
+                } else if (token.type === 'Borrowed') {
+                  totalBorrowedValue += tokenValue;
+                  // For borrowed positions, APY should be negative
+                  weightedApySum += positionApy * tokenValue;
+                }
+              }
+            });
+          });
+
+          // Calculate weighted average using net equity (supplied - borrowed)
+          const netEquity = totalSuppliedValue - totalBorrowedValue;
+          if (netEquity > 0) {
+            lendingNetApy = weightedApySum / netEquity;
+          }
         }
 
         let stakingGroup = null;
@@ -609,9 +650,13 @@ const ProtocolsSection = ({
             icon={icon}
             title={displayTitle}
             transparentBody={true}
-            // Custom header metrics: Percent | Rewards | Value (| Fees 24h se pools)
+            // Custom header metrics: Percent | Rewards | Value (| Fees 24h se pools) (| Health Factor + NET APY % para lending)
             renderHeaderMetrics={() => {
               const cells = [];
+              const isLendingProtocol = hasLending && !hasPools;
+              const shouldShowNetApy = isLendingProtocol && lendingNetApy != null;
+              const shouldShowHealthFactor = isLendingProtocol && lendingHealthFactor != null;
+              
               // Coluna 1: percent + info badges agrupadas
               cells.push(
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -633,7 +678,7 @@ const ProtocolsSection = ({
                   <MiniMetric label="Value" value={maskValue(formatPrice(protocolTotal))} />
                 </div>
               );
-              // Se pools presentes e quiser mostrar Fees 24h agregadas futuras (placeholder)
+              // Se pools presentes: Fees 24h
               if (hasPools) {
                 cells.push(
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -641,10 +686,29 @@ const ProtocolsSection = ({
                   </div>
                 );
               }
-              const ratio = hasPools ? [2, 1, 1, 1] : [2, 1, 1];
+              // Se lending (Aave/Kamino): Health Factor e NET APY %
+              if (isLendingProtocol) {
+                cells.push(
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                    {shouldShowHealthFactor && (
+                      <MiniMetric 
+                        label="Health Factor" 
+                        value={lendingHealthFactor.toFixed(2)}
+                      />
+                    )}
+                    {shouldShowNetApy && (
+                      <MiniMetric 
+                        label="NET APY %" 
+                        value={`${lendingNetApy >= 0 ? '+' : ''}${lendingNetApy.toFixed(2)}%`}
+                      />
+                    )}
+                  </div>
+                );
+              }
+              const ratio = hasPools ? [2, 1, 1, 1] : isLendingProtocol ? [2, 1, 1, 1] : [2, 1, 1];
               return { ratio, cells };
             }}
-            metricsRatio={hasPools ? [2, 1, 1, 1] : [2, 1, 1]}
+            metricsRatio={hasPools ? [2, 1, 1, 1] : hasLending ? [2, 1, 1, 1] : [2, 1, 1]}
             summaryColumns={null}
             renderSummaryCell={undefined}
             isExpanded={
@@ -666,6 +730,7 @@ const ProtocolsSection = ({
                       borrowed={lendingGroup.borrowed}
                       rewards={lendingGroup.rewards}
                       healthFactor={lendingGroup.healthFactor}
+                      netApy={lendingNetApy}
                     />
                   )}
                 {stakingGroup &&
