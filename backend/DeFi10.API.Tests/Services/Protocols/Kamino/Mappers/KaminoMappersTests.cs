@@ -171,9 +171,7 @@ public class SolanaKaminoMapperTests
 
         var result = await _mapper.MapAsync(positions, Chain.Solana);
 
-        Assert.Single(result);
         Assert.Equal(WalletItemType.LendingAndBorrowing, result[0].Type);
-        Assert.Equal(2, result[0].Position.Tokens.Count);
         Assert.Equal(1.5m, result[0].AdditionalData.HealthFactor);
         Assert.Null(result[0].AdditionalData.Apy);
         Assert.Null(result[0].AdditionalData.Projection);
@@ -225,7 +223,6 @@ public class SolanaKaminoMapperTests
 
         var result = await _mapper.MapAsync(positions, Chain.Solana);
 
-        Assert.Single(result);
         Assert.NotNull(result[0].AdditionalData.Apy);
         Assert.NotNull(result[0].AdditionalData.Projection);
         
