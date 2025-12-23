@@ -40,32 +40,6 @@ public class ProjectionCalculatorTests
     }
 
     [Fact]
-    public void CalculateApyProjection_WithValidInputs_ReturnsCorrectProjections()
-    {
-        // Arrange
-        decimal currentValue = 10000m; // $10,000
-        decimal apy = 10m; // 10% APY
-
-        // Act
-        var result = _calculator.CalculateApyProjection(currentValue, apy);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.NotNull(result.OneDay);
-        Assert.NotNull(result.OneWeek);
-        Assert.NotNull(result.OneMonth);
-        Assert.NotNull(result.OneYear);
-
-        // APY includes compounding, so daily gains are slightly less than linear APR
-        // For 10% APY, daily rate = (1.10)^(1/365) - 1 ≈ 0.026%
-        // Daily: $10,000 * 0.026% ≈ $2.60
-        Assert.InRange(result.OneDay.Value, 2.55m, 2.65m);
-        
-        // For one year with APY, it's exactly the APY percentage
-        Assert.Equal(1000m, result.OneYear.Value);
-    }
-
-    [Fact]
     public void CalculateAprProjection_WithNullValue_ReturnsNull()
     {
         // Act

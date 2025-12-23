@@ -206,7 +206,8 @@ public class SolanaKaminoMapperTests
                         Type = TokenType.Supplied,
                         Amount = 1000m,
                         Decimals = 6,
-                        PriceUsd = 1.0m
+                        PriceUsd = 1.0m,
+                        Apy = 0.05m,
                     },
                     new SplToken
                     {
@@ -215,7 +216,8 @@ public class SolanaKaminoMapperTests
                         Type = TokenType.Borrowed,
                         Amount = 5m,
                         Decimals = 9,
-                        PriceUsd = 100m
+                        PriceUsd = 100m,
+                        Apy = 0.05m,
                     }
                 }
             }
