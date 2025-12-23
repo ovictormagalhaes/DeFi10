@@ -13,6 +13,7 @@ using DeFi10.API.Services.Protocols.Aave;
 using DeFi10.API.Services.Protocols.Aave.Models;
 using DeFi10.API.Services.Protocols.Aave.Models.Borrows;
 using DeFi10.API.Services.Protocols.Aave.Models.Supplies;
+using DeFi10.API.Services.Helpers;
 using Moq;
 using Xunit;
 
@@ -23,6 +24,7 @@ public class AaveBorrowsMapperTests
     private readonly Mock<ITokenFactory> _tokenFactory;
     private readonly Mock<IProtocolConfigurationService> _protocolConfig;
     private readonly Mock<IChainConfigurationService> _chainConfig;
+    private readonly Mock<IProjectionCalculator> _projectionCalculator;
     private readonly AaveBorrowsMapper _mapper;
 
     public AaveBorrowsMapperTests()
@@ -30,7 +32,8 @@ public class AaveBorrowsMapperTests
         _tokenFactory = new Mock<ITokenFactory>();
         _protocolConfig = new Mock<IProtocolConfigurationService>();
         _chainConfig = new Mock<IChainConfigurationService>();
-        _mapper = new AaveBorrowsMapper(_tokenFactory.Object, _protocolConfig.Object, _chainConfig.Object);
+        _projectionCalculator = new Mock<IProjectionCalculator>();
+        _mapper = new AaveBorrowsMapper(_tokenFactory.Object, _protocolConfig.Object, _chainConfig.Object, _projectionCalculator.Object);
 
         SetupDefaultMocks();
     }

@@ -48,6 +48,18 @@ public class MoralisTokenMapper : IWalletItemMapper<IEnumerable<TokenDetail>>
         
         foreach (var token in tokens ?? Enumerable.Empty<TokenDetail>())
         {
+            decimal.TryParse(token.Balance, out var balance);
+            var decimals = token.Decimals ?? 1;
+            var balanceFormatted = decimals > 0 ? balance / (decimal)Math.Pow(10, decimals) : balance;
+            
+            // Filter tokens with zero or negative balance
+            if (balanceFormatted <= 0)
+            {
+                _logger.LogDebug("Filtered token with zero balance: {Symbol} ({Name}) - Address: {Address}", 
+                    token.Symbol, token.Name, token.TokenAddress);
+                continue;
+            }
+            
             // Filter tokens with zero price if feature flag is enabled
             if (_filterZeroPriceTokens && token.UsdPrice == 0)
             {
@@ -55,10 +67,6 @@ public class MoralisTokenMapper : IWalletItemMapper<IEnumerable<TokenDetail>>
                     token.Symbol, token.Name, token.TokenAddress);
                 continue;
             }
-            
-            decimal.TryParse(token.Balance, out var balance);
-            var decimals = token.Decimals ?? 1;
-            var balanceFormatted = decimals > 0 ? balance / (decimal)Math.Pow(10, decimals) : balance;
             
             walletItems.Add(new WalletItem
             {

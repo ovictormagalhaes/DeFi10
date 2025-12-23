@@ -23,6 +23,7 @@ export interface Token {
   financials: Financials;
   native: boolean | null;
   possibleSpam: boolean | null;
+  // Note: APY is stored at position level (additionalData.apy), not per token
 }
 
 export interface Position {
@@ -64,6 +65,13 @@ export interface AdditionalData {
   healthFactor?: number;
   isCollateral?: boolean;
   canBeCollateral?: boolean;
+  apy?: number; // NET APY percentage for lending positions
+  projection?: {
+    oneDay?: number;
+    oneWeek?: number;
+    oneMonth?: number;
+    oneYear?: number;
+  };
 }
 
 export interface WalletItem {

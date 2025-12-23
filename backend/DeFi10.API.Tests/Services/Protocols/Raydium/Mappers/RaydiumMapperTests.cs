@@ -27,6 +27,7 @@ public class RaydiumMapperTests
     private readonly WalletItemLabelEnricher _labelEnricher;
     private readonly Mock<IProtocolConfigurationService> _protocolConfig;
     private readonly Mock<IChainConfigurationService> _chainConfig;
+    private readonly Mock<IProjectionCalculator> _projectionCalculator;
     private readonly RaydiumMapper _mapper;
 
     public RaydiumMapperTests()
@@ -38,10 +39,11 @@ public class RaydiumMapperTests
         _labelEnricher = new WalletItemLabelEnricher(_enricherLogger.Object);
         _protocolConfig = new Mock<IProtocolConfigurationService>();
         _chainConfig = new Mock<IChainConfigurationService>();
+        _projectionCalculator = new Mock<IProjectionCalculator>();
 
         SetupDefaultMocks();
         _mapper = new RaydiumMapper(_tokenFactory.Object, _logger.Object, _metadataService.Object, 
-            _labelEnricher, _protocolConfig.Object, _chainConfig.Object);
+            _labelEnricher, _protocolConfig.Object, _chainConfig.Object, _projectionCalculator.Object);
     }
 
     private void SetupDefaultMocks()

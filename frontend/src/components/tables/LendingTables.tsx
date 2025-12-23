@@ -36,6 +36,7 @@ interface LendingTablesProps {
   borrowed?: any[];
   rewards?: any[];
   healthFactor?: number;
+  netApy?: number | null; // NET APY calculado no ProtocolsSection
 }
 
 interface LendingToken {
@@ -90,7 +91,90 @@ interface AggregatedPosition {
   rewardsValue: number;
 }
 
-// Função para agregar posições por token
+// Função para agregar posições quando recebemos WalletItems com tokens
+function aggregateFromItems(items: WalletItem[] = []): AggregatedPosition[] {
+  // Extrair todos os tokens de todos os items
+  const allTokens = items.flatMap((item: any) => {
+    const tokens = item.tokens || [];
+    return tokens.map((token: any) => ({
+      ...token,
+      _sourceItem: item, // guardar referência ao item original
+    }));
+  });
+
+  // Agrupar tokens por address/symbol
+  const grouped = groupBy(allTokens, (token: any) => {
+    return (
+      (token.address || token.contractAddress || token.contract || '').toLowerCase() ||
+      token.symbol ||
+      `token-${Math.random()}`
+    );
+  });
+
+  return Object.values(grouped).map((group: any) => {
+    const token = group[0]; // primeiro token do grupo
+    
+    const totalSupplied = sum(
+      group
+        .filter((t: any) => t.type === 'Supplied' || t.type === 'Supply')
+        .map((t: any) => {
+          return (
+            t.balanceUSD ||
+            t.totalPrice ||
+            t.totalValueUsd ||
+            t.valueUsd ||
+            parseFloat(String(t.balance || 0)) * parseFloat(String(t.price || 0)) ||
+            0
+          );
+        })
+    );
+    
+    const totalBorrowed = sum(
+      group
+        .filter((t: any) => t.type === 'Borrowed' || t.type === 'Borrow')
+        .map((t: any) => {
+          return (
+            t.balanceUSD ||
+            t.totalPrice ||
+            t.totalValueUsd ||
+            t.valueUsd ||
+            parseFloat(String(t.balance || 0)) * parseFloat(String(t.price || 0)) ||
+            0
+          );
+        })
+    );
+
+    const netValue = totalSupplied - totalBorrowed;
+
+    // Extrair rewards dos items de origem
+    const rewards = extractRewards(
+      group.flatMap((t: any) => t._sourceItem?.rewards || t._sourceItem?.rewardTokens || [])
+    );
+    const rewardsValue = sum(
+      rewards.map(
+        (r) =>
+          r.totalValueUsd ||
+          r.totalValueUSD ||
+          r.totalValue ||
+          r.valueUsd ||
+          r.valueUSD ||
+          r.value ||
+          0
+      )
+    );
+
+    return {
+      token,
+      supplied: totalSupplied,
+      borrowed: totalBorrowed,
+      netValue,
+      rewards,
+      rewardsValue,
+    };
+  });
+}
+
+// Função para agregar posições no formato legado (sem tokens dentro)
 function aggregatePositions(positions: WalletItem[] = []): AggregatedPosition[] {
   const grouped = groupBy(positions, (p: WalletItem) => {
     const pos = (p as any).position || p;
@@ -186,6 +270,7 @@ export default function LendingTables({
   borrowed = [],
   rewards = [],
   healthFactor: propHealthFactor,
+  netApy: propNetApy,
 }: LendingTablesProps) {
   const { maskValue } = useMaskValues();
   const { theme } = useTheme();
@@ -209,6 +294,103 @@ export default function LendingTables({
   const lendingItems = useMemo(() => {
     return getLendingItems(walletItems);
   }, [walletItems]);
+
+  // Detectar se lendingItems tem estrutura nova (com tokens dentro) ou legada
+  const hasTokensInside = useMemo(() => 
+    lendingItems.some((item: any) => 
+      item.tokens && Array.isArray(item.tokens) && item.tokens.length > 0
+    ), [lendingItems]
+  );
+
+  // Aggregated data - sempre calcular (mesmo no legacy mode, não vai ser usado)
+  const aggregated = useMemo(() => {
+    if (lendingItems.length === 0) return [];
+    
+    if (hasTokensInside) {
+      // Nova estrutura: items com tokens dentro
+      return aggregateFromItems(lendingItems);
+    } else {
+      // Estrutura legada: items são positions diretas
+      return aggregatePositions(lendingItems);
+    }
+  }, [lendingItems, hasTokensInside]);
+
+  const suppliedList = useMemo(() => 
+    aggregated.filter((p) => parseFloat(p.supplied.toString()) > 0),
+    [aggregated]
+  );
+  
+  const borrowedList = useMemo(() => 
+    aggregated.filter((p) => parseFloat(p.borrowed.toString()) > 0),
+    [aggregated]
+  );
+  
+  const rewardsList = useMemo(() => 
+    aggregated.filter((p) => p.rewards && p.rewards.length > 0 && p.rewardsValue > 0),
+    [aggregated]
+  );
+
+  const totalSuppliedValue = useMemo(() => sum(suppliedList.map((p) => p.supplied)), [suppliedList]);
+  const totalBorrowedValue = useMemo(() => sum(borrowedList.map((p) => p.borrowed)), [borrowedList]);
+  const totalRewardsValue = useMemo(() => sum(rewardsList.map((p) => p.rewardsValue)), [rewardsList]);
+
+  // Extract Health Factor from WalletItem lending items
+  const healthFactor = useMemo(() =>
+    propHealthFactor ||
+    lendingItems
+      .map(extractHealthFactor)
+      .find((hf) => hf != null) ||
+    null,
+    [propHealthFactor, lendingItems]
+  );
+
+  // Calculate NET APY: use prop if available, otherwise calculate from items
+  const netApy = useMemo(() => {
+    if (propNetApy != null) {
+      return propNetApy;
+    }
+
+    // Calculate from lendingItems if available (using per-token APY)
+    if (!hasTokensInside) {
+      return null;
+    }
+
+    let totalSuppliedValue = 0;
+    let totalBorrowedValue = 0;
+    let weightedApySum = 0;
+    
+    lendingItems.forEach((item: any) => {
+      const tokens = item.tokens || [];
+      // Get APY from position's additionalData (not per token)
+      const positionApy = item.additionalData?.apy;
+      
+      tokens.forEach((token: any) => {
+        const tokenValue = 
+          token?.balanceUSD ||
+          token?.totalPrice || 
+          token?.financials?.totalPrice ||
+          token?.totalValueUsd || 
+          token?.valueUsd ||
+          0;
+        
+        const value = typeof tokenValue === 'number' ? tokenValue : parseFloat(String(tokenValue)) || 0;
+
+        if (positionApy != null && !isNaN(positionApy) && value > 0) {
+          if (token.type === 'Supplied') {
+            totalSuppliedValue += value;
+            weightedApySum += positionApy * value;
+          } else if (token.type === 'Borrowed') {
+            totalBorrowedValue += value;
+            // For borrowed positions, APY should be negative
+            weightedApySum += positionApy * value;
+          }
+        }
+      });
+    });
+
+    const netEquity = totalSuppliedValue - totalBorrowedValue;
+    return netEquity > 0 ? weightedApySum / netEquity : null;
+  }, [propNetApy, lendingItems, hasTokensInside]);
 
   // Legacy mode: apenas quando não temos WalletItems E temos arrays legacy
   const legacyMode =
@@ -399,6 +581,12 @@ export default function LendingTables({
                 value={healthFactor.toFixed(2)}
               />
             )}
+            {propNetApy != null && (
+              <MiniMetric
+                label="NET APY %"
+                value={`${propNetApy >= 0 ? '+' : ''}${propNetApy.toFixed(2)}%`}
+              />
+            )}
           </div>
         )}
         <Section title="Supplied" tokens={supplied} negative={false} />
@@ -415,34 +603,15 @@ export default function LendingTables({
   // ---------- Aggregated (new) mode path ----------
   if (!lendingItems || lendingItems.length === 0) return null;
 
-  const aggregated = useMemo(() => aggregatePositions(lendingItems), [lendingItems]);
-
-  const suppliedList = aggregated.filter((p) => parseFloat(p.supplied.toString()) > 0);
-  const borrowedList = aggregated.filter((p) => parseFloat(p.borrowed.toString()) > 0);
-  const rewardsList = aggregated.filter(
-    (p) => p.rewards && p.rewards.length > 0 && p.rewardsValue > 0
-  );
-
-  function toggle(idx: number, type: string) {
-    setExpanded((prev) => ({ ...prev, [`${type}-${idx}`]: !prev[`${type}-${idx}`] }));
-  }
-
-  const totalSuppliedValue = sum(suppliedList.map((p) => p.supplied));
-  const totalBorrowedValue = sum(borrowedList.map((p) => p.borrowed));
-  const totalRewardsValue = sum(rewardsList.map((p) => p.rewardsValue));
   const positionsCount = aggregated.length;
   const portfolioTotal = getTotalPortfolioValue ? getTotalPortfolioValue() : 0;
   const netValueAll = totalSuppliedValue - totalBorrowedValue;
   const portfolioPercent =
     portfolioTotal > 0 ? calculatePercentage(netValueAll, portfolioTotal) : '0%';
 
-  // Extract Health Factor from WalletItem lending items - TYPE SAFE!
-  const healthFactor =
-    propHealthFactor ||
-    lendingItems
-      .map(extractHealthFactor) // Função TypeScript que já funciona com WalletItem
-      .find((hf) => hf != null) ||
-    null;
+  function toggle(idx: number, type: string) {
+    setExpanded((prev) => ({ ...prev, [`${type}-${idx}`]: !prev[`${type}-${idx}`] }));
+  }
 
   return (
     <div className="lending-tables-wrapper flex-col gap-12">
@@ -463,6 +632,13 @@ export default function LendingTables({
               label="Health Factor"
               value={healthFactor.toFixed(2)}
               tooltip="Liquidation risk indicator"
+            />
+          )}
+          {netApy != null && (
+            <MiniMetric
+              label="NET APY %"
+              value={`${netApy >= 0 ? '+' : ''}${netApy.toFixed(2)}%`}
+              tooltip="Weighted average net APY across all positions"
             />
           )}
         </div>
