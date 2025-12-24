@@ -40,10 +40,18 @@ export default function HeaderBar({
   const brandGradient = `linear-gradient(135deg, ${theme.accent || '#6366f1'} 0%, ${theme.primary || '#3b82f6'} 60%, ${theme.accentAlt || '#10b981'} 100%)`;
   const ACCOUNT_CHIP_WIDTH = 172; // ensures stable width across connect/disconnect states
 
-  // Simple responsive breakpoint detection
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
-  const isNarrow = vw < 1080;
-  const isVeryNarrow = vw < 680;
+  // Responsive breakpoint detection with useState for reactivity
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isNarrow = windowWidth < 1080;
+  const isVeryNarrow = windowWidth < 680;
+  const isMobile = windowWidth < 640;
 
   return (
     <header
@@ -51,9 +59,9 @@ export default function HeaderBar({
         display: 'grid',
         gridTemplateColumns: '1fr auto',
         alignItems: 'center',
-        columnGap: 20,
+        columnGap: isMobile ? 8 : 20,
         rowGap: 10,
-        padding: isVeryNarrow ? '8px 14px' : '10px 24px',
+        padding: isVeryNarrow ? '8px 14px' : isMobile ? '8px 16px' : '10px 24px',
         borderBottom: `1px solid ${theme.border}`,
         background: theme.bgApp,
         position: 'sticky',
@@ -62,15 +70,16 @@ export default function HeaderBar({
       }}
     >
       {/* Left Brand (Area 1) */}
-      <div className="flex items-center gap-12 min-w-0">
+      <div className="flex items-center min-w-0" style={{ gap: isMobile ? 8 : 12 }}>
         <div
           className="flex-center"
           style={{
-            width: 40,
-            height: 40,
+            width: isMobile ? 32 : 40,
+            height: isMobile ? 32 : 40,
             borderRadius: 12,
             overflow: 'hidden',
             padding: 4,
+            flexShrink: 0,
           }}
         >
           <img 
@@ -83,19 +92,21 @@ export default function HeaderBar({
             }}
           />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: 18, fontWeight: 600, color: theme.textPrimary }}>DeFi 10</span>
-          <span
-            style={{
-              fontSize: 11,
-              letterSpacing: 0.5,
-              textTransform: 'uppercase',
-              color: theme.textSecondary,
-            }}
-          >
-            Portfolio
-          </span>
-        </div>
+        {!isMobile && (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 18, fontWeight: 600, color: theme.textPrimary }}>DeFi 10</span>
+            <span
+              style={{
+                fontSize: 11,
+                letterSpacing: 0.5,
+                textTransform: 'uppercase',
+                color: theme.textSecondary,
+              }}
+            >
+              Portfolio
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Right Icons / Account */}
@@ -103,7 +114,7 @@ export default function HeaderBar({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
+          gap: isMobile ? 6 : 12,
           justifyContent: 'flex-end',
           minWidth: 0,
         }}

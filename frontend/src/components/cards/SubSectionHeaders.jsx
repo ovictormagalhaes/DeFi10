@@ -38,9 +38,9 @@ const SubSectionItem = ({
 
   // Calcular flex baseado no screenSize
   const getFlexStyle = () => {
-    if (screenSize === 'mobile') return '1 1 100%'; // 1 por linha
-    if (screenSize === 'tablet') return '1 1 calc((100% - 10px) / 2)'; // 2 por linha
-    return '1 1 0'; // Desktop: distribui igualmente
+    if (screenSize === 'mobile') return '1 1 100%';
+    if (screenSize === 'tablet') return '1 1 calc(50% - 5px)';
+    return '1 1 auto';
   };
 
   return (
@@ -53,6 +53,7 @@ const SubSectionItem = ({
       border: `1px solid ${theme.border}`,
       borderRadius: 8,
       flex: getFlexStyle(),
+      minWidth: screenSize === 'mobile' ? '100%' : screenSize === 'tablet' ? 'calc(50% - 5px)' : '120px',
       boxSizing: 'border-box',
     }}>
       <div style={{ 
@@ -71,7 +72,8 @@ const SubSectionItem = ({
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        whiteSpace: 'nowrap'
+        wordBreak: 'break-word',
+        overflowWrap: 'break-word'
       }}>
         {icon && <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>}
         {value}
@@ -96,7 +98,6 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
   let weightedApySum = 0;
   let weightForApy = 0;
   
-  // Projeções do backend (soma de todas as posições)
   let dailyProjectionSum = 0;
   let weeklyProjectionSum = 0;
   let monthlyProjectionSum = 0;
@@ -106,7 +107,6 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
     const position = item.position || item;
     const tokens = Array.isArray(position.tokens) ? position.tokens : [];
     
-    // Health Factor - buscar em todos lugares possíveis
     const hf = position.additionalData?.healthFactor || 
                position.healthFactor ||
                item.additionalData?.healthFactor ||
@@ -117,11 +117,9 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
       healthFactorCount++;
     }
 
-    // APY - usar a mesma lógica do LendingCards
     const supplyRate = position.supplyRate || position.apy || item.additionalData?.apy || 0;
     const borrowRate = position.borrowRate || position.borrowApy || item.additionalData?.apy || 0;
     
-    // Projeções do backend - usar os mesmos caminhos do LendingCards
     const projection = item.additionalInfo?.projection || 
                        item.additionalData?.projection || 
                        position.projection ||
@@ -172,12 +170,9 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
 
   const avgHealthFactor = healthFactorCount > 0 ? healthFactorSum / healthFactorCount : null;
   
-  // Calcular APY médio baseado na posição líquida
-  // APY = (Supply Value * Supply Rate - Borrow Value * Borrow Rate) / Net Position
   const netPosition = suppliedValue - borrowedValue;
   const avgApy = netPosition !== 0 ? (weightedApySum / netPosition) : null;
 
-  // Projeções totais
   const totalProjections = {
     dailyProjectionSum, 
     weeklyProjectionSum, 
@@ -309,12 +304,11 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
       
       const tokenType = (token.type || '').toLowerCase();
       
-      // Para liquidez, aceitar vários tipos de token
       if (tokenType.includes('supplied') || 
           tokenType.includes('supply') || 
           tokenType.includes('liquidity') ||
           tokenType.includes('deposit') ||
-          !tokenType || // tokens sem tipo também podem ser liquidez
+          !tokenType ||
           tokenType === '') {
         positionLiquidityValue += tokenValue;
       }
@@ -348,7 +342,6 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
     }
   });
 
-  // APR do backend (média ponderada pelo valor de liquidez)
   const avgAPR = totalWeightForApr > 0 ? totalAprWeighted / totalWeightForApr : null;
 
   const items = [

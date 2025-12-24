@@ -75,10 +75,6 @@ const AdvancedAnalytics = ({
 
   const totalValue = getTotalPortfolioValue();
 
-  // Dados para o gráfico de distribuição
-  // Causa raiz do bug (>100%): totalValue pode estar menor que a soma das categorias
-  // por tratar passivos (ex: borrowed) como negativos ou usar lógica diferente para pools.
-  // Para o gráfico de composição queremos a participação relativa entre categorias positivas.
   const distributionItems = [
     { label: 'Wallet Assets', value: walletValue, color: '#3b82f6' },
     { label: 'Liquidity Pools', value: liquidityValue, color: '#10b981' },

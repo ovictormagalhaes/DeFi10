@@ -1,5 +1,4 @@
-// Formatting & parsing helpers centralizados
-// Objetivo: evitar parseFloat repetido e fornecer saída consistente
+// Formatting & parsing helpers
 
 export function parseNumeric(value: unknown, fallback = 0): number {
   if (value == null) return fallback;
@@ -18,8 +17,8 @@ export function parseNumeric(value: unknown, fallback = 0): number {
 
 export interface FormatNumberOptions {
   decimals?: number;
-  trim?: boolean; // remove zeros à direita
-  minCompact?: number; // a partir de quanto usar notação compacta (ex: 1_000_000 => 1.0M)
+  trim?: boolean;
+  minCompact?: number;
 }
 
 export function formatNumber(value: number, opts: FormatNumberOptions = {}): string {

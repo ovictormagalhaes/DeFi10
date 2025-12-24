@@ -43,7 +43,7 @@ const TableFooter: React.FC<TableFooterProps> = ({
   }
 
   const renderEmptyCell = (key: string | null, index: number) => (
-    <td key={key || index} className="td td-right text-muted">
+    <td key={key || index} className={`td td-right text-muted ${key ? `col-${key}` : ''}`}>
       {/* Empty cell */}
     </td>
   );
@@ -51,7 +51,7 @@ const TableFooter: React.FC<TableFooterProps> = ({
   const renderTotalCell = (key: string | null, index: number) => (
     <td
       key={key || index}
-      className="td td-right td-mono tabular-nums td-mono-strong text-primary font-semibold"
+      className={`td td-right td-mono tabular-nums td-mono-strong text-primary font-semibold ${key ? `col-${key}` : ''}`}
     >
       {maskValue(formatPrice(totalValue))}
     </td>
@@ -61,7 +61,7 @@ const TableFooter: React.FC<TableFooterProps> = ({
     <tfoot>
       <tr className={`table-footer-row border-t ${className}`.trim()}>
         {/* Token column - always shows "Total" */}
-        <td className="td td-left font-semibold text-primary">Total</td>
+        <td className="td td-left font-semibold text-primary col-name">Total</td>
 
         {/* Dynamic columns based on table structure */}
         {advanced

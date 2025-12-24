@@ -59,7 +59,7 @@ export interface AdditionalData {
   priceUnavailable?: boolean;
   fees24h?: number;
   tickSpacing?: number;
-  createdAt?: number; // Unix timestamp da criação da pool
+  createdAt?: number;
 
   // Lending fields
   healthFactor?: number;
@@ -130,9 +130,7 @@ export function isLendingData(item: WalletItem): boolean {
   return item.type === 'LendingAndBorrowing' && item.additionalData !== null;
 }
 
-// Funções utilitárias tipadas
 export function extractHealthFactor(item: WalletItem): number | null {
-  // First check if we have the healthFactor data regardless of type
   if (item.additionalData?.healthFactor != null) {
     const healthFactor = Number(item.additionalData.healthFactor);
     if (!isNaN(healthFactor) && healthFactor > 0) {

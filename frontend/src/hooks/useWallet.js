@@ -119,7 +119,6 @@ export function useWalletConnection() {
         console.log('[Connect] Solana connected:', publicKey);
         saveAccount(publicKey);
       } else if (wallet.type === 'evm') {
-        // Se for Rabby, usa window.rabby, senão usa window.ethereum
         const provider = walletType === 'rabby' && window.rabby ? window.rabby : window.ethereum;
         console.log(`[Connect] Requesting EVM accounts from ${walletType}...`);
         const accounts = await provider.request({ method: 'eth_requestAccounts' });
