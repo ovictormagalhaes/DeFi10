@@ -19,6 +19,12 @@ namespace DeFi10.API.Services.Protocols.Kamino
         private readonly int _rateLimitDelayMs;
         private readonly string _kaminoApiUrl;
         private const string MainMarketPubkey = "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF";
+        
+        // Cache for reserves data
+        private static KaminoReservesResponseDto? _cachedReserves;
+        private static DateTime _lastReservesFetch = DateTime.MinValue;
+        private static readonly TimeSpan ReservesCacheDuration = TimeSpan.FromMinutes(5);
+        private static readonly SemaphoreSlim _reservesLock = new(1, 1);
 
         private static readonly Dictionary<string, (string Symbol, int Decimals, string? Name)> ReserveMapping = new()
         {
@@ -82,24 +88,89 @@ namespace DeFi10.API.Services.Protocols.Kamino
             
             try
             {
-                _logger.LogDebug("KAMINO: GET {Endpoint}", endpoint);
-                
-                var response = await _httpClient.GetAsync(endpoint);
-                
-                _logger.LogDebug("KAMINO: Response status: {StatusCode}", response.StatusCode);
+                // Retry logic with exponential backoff for reliability
+                const int maxRetries = 3;
+                HttpResponseMessage? response = null;
+                Exception? lastException = null;
 
-                if (!response.IsSuccessStatusCode)
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    
-                    if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    try
                     {
-                        _logger.LogDebug("KAMINO: No obligations found for address {Address} (404)", address);
-                        return Enumerable.Empty<KaminoPosition>();
+                        _logger.LogDebug("KAMINO: GET {Endpoint} (attempt {Attempt}/{MaxRetries})", endpoint, attempt, maxRetries);
+                        
+                        response = await _httpClient.GetAsync(endpoint);
+                        
+                        _logger.LogDebug("KAMINO: Response status: {StatusCode}", response.StatusCode);
+
+                        // Success - exit retry loop
+                        if (response.IsSuccessStatusCode)
+                        {
+                            break;
+                        }
+
+                        // 404 means no obligations - don't retry
+                        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                        {
+                            _logger.LogDebug("KAMINO: No obligations found for address {Address} (404)", address);
+                            return Enumerable.Empty<KaminoPosition>();
+                        }
+
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        _logger.LogWarning("KAMINO: API error on attempt {Attempt} - Status: {Status}, Content: {Content}", 
+                            attempt, response.StatusCode, errorContent);
+
+                        // Retry on server errors (500-599)
+                        if ((int)response.StatusCode >= 500 && attempt < maxRetries)
+                        {
+                            var delayMs = (int)Math.Pow(2, attempt) * 500; // 1s, 2s, 4s
+                            _logger.LogInformation("KAMINO: Retrying in {Delay}ms due to server error...", delayMs);
+                            await Task.Delay(delayMs);
+                        }
+                        else if (attempt == maxRetries)
+                        {
+                            _logger.LogError("KAMINO: API error after {MaxRetries} attempts - Status: {Status}, Content: {Content}", 
+                                maxRetries, response.StatusCode, errorContent);
+                            return Enumerable.Empty<KaminoPosition>();
+                        }
+                        else
+                        {
+                            // Non-retryable error (e.g., 400 Bad Request)
+                            _logger.LogError("KAMINO: API error (non-retryable) - Status: {Status}, Content: {Content}", 
+                                response.StatusCode, errorContent);
+                            return Enumerable.Empty<KaminoPosition>();
+                        }
                     }
-                    
-                    _logger.LogError("KAMINO: API error - Status: {Status}, Content: {Content}", 
-                        response.StatusCode, errorContent);
+                    catch (HttpRequestException ex)
+                    {
+                        lastException = ex;
+                        _logger.LogWarning(ex, "KAMINO: HTTP request failed on attempt {Attempt}: {Message}", 
+                            attempt, ex.Message);
+                        
+                        if (attempt < maxRetries)
+                        {
+                            var delayMs = (int)Math.Pow(2, attempt) * 500;
+                            _logger.LogDebug("KAMINO: Retrying in {Delay}ms...", delayMs);
+                            await Task.Delay(delayMs);
+                        }
+                    }
+                    catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+                    {
+                        lastException = ex;
+                        _logger.LogWarning("KAMINO: Request timeout on attempt {Attempt}", attempt);
+                        
+                        if (attempt < maxRetries)
+                        {
+                            var delayMs = (int)Math.Pow(2, attempt) * 500;
+                            await Task.Delay(delayMs);
+                        }
+                    }
+                }
+
+                if (response == null || !response.IsSuccessStatusCode)
+                {
+                    _logger.LogError(lastException, "KAMINO: All {MaxRetries} attempts failed for address {Address}", 
+                        maxRetries, address);
                     return Enumerable.Empty<KaminoPosition>();
                 }
 
@@ -116,6 +187,110 @@ namespace DeFi10.API.Services.Protocols.Kamino
                 }
 
                 _logger.LogDebug("KAMINO: Found {Count} obligations", obligations.Count);
+
+                // Fetch reserves data to enrich positions with APY
+                var reservesResponse = await GetReservesDataAsync();
+                var reservesByAddress = reservesResponse?.Reserves?
+                    .Where(r => !string.IsNullOrEmpty(r.Address))
+                    .ToDictionary(r => r.Address ?? string.Empty, r => r) ?? new Dictionary<string, KaminoReserveDto>();
+
+                if (reservesByAddress.Count == 0)
+                {
+                    _logger.LogWarning("KAMINO: No reserves data available - APY enrichment will be skipped. Positions will return without APY data.");
+                }
+                else
+                {
+                    _logger.LogDebug("KAMINO: Enriching obligations with APY data from {ReserveCount} reserves", reservesByAddress.Count);
+                }
+
+                // Enrich each obligation with APY data from reserves
+                int enrichedDeposits = 0;
+                int enrichedBorrows = 0;
+                int skippedDeposits = 0;
+                int skippedBorrows = 0;
+
+                foreach (var obligation in obligations)
+                {
+                    if (obligation.State?.Deposits != null)
+                    {
+                        foreach (var deposit in obligation.State.Deposits)
+                        {
+                            // Skip empty/null reserves (unused slots in Kamino obligations)
+                            if (string.IsNullOrEmpty(deposit.DepositReserve) || 
+                                deposit.DepositReserve == "11111111111111111111111111111111")
+                                continue;
+
+                            if (reservesByAddress.TryGetValue(deposit.DepositReserve, out var reserve))
+                            {
+                                // Only set APY if it's actually greater than 0 (reserve.SupplyApy returns 0 if parse fails)
+                                if (reserve.SupplyApy > 0)
+                                {
+                                    deposit.Apy = reserve.SupplyApy;
+                                    enrichedDeposits++;
+                                    _logger.LogInformation("KAMINO: ✓ Enriched deposit reserve {Reserve} with supply APY: {Apy}% (raw string: '{RawApy}')", 
+                                        deposit.DepositReserve, deposit.Apy * 100, reserve.SupplyApyString ?? "NULL");
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("KAMINO: ✗ Deposit reserve {Reserve} has zero or invalid APY (raw: '{RawApy}') - projection will not be calculated",
+                                        deposit.DepositReserve, reserve.SupplyApyString ?? "NULL");
+                                }
+                            }
+                            else
+                            {
+                                skippedDeposits++;
+                                _logger.LogWarning("KAMINO: ✗ Could not find reserve {Reserve} in reserves data - deposit APY will be null",
+                                    deposit.DepositReserve);
+                            }
+                        }
+                    }
+
+                    if (obligation.State?.Borrows != null)
+                    {
+                        foreach (var borrow in obligation.State.Borrows)
+                        {
+                            // Skip empty/null reserves (unused slots in Kamino obligations)
+                            if (string.IsNullOrEmpty(borrow.BorrowReserve) || 
+                                borrow.BorrowReserve == "11111111111111111111111111111111")
+                                continue;
+
+                            if (reservesByAddress.TryGetValue(borrow.BorrowReserve, out var reserve))
+                            {
+                                // Only set APY if it's actually greater than 0 (reserve.BorrowApy returns 0 if parse fails)
+                                if (reserve.BorrowApy > 0)
+                                {
+                                    borrow.Apy = reserve.BorrowApy;
+                                    enrichedBorrows++;
+                                    _logger.LogInformation("KAMINO: ✓ Enriched borrow reserve {Reserve} with borrow APY: {Apy}% (raw string: '{RawApy}')", 
+                                        borrow.BorrowReserve, borrow.Apy * 100, reserve.BorrowApyString ?? "NULL");
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("KAMINO: ✗ Borrow reserve {Reserve} has zero or invalid APY (raw: '{RawApy}') - projection will not be calculated",
+                                        borrow.BorrowReserve, reserve.BorrowApyString ?? "NULL");
+                                }
+                            }
+                            else
+                            {
+                                skippedBorrows++;
+                                _logger.LogWarning("KAMINO: ✗ Could not find reserve {Reserve} in reserves data - borrow APY will be null",
+                                    borrow.BorrowReserve);
+                            }
+                        }
+                    }
+                }
+
+                if (enrichedDeposits > 0 || enrichedBorrows > 0)
+                {
+                    _logger.LogInformation("KAMINO: Successfully enriched {Deposits} deposits and {Borrows} borrows with APY data",
+                        enrichedDeposits, enrichedBorrows);
+                }
+
+                if (skippedDeposits > 0 || skippedBorrows > 0)
+                {
+                    _logger.LogWarning("KAMINO: Skipped APY enrichment for {Deposits} deposits and {Borrows} borrows (reserves not found)",
+                        skippedDeposits, skippedBorrows);
+                }
 
                 var positions = obligations.Select(MapObligationToPosition).ToList();
 
@@ -222,11 +397,12 @@ namespace DeFi10.API.Services.Protocols.Kamino
                         Amount = humanAmount,
                         PriceUsd = unitPriceUsd,
                         Logo = null,
-                        Type = TokenType.Supplied
+                        Type = TokenType.Supplied,
+                        Apy = deposit.Apy.HasValue ? deposit.Apy.Value * 100 : null // Convert decimal to percentage (0.04242 -> 4.242)
                     });
 
-                    _logger.LogInformation("KAMINO Deposit added: {Symbol} = {Amount}, PriceUsd=${Price:F2} (raw: {Raw}, decimals: {Dec})",
-                        symbol, humanAmount, unitPriceUsd, rawAmount, decimals);
+                    _logger.LogInformation("KAMINO Deposit added: {Symbol} = {Amount}, PriceUsd=${Price:F2}, APY={Apy}% (raw: {Raw}, decimals: {Dec})",
+                        symbol, humanAmount, unitPriceUsd, deposit.Apy.HasValue ? deposit.Apy.Value * 100 : (decimal?)null, rawAmount, decimals);
                 }
             }
             else
@@ -304,11 +480,12 @@ namespace DeFi10.API.Services.Protocols.Kamino
                         Amount = humanAmount,
                         PriceUsd = unitPriceUsd,
                         Logo = null,
-                        Type = TokenType.Borrowed
+                        Type = TokenType.Borrowed,
+                        Apy = borrow.Apy.HasValue ? borrow.Apy.Value * 100 : null // Convert decimal to percentage (0.05080 -> 5.080)
                     });
 
-                    _logger.LogInformation("KAMINO Borrow added: {Symbol} = {Amount}, PriceUsd=${Price:F2} (raw: {Raw}, decimals: {Dec})",
-                        symbol, humanAmount, unitPriceUsd, rawAmount, decimals);
+                    _logger.LogInformation("KAMINO Borrow added: {Symbol} = {Amount}, PriceUsd=${Price:F2}, APY={Apy}% (raw: {Raw}, decimals: {Dec}, borrowApySource: {BorrowApy})",
+                        symbol, humanAmount, unitPriceUsd, borrow.Apy.HasValue ? borrow.Apy.Value * 100 : (decimal?)null, rawAmount, decimals, borrow.Apy);
                 }
             }
             else
@@ -399,6 +576,196 @@ namespace DeFi10.API.Services.Protocols.Kamino
             var healthFactor = (deposited * liquidationLtv) / borrowed;
             
             return Math.Min(healthFactor, 999.99m);
+        }
+
+        public async Task<KaminoReservesResponseDto?> GetReservesDataAsync()
+        {
+            // Check if cached data is still valid
+            if (_cachedReserves != null && DateTime.UtcNow - _lastReservesFetch < ReservesCacheDuration)
+            {
+                _logger.LogDebug("KAMINO: Returning cached reserves data (age: {Age}s)", 
+                    (DateTime.UtcNow - _lastReservesFetch).TotalSeconds);
+                return _cachedReserves;
+            }
+
+            await _reservesLock.WaitAsync();
+            try
+            {
+                // Double-check after acquiring lock
+                if (_cachedReserves != null && DateTime.UtcNow - _lastReservesFetch < ReservesCacheDuration)
+                {
+                    return _cachedReserves;
+                }
+
+                _logger.LogInformation("KAMINO: Fetching fresh reserves data from API");
+
+                // Use Kamino Finance public API with correct endpoint format
+                var reservesUrl = $"https://api.kamino.finance/kamino-market/{MainMarketPubkey}/reserves/metrics?env=mainnet-beta";
+                
+                // Retry logic with exponential backoff
+                const int maxRetries = 3;
+                HttpResponseMessage? response = null;
+                Exception? lastException = null;
+
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
+                {
+                    try
+                    {
+                        using var reservesClient = new HttpClient();
+                        reservesClient.Timeout = TimeSpan.FromSeconds(30);
+                        
+                        _logger.LogDebug("KAMINO: Reserves API attempt {Attempt}/{MaxRetries}", attempt, maxRetries);
+                        response = await reservesClient.GetAsync(reservesUrl);
+                        
+                        if (response.IsSuccessStatusCode)
+                        {
+                            break; // Success, exit retry loop
+                        }
+                        
+                        _logger.LogWarning("KAMINO: Reserves API returned {StatusCode} on attempt {Attempt}", 
+                            response.StatusCode, attempt);
+                        
+                        if (attempt < maxRetries)
+                        {
+                            var delayMs = (int)Math.Pow(2, attempt) * 500; // Exponential backoff: 1s, 2s, 4s
+                            _logger.LogDebug("KAMINO: Retrying in {Delay}ms...", delayMs);
+                            await Task.Delay(delayMs);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                        _logger.LogWarning(ex, "KAMINO: Reserves API attempt {Attempt} failed: {Message}", 
+                            attempt, ex.Message);
+                        
+                        if (attempt < maxRetries)
+                        {
+                            var delayMs = (int)Math.Pow(2, attempt) * 500;
+                            await Task.Delay(delayMs);
+                        }
+                    }
+                }
+
+                if (response == null)
+                {
+                    _logger.LogError(lastException, "KAMINO: All {MaxRetries} attempts to fetch reserves failed", maxRetries);
+                    if (_cachedReserves != null)
+                    {
+                        _logger.LogWarning("KAMINO: Returning stale cache (age: {Age}s) due to API failure",
+                            (DateTime.UtcNow - _lastReservesFetch).TotalSeconds);
+                    }
+                    return _cachedReserves;
+                }
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogError("KAMINO: Failed to fetch reserves - Status: {Status}, Response: {Response}", 
+                        response.StatusCode, errorContent.Substring(0, Math.Min(500, errorContent.Length)));
+                    
+                    if (_cachedReserves != null)
+                    {
+                        _logger.LogWarning("KAMINO: Returning stale cache (age: {Age}s) due to API error",
+                            (DateTime.UtcNow - _lastReservesFetch).TotalSeconds);
+                    }
+                    return _cachedReserves; // Return stale cache if available
+                }
+
+                var content = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug("KAMINO: Reserves response size: {Size} bytes", content.Length);
+                
+                // Log first 1000 chars to see JSON structure
+                var preview = content.Length > 1000 ? content.Substring(0, 1000) : content;
+                _logger.LogDebug("KAMINO: JSON preview: {Preview}", preview);
+
+                // Try to deserialize - API might return array directly or object with "reserves" property
+                KaminoReservesResponseDto? reserves = null;
+                
+                try
+                {
+                    // First, try as direct array
+                    var reservesList = System.Text.Json.JsonSerializer.Deserialize<List<KaminoReserveDto>>(content, new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    
+                    if (reservesList != null && reservesList.Any())
+                    {
+                        _logger.LogDebug("KAMINO: Successfully parsed as array with {Count} reserves", reservesList.Count);
+                        reserves = new KaminoReservesResponseDto { Reserves = reservesList };
+                    }
+                }
+                catch (System.Text.Json.JsonException ex)
+                {
+                    _logger.LogDebug("KAMINO: Array parsing failed: {Error}, trying object format", ex.Message);
+                    
+                    // If that fails, try as object with "reserves" property
+                    try
+                    {
+                        reserves = System.Text.Json.JsonSerializer.Deserialize<KaminoReservesResponseDto>(content, new System.Text.Json.JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+                        
+                        if (reserves?.Reserves != null)
+                        {
+                            _logger.LogDebug("KAMINO: Successfully parsed as object with {Count} reserves", reserves.Reserves.Count);
+                        }
+                    }
+                    catch (System.Text.Json.JsonException ex2)
+                    {
+                        _logger.LogError("KAMINO: Both parsing attempts failed. Array error: {Error1}, Object error: {Error2}", 
+                            ex.Message, ex2.Message);
+                    }
+                }
+                
+                if (reserves?.Reserves != null && reserves.Reserves.Any())
+                {
+                    _cachedReserves = reserves;
+                    _lastReservesFetch = DateTime.UtcNow;
+                    
+                    var tokensWithApy = reserves.Reserves.Where(r => r.SupplyApy > 0 || r.BorrowApy > 0).Count();
+                    _logger.LogInformation("KAMINO: Successfully cached {Count} reserves ({WithApy} have APY data)", 
+                        reserves.Reserves.Count, tokensWithApy);
+                    
+                    // Log a few examples for diagnostics
+                    var examples = reserves.Reserves.Where(r => r.SupplyApy > 0).Take(3);
+                    foreach (var example in examples)
+                    {
+                        _logger.LogDebug("KAMINO: Example - {Symbol}: Supply APY={SupplyApy}%, Borrow APY={BorrowApy}%",
+                            example.Symbol, example.SupplyApy * 100, example.BorrowApy * 100);
+                    }
+                    
+                    return reserves;
+                }
+
+                _logger.LogWarning("KAMINO: Empty reserves response - APY data will not be available");
+                if (_cachedReserves != null)
+                {
+                    _logger.LogWarning("KAMINO: Returning stale cache (age: {Age}s) due to empty response",
+                        (DateTime.UtcNow - _lastReservesFetch).TotalSeconds);
+                }
+                return _cachedReserves; // Return stale cache if available
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "KAMINO: HTTP error fetching reserves");
+                return _cachedReserves; // Return stale cache if available
+            }
+            catch (System.Text.Json.JsonException ex)
+            {
+                _logger.LogError(ex, "KAMINO: JSON parsing error for reserves - {Message}", ex.Message);
+                return _cachedReserves;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "KAMINO: Unexpected error fetching reserves - {Message} - {StackTrace}", ex.Message, ex.StackTrace);
+                return _cachedReserves;
+            }
+            finally
+            {
+                _reservesLock.Release();
+            }
         }
 
     }

@@ -38,7 +38,6 @@ namespace DeFi10.API.Services.Protocols.Raydium
         public async Task<List<RaydiumPosition>> GetPositionsAsync(string walletAddress)
         {
             var positions = new List<RaydiumPosition>();
-            _logger.LogDebug($"[Raydium CLMM] GetPositions START wallet={walletAddress}");
 
             if (!PublicKey.IsValid(walletAddress))
             {
@@ -48,11 +47,9 @@ namespace DeFi10.API.Services.Protocols.Raydium
 
             const string TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
             
-            _logger.LogDebug($"[Raydium CLMM] Querying SPL Token accounts...");
             var tokenAccountsResult = await _rpc.GetTokenAccountsByOwnerAsync(
                 walletAddress, null, TokenProgram.ProgramIdKey, Commitment.Finalized);
             
-            _logger.LogDebug($"[Raydium CLMM] Querying Token-2022 accounts...");
             var token2022AccountsResult = await _rpc.GetTokenAccountsByOwnerAsync(
                 walletAddress, null, TOKEN_2022_PROGRAM, Commitment.Finalized);
 
@@ -61,30 +58,25 @@ namespace DeFi10.API.Services.Protocols.Raydium
             if (tokenAccountsResult.WasSuccessful && tokenAccountsResult.Result?.Value != null)
             {
                 allTokenAccounts.AddRange(tokenAccountsResult.Result.Value);
-                _logger.LogDebug($"[Raydium CLMM] Found {tokenAccountsResult.Result.Value.Count} SPL Token accounts.");
             }
             else
             {
-                _logger.LogWarning($"[Raydium CLMM] SPL Token query failed or returned null: {tokenAccountsResult?.ErrorData}");
+                _logger.LogWarning($"[Raydium CLMM] SPL Token query failed: {tokenAccountsResult?.ErrorData}");
             }
             
             if (token2022AccountsResult.WasSuccessful && token2022AccountsResult.Result?.Value != null)
             {
                 allTokenAccounts.AddRange(token2022AccountsResult.Result.Value);
-                _logger.LogDebug($"[Raydium CLMM] Found {token2022AccountsResult.Result.Value.Count} Token-2022 accounts.");
             }
             else
             {
-                _logger.LogWarning($"[Raydium CLMM] Token-2022 query failed or returned null: success={token2022AccountsResult?.WasSuccessful}, error={token2022AccountsResult?.ErrorData}");
+                _logger.LogWarning($"[Raydium CLMM] Token-2022 query failed: {token2022AccountsResult?.ErrorData}");
             }
 
             if (!allTokenAccounts.Any())
             {
-                _logger.LogDebug($"[Raydium CLMM] No token accounts found for wallet {walletAddress}");
                 return positions;
             }
-
-            _logger.LogDebug($"[Raydium CLMM] Found {allTokenAccounts.Count} total token accounts for wallet {walletAddress}.");
 
             var positionNfts = new List<string>();
             
@@ -102,12 +94,10 @@ namespace DeFi10.API.Services.Protocols.Raydium
                         {
                             ulong amount = tokenAmount.AmountUlong;
                             byte decimals = (byte)tokenAmount.Decimals;
-                            _logger.LogDebug($"[Raydium CLMM] Token account: mint={mint}, amount={amount}, decimals={decimals}");
-                            if (amount == 1 && decimals == 0)
+                                            if (amount == 1 && decimals == 0)
                             {
                                 positionNfts.Add(mint);
-                                _logger.LogDebug($"[Raydium CLMM] Confirmed NFT mint={mint}");
-                            }
+                                                }
                         }
                     }
                 }
@@ -135,14 +125,11 @@ namespace DeFi10.API.Services.Protocols.Raydium
                     try
                     {
                         var rawData = Convert.FromBase64String(accInfo.Data[0]);
-                        _logger.LogDebug($"[Raydium CLMM] Token account {i}: owner={accInfo.Owner}, dataLen={rawData.Length}");
-                        var tokenAccountData = SplTokenAccountLayout.Parse(rawData);
-                        _logger.LogDebug($"[Raydium CLMM] Token account {i}: mint={tokenAccountData.Mint}, amount={tokenAccountData.Amount}");
-                        if (tokenAccountData.Amount == 1)
+                                    var tokenAccountData = SplTokenAccountLayout.Parse(rawData);
+                                    if (tokenAccountData.Amount == 1)
                         {
                             potentialNftMints.Add(tokenAccountData.Mint);
-                            _logger.LogDebug($"[Raydium CLMM] Potential NFT (Amount=1) mint={tokenAccountData.Mint}");
-                        }
+                                        }
                     }
                     catch (Exception ex)
                     {
@@ -170,8 +157,7 @@ namespace DeFi10.API.Services.Protocols.Raydium
                                 if (mintData.Decimals == 0)
                                 {
                                     positionNfts.Add(mintAddr);
-                                    _logger.LogDebug($"[Raydium CLMM] Confirmed NFT mint={mintAddr}");
-                                }
+                                                        }
                             }
                             catch (Exception ex)
                             {
@@ -195,12 +181,10 @@ namespace DeFi10.API.Services.Protocols.Raydium
                     try
                     {
                         var ata = DeriveAssociatedTokenAccount(walletAddress, mint);
-                        _logger.LogDebug($"[Raydium CLMM] Derived ATA for mint={mint} ata={ata}");
-                        var ataInfo = await _rpc.GetAccountInfoAsync(ata, Commitment.Finalized);
+                                    var ataInfo = await _rpc.GetAccountInfoAsync(ata, Commitment.Finalized);
                         if (!ataInfo.WasSuccessful || ataInfo.Result.Value == null)
                         {
-                            _logger.LogDebug($"[Raydium CLMM] ATA not found for mint={mint}");
-                            continue;
+                                            continue;
                         }
                         var ataRaw = Convert.FromBase64String(ataInfo.Result.Value.Data[0]);
                         SplTokenAccountData ataParsed;
@@ -213,19 +197,16 @@ namespace DeFi10.API.Services.Protocols.Raydium
                         var mintInfo = await _rpc.GetAccountInfoAsync(mint, Commitment.Finalized);
                         if (!mintInfo.WasSuccessful || mintInfo.Result.Value == null)
                         {
-                            _logger.LogDebug($"[Raydium CLMM] Mint account missing for fallback mint={mint}");
-                            continue;
+                                            continue;
                         }
                         try
                         {
                             var mintRaw = Convert.FromBase64String(mintInfo.Result.Value.Data[0]);
                             var md = SplMintAccountLayout.Parse(mintRaw);
-                            _logger.LogDebug($"[Raydium CLMM] Fallback mint={mint} amount={ataParsed.Amount} decimals={md.Decimals}");
-                            if (ataParsed.Amount == 1 && md.Decimals == 0)
+                                            if (ataParsed.Amount == 1 && md.Decimals == 0)
                             {
                                 positionNfts.Add(mint);
-                                _logger.LogDebug($"[Raydium CLMM] Added fallback NFT mint={mint}");
-                            }
+                                                }
                         }
                         catch (Exception ex)
                         {
@@ -241,8 +222,7 @@ namespace DeFi10.API.Services.Protocols.Raydium
 
             if (!positionNfts.Any())
             {
-                _logger.LogDebug($"[Raydium CLMM] No position NFTs after fallback. END wallet={walletAddress}");
-                return positions;
+                    return positions;
             }
 
             var positionPdas = positionNfts.Select(DerivePositionPdaFromNftMint).Where(p => p != null).ToList();
@@ -258,19 +238,15 @@ namespace DeFi10.API.Services.Protocols.Raydium
                 _logger.LogError($"[Raydium CLMM] GetMultipleAccountsAsync for position PDAs failed: {posAccounts.ErrorData}");
                 return positions;
             }
-            _logger.LogDebug($"[Raydium CLMM] Retrieved {posAccounts.Result.Value.Count(v => v != null)} position account(s).");
 
             foreach (var acc in posAccounts.Result.Value.Where(v => v != null))
             {
                 try
                 {
                     var layoutBytes = Convert.FromBase64String(acc.Data[0]);
-                    _logger.LogDebug($"[Raydium CLMM] Position account data length: {layoutBytes.Length} bytes");
-                    _logger.LogDebug($"[Raydium CLMM] Position account hex (first 200 bytes): {BitConverter.ToString(layoutBytes.Take(Math.Min(200, layoutBytes.Length)).ToArray())}");
-                    
+                                    
                     var layout = ClmmPositionDTO.Parse(layoutBytes);
-                    _logger.LogDebug($"[Raydium CLMM] Position NFT={layout.NftMint} pool={layout.PoolId} liq={layout.Liquidity}");
-
+        
                     var poolInfo = await _rpc.GetAccountInfoAsync(layout.PoolId, Commitment.Finalized);
                     if (!poolInfo.WasSuccessful || poolInfo.Result.Value == null)
                     {
@@ -280,39 +256,57 @@ namespace DeFi10.API.Services.Protocols.Raydium
 
                     var poolBytes = Convert.FromBase64String(poolInfo.Result.Value.Data[0]);
                     var pool = ClmmPoolDTO.Parse(poolBytes, layout.PoolId);
-                    _logger.LogDebug($"[Raydium CLMM] Pool parsed tokenA={pool.TokenMintA} tokenB={pool.TokenMintB} tickCurrent={pool.TickCurrent} liquidity={pool.Liquidity} tickSpacing={pool.TickSpacing}");
-                    _logger.LogDebug($"[Raydium CLMM] Pool fee growth: Global0={pool.FeeGrowthGlobal0X64}, Global1={pool.FeeGrowthGlobal1X64}");
-
+                
                     if (layout.Liquidity == 0)
                     {
-                        _logger.LogDebug($"[Raydium CLMM] Position NFT={layout.NftMint} has zero liquidity; skipping.");
-                        continue;
+                                    continue;
                     }
 
                     var amounts = GetAmounts(layout, pool);
                     var tokenAAmount = (decimal)amounts.AmountA;
                     var tokenBAmount = (decimal)amounts.AmountB;
-                    _logger.LogDebug($"[Raydium CLMM] Computed amounts tokenA={tokenAAmount} tokenB={tokenBAmount}");
-
+        
                     var tokenADecimals = await GetTokenDecimals(pool.TokenMintA);
                     var tokenBDecimals = await GetTokenDecimals(pool.TokenMintB);
-                    _logger.LogDebug($"[Raydium CLMM] Token decimals: tokenA={tokenADecimals}, tokenB={tokenBDecimals}");
-                    
-                    _logger.LogDebug($"[Raydium CLMM] Uncollected fees: FeesOwedTokenA={layout.FeesOwedTokenA}, FeesOwedTokenB={layout.FeesOwedTokenB}");
-                    _logger.LogDebug($"[Raydium CLMM] Fee growth inside last: A={layout.FeeGrowthInsideA}, B={layout.FeeGrowthInsideB}");
-                    _logger.LogDebug($"[Raydium CLMM] Position: tickLower={layout.TickLower}, tickUpper={layout.TickUpper}, liquidity={layout.Liquidity}");
-                    
+                            
+                                            
                     for (int i = 0; i < layout.RewardInfos.Length; i++)
                     {
                         var reward = layout.RewardInfos[i];
-                        _logger.LogDebug($"[Raydium CLMM] Reward[{i}]: AmountOwed={reward.RewardAmountOwed}, GrowthInside={reward.GrowthInsideLastX64}");
+                                }
+                    
+                    // Fetch tick data for accurate fee calculation
+                            var tickLowerTask = GetTickDataAsync(layout.PoolId, layout.TickLower, pool.TickSpacing);
+                    var tickUpperTask = GetTickDataAsync(layout.PoolId, layout.TickUpper, pool.TickSpacing);
+                    await Task.WhenAll(tickLowerTask, tickUpperTask);
+                    
+                    var tickLowerData = await tickLowerTask;
+                    var tickUpperData = await tickUpperTask;
+                    
+                    if (tickLowerData != null && tickUpperData != null)
+                    {
+                                }
+                    else
+                    {
+                        _logger.LogWarning($"[Raydium CLMM] Failed to fetch one or both tick boundaries - fee calculation will be approximate");
                     }
                     
-                    ulong finalFeeToken0 = layout.FeesOwedTokenA;
-                    ulong finalFeeToken1 = layout.FeesOwedTokenB;
+                    // Calculate uncollected fees using proper formula with tick data
+                    var feeCalculator = new Models.RaydiumUncollectedFees();
+                    var uncollectedFees = feeCalculator.CalculateUncollectedFees(
+                        layout, 
+                        pool, 
+                        tokenADecimals, 
+                        tokenBDecimals,
+                        tickLowerData,
+                        tickUpperData,
+                        _logger);
                     
-                    _logger.LogDebug($"[Raydium CLMM] Using tokenFeesOwed: Token0={finalFeeToken0}, Token1={finalFeeToken1}");
+                    // Convert back to raw amounts (ulong) for the token list
+                    ulong finalFeeToken0 = (ulong)(uncollectedFees.Amount0 * (decimal)Math.Pow(10, tokenADecimals));
+                    ulong finalFeeToken1 = (ulong)(uncollectedFees.Amount1 * (decimal)Math.Pow(10, tokenBDecimals));
                     
+                            
                     var tokenList = new List<SplToken>
                     {
                         new SplToken { Mint = pool.TokenMintA, Amount = tokenAAmount, Decimals = tokenADecimals, Type = TokenType.Supplied },
@@ -328,8 +322,7 @@ namespace DeFi10.API.Services.Protocols.Raydium
                             Decimals = tokenADecimals, 
                             Type = TokenType.LiquidityUncollectedFee 
                         });
-                        _logger.LogDebug($"[Raydium CLMM] Added uncollected fee token A: {finalFeeToken0}");
-                    }
+                                }
                     if (finalFeeToken1 > 0)
                     {
                         tokenList.Add(new SplToken 
@@ -339,18 +332,50 @@ namespace DeFi10.API.Services.Protocols.Raydium
                             Decimals = tokenBDecimals, 
                             Type = TokenType.LiquidityUncollectedFee 
                         });
-                        _logger.LogDebug($"[Raydium CLMM] Added uncollected fee token B: {finalFeeToken1}");
+                                }
+                    
+                    // Add reward tokens (these are separate from trading fees)
+                    for (int i = 0; i < layout.RewardInfos.Length; i++)
+                    {
+                        var reward = layout.RewardInfos[i];
+                        if (reward.RewardAmountOwed > 0)
+                        {
+                            // Note: Reward token mints would need to be fetched from pool reward info
+                            // For now, we're just logging them
+                                        }
                     }
                     
+                    // Try to get the creation timestamp from the first transaction on the position NFT mint
+                    long? createdAt = null;
+                    try
+                    {
+                        // Find the NFT mint for this position by matching PDA
+                        var positionNftMint = positionNfts.FirstOrDefault(nft =>
+                        {
+                            var derivedPda = DerivePositionPdaFromNftMint(nft);
+                            return derivedPda == acc.Owner; // Compare with Owner, not PublicKey
+                        });
+
+                        if (!string.IsNullOrEmpty(positionNftMint))
+                        {
+                            createdAt = await GetNftMintTimestampAsync(positionNftMint);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "[Raydium CLMM] Failed to fetch creation timestamp for position");
+                    }
+
                     positions.Add(new RaydiumPosition
                     {
-                        Pool = $"{Short(pool.TokenMintA)}-{Short(pool.TokenMintB)}",
+                        Pool = layout.PoolId,
                         Tokens = tokenList,
                         TotalValueUsd = 0,
                         SqrtPriceX96 = pool.SqrtPriceX64.ToString(),
                         TickLower = layout.TickLower,
                         TickUpper = layout.TickUpper,
-                        TickCurrent = pool.TickCurrent
+                        TickCurrent = pool.TickCurrent,
+                        CreatedAt = createdAt
                     });
                 }
                 catch (Exception ex)
@@ -359,7 +384,6 @@ namespace DeFi10.API.Services.Protocols.Raydium
                 }
             }
 
-            _logger.LogDebug($"[Raydium CLMM] GetPositions DONE wallet={walletAddress} positions={positions.Count}");
             return positions;
         }
 
@@ -370,7 +394,6 @@ namespace DeFi10.API.Services.Protocols.Raydium
             var lowerTick = position.TickLower;
             var upperTick = position.TickUpper;
 
-            _logger.LogDebug($"[Raydium CLMM] GetAmounts: liquidity={liquidity}, currentTick={currentTick}, lowerTick={lowerTick}, upperTick={upperTick}");
 
             if (liquidity == 0)
             {
@@ -386,8 +409,7 @@ namespace DeFi10.API.Services.Protocols.Raydium
                     pool.SqrtPriceX64
                 );
 
-                _logger.LogDebug($"[Raydium CLMM] Calculated amounts: AmountA={amountA}, AmountB={amountB}");
-                return (amountA, amountB);
+                    return (amountA, amountB);
             }
             catch (Exception ex)
             {
@@ -432,7 +454,6 @@ namespace DeFi10.API.Services.Protocols.Raydium
                 return null;
             }
 
-            _logger.LogDebug($"[Raydium CLMM] Derived PDA: NFT={nftMint}, PDA={pda.Key}");
             return pda.Key;
         }
 
@@ -521,6 +542,160 @@ namespace DeFi10.API.Services.Protocols.Raydium
             return startIndex * ticksPerArray;
         }
 
+        /// <summary>
+        /// Fetches tick data from a tick array account
+        /// </summary>
+        private async Task<Clmm.DTO.ClmmTickDTO?> GetTickDataAsync(
+            string poolAddress, 
+            int tickIndex, 
+            int tickSpacing)
+        {
+            try
+            {
+    
+                var startTickIndex = GetTickArrayStartIndex(tickIndex, tickSpacing);
+                var tickArrayPda = DeriveTickArrayPDA(poolAddress, startTickIndex);
+                
+    
+                var accountInfo = await _rpc.GetAccountInfoAsync(tickArrayPda, Commitment.Confirmed);
+
+                if (accountInfo?.Result?.Value?.Data == null || accountInfo.Result.Value.Data.Count == 0)
+                {
+                    _logger.LogWarning($"[Raydium CLMM] Tick array account not found for tick {tickIndex}");
+                    return null;
+                }
+
+                var accountData = Convert.FromBase64String(accountInfo.Result.Value.Data[0]);
+                
+    
+                return ParseTickFromArray(accountData, tickIndex, tickSpacing);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"[Raydium CLMM] Error fetching tick data for tick {tickIndex}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Parses tick data from a tick array account
+        /// Raydium stores multiple ticks in a single account for efficiency
+        /// </summary>
+        private Clmm.DTO.ClmmTickDTO? ParseTickFromArray(byte[] data, int targetTickIndex, int tickSpacing)
+        {
+            try
+            {
+                // Raydium TickArray structure:
+                // - 8 bytes: discriminator
+                // - 32 bytes: pool id
+                // - 4 bytes: start tick index
+                // - Array of tick data (60 ticks)
+                
+                if (data.Length < 44)
+                {
+                    _logger.LogWarning($"[Raydium CLMM] Tick array data too short: {data.Length} bytes");
+                    return null;
+                }
+
+                int offset = 8; // Skip discriminator
+                
+                // Skip pool id (32 bytes)
+                offset += 32;
+                
+                // Read start tick index
+                int startTickIndex = BitConverter.ToInt32(data, offset);
+                offset += 4;
+
+    
+                // Calculate which tick in the array we need
+                int tickIndexInArray = (targetTickIndex - startTickIndex) / tickSpacing;
+                
+                if (tickIndexInArray < 0 || tickIndexInArray >= 60)
+                {
+                    _logger.LogWarning($"[Raydium CLMM] Tick {targetTickIndex} not in array starting at {startTickIndex}");
+                    return null;
+                }
+
+                // Each tick entry structure in Raydium CLMM (based on Rust struct):
+                // pub struct TickState {
+                //     pub tick: i32,                           // 4 bytes
+                //     pub liquidity_net: i128,                 // 16 bytes
+                //     pub liquidity_gross: u128,               // 16 bytes
+                //     pub fee_growth_outside_0_x64: u128,      // 16 bytes
+                //     pub fee_growth_outside_1_x64: u128,      // 16 bytes
+                //     pub reward_growths_outside_x64: [u128; 3], // 48 bytes (3 * 16)
+                //     pub padding: [u32; 13],                  // 52 bytes (13 * 4)
+                // }
+                // Total: 168 bytes per tick
+                
+                const int TICK_SIZE = 168;
+                int tickOffset = offset + (tickIndexInArray * TICK_SIZE);
+                
+                    
+                if (data.Length < tickOffset + TICK_SIZE)
+                {
+                    _logger.LogWarning($"[Raydium CLMM] Not enough data for tick at index {tickIndexInArray}");
+                    return null;
+                }
+
+                // Read tick data following Rust struct layout
+                var tick = new Clmm.DTO.ClmmTickDTO
+                {
+                    TickIndex = BitConverter.ToInt32(data, tickOffset), // Read tick i32 from the struct
+                    LiquidityNet = ReadI128(data.AsSpan(tickOffset + 4, 16)),
+                    LiquidityGross = ReadU128(data.AsSpan(tickOffset + 20, 16)),
+                    FeeGrowthOutside0X64 = ReadU128(data.AsSpan(tickOffset + 36, 16)),
+                    FeeGrowthOutside1X64 = ReadU128(data.AsSpan(tickOffset + 52, 16)),
+                    RewardGrowthsOutsideX64 = new[]
+                    {
+                        ReadU128(data.AsSpan(tickOffset + 68, 16)),
+                        ReadU128(data.AsSpan(tickOffset + 84, 16)),
+                        ReadU128(data.AsSpan(tickOffset + 100, 16))
+                    }
+                };
+
+    
+                return tick;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Raydium CLMM] Error parsing tick data from array");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads an unsigned 128-bit integer from byte span (little-endian)
+        /// </summary>
+        private static BigInteger ReadU128(ReadOnlySpan<byte> data)
+        {
+            var buf = data.ToArray();
+            if (!BitConverter.IsLittleEndian) Array.Reverse(buf);
+            var tmp = new byte[17];
+            Array.Copy(buf, tmp, 16);
+            tmp[16] = 0;
+            return new BigInteger(tmp);
+        }
+
+        /// <summary>
+        /// Reads a signed 128-bit integer from byte span (little-endian)
+        /// </summary>
+        private static BigInteger ReadI128(ReadOnlySpan<byte> data)
+        {
+            var bytes = data.ToArray();
+            if (!BitConverter.IsLittleEndian) Array.Reverse(bytes);
+            
+            // Extend to 17 bytes for BigInteger with sign preservation
+            var tmp = new byte[17];
+            Array.Copy(bytes, tmp, 16);
+            
+            // Check if negative (MSB set in original 16 bytes)
+            bool isNegative = (bytes[15] & 0x80) != 0;
+            tmp[16] = isNegative ? (byte)0xFF : (byte)0x00;
+            
+            return new BigInteger(tmp);
+        }
+
 
 
 
@@ -541,12 +716,10 @@ namespace DeFi10.API.Services.Protocols.Raydium
                 {
                     try
                     {
-                        _logger.LogDebug($"[Raydium CLMM] Trying API endpoint: {endpoint}");
-                        
+                                    
                         var response = await _httpClient.GetAsync(endpoint);
                         
-                        _logger.LogDebug($"[Raydium CLMM] API response status: {response.StatusCode}");
-                        
+                                    
                         if (!response.IsSuccessStatusCode)
                         {
                             var errorBody = await response.Content.ReadAsStringAsync();
@@ -555,8 +728,7 @@ namespace DeFi10.API.Services.Protocols.Raydium
                         }
 
                         var json = await response.Content.ReadAsStringAsync();
-                        _logger.LogDebug($"[Raydium CLMM] API response body (full): {json}");
-                        
+                                    
                         if (string.IsNullOrWhiteSpace(json))
                         {
                             _logger.LogWarning($"[Raydium CLMM] API returned empty response");
@@ -565,15 +737,12 @@ namespace DeFi10.API.Services.Protocols.Raydium
                         
                         var apiData = System.Text.Json.JsonDocument.Parse(json);
                         
-                        _logger.LogDebug($"[Raydium CLMM] Parsed JSON, checking for 'data' property...");
-                        
+                                    
                         if (apiData.RootElement.TryGetProperty("data", out var data))
                         {
-                            _logger.LogDebug($"[Raydium CLMM] Found 'data' property, trying to extract fees...");
-                            if (TryExtractFeesFromApiData(data, out var fees))
+                                            if (TryExtractFeesFromApiData(data, out var fees))
                             {
-                                _logger.LogDebug($"[Raydium CLMM] Extracted fees from 'data': Token0={fees.feeToken0}, Token1={fees.feeToken1}");
-                                if (ValidateApiFees(fees.feeToken0, fees.feeToken1))
+                                                    if (ValidateApiFees(fees.feeToken0, fees.feeToken1))
                                 {
                                     return fees;
                                 }
@@ -589,8 +758,7 @@ namespace DeFi10.API.Services.Protocols.Raydium
                         }
                         else if (TryExtractFeesFromApiData(apiData.RootElement, out var fees2))
                         {
-                            _logger.LogDebug($"[Raydium CLMM] Extracted fees from root: Token0={fees2.feeToken0}, Token1={fees2.feeToken1}");
-                            if (ValidateApiFees(fees2.feeToken0, fees2.feeToken1))
+                                            if (ValidateApiFees(fees2.feeToken0, fees2.feeToken1))
                             {
                                 return fees2;
                             }
@@ -671,6 +839,45 @@ namespace DeFi10.API.Services.Protocols.Raydium
             }
         }
 
+        /// <summary>
+        /// Gets the creation timestamp of an NFT mint by fetching its first transaction
+        /// </summary>
+        private async Task<long?> GetNftMintTimestampAsync(string mintAddress)
+        {
+            try
+            {
+                // Get first signature for the mint address (creation transaction)
+                var signaturesResult = await _rpc.GetSignaturesForAddressAsync(
+                    mintAddress, 
+                    limit: 1, 
+                    commitment: Commitment.Finalized);
+
+                if (!signaturesResult.WasSuccessful || 
+                    signaturesResult.Result == null || 
+                    !signaturesResult.Result.Any())
+                {
+                    _logger.LogWarning("[Raydium CLMM] No signatures found for mint {Mint}", mintAddress);
+                    return null;
+                }
+
+                var firstSignature = signaturesResult.Result.Last(); // Last in list = oldest transaction
+                
+                if (firstSignature.BlockTime.HasValue)
+                {
+                    _logger.LogDebug("[Raydium CLMM] Found creation timestamp for mint {Mint}: {Timestamp}", 
+                        mintAddress, firstSignature.BlockTime.Value);
+                    return (long)firstSignature.BlockTime.Value;
+                }
+
+                _logger.LogWarning("[Raydium CLMM] No block time found in signature for mint {Mint}", mintAddress);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Raydium CLMM] Failed to fetch creation timestamp for mint {Mint}", mintAddress);
+                return null;
+            }
+        }
         private bool ValidateApiFees(ulong feeToken0, ulong feeToken1)
         {
             const ulong MAX_REASONABLE_FEE = 1_000_000_000_000_000_000;

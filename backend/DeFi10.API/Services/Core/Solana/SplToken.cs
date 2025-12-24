@@ -28,4 +28,7 @@ public sealed class SplToken
     
     [JsonPropertyName("type")] 
     public TokenType? Type { get; set; }
+
+    [JsonPropertyName("apy")]
+    public decimal? Apy { get; set; }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-import { useMaskValues } from '../context/MaskValuesContext';
+import { useMaskValues } from '../context/MaskValuesContext.tsx';
 import { useTheme } from '../context/ThemeProvider.tsx';
 import { useWalletGroups } from '../hooks/useWalletGroups';
 import { formatAddress } from '../types/wallet-groups';
@@ -8,18 +8,14 @@ import { formatAddress } from '../types/wallet-groups';
 /**
  * HeaderBar layout:
  * Left: Brand icon + label
- * Center: Search address input
  * Right: Icons: theme toggle, mask toggle, wallet dropdown
  */
 export default function HeaderBar({
   account,
-  onSearch,
   onRefresh,
   onDisconnect,
   onConnect,
   copyToClipboard,
-  searchAddress,
-  setSearchAddress,
   onManageGroups, // NEW: callback to open wallet groups modal
   selectedWalletGroupId, // NEW: currently selected wallet group
   onSelectWalletGroup, // NEW: callback when group is selected
@@ -28,7 +24,6 @@ export default function HeaderBar({
   const { maskValues, setMaskValues } = useMaskValues();
   const { groups, getGroup } = useWalletGroups();
   const [walletOpen, setWalletOpen] = useState(false);
-  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const dropdownRef = useRef(null);
 
   const selectedGroup = selectedWalletGroupId ? getGroup(selectedWalletGroupId) : null;
@@ -42,10 +37,6 @@ export default function HeaderBar({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleSearchKey = (e) => {
-    if (e.key === 'Enter') onSearch?.();
-  };
-
   const brandGradient = `linear-gradient(135deg, ${theme.accent || '#6366f1'} 0%, ${theme.primary || '#3b82f6'} 60%, ${theme.accentAlt || '#10b981'} 100%)`;
   const ACCOUNT_CHIP_WIDTH = 172; // ensures stable width across connect/disconnect states
 
@@ -58,9 +49,9 @@ export default function HeaderBar({
     <header
       style={{
         display: 'grid',
-        gridTemplateColumns: isVeryNarrow ? '1fr auto' : '1fr 1fr 1fr',
+        gridTemplateColumns: '1fr auto',
         alignItems: 'center',
-        columnGap: isVeryNarrow ? 10 : 20,
+        columnGap: 20,
         rowGap: 10,
         padding: isVeryNarrow ? '8px 14px' : '10px 24px',
         borderBottom: `1px solid ${theme.border}`,
@@ -107,122 +98,16 @@ export default function HeaderBar({
         </div>
       </div>
 
-      {/* Center Search (Area 2) - hidden on very narrow */}
-      {!isVeryNarrow && (
-        <div style={{ display: 'flex', justifyContent: 'center', minWidth: 0 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: theme.bgPanel,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 12,
-              padding: '4px 10px',
-              width: '100%',
-              maxWidth: isNarrow ? 420 : 520,
-              boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.02)',
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              stroke={theme.textSecondary}
-              fill="none"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ flexShrink: 0 }}
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            <input
-              placeholder="Search address..."
-              value={searchAddress}
-              onChange={(e) => setSearchAddress(e.target.value)}
-              onKeyDown={handleSearchKey}
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                padding: '6px 6px',
-                color: theme.textPrimary,
-                fontSize: 13,
-                fontFamily: 'inherit',
-              }}
-              aria-label="Search address"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <button
-              onClick={() => onSearch?.()}
-              style={{
-                background: theme.primarySubtle,
-                border: `1px solid ${theme.border}`,
-                color: theme.textPrimary,
-                fontSize: 12,
-                padding: '5px 12px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontWeight: 500,
-              }}
-            >
-              Go
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Right Icons / Account (Area 3) */}
+      {/* Right Icons / Account */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 12,
-          justifySelf: isVeryNarrow ? 'end' : 'stretch',
-          justifyContent: isVeryNarrow ? 'flex-end' : 'flex-end',
+          justifyContent: 'flex-end',
           minWidth: 0,
         }}
       >
-        {/* Mobile hamburger (shows search overlay) */}
-        {isVeryNarrow && (
-          <IconButton
-            label={showMobileSearch ? 'Close search' : 'Search'}
-            onClick={() => setShowMobileSearch((s) => !s)}
-            icon={
-              showMobileSearch ? (
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  stroke={theme.textPrimary}
-                  fill="none"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              ) : (
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  stroke={theme.textPrimary}
-                  fill="none"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.35-4.35" />
-                </svg>
-              )
-            }
-          />
-        )}
         {/* Theme toggle */}
         <IconButton
           label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`}
@@ -791,79 +676,6 @@ export default function HeaderBar({
           )}
         </div>
       </div>
-      {/* Full-screen search overlay for very narrow view */}
-      {isVeryNarrow && showMobileSearch && (
-        <div
-          style={{
-            position: 'fixed',
-            left: 0,
-            top: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.65)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            padding: '90px 20px 40px 20px',
-            zIndex: 200,
-          }}
-        >
-          <div
-            style={{
-              width: '100%',
-              maxWidth: 520,
-              background: theme.bgPanel,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 18,
-              padding: 16,
-              boxShadow: theme.shadowHover,
-              display: 'flex',
-              gap: 10,
-            }}
-          >
-            <input
-              autoFocus
-              placeholder="Search address..."
-              value={searchAddress}
-              onChange={(e) => setSearchAddress(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  onSearch?.();
-                  setShowMobileSearch(false);
-                }
-              }}
-              style={{
-                flex: 1,
-                background: theme.bgApp,
-                border: `1px solid ${theme.border}`,
-                borderRadius: 10,
-                padding: '10px 12px',
-                color: theme.textPrimary,
-                fontSize: 14,
-              }}
-            />
-            <button
-              onClick={() => {
-                onSearch?.();
-                setShowMobileSearch(false);
-              }}
-              style={{
-                background: theme.primarySubtle,
-                border: `1px solid ${theme.border}`,
-                color: theme.textPrimary,
-                padding: '10px 16px',
-                borderRadius: 12,
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-              }}
-            >
-              Go
-            </button>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

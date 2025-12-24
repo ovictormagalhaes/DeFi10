@@ -1,0 +1,10 @@
+# Test configuration files (may contain sensitive wallet addresses)
+appsettings.json
+appsettings.*.json
+!appsettings.example.json
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml

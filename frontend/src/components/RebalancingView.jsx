@@ -7,7 +7,7 @@ import {
   RebalanceReferenceTypeEnum,
   getAssetTypeLabel,
 } from '../constants/rebalanceEnums';
-import { useMaskValues } from '../context/MaskValuesContext';
+import { useMaskValues } from '../context/MaskValuesContext.tsx';
 import { useTheme } from '../context/ThemeProvider.tsx';
 import { formatPercent, formatUsd } from '../utils/formatting';
 import { ITEM_TYPES } from '../utils/walletUtils';
@@ -17,7 +17,7 @@ import IconButton from './IconButton';
 import RebalanceItemDialog from './RebalanceItemDialog';
 import Skeleton from './Skeleton';
 import StandardHeader from './table/StandardHeader';
-import TokenDisplay from './TokenDisplay';
+import TokenDisplay from './TokenDisplay.tsx';
 
 // Frontend mirror of backend enum
 const RebalanceReferenceType = {

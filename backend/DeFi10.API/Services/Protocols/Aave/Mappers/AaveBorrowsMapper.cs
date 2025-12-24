@@ -7,6 +7,7 @@ using DeFi10.API.Configuration;
 using DeFi10.API.Services.Domain.Mappers;
 using DeFi10.API.Services.Protocols.Aave.Models;
 using DeFi10.API.Services.Configuration;
+using DeFi10.API.Services.Helpers;
 
 namespace DeFi10.API.Services.Protocols.Aave.Mappers;
 
@@ -15,9 +16,10 @@ public class AaveBorrowsMapper : IWalletItemMapper<AaveGetUserBorrowsResponse>
     private readonly ITokenFactory _tokenFactory;
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
+    private readonly IProjectionCalculator _projectionCalculator;
 
-    public AaveBorrowsMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
-    { _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; }
+    public AaveBorrowsMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig, IProjectionCalculator projectionCalculator)
+    { _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; _projectionCalculator = projectionCalculator; }
 
     public bool SupportsChain(ChainEnum chain) => 
         _protocolConfig.IsChainEnabledForProtocol(ProtocolNames.AaveV3, chain);
@@ -55,12 +57,26 @@ public class AaveBorrowsMapper : IWalletItemMapper<AaveGetUserBorrowsResponse>
                     decimals,
                     amountFormatted,
                     unitPrice);
+                
+                // Extract Net APY from borrow APY (for borrows, APY is negative as it's a cost)
+                decimal? apy = null;
+                if (decimal.TryParse(borrow.Apy.Formatted, NumberStyles.Float, CultureInfo.InvariantCulture, out var apyValue))
+                {
+                    apy = -apyValue;
+                }
+                
+                var projection = _projectionCalculator.CalculateApyProjection(totalPriceUsd, apy);
+                
                 walletItems.Add(new WalletItem
                 {
                     Type = WalletItemType.LendingAndBorrowing,
                     Protocol = protocol,
                     Position = new Position { Label = "Borrowed", Tokens = new List<Token> { borrowedToken } },
                     AdditionalData = new AdditionalData()
+                    {
+                        Apy = apy,
+                        Projection = projection
+                    }
                 });
             }
             catch (Exception ex) { Console.WriteLine($"Error processing Aave borrow for {borrow.Currency?.Symbol}: {ex.Message}"); }

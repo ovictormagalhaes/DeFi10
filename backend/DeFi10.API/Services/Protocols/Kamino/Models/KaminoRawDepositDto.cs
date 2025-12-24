@@ -12,4 +12,10 @@ internal class KaminoRawDepositDto
 
     [JsonPropertyName("marketValueSf")]
     public string? MarketValueSf { get; set; }
+
+    /// <summary>
+    /// Supply APY enriched from reserves data (not from API response)
+    /// </summary>
+    [JsonIgnore]
+    public decimal? Apy { get; set; }
 }

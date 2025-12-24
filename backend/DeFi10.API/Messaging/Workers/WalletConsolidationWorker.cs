@@ -220,6 +220,9 @@ public class WalletConsolidationWorker : BaseConsumer
             _logger.LogDebug("[Consolidation] Starting metadata hydration for {Count} items, jobId={JobId}", 
                 wallet.Items.Count, jobId);
 
+            // Build metadata dictionaries once from all wallet items
+            var metadataDictionaries = hydrationHelper.BuildMetadataDictionaries(wallet.Items);
+
             // Get all unique chains
             var allChains = wallet.Items
                 .SelectMany(w => w.Position?.Tokens ?? Enumerable.Empty<Token>())
@@ -238,7 +241,8 @@ public class WalletConsolidationWorker : BaseConsumer
                 if (chainItems.Count > 0)
                 {
                     var logos = await hydrationHelper.HydrateTokenLogosAsync(chainItems, chain);
-                    await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(chainItems, logos, chain);
+                    // Use the pre-built dictionaries instead of rebuilding them
+                    await hydrationHelper.ApplyTokenLogosToWalletItemsAsync(chainItems, logos, chain, metadataDictionaries);
                 }
             }
 

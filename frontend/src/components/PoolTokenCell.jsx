@@ -2,7 +2,7 @@ import React from 'react';
 
 import { useTheme } from '../context/ThemeProvider.tsx';
 
-import TokenDisplay from './TokenDisplay';
+import TokenDisplay from './TokenDisplay.tsx';
 
 /**
  * PoolTokenCell

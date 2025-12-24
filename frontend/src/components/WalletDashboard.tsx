@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-import { useMaskValues } from '../context/MaskValuesContext';
+import { useMaskValues } from '../context/MaskValuesContext.tsx';
 import { getHealth, getSupportedChains } from '../services/apiClient';
 import { HealthStatus, SupportedChain } from '../types/api';
 

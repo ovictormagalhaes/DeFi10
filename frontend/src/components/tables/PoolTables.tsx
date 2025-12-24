@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 
-import { useMaskValues } from '../../context/MaskValuesContext';
+import { useMaskValues } from '../../context/MaskValuesContext.tsx';
 import { useTheme } from '../../context/ThemeProvider';
 import type { WalletItem } from '../../types/wallet';
 import { extractAllRewards, normalizeTokenPrice } from '../../utils/tokenFilters';
@@ -15,7 +15,7 @@ import MiniMetric from '../MiniMetric';
 import RangeChip from '../RangeChip';
 import StandardHeader from '../table/StandardHeader';
 import TableFooter from '../table/TableFooter';
-import TokenDisplay from '../TokenDisplay';
+import TokenDisplay from '../TokenDisplay.tsx';
 
 // Interface simplificada - APENAS WalletItem[]
 interface PoolTablesProps {
@@ -511,7 +511,14 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
         <TableFooter
           totalValue={totalValue}
           itemsCount={positionsCount}
-          columns={['range', 'amount', 'rewards', 'value']}
+          columns={
+            [
+              !hideRange && 'range',
+              !hideAmount && 'amount',
+              !hideRewards && 'rewards',
+              'value',
+            ].filter(Boolean) as string[]
+          }
         />
       </table>
     </div>

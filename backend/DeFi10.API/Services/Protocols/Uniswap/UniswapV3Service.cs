@@ -27,7 +27,26 @@ public class UniswapV3Service : BaseHttpService, IUniswapV3Service
             ? null 
             : new Dictionary<string, string> { ["Authorization"] = $"Bearer {_apiKey}" };
 
-        return await PostAsync<object, UniswapV3GetActivePoolsResponse>(_graphqlEndpoint, request, headers);
+        var response = await PostAsync<object, UniswapV3GetActivePoolsResponse>(_graphqlEndpoint, request, headers);
+        
+        if (response?.Data?.Positions != null && response.Data.Positions.Any())
+        {
+            // Check if pool metadata is available
+            var firstPos = response.Data.Positions.First();
+            if (firstPos.Pool != null)
+            {
+                bool hasTickSpacing = !string.IsNullOrEmpty(firstPos.Pool.TickSpacing);
+                bool hasCreatedAt = !string.IsNullOrEmpty(firstPos.Pool.CreatedAtUnix);
+                
+                if (!hasTickSpacing || !hasCreatedAt)
+                {
+                    Logger.LogInformation("[UniswapV3Service] Pool metadata partially available - TickSpacing: {HasTickSpacing}, CreatedAt: {HasCreatedAt}",
+                        hasTickSpacing, hasCreatedAt);
+                }
+            }
+        }
+        
+        return response;
     }
 
     private static string BuildGraphQLQuery(string account)
@@ -52,6 +71,9 @@ public class UniswapV3Service : BaseHttpService, IUniswapV3Service
                     feeGrowthInside1LastX128
                     tickLower
                     tickUpper
+                    transaction {
+                        timestamp
+                    }
                     token0 {
                         id
                         symbol
@@ -77,6 +99,9 @@ public class UniswapV3Service : BaseHttpService, IUniswapV3Service
                         feeGrowthGlobal0X128
                         feeGrowthGlobal1X128
                         tick
+                        tickSpacing
+                        sqrtPriceX96
+                        createdAtUnix
                     }
                 }
             }".Replace("$owner", $"\"{account}\"");

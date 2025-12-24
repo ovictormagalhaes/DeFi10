@@ -192,6 +192,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAggregationJobStore, AggregationJobStore>();
         services.AddSingleton<ITokenFactory, TokenFactory>();
         services.AddScoped<IPriceService, PriceService>();
+        services.AddSingleton<IProjectionCalculator, ProjectionCalculator>();
 
         return services;
     }

@@ -6,6 +6,7 @@ using DeFi10.API.Configuration;
 using DeFi10.API.Services.Domain.Mappers;
 using DeFi10.API.Services.Configuration;
 using DeFi10.API.Services.Protocols.Aave.Models.Supplies;
+using DeFi10.API.Services.Helpers;
 
 namespace DeFi10.API.Services.Protocols.Aave.Mappers;
 
@@ -14,9 +15,10 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
     private readonly ITokenFactory _tokenFactory;
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
+    private readonly IProjectionCalculator _projectionCalculator;
 
-    public AaveSuppliesMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig)
-    { _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; }
+    public AaveSuppliesMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig, IProjectionCalculator projectionCalculator)
+    { _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; _projectionCalculator = projectionCalculator; }
 
     public bool SupportsChain(ChainEnum chain) => 
         _protocolConfig.IsChainEnabledForProtocol(ProtocolNames.AaveV3, chain);
@@ -54,12 +56,29 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
                     decimals,
                     amountFormatted,
                     unitPrice);
+                
+                // Extract Net APY from supply APY (for lending, supply APY is the earning rate)
+                decimal? apy = null;
+                if (decimal.TryParse(supply.Apy.Formatted, NumberStyles.Float, CultureInfo.InvariantCulture, out var apyValue))
+                {
+                    apy = apyValue;
+                }
+                
+                // Calculate projections based on Net APY
+                var projection = _projectionCalculator.CalculateApyProjection(totalPriceUsd, apy);
+                
                 walletItems.Add(new WalletItem
                 {
                     Type = WalletItemType.LendingAndBorrowing,
                     Protocol = protocol,
                     Position = new Position { Label = "Supplied", Tokens = new List<Token> { suppliedToken } },
-                    AdditionalData = new AdditionalData { IsCollateral = supply.IsCollateral, CanBeCollateral = supply.CanBeCollateral }
+                    AdditionalData = new AdditionalData 
+                    { 
+                        IsCollateral = supply.IsCollateral, 
+                        CanBeCollateral = supply.CanBeCollateral,
+                        Apy = apy,
+                        Projection = projection
+                    }
                 });
             }
             catch (Exception ex) { Console.WriteLine($"Error processing Aave supply for {supply.Currency?.Symbol}: {ex.Message}"); }

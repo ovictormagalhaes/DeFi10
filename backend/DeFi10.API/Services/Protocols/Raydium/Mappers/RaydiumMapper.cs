@@ -18,6 +18,7 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
         private readonly WalletItemLabelEnricher _labelEnricher;
         private readonly IProtocolConfigurationService _protocolConfig;
         private readonly IChainConfigurationService _chainConfig;
+        private readonly IProjectionCalculator _projectionCalculator;
 
         public RaydiumMapper(
             ITokenFactory tokenFactory,
@@ -25,7 +26,8 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
             ITokenMetadataService metadataService,
             WalletItemLabelEnricher labelEnricher,
             IProtocolConfigurationService protocolConfig,
-            IChainConfigurationService chainConfig)
+            IChainConfigurationService chainConfig,
+            IProjectionCalculator projectionCalculator)
         {
             _tokenFactory = tokenFactory;
             _logger = logger;
@@ -33,6 +35,7 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
             _labelEnricher = labelEnricher;
             _protocolConfig = protocolConfig;
             _chainConfig = chainConfig;
+            _projectionCalculator = projectionCalculator;
         }
 
         public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
@@ -147,7 +150,10 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                         Apr = p.Apr,
                         Fees24h = p.Fees24h,
                         SqrtPriceX96 = p.SqrtPriceX96,
-                        Range = CalculateRange(p.TickLower, p.TickUpper, p.TickCurrent)
+                        PoolId = p.Pool,
+                        CreatedAt = p.CreatedAt,
+                        Range = CalculateRange(p.TickLower, p.TickUpper, p.TickCurrent),
+                        Projection = _projectionCalculator.CalculateAprProjection(p.TotalValueUsd, p.Apr)
                     }
                 };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 
+import ChainSelector from './components/ChainSelector';
 import ConnectWalletScreen from './components/ConnectWalletScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import ErrorScreen from './components/ErrorScreen';
@@ -9,8 +10,11 @@ import PoolsView from './components/PoolsView.tsx';
 import ProtocolsSection from './components/ProtocolsSection';
 import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
 import SectionTable from './components/SectionTable';
-import SegmentedNav from './components/SegmentedNav';
 import SummaryView from './components/SummaryView';
+import ViewModeSelector from './components/ViewModeSelector';
+import { LendingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
+import { WalletSectionHeader, LendingSectionHeader, PoolsSectionHeader } from './components/cards/SectionHeaders';
+import { LendingSubSectionHeader, LiquiditySubSectionHeader } from './components/cards/SubSectionHeaders';
 import { WalletTokensTable } from './components/tables';
 import WalletGroupModal from './components/WalletGroupModal';
 import WalletSelectorDialog from './components/WalletSelectorDialog';
@@ -22,7 +26,7 @@ import {
   DEFAULT_FILTER_SETTINGS,
 } from './constants/config';
 import { ChainIconsProvider } from './context/ChainIconsProvider';
-import { MaskValuesProvider } from './context/MaskValuesContext';
+import { MaskValuesProvider } from './context/MaskValuesContext.tsx';
 import { useTheme } from './context/ThemeProvider.tsx';
 import { useAggregationJob } from './hooks/useAggregationJob';
 import { useWalletConnection, useTooltip } from './hooks/useWallet';
@@ -44,7 +48,6 @@ import {
   ITEM_TYPES,
   filterItemsByType,
   getWalletTokens,
-  getLiquidityPools,
   computePortfolioBreakdown,
   setTotalPortfolioValue,
   calculatePercentage,
@@ -162,7 +165,6 @@ function App() {
     
     if (portfolioMatch) {
       const groupId = portfolioMatch[1];
-      console.log('[App] Detected wallet group from URL:', groupId);
       
       // Check if we have the group locally AND have a valid token
       try {
@@ -178,16 +180,13 @@ function App() {
         
         if (existingGroup && hasValidToken) {
           // Group exists locally with valid token, use it
-          console.log('[App] Group found with valid token, connecting...');
           setSelectedWalletGroupId(groupId);
         } else if (existingGroup && !hasValidToken) {
           // Group exists but token expired, need to reconnect
-          console.log('[App] Group found but token expired, opening connect modal...');
           setPendingWalletGroupId(groupId);
           setIsWalletGroupModalOpen(true);
         } else {
           // Group doesn't exist locally, open connect modal with ID pre-filled
-          console.log('[App] Group not found locally, opening connect modal for:', groupId);
           setPendingWalletGroupId(groupId);
           setIsWalletGroupModalOpen(true);
         }
@@ -203,11 +202,8 @@ function App() {
   // Listen for token expired events (401 errors)
   useEffect(() => {
     const unsubscribe = onTokenExpired((walletGroupId) => {
-      console.log('[App] Token expired for wallet group:', walletGroupId);
-      
       // If this is the currently selected group, open reconnect modal
       if (walletGroupId === selectedWalletGroupId) {
-        console.log('[App] Opening reconnect modal for expired token');
         setPendingWalletGroupId(walletGroupId);
         setIsWalletGroupModalOpen(true);
       }
@@ -232,7 +228,7 @@ function App() {
     }
   }, [account]);
 
-  // Wallet data derivado da agregação (substitui fluxo legacy /wallets/accounts)
+  // Wallet data derived from aggregation (replaces legacy /wallets/accounts flow)
   const [walletData, setWalletData] = useState(null);
   const callAccountAPI = () => {};
   const refreshWalletData = () => {};
@@ -288,6 +284,8 @@ function App() {
   const [showStakingDefiTokens, setShowStakingDefiTokens] = useState(false);
   // Chain selection (null or Set of canonical keys). Default: all selected
   const [selectedChains, setSelectedChains] = useState(null);
+  // View type selector (chart, table, cards)
+  const [viewType, setViewType] = useState('table');
   // View mode toggle state
   // (legacy viewMode state removed; sidebar navigation provides viewMode further below)
 
@@ -328,28 +326,15 @@ function App() {
   const toggleProtocolExpansion = (protocolName) =>
     setProtocolExpansions((prev) => ({ ...prev, [protocolName]: !prev[protocolName] }));
 
-  // Search any address
-  const [searchAddress, setSearchAddress] = useState('');
   const resetSelectionAndSnapshot = () => {
     setSelectedChains(null);
     walletDataSnapshotRef.current = null;
-  };
-  const handleSearch = () => {
-    const addr = (searchAddress || '').trim();
-    if (!addr) {
-      alert('Please enter a wallet address');
-      return;
-    }
-    // Apenas rebalances; supported-chains já está em cache (evitar spam)
-    fetchRebalancesFor(addr);
-    // Auto start aggregation para endereço pesquisado
-    setActiveAggregationAddress(addr);
   };
 
   // Refresh current account
   const handleRefreshWalletData = () => {
     if (account) fetchRebalancesFor(account);
-    // Reinicia agregação para conta conectada
+    // Restart aggregation for connected account
     if (account) setRefreshNonce((n) => n + 1);
   };
 
@@ -359,7 +344,7 @@ function App() {
       walletDataSnapshotRef.current = null;
       setSelectedChains(null);
     }
-    // Não forçamos refreshSupportedChains aqui para evitar requisições repetidas.
+    // Don't force refreshSupportedChains here to avoid repeated requests.
   }, [account]);
 
   // Clear wallet group if no account connected
@@ -390,10 +375,10 @@ function App() {
     status: aggStatus,
     error: aggError,
   } = useAggregationJob();
-  // Após agregação finalizada, buscar supported chains (adiado para evitar requisição inicial extra)
+  // After aggregation finished, fetch supported chains (deferred to avoid extra initial request)
   useEffect(() => {
     if (aggCompleted) {
-      // force para garantir primeira carga mesmo se hook marcar fetch já feito
+      // force to ensure first load even if hook marks fetch already done
       try {
         refreshSupportedChains(true);
       } catch {}
@@ -406,7 +391,7 @@ function App() {
     typeof import.meta !== 'undefined' &&
     (import.meta.env?.VITE_FORCE_AGG_OVERLAY === '1' ||
       import.meta.env?.VITE_FORCE_AGG_OVERLAY === 'true');
-  // Ajuste: se overlay forçado não bloquear menu depois de pronto? Mantemos comportamento original (não mostra menus até ready) para consistência.
+  // Adjustment: if forced overlay doesn't block menu after ready? We keep original behavior (don't show menus until ready) for consistency.
   // Ready flag: only true when aggregation finished and walletData mapped
   const isAggregationReady = aggCompleted && !!walletData;
 
@@ -414,7 +399,7 @@ function App() {
   const walletDataSnapshotRef = React.useRef(null);
   const [snapshotVersion, setSnapshotVersion] = useState(0);
 
-  // Mapear items da agregação (strings) -> tipos numéricos esperados pelos utilitários
+  // Map aggregation items (strings) -> numeric types expected by utilities
   useEffect(() => {
     if (!aggSnapshot || !Array.isArray(aggSnapshot.items)) {
       setWalletData(null);
@@ -453,18 +438,18 @@ function App() {
     }
   }, [aggError, aggCompleted, aggExpired, aggFailed, aggSucceeded]);
 
-  // Endereço alvo para agregação pode ser conta conectada ou endereço buscado manualmente
+  // Target address for aggregation can be connected account or manually searched address
   const [activeAggregationAddress, setActiveAggregationAddress] = useState(null);
   const [activeAggregationGroupId, setActiveAggregationGroupId] = useState(null);
-  const [refreshNonce, setRefreshNonce] = useState(0); // força restart
+  const [refreshNonce, setRefreshNonce] = useState(0); // force restart
 
-  // Sempre que conectar wallet e não houver endereço buscado manualmente, usar a conta conectada
+  // Whenever connecting wallet, use connected account
   useEffect(() => {
-    if (account && !searchAddress && !selectedWalletGroupId) {
+    if (account && !selectedWalletGroupId) {
       setActiveAggregationAddress(account);
       setActiveAggregationGroupId(null);
     }
-  }, [account, searchAddress, selectedWalletGroupId]);
+  }, [account, selectedWalletGroupId]);
 
   // Quando selecionar wallet group, usar o groupId para aggregation
   useEffect(() => {
@@ -474,12 +459,9 @@ function App() {
     }
   }, [selectedWalletGroupId]);
 
-  // Se usuário digita novo searchAddress mas ainda não clicou buscar, não alterar; somente quando busca (handleSearch)
-
-  // Auto ensure: em conectar, buscar ou refresh (via refreshNonce)
+  // Auto ensure: on connect, search or refresh (via refreshNonce)
   useEffect(() => {
     if (activeAggregationGroupId) {
-      console.log('[Aggregation] Wallet Group selected:', activeAggregationGroupId);
       ensureAggregation(activeAggregationGroupId, 'Base', { isGroup: true });
     } else if (activeAggregationAddress) {
       ensureAggregation(activeAggregationAddress, 'Base');
@@ -487,7 +469,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAggregationAddress, activeAggregationGroupId, refreshNonce]);
 
-  // Expor função manual de restart (pode ser ligada a botão futuro)
+  // Expose manual restart function (can be linked to future button)
   const restartAggregation = () => {
     if (!activeAggregationAddress) return;
     resetAgg();
@@ -594,68 +576,44 @@ function App() {
   };
 
   const getStakingData = () => {
-    console.log('getStakingData called, walletData:', walletData);
     if (!walletData) return [];
 
     if (walletData.items && Array.isArray(walletData.items)) {
-      console.log('Using walletData.items, total items:', walletData.items.length);
-      const stakingItems = getStakingItems(walletData.items);
-      console.log('Found staking items:', stakingItems);
-      return stakingItems;
+      return getStakingItems(walletData.items);
     }
 
     if (walletData.data && Array.isArray(walletData.data)) {
-      console.log('Using walletData.data, total items:', walletData.data.length);
-      const stakingItems = getStakingItems(walletData.data);
-      console.log('Found staking items:', stakingItems);
-      return stakingItems;
+      return getStakingItems(walletData.data);
     }
 
-    console.log('Using walletData.staking fallback:', walletData.staking || []);
     return walletData.staking || [];
   };
 
   const getLockingData = () => {
-    console.log('getLockingData called, walletData:', walletData);
     if (!walletData) return [];
 
     if (walletData.items && Array.isArray(walletData.items)) {
-      console.log('Using walletData.items for locking, total items:', walletData.items.length);
-      const lockingItems = getLockingItems(walletData.items);
-      console.log('Found locking items:', lockingItems);
-      return lockingItems;
+      return getLockingItems(walletData.items);
     }
 
     if (walletData.data && Array.isArray(walletData.data)) {
-      console.log('Using walletData.data for locking, total items:', walletData.data.length);
-      const lockingItems = getLockingItems(walletData.data);
-      console.log('Found locking items:', lockingItems);
-      return lockingItems;
+      return getLockingItems(walletData.data);
     }
 
-    console.log('No locking data found');
     return [];
   };
 
   const getDepositingData = () => {
-    console.log('getDepositingData called, walletData:', walletData);
     if (!walletData) return [];
 
     if (walletData.items && Array.isArray(walletData.items)) {
-      console.log('Using walletData.items for depositing, total items:', walletData.items.length);
-      const depositingItems = getDepositingItems(walletData.items);
-      console.log('Found depositing items:', depositingItems);
-      return depositingItems;
+      return getDepositingItems(walletData.items);
     }
 
     if (walletData.data && Array.isArray(walletData.data)) {
-      console.log('Using walletData.data for depositing, total items:', walletData.data.length);
-      const depositingItems = getDepositingItems(walletData.data);
-      console.log('Found depositing items:', depositingItems);
-      return depositingItems;
+      return getDepositingItems(walletData.data);
     }
 
-    console.log('No depositing data found');
     return [];
   };
 
@@ -696,36 +654,36 @@ function App() {
   let walletValue = 0;
   let walletPercent = '0%';
 
-  // Initialize selected chains when they load the first time
+  // Initialize selected chains when they load the first time (only once, not on every change)
+  const hasInitializedChains = useRef(false);
   useEffect(() => {
-    if (supportedChains && supportedChains.length > 0 && selectedChains === null) {
-      const initial = new Set(
-        supportedChains.map((sc) =>
-          normalizeChainKey(
-            sc.displayName ||
-              sc.name ||
-              sc.shortName ||
-              sc.id ||
-              sc.chainId ||
-              sc.chain ||
-              sc.network ||
-              sc.networkId
-          )
-        )
-      );
-      setSelectedChains(initial);
-      try {
-        console.log('[Chains] Initialized selection with all chains:', Array.from(initial));
-      } catch {}
+    if (supportedChains && supportedChains.length > 0 && !hasInitializedChains.current) {
+      hasInitializedChains.current = true;
+      // Start with all chains selected (null means all)
+      setSelectedChains(null);
     }
-  }, [supportedChains, selectedChains]);
+  }, [supportedChains]);
 
-  const isAllChainsSelected =
-    selectedChains && supportedChains && selectedChains.size === supportedChains.length;
+  // --- Chain alias & filtering utilities ---
+  // Normalize helper (lowercase + trimmed string)
+  const normalizeChainKey = (v) => {
+    if (v === undefined || v === null) return undefined;
+    return String(v).trim().toLowerCase();
+  };
+
+  const isAllChainsSelected = selectedChains === null ||
+    (selectedChains && supportedChains && 
+     selectedChains.size === supportedChains.length &&
+     supportedChains.every(sc => {
+       const key = normalizeChainKey(
+         sc.displayName || sc.name || sc.shortName || sc.id || 
+         sc.chainId || sc.chain || sc.network || sc.networkId
+       );
+       return selectedChains.has(key);
+     }));
+
   const toggleChainSelection = (chainCanonicalKey) => {
-    try {
-      console.log('[Chains] Toggle click:', chainCanonicalKey);
-    } catch {}
+
     setSelectedChains((prev) => {
       if (!prev) return new Set([chainCanonicalKey]);
       const next = new Set(prev);
@@ -736,18 +694,9 @@ function App() {
       } else {
         next.add(chainCanonicalKey);
       }
-      try {
-        console.log('[Chains] Selected after toggle:', Array.from(next));
-      } catch {}
+
       return next;
     });
-  };
-
-  // --- Chain alias & filtering utilities ---
-  // Normalize helper (lowercase + trimmed string)
-  const normalizeChainKey = (v) => {
-    if (v === undefined || v === null) return undefined;
-    return String(v).trim().toLowerCase();
   };
 
   const chainAliasToCanonical = React.useMemo(() => {
@@ -1166,7 +1115,7 @@ function App() {
 
     if (unmatchedDebug.liquidity + unmatchedDebug.lending + unmatchedDebug.staking > 0) {
       try {
-        console.log('[DEBUG] Unmatched chain value by category (USD):', unmatchedDebug);
+
       } catch {}
     }
 
@@ -1197,21 +1146,24 @@ function App() {
     return sum;
   }, [supportedChains, chainTotals]);
 
-  // Navigation view mode (segmented)
-  const [viewMode, setViewMode] = useState('overview');
+  // Map viewType to viewMode for backwards compatibility
+  // chart -> summary, table -> overview, cards -> overview (card view), strategies -> strategies
+  const viewMode = viewType === 'chart' ? 'summary' 
+    : viewType === 'strategies' ? 'strategies'
+    : 'overview'; // both 'table' and 'cards' use overview data
 
   // Redirect from Strategies if no wallet group is selected
   useEffect(() => {
     if (viewMode === 'strategies' && !selectedWalletGroupId) {
-      setViewMode('overview');
+      setViewType('table');
     }
   }, [viewMode, selectedWalletGroupId]);
 
-  // Gated rebalances: só buscar quando usuário abre a view de strategies
+  // Gated rebalances: only fetch when user opens strategies view
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Só buscar se viewMode for 'strategies' e agregação estiver completa
+      // Only fetch if viewMode is 'strategies' and aggregation is complete
       if (viewMode !== 'strategies' || !aggCompleted) {
         return;
       }
@@ -1286,7 +1238,6 @@ function App() {
           <>
             <HeaderBar
               account={account}
-              onSearch={() => handleSearch()}
               onRefresh={() => account && callAccountAPI(account, setLoading)}
               onDisconnect={handleDisconnect}
               onConnect={connectWallet}
@@ -1302,8 +1253,6 @@ function App() {
                   navigator.clipboard.writeText(val);
                 } catch {}
               }}
-              searchAddress={searchAddress}
-              setSearchAddress={setSearchAddress}
             />
             <div className="w-full flex flex-column" style={{ minHeight: '100vh' }}>
               <div
@@ -1313,17 +1262,29 @@ function App() {
                   boxSizing: 'border-box',
                 }}
               >
-                {/* Segmented Nav */}
-                <div className="mt-12 mb-20 flex justify-center">
-                  <SegmentedNav
-                    value={viewMode}
-                    onChange={setViewMode}
-                    disabled={!isAggregationReady}
-                    selectedWalletGroupId={selectedWalletGroupId}
-                  />
-                </div>
-                {/* Supported Chains: only on Overview after aggregation ready */}
-                {isAggregationReady && viewMode === 'overview' && (
+                {/* View Type & Chain Filter Selectors */}
+                {isAggregationReady && supportedChains && supportedChains.length > 0 && (
+                  <div className="mb-16" style={{ 
+                    display: 'flex', 
+                    justifyContent: isMobile ? 'center' : 'flex-end', 
+                    alignItems: 'center', 
+                    gap: 12,
+                    flexWrap: 'wrap'
+                  }}>
+                    <ViewModeSelector
+                      value={viewType}
+                      onChange={setViewType}
+                    />
+                    <ChainSelector
+                      supportedChains={supportedChains}
+                      selectedChains={selectedChains}
+                      onSelectionChange={setSelectedChains}
+                    />
+                  </div>
+                )}
+
+                {/* Supported Chains: only on Charts (viewType === 'chart') after aggregation ready */}
+                {isAggregationReady && viewMode === 'overview' && viewType === 'chart' && (
                   <div className="mt-18">
                     {chainsLoading && (!supportedChains || supportedChains.length === 0) && (
                       <div className="text-base" style={{ color: theme.textSecondary }}>
@@ -1370,8 +1331,8 @@ function App() {
                               chainTotals[chainKeyFallback] ??
                               chainTotals[canonicalKey.toLowerCase()] ??
                               0;
-                            const selectedSet = selectedChains || new Set();
-                            const isSelected = selectedSet.has(canonicalKeyNormalized);
+                            // When selectedChains is null, all chains are selected
+                            const isSelected = selectedChains === null || selectedChains.has(canonicalKeyNormalized);
                             const percent = calculatePercentage(value, totalAllChains);
                             return (
                               <div
@@ -1484,7 +1445,7 @@ function App() {
 
                 {/* (Removed legacy inline main content duplication and old horizontal view mode toggle) */}
 
-                {/* Overlay de sincronização bloqueando interação até conclusão */}
+                {/* Synchronization overlay blocking interaction until completion */}
                 {(DEV_FORCE_AGG_OVERLAY || aggJobId) && (
                   <div
                     aria-busy={!aggCompleted}
@@ -1825,7 +1786,7 @@ function App() {
                                 </div>
                               </div>
                             );
-                            return (
+                            return viewType === 'table' ? (
                               <SectionTable
                                 title="Wallet"
                                 icon={
@@ -1887,33 +1848,92 @@ function App() {
                                   </div>
                                 }
                               />
-                            );
+                            ) : null;
                           })()}
                         {/* Protocols only in Overview */}
-                        <ErrorBoundary>
-                          <ProtocolsSection
-                            getLiquidityPoolsData={getLiquidityPoolsData}
-                            getLendingAndBorrowingData={getLendingAndBorrowingData}
-                            getStakingData={getStakingData}
-                            getLockingData={getLockingData}
-                            getDepositingData={getDepositingData}
-                            selectedChains={selectedChains}
-                            isAllChainsSelected={isAllChainsSelected}
-                            getCanonicalFromObj={getCanonicalFromObj}
-                            filterLendingDefiTokens={filterLendingDefiTokens}
-                            filterStakingDefiTokens={filterStakingDefiTokens}
-                            showLendingDefiTokens={showLendingDefiTokens}
-                            showStakingDefiTokens={showStakingDefiTokens}
-                            setShowLendingDefiTokens={setShowLendingDefiTokens}
-                            setShowStakingDefiTokens={setShowStakingDefiTokens}
-                            protocolExpansions={protocolExpansions}
-                            toggleProtocolExpansion={toggleProtocolExpansion}
-                            calculatePercentage={calculatePercentage}
-                            getTotalPortfolioValue={getTotalPortfolioValue}
-                            maskValue={maskValue}
-                            theme={theme}
-                          />
-                        </ErrorBoundary>
+                        {viewType === 'cards' ? (
+                          /* Card View */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+                            {/* Wallet Tokens Cards */}
+                            {(() => {
+                              const filtered = walletTokens;
+                              return filtered.length > 0 && (
+                                <div>
+                                  <WalletSectionHeader data={filtered} />
+                                  <WalletCards data={filtered} />
+                                </div>
+                              );
+                            })()}
+
+                            {/* Lending Positions Cards */}
+                            {(() => {
+                              const filtered = getLendingAndBorrowingData().filter(defiItemMatchesSelection);
+                              return filtered.length > 0 && (
+                                <div>
+                                  <LendingSectionHeader data={filtered} />
+                                  <LendingSubSectionHeader data={filtered} />
+                                  <LendingCards data={filtered} />
+                                </div>
+                              );
+                            })()}
+
+                            {/* Liquidity Pool Cards */}
+                            {(() => {
+                              const filtered = getLiquidityPoolsData().filter(defiItemMatchesSelection);
+                              return filtered.length > 0 && (
+                                <div>
+                                  <PoolsSectionHeader data={filtered} />
+                                  <LiquiditySubSectionHeader data={filtered} />
+                                  <PoolCards data={filtered} />
+                                </div>
+                              );
+                            })()}
+
+                            {/* Staking Cards */}
+                            {(() => {
+                              const filtered = getStakingData().filter(defiItemMatchesSelection);
+                              return filtered.length > 0 && (
+                                <div>
+                                  <h3 style={{ 
+                                    fontSize: 18, 
+                                    fontWeight: 600, 
+                                    color: theme.textPrimary,
+                                    marginBottom: 16,
+                                  }}>
+                                    Staking
+                                  </h3>
+                                  <StakingCards data={filtered} />
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        ) : (
+                          /* Table View */
+                          <ErrorBoundary>
+                            <ProtocolsSection
+                              getLiquidityPoolsData={getLiquidityPoolsData}
+                              getLendingAndBorrowingData={getLendingAndBorrowingData}
+                              getStakingData={getStakingData}
+                              getLockingData={getLockingData}
+                              getDepositingData={getDepositingData}
+                              selectedChains={selectedChains}
+                              isAllChainsSelected={isAllChainsSelected}
+                              getCanonicalFromObj={getCanonicalFromObj}
+                              filterLendingDefiTokens={filterLendingDefiTokens}
+                              filterStakingDefiTokens={filterStakingDefiTokens}
+                              showLendingDefiTokens={showLendingDefiTokens}
+                              showStakingDefiTokens={showStakingDefiTokens}
+                              setShowLendingDefiTokens={setShowLendingDefiTokens}
+                              setShowStakingDefiTokens={setShowStakingDefiTokens}
+                              protocolExpansions={protocolExpansions}
+                              toggleProtocolExpansion={toggleProtocolExpansion}
+                              calculatePercentage={calculatePercentage}
+                              getTotalPortfolioValue={getTotalPortfolioValue}
+                              maskValue={maskValue}
+                              theme={theme}
+                            />
+                          </ErrorBoundary>
+                        )}
                       </>
                     )}
                   </>

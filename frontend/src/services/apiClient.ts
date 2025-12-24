@@ -102,8 +102,6 @@ axios.interceptors.response.use(
       const match = error.config?.url?.match(/\/wallet-groups\/([^\/]+)/);
       if (match && match[1] && match[1] !== 'challenge' && match[1] !== 'connect') {
         const walletGroupId = decodeURIComponent(match[1]);
-        console.warn('[apiClient] Token expired for wallet group:', walletGroupId);
-        
         removeToken(walletGroupId);
         notifyTokenExpired(walletGroupId);
       }
@@ -112,7 +110,6 @@ axios.interceptors.response.use(
         try {
           const body = JSON.parse(error.config.data);
           if (body.walletGroupId) {
-            console.warn('[apiClient] Token expired for wallet group in aggregation:', body.walletGroupId);
             removeToken(body.walletGroupId);
             notifyTokenExpired(body.walletGroupId);
           }
@@ -151,14 +148,14 @@ export async function createWalletGroup(data: CreateWalletGroupRequest): Promise
   if (data.password) {
     try {
       await connectWalletGroup(walletGroup.id, { password: data.password });
-    } catch (err) {
-      console.warn('[WalletGroup] Failed to auto-connect after creation:', err);
+    } catch {
+      // Silently handle auto-connect failure
     }
   } else {
     try {
       await connectWalletGroup(walletGroup.id, {});
-    } catch (err) {
-      console.warn('[WalletGroup] Failed to auto-connect without password:', err);
+    } catch {
+      // Silently handle auto-connect failure
     }
   }
   
@@ -174,7 +171,6 @@ export async function connectWalletGroup(
   
   storeToken(response.walletGroupId, response.token, response.expiresAt);
   
-  console.log('[WalletGroup] Connected and token stored for group:', response.walletGroupId);
   return response;
 }
 

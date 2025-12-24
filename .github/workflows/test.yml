@@ -62,14 +62,13 @@ jobs:
 
       - name: Run unit tests
         run: |
-          dotnet test \
+          dotnet test DeFi10.API.Tests/DeFi10.API.Tests.csproj \
             --configuration Release \
             --no-build \
             --verbosity normal \
             --logger "trx;LogFileName=test-results.trx" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
-            --filter "Category!=Integration&Category!=E2E" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Code Coverage Summary

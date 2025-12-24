@@ -17,6 +17,8 @@ public class AdditionalData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? CreatedAt { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string PoolId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? UnlockAt { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public RangeInfo? Range { get; set; }
@@ -31,4 +33,10 @@ public class AdditionalData
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public decimal? Apr { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? Apy { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Projection? Projection { get; set; }
 }

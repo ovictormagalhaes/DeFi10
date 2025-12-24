@@ -116,7 +116,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         var account = result.Account;
         var accountLower = account.ToLowerInvariant();
 
-        // 1. VERIFICAR CACHE COMPARTILHADO (cross-job)
         var cacheKey = RedisKeys.WalletCache(accountLower, chainEnum, providerSlug);
         var cachedResult = await db.StringGetAsync(cacheKey);
         
@@ -130,7 +129,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                 var cachedIntegrationResult = JsonSerializer.Deserialize<IntegrationResult>(cachedResult!, _jsonOptions);
                 if (cachedIntegrationResult != null)
                 {
-                    // Atualizar JobId para o job atual
                     cachedIntegrationResult = cachedIntegrationResult with { JobId = jobId };
                     result = cachedIntegrationResult;
                 }
@@ -142,7 +140,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         }
         else if (result.Status == IntegrationStatus.Success)
         {
-            // 2. SALVAR NO CACHE (TTL configurável para reutilização cross-job)
             await db.StringSetAsync(cacheKey, JsonSerializer.Serialize(result, _jsonOptions), _walletCacheTtl);
             _logger.LogDebug("CACHE SAVED: Cached result for {Account} {Provider} {Chain} (TTL={TTL}min)", 
                 account, result.Provider, chainEnum, _walletCacheTtl.TotalMinutes);
@@ -270,6 +267,20 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                             if (protocolRemoved > 0)
                                 _logger.LogDebug("Deduplicated {Count} Moralis protocol receipt tokens (by pattern) chain={Chain} account={Account}", 
                                     protocolRemoved, chainEnum, account);
+
+                            // Filter tokens with zero or negative balance
+                            int zeroBalanceRemoved = 0;
+                            foreach (var wi in newlyMapped.Where(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && i.Position?.Tokens != null))
+                            {
+                                var before = wi.Position.Tokens.Count;
+                                wi.Position.Tokens = wi.Position.Tokens
+                                    .Where(t => t?.Financials?.BalanceFormatted > 0)
+                                    .ToList();
+                                zeroBalanceRemoved += Math.Max(0, before - wi.Position.Tokens.Count);
+                            }
+                            if (zeroBalanceRemoved > 0)
+                                _logger.LogDebug("Filtered {Count} Moralis tokens with zero balance chain={Chain} account={Account}", 
+                                    zeroBalanceRemoved, chainEnum, account);
 
                             newlyMapped.RemoveAll(i => i.Type == WalletItemType.Wallet && i.Protocol?.Id == "moralis" && (i.Position?.Tokens == null || i.Position.Tokens.Count == 0));
                         }

@@ -151,7 +151,9 @@ public class TokenHydrationHelper
         return existingLogos;
     }
 
-    public async Task ApplyTokenLogosToWalletItemsAsync(IEnumerable<WalletItem> walletItems, Dictionary<string, string?> tokenLogos, Chain chain)
+    public (Dictionary<string, TokenMetadata> AddressToMetadata, 
+            Dictionary<string, TokenMetadata> SymbolNameToMetadata, 
+            Dictionary<string, string> SymbolToLogo) BuildMetadataDictionaries(IEnumerable<WalletItem> walletItems)
     {
         var addressToMetadata = new Dictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
         var symbolNameToMetadata = new Dictionary<string, TokenMetadata>(StringComparer.OrdinalIgnoreCase);
@@ -184,32 +186,58 @@ public class TokenHydrationHelper
                     _logger.LogDebug("[TokenHydration] Registered metadata for address {Address}: symbol={Symbol}, name={Name}, hasLogo={HasLogo}", 
                         token.ContractAddress, token.Symbol ?? "EMPTY", token.Name ?? "EMPTY", hasLogo);
                 }
-                
-                if (hasSymbol && hasLogo && tokenLogos.TryGetValue(normalizedAddress, out var cachedLogo))
-                {
-                    var normalizedSymbol = token.Symbol!.ToUpperInvariant();
-                    if (!symbolToLogo.ContainsKey(normalizedSymbol))
-                    {
-                        symbolToLogo[normalizedSymbol] = cachedLogo!;
-                    }
-                }
             }
             
             if (hasSymbol && hasName)
             {
                 var compositeKey = $"{token.Symbol!.ToUpperInvariant()}:{token.Name!.ToUpperInvariant()}";
                 
-                if (!symbolNameToMetadata.ContainsKey(compositeKey))
+                // Only add/update if:
+                // 1. Key doesn't exist, OR
+                // 2. Existing entry has no price but current token has price, OR
+                // 3. Existing entry has no logo but current token has logo
+                var tokenPrice = token.Financials?.Price > 0 ? token.Financials.Price : null;
+                
+                if (!symbolNameToMetadata.TryGetValue(compositeKey, out var existingMetadata))
                 {
+                    // New entry - add it
                     var metadata = new TokenMetadata
                     {
                         Symbol = token.Symbol!,
                         Name = token.Name!,
-                        LogoUrl = token.Logo
+                        LogoUrl = token.Logo,
+                        PriceUsd = tokenPrice
                     };
                     symbolNameToMetadata[compositeKey] = metadata;
-                    _logger.LogDebug("[TokenHydration] Registered metadata for {Symbol}/{Name}, hasLogo={HasLogo}", 
-                        token.Symbol, token.Name, hasLogo);
+                    _logger.LogInformation("[TokenHydration] Registered NEW metadata for {Symbol}/{Name}, hasLogo={HasLogo}, priceUsd={Price}", 
+                        token.Symbol, token.Name, hasLogo, metadata.PriceUsd);
+                }
+                else
+                {
+                    // Update existing entry if current token has better data
+                    bool updated = false;
+                    
+                    if (existingMetadata.PriceUsd == null && tokenPrice.HasValue)
+                    {
+                        existingMetadata.PriceUsd = tokenPrice;
+                        updated = true;
+                        _logger.LogInformation("[TokenHydration] UPDATED price for {Symbol}/{Name}: {Price}", 
+                            token.Symbol, token.Name, tokenPrice);
+                    }
+                    
+                    if (string.IsNullOrEmpty(existingMetadata.LogoUrl) && hasLogo)
+                    {
+                        existingMetadata.LogoUrl = token.Logo;
+                        updated = true;
+                        _logger.LogInformation("[TokenHydration] UPDATED logo for {Symbol}/{Name}", 
+                            token.Symbol, token.Name);
+                    }
+                    
+                    if (updated)
+                    {
+                        _logger.LogInformation("[TokenHydration] Final metadata for {Symbol}/{Name}: hasLogo={HasLogo}, hasPrice={HasPrice}", 
+                            token.Symbol, token.Name, !string.IsNullOrEmpty(existingMetadata.LogoUrl), existingMetadata.PriceUsd.HasValue);
+                    }
                 }
             }
             
@@ -223,10 +251,26 @@ public class TokenHydrationHelper
             }
         }
         
-        _logger.LogInformation("[TokenHydration] Collected metadata maps: addressToMetadata={AddressCount}, symbolNameToMetadata={SymbolNameCount}, symbolToLogo={SymbolCount}",
+        _logger.LogInformation("[TokenHydration] Built metadata dictionaries: addressToMetadata={AddressCount}, symbolNameToMetadata={SymbolNameCount}, symbolToLogo={SymbolCount}",
             addressToMetadata.Count, symbolNameToMetadata.Count, symbolToLogo.Count);
 
-        foreach (var walletItem in walletItems)
+        return (addressToMetadata, symbolNameToMetadata, symbolToLogo);
+    }
+
+    public async Task ApplyTokenLogosToWalletItemsAsync(
+        IEnumerable<WalletItem> walletItemsToProcess, 
+        Dictionary<string, string?> tokenLogos, 
+        Chain chain,
+        (Dictionary<string, TokenMetadata> AddressToMetadata, 
+         Dictionary<string, TokenMetadata> SymbolNameToMetadata, 
+         Dictionary<string, string> SymbolToLogo) metadataDictionaries)
+    {
+        var (addressToMetadata, symbolNameToMetadata, symbolToLogo) = metadataDictionaries;
+
+        _logger.LogInformation("[TokenHydration] Using metadata dictionaries: addressToMetadata={AddressCount}, symbolNameToMetadata={SymbolNameCount}, symbolToLogo={SymbolCount}",
+            addressToMetadata.Count, symbolNameToMetadata.Count, symbolToLogo.Count);
+
+        foreach (var walletItem in walletItemsToProcess)
         {
             if (walletItem.Position?.Tokens != null)
             {
@@ -238,7 +282,6 @@ public class TokenHydrationHelper
                         token.ContractAddress, token.Symbol, token.Name, token.Financials?.Price);
                     
                     TokenMetadata? foundMetadata = null;
-                    bool metadataChanged = false;
                     
                     if (!string.IsNullOrEmpty(token.ContractAddress))
                     {
@@ -314,7 +357,6 @@ public class TokenHydrationHelper
                                         token.Financials.TotalPrice = token.Financials.BalanceFormatted.Value * foundMetadata.PriceUsd.Value;
                                     }
                                     
-                                    metadataChanged = true;
                                     _logger.LogInformation("[TokenHydration] ✅ Filled price by address: {Price} USD (address: {Address}, symbol: {Symbol}, balance: {Balance}, totalPrice: {TotalPrice})", 
                                         foundMetadata.PriceUsd.Value, token.ContractAddress, token.Symbol, 
                                         token.Financials.BalanceFormatted, token.Financials.TotalPrice);
@@ -342,47 +384,113 @@ public class TokenHydrationHelper
                                 await _metadataService.SetTokenMetadataAsync(chain, normalizedAddress, completeMetadata);
                             }
                             
-                            // Skip further lookups if all metadata fields are now complete
-                            if (!string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name) && !string.IsNullOrEmpty(token.Logo))
+                            // Skip further lookups only if all metadata fields AND price are complete
+                            var hasCompleteMetadata = !string.IsNullOrEmpty(token.Symbol) && 
+                                                     !string.IsNullOrEmpty(token.Name) && 
+                                                     !string.IsNullOrEmpty(token.Logo);
+                            var hasValidPrice = token.Financials?.Price != null && token.Financials.Price > 0;
+                            
+                            if (hasCompleteMetadata && hasValidPrice)
                                 continue;
                         }
                     }
                     
-                    if (!string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name) && string.IsNullOrEmpty(token.Logo))
+                    // Try to find metadata by symbol+name if:
+                    // 1. Logo is missing, OR
+                    // 2. Price is missing/zero (even if logo exists)
+                    var needsLogoFallback = !string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name) && string.IsNullOrEmpty(token.Logo);
+                    var needsPriceFallback = !string.IsNullOrEmpty(token.Symbol) && !string.IsNullOrEmpty(token.Name) && 
+                                            (token.Financials?.Price == null || token.Financials.Price == 0);
+                    
+                    _logger.LogInformation("[TokenHydration] Fallback check: address={Address}, symbol={Symbol}, name={Name}, logo={HasLogo}, price={Price}, needsLogoFallback={NeedsLogo}, needsPriceFallback={NeedsPrice}",
+                        token.ContractAddress, token.Symbol, token.Name, !string.IsNullOrEmpty(token.Logo), token.Financials?.Price, needsLogoFallback, needsPriceFallback);
+                    
+                    if (needsLogoFallback || needsPriceFallback)
                     {
-                        var compositeKey = $"{token.Symbol.ToUpperInvariant()}:{token.Name.ToUpperInvariant()}";
-                        
-                        if (symbolNameToMetadata.TryGetValue(compositeKey, out foundMetadata))
+                        try
                         {
-                            _logger.LogDebug("[TokenHydration] Found metadata by symbol+name (local): {Symbol}/{Name}", token.Symbol, token.Name);
-                        }
-                        else
-                        {
-                            foundMetadata = await _metadataService.GetTokenMetadataBySymbolAndNameAsync(token.Symbol, token.Name);
-                            if (foundMetadata != null)
+                            var compositeKey = $"{token.Symbol!.ToUpperInvariant()}:{token.Name!.ToUpperInvariant()}";
+                            
+                            if (symbolNameToMetadata.TryGetValue(compositeKey, out foundMetadata))
                             {
-                                _logger.LogInformation("[TokenHydration] Found metadata by symbol+name (storage/CMC): {Symbol}/{Name}", token.Symbol, token.Name);
-                                symbolNameToMetadata[compositeKey] = foundMetadata;
+                                _logger.LogInformation("[TokenHydration] Found metadata by symbol+name (local): {Symbol}/{Name}", token.Symbol, token.Name);
+                            }
+                            else
+                            {
+                                _logger.LogInformation("[TokenHydration] Calling GetTokenMetadataBySymbolAndNameAsync for symbol={Symbol}, name={Name}", token.Symbol, token.Name);
+                                foundMetadata = await _metadataService.GetTokenMetadataBySymbolAndNameAsync(token.Symbol, token.Name);
+                                if (foundMetadata != null)
+                                {
+                                    _logger.LogInformation("[TokenHydration] Found metadata by symbol+name (storage/CMC): {Symbol}/{Name}", token.Symbol, token.Name);
+                                    symbolNameToMetadata[compositeKey] = foundMetadata;
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("[TokenHydration] Symbol+name lookup FAILED: compositeKey={CompositeKey}, symbol={Symbol}, name={Name}", 
+                                        compositeKey, token.Symbol, token.Name);
+                                }
                             }
                         }
-                        
-                        if (foundMetadata != null && string.IsNullOrEmpty(token.Logo) && !string.IsNullOrEmpty(foundMetadata.LogoUrl))
+                        catch (Exception ex)
                         {
-                            token.Logo = foundMetadata.LogoUrl;
-                            metadataChanged = true;
-                            _logger.LogInformation("[TokenHydration] Filled logo by symbol+name: {Symbol}/{Name}", token.Symbol, token.Name);
+                            _logger.LogError(ex, "[TokenHydration] EXCEPTION during symbol+name fallback: symbol={Symbol}, name={Name}", token.Symbol, token.Name);
+                        }
+                        
+                        if (foundMetadata != null)
+                        {
+                            _logger.LogInformation("[TokenHydration] Found metadata details: Symbol={Symbol}, Name={Name}, LogoUrl={Logo}, PriceUsd={Price}", 
+                                foundMetadata.Symbol, foundMetadata.Name, foundMetadata.LogoUrl, foundMetadata.PriceUsd);
                             
-                            if (!string.IsNullOrEmpty(token.ContractAddress))
+                            bool metadataUpdated = false;
+                            
+                            // Fill logo if missing
+                            if (string.IsNullOrEmpty(token.Logo) && !string.IsNullOrEmpty(foundMetadata.LogoUrl))
+                            {
+                                token.Logo = foundMetadata.LogoUrl;
+                                metadataUpdated = true;
+                                _logger.LogInformation("[TokenHydration] Filled logo by symbol+name: {Symbol}/{Name}", token.Symbol, token.Name);
+                            }
+                            
+                            // Fill price if missing/zero
+                            if (needsPriceFallback && foundMetadata.PriceUsd.HasValue && foundMetadata.PriceUsd.Value > 0)
+                            {
+                                if (token.Financials == null)
+                                    token.Financials = new TokenFinancials();
+                                    
+                                token.Financials.Price = foundMetadata.PriceUsd.Value;
+                                
+                                // Calculate TotalPrice using BalanceFormatted
+                                if (token.Financials.BalanceFormatted.HasValue)
+                                {
+                                    token.Financials.TotalPrice = token.Financials.BalanceFormatted.Value * foundMetadata.PriceUsd.Value;
+                                }
+                                
+                                metadataUpdated = true;
+                                _logger.LogInformation("[TokenHydration] ✅ Filled price by symbol+name: {Price} USD (symbol: {Symbol}, name: {Name}, balance: {Balance}, totalPrice: {TotalPrice})", 
+                                    foundMetadata.PriceUsd.Value, token.Symbol, token.Name,
+                                    token.Financials.BalanceFormatted, token.Financials.TotalPrice);
+                            }
+                            else if (needsPriceFallback)
+                            {
+                                _logger.LogWarning("[TokenHydration] ⚠️ Cannot fill price: needsPriceFallback={NeedsFallback}, PriceUsd.HasValue={HasValue}, PriceUsd.Value={Value}", 
+                                    needsPriceFallback, foundMetadata.PriceUsd.HasValue, foundMetadata.PriceUsd);
+                            }
+                            
+                            // Store the updated metadata
+                            if (metadataUpdated && !string.IsNullOrEmpty(token.ContractAddress))
                             {
                                 var completeMetadata = new TokenMetadata
                                 {
                                     Symbol = token.Symbol,
                                     Name = token.Name,
-                                    LogoUrl = token.Logo
+                                    LogoUrl = token.Logo,
+                                    PriceUsd = token.Financials?.Price
                                 };
                                 await _metadataService.SetTokenMetadataAsync(chain, token.ContractAddress.ToLowerInvariant(), completeMetadata);
                             }
-                            continue;
+                            
+                            if (metadataUpdated)
+                                continue;
                         }
                     }
                     
