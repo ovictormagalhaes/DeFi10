@@ -176,7 +176,7 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
 
   // Breakpoints para responsividade
   const hideRange = vw < 600;
-  const hideRewards = vw < 800;
+  const hidePrice = vw < 768;
   const hideAmount = vw < 950;
 
   if (!items || items.length === 0) return null;
@@ -314,21 +314,22 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
         </div>
       )}
 
-      <table className="table-unified text-primary">
-        <StandardHeader
+      <div className="table-wrapper">
+        <table className="table-unified text-primary">
+          <StandardHeader
           columns={
             [
               'token',
               !hideRange && 'range',
+              !hidePrice && 'price',
               !hideAmount && 'amount',
-              !hideRewards && 'uncollected',
               'value',
             ].filter(Boolean) as string[]
           }
           columnDefs={[
             !hideRange && { key: 'range', label: 'Range', align: 'center' },
+            !hidePrice && { key: 'price', label: 'Price', align: 'right' },
             !hideAmount && { key: 'amount', label: 'Amount', align: 'right' },
-            !hideRewards && { key: 'uncollected', label: 'Uncollected', align: 'right' },
             { key: 'value', label: 'Value', align: 'right' },
           ].filter(Boolean)}
           labels={{ token: 'Pools' }}
@@ -412,13 +413,15 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
                     </td>
                   )}
 
-                  {!hideAmount && (
-                    <td className="td td-right td-mono text-primary col-amount">-</td>
+                  {!hidePrice && (
+                    <td className="td td-right td-mono text-primary col-price">
+                      <span className="td-placeholder">-</span>
+                    </td>
                   )}
 
-                  {!hideRewards && (
-                    <td className="td td-right td-mono text-primary col-uncollected">
-                      {maskValue(formatPrice(totalRewardsValue))}
+                  {!hideAmount && (
+                    <td className="td td-right td-mono text-primary col-amount">
+                      <span className="td-placeholder">-</span>
                     </td>
                   )}
 
@@ -482,17 +485,15 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
 
                             {!hideRange && <td className="td-small td-center col-range" />}
 
-                            {!hideAmount && (
-                              <td className="td-small td-right td-mono text-primary col-amount">
-                                {maskValue(formatTokenAmount(t, 4))}
+                            {!hidePrice && (
+                              <td className="td-small td-right td-mono text-primary col-price">
+                                {maskValue(formatPrice(t.price || 0))}
                               </td>
                             )}
 
-                            {!hideRewards && (
-                              <td className="td-small td-right td-mono text-primary col-uncollected">
-                                {tokenRewardsValue && tokenRewardsValue > 0.001
-                                  ? maskValue(formatPrice(tokenRewardsValue))
-                                  : '-'}
+                            {!hideAmount && (
+                              <td className="td-small td-right td-mono text-primary col-amount">
+                                {maskValue(formatTokenAmount(t, 4))}
                               </td>
                             )}
 
@@ -514,13 +515,14 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
           columns={
             [
               !hideRange && 'range',
+              !hidePrice && 'price',
               !hideAmount && 'amount',
-              !hideRewards && 'rewards',
               'value',
             ].filter(Boolean) as string[]
           }
         />
       </table>
+      </div>
     </div>
   );
 };

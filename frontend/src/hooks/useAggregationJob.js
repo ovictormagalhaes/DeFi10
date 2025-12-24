@@ -122,15 +122,13 @@ export function useAggregationJob() {
     async (accountOrGroupId, _unusedChain = null, { force = false, isGroup = false } = {}) => {
       if (!accountOrGroupId) return null;
       const now = Date.now();
-      // Throttle: ignora ensures repetidos em < 500ms
       if (!force && now - lastEnsureTsRef.current < 500) return jobId;
       lastEnsureTsRef.current = now;
 
-      // Se já temos job para mesmo account/chain ativo e não expirado e não force -> reutiliza
       if (!force && jobId && !expired && !isGroup && lastAccountRef.current === accountOrGroupId) {
         return jobId;
       }
-      if (ensureInFlightRef.current) return jobId; // evita corrida
+      if (ensureInFlightRef.current) return jobId;
       ensureInFlightRef.current = true;
       try {
         setLoading(true);

@@ -13,7 +13,6 @@ import type {
   Financials,
 } from './wallet';
 
-// Utilidade para logging de validação
 const validationLog = {
   errors: [] as string[],
   warnings: [] as string[],
@@ -42,7 +41,6 @@ const validationLog = {
   },
 };
 
-// Type Guards para verificação em runtime
 export const TypeGuards = {
   isString(value: any): value is string {
     return typeof value === 'string';
@@ -64,7 +62,6 @@ export const TypeGuards = {
     return Array.isArray(value);
   },
 
-  // Validação de Financials
   isFinancials(value: any): value is Financials {
     if (!this.isObject(value)) return false;
     const obj = value as any;
@@ -72,7 +69,6 @@ export const TypeGuards = {
     const required = ['amount', 'totalPrice'];
     const optional = ['decimalPlaces', 'amountFormatted', 'balanceFormatted', 'price'];
 
-    // Verificar campos obrigatórios
     for (const field of required) {
       if (!(field in obj) || !this.isNumber(obj[field])) {
         validationLog.error(`Financials.${field} is missing or not a number`);
@@ -80,7 +76,6 @@ export const TypeGuards = {
       }
     }
 
-    // Verificar campos opcionais se existirem
     for (const field of optional) {
       if (field in obj && !this.isNumber(obj[field])) {
         validationLog.warn(`Financials.${field} exists but is not a number`);
@@ -90,7 +85,6 @@ export const TypeGuards = {
     return true;
   },
 
-  // Validação de Token
   isToken(value: any): value is Token {
     if (!this.isObject(value)) {
       validationLog.error('Token is not an object');
@@ -130,7 +124,6 @@ export const TypeGuards = {
     return true;
   },
 
-  // Validação de Range
   isRange(value: any): value is Range {
     if (!this.isObject(value)) return false;
     const obj = value as any;
@@ -157,11 +150,9 @@ export const TypeGuards = {
     return true;
   },
 
-  // Validação de AdditionalData
   isAdditionalData(value: any): value is AdditionalData {
     if (!this.isObject(value)) return false;
 
-    // Campos opcionais - validar se existem
     if ('range' in value && value.range !== null && !this.isRange(value.range)) {
       validationLog.error('AdditionalData.range is invalid');
       return false;
@@ -181,8 +172,6 @@ export const TypeGuards = {
 
     return true;
   },
-
-  // Validação de Position
   isPosition(value: any): value is Position {
     if (!this.isObject(value)) {
       validationLog.error('Position is not an object');
@@ -210,7 +199,6 @@ export const TypeGuards = {
     return true;
   },
 
-  // Validação de Protocol
   isProtocol(value: any): value is Protocol {
     if (!this.isObject(value)) return false;
     const obj = value as any;

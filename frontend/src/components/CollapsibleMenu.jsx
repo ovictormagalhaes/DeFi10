@@ -36,9 +36,7 @@ function CollapsibleMenu({
   const expanded = isControlled ? !!isExpanded : internalExpanded;
   const { theme } = useTheme();
 
-  // Processar colunas - prioriza o novo formato, fallback para o antigo
   const processedColumns = () => {
-    // Se columns está definido e não é vazio, usa o novo formato
     if (Object.keys(columns).length > 0) {
       return columns;
     }

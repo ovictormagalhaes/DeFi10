@@ -157,7 +157,8 @@ const LockingTables: React.FC<LockingTablesProps> = ({ items = [], showMetrics =
       {/* Supply Table - Locked Tokens */}
       {suppliedTokens.length > 0 && (
         <div className="table-section">
-          <table className="table-unified text-primary">
+          <div className="table-wrapper">
+            <table className="table-unified text-primary">
             <StandardHeader
               columns={['amount', 'unlock', 'value']}
               columnDefs={null}
@@ -215,12 +216,14 @@ const LockingTables: React.FC<LockingTablesProps> = ({ items = [], showMetrics =
             />
           </table>
         </div>
+        </div>
       )}
 
       {/* Governance Table - Voting Power Tokens */}
       {governanceTokens.length > 0 && (
         <div className="table-section">
-          <table className="table-unified text-primary">
+          <div className="table-wrapper">
+            <table className="table-unified text-primary">
             <StandardHeader
               columns={['amount']}
               columnDefs={null}
@@ -255,8 +258,7 @@ const LockingTables: React.FC<LockingTablesProps> = ({ items = [], showMetrics =
               columns={['amount']}
             />
           </table>
-        </div>
-      )}
+        </div>        </div>      )}
     </div>
   );
 };

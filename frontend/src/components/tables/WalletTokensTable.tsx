@@ -136,43 +136,45 @@ const WalletTokensTable: React.FC<WalletTokensTableProps> = ({
         </div>
       )}
 
-      <table className="table-unified text-primary">
-        <StandardHeader columns={['token', 'price', 'amount', 'value']} columnDefs={columnDefs} />
-        <tbody>
-          {tokens.map((tokenData, index) => {
-            const token = tokenData.token || tokenData;
-            const key = deriveTokenKey(token, index);
-            const unitPrice =
-              parseFloat(String(token.priceUsd || token.price || token.priceUSD || 0)) || 0;
+      <div className="table-wrapper">
+        <table className="table-unified text-primary">
+          <StandardHeader columns={['token', 'price', 'amount', 'value']} columnDefs={columnDefs} />
+          <tbody>
+            {tokens.map((tokenData, index) => {
+              const token = tokenData.token || tokenData;
+              const key = deriveTokenKey(token, index);
+              const unitPrice =
+                parseFloat(String(token.priceUsd || token.price || token.priceUSD || 0)) || 0;
 
-            return (
-              <tr
-                key={key}
-                className={`table-row table-row-hover ${
-                  index === tokens.length - 1 ? '' : 'tbody-divider'
-                }`}
-              >
-                <td className="td text-primary col-name">
-                  <TokenDisplay tokens={[token] as never[]} size={22} showChain={true} />
-                </td>
+              return (
+                <tr
+                  key={key}
+                  className={`table-row table-row-hover ${
+                    index === tokens.length - 1 ? '' : 'tbody-divider'
+                  }`}
+                >
+                  <td className="td text-primary col-name">
+                    <TokenDisplay tokens={[token] as never[]} size={22} showChain={true} />
+                  </td>
 
-                <td className="td td-right td-mono tabular-nums text-primary col-price">
-                  {maskValue(formatPrice(unitPrice))}
-                </td>
+                  <td className="td td-right td-mono tabular-nums text-primary col-price">
+                    {maskValue(formatPrice(unitPrice))}
+                  </td>
 
-                <td className="td td-right td-mono tabular-nums text-primary col-amount">
-                  {maskValue(formatTokenAmount(token, 4))}
-                </td>
+                  <td className="td td-right td-mono tabular-nums text-primary col-amount">
+                    {maskValue(formatTokenAmount(token, 4))}
+                  </td>
 
-                <td className="td td-right td-mono tabular-nums td-mono-strong text-primary col-value">
-                  {maskValue(formatPrice(parseFloat(String(token.totalPrice)) || 0))}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-        <TableFooter totalValue={totalValue} itemsCount={count} columnDefs={columnDefs} />
-      </table>
+                  <td className="td td-right td-mono tabular-nums td-mono-strong text-primary col-value">
+                    {maskValue(formatPrice(parseFloat(String(token.totalPrice)) || 0))}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <TableFooter totalValue={totalValue} itemsCount={count} columns={['price', 'amount', 'value']} />
+        </table>
+      </div>
     </div>
   );
 };
