@@ -10,7 +10,7 @@ using DeFi10.API.Configuration;
 using DeFi10.API.Services.Configuration;
 using DeFi10.API.Models;
 
-namespace DeFi10.API.Tests
+namespace DeFi10.API.IntegrationTests
 {
     public class KaminoIntegrationTests
     {

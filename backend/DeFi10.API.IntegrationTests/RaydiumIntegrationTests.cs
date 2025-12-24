@@ -9,7 +9,7 @@ using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using DeFi10.API.Services.Protocols.Raydium;
 
-namespace DeFi10.API.Tests
+namespace DeFi10.API.IntegrationTests
 {
     public class RaydiumIntegrationTests
     {

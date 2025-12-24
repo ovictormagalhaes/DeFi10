@@ -8,7 +8,7 @@ using System.Net.Http;
 using DeFi10.API.Services.Protocols.Raydium;
 using Microsoft.Extensions.Configuration;
 
-namespace DeFi10.API.Tests
+namespace DeFi10.API.IntegrationTests
 {
     public class RaydiumOnChainServiceTests
     {
