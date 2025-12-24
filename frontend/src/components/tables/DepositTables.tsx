@@ -83,7 +83,8 @@ const DepositTables: React.FC<DepositTablesProps> = ({ items = [], showMetrics =
       {/* Deposited Tokens Table */}
       {depositedTokens.length > 0 && (
         <div className="table-section">
-          <table className="table-unified text-primary">
+          <div className="table-wrapper">
+            <table className="table-unified text-primary">
             <StandardHeader
               columns={['amount', 'value']}
               columnDefs={null}
@@ -130,6 +131,7 @@ const DepositTables: React.FC<DepositTablesProps> = ({ items = [], showMetrics =
               columns={['amount', 'value']}
             />
           </table>
+        </div>
         </div>
       )}
     </div>

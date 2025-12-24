@@ -663,7 +663,6 @@ const ProtocolsSection = ({
                   <MiniMetric label="Value" value={maskValue(formatPrice(protocolTotal))} />
                 </div>
               );
-              // Se pools presentes: Fees 24h
               if (hasPools) {
                 cells.push(
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -671,7 +670,6 @@ const ProtocolsSection = ({
                   </div>
                 );
               }
-              // Se lending (Aave/Kamino): Health Factor e NET APY %
               if (isLendingProtocol) {
                 cells.push(
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>

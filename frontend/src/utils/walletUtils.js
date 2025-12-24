@@ -512,7 +512,6 @@ export function groupStakingTokensByType(positions) {
         if (token.type === 'reward' || token.type === 'rewards') {
           grouped.rewards.push(token);
         } else {
-          // Default para staked se não for explicitamente reward
           grouped.staked.push(token);
         }
       });
@@ -529,29 +528,25 @@ export function groupTokensByPool(positions) {
   const grouped = {};
 
   positions.forEach((position, positionIndex) => {
-    // Usa o nome da posição como chave do pool, ou cria baseado nos tokens
     let poolKey = position.name || position.label || 'Unknown Pool';
 
-    // Se não tem nome, cria baseado nos símbolos dos tokens supplied
     const canDeriveFromTokens =
       position.tokens && Array.isArray(position.tokens) && position.tokens.length > 0;
     if (canDeriveFromTokens) {
       const candidateTokens = position.tokens.filter((token) => {
         const t = (token.type || '').toLowerCase();
-        // Exclui reward / borrowed tokens da composição do nome
         return !['reward', 'rewards', 'borrowed', 'borrow', 'debt'].includes(t);
       });
       const tokenSymbols = candidateTokens
         .map((token) => token.symbol)
         .filter((sym) => sym && typeof sym === 'string')
-        .slice(0, 4); // evita nomes gigantes, normalmente 2
+        .slice(0, 4);
       const isGenericLabel = /liquidity|pool|position|lp/i.test(poolKey);
       if ((poolKey === 'Unknown Pool' || isGenericLabel) && tokenSymbols.length >= 2) {
         poolKey = tokenSymbols.join(' / ');
       }
     }
 
-    // Se o poolKey já existe, adiciona um sufixo para diferenciá-lo
     let finalPoolKey = poolKey;
     let counter = 1;
     while (grouped[finalPoolKey]) {
@@ -651,7 +646,6 @@ export function computePortfolioBreakdown({
     group.positions.forEach((pos) => {
       const rawTokens = Array.isArray(pos.tokens) ? pos.tokens : [];
       const filteredTokens = filterLendingDefiTokens(rawTokens, showLendingDefiTokens);
-      // Se filtro removeu tudo (ex: internos ocultos), ainda classificamos base bruta para não perder supply real
       const classificationBase = filteredTokens.length > 0 ? filteredTokens : rawTokens;
       if (classificationBase.length === 0) return;
       const tempGrouped = groupTokensByType([
@@ -815,7 +809,6 @@ export function extractPoolRange(positionLike) {
 
   const range = positionLike.additionalData.range;
 
-  // Valida se tem as propriedades necessárias
   if (range.lower != null && range.upper != null && range.current != null) {
     return {
       lower: parseFloat(range.lower),
