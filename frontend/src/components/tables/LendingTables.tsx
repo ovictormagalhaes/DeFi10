@@ -559,7 +559,7 @@ export default function LendingTables({
             <TableFooter
               totalValue={sectionTotal}
               itemsCount={tokens.length}
-              columns={['', 'price', 'amount', 'value']}
+              columns={['collateral', 'price', 'amount', 'value']}
             />
           </table>
         </div>
@@ -705,7 +705,7 @@ export default function LendingTables({
           <TableFooter
             totalValue={totalSuppliedValue}
             itemsCount={suppliedList.length}
-            columns={['price', 'amount', 'value']}
+            columns={['supplied', 'net']}
           />
         </table>
       )}

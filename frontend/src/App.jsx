@@ -14,6 +14,7 @@ import SummaryView from './components/SummaryView';
 import ViewModeSelector from './components/ViewModeSelector';
 import { LendingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
 import { WalletSectionHeader, LendingSectionHeader, PoolsSectionHeader } from './components/cards/SectionHeaders';
+import { LendingSubSectionHeader, LiquiditySubSectionHeader } from './components/cards/SubSectionHeaders';
 import { WalletTokensTable } from './components/tables';
 import WalletGroupModal from './components/WalletGroupModal';
 import WalletSelectorDialog from './components/WalletSelectorDialog';
@@ -325,22 +326,9 @@ function App() {
   const toggleProtocolExpansion = (protocolName) =>
     setProtocolExpansions((prev) => ({ ...prev, [protocolName]: !prev[protocolName] }));
 
-  // Search any address
-  const [searchAddress, setSearchAddress] = useState('');
   const resetSelectionAndSnapshot = () => {
     setSelectedChains(null);
     walletDataSnapshotRef.current = null;
-  };
-  const handleSearch = () => {
-    const addr = (searchAddress || '').trim();
-    if (!addr) {
-      alert('Please enter a wallet address');
-      return;
-    }
-    // Apenas rebalances; supported-chains já está em cache (evitar spam)
-    fetchRebalancesFor(addr);
-    // Auto start aggregation para endereço pesquisado
-    setActiveAggregationAddress(addr);
   };
 
   // Refresh current account
@@ -455,13 +443,13 @@ function App() {
   const [activeAggregationGroupId, setActiveAggregationGroupId] = useState(null);
   const [refreshNonce, setRefreshNonce] = useState(0); // force restart
 
-  // Whenever connecting wallet and no manually searched address, use connected account
+  // Whenever connecting wallet, use connected account
   useEffect(() => {
-    if (account && !searchAddress && !selectedWalletGroupId) {
+    if (account && !selectedWalletGroupId) {
       setActiveAggregationAddress(account);
       setActiveAggregationGroupId(null);
     }
-  }, [account, searchAddress, selectedWalletGroupId]);
+  }, [account, selectedWalletGroupId]);
 
   // Quando selecionar wallet group, usar o groupId para aggregation
   useEffect(() => {
@@ -470,8 +458,6 @@ function App() {
       setActiveAggregationAddress(null); // Clear single address
     }
   }, [selectedWalletGroupId]);
-
-  // If user types new searchAddress but hasn't clicked search yet, don't change; only when searching (handleSearch)
 
   // Auto ensure: on connect, search or refresh (via refreshNonce)
   useEffect(() => {
@@ -1252,7 +1238,6 @@ function App() {
           <>
             <HeaderBar
               account={account}
-              onSearch={() => handleSearch()}
               onRefresh={() => account && callAccountAPI(account, setLoading)}
               onDisconnect={handleDisconnect}
               onConnect={connectWallet}
@@ -1268,8 +1253,6 @@ function App() {
                   navigator.clipboard.writeText(val);
                 } catch {}
               }}
-              searchAddress={searchAddress}
-              setSearchAddress={setSearchAddress}
             />
             <div className="w-full flex flex-column" style={{ minHeight: '100vh' }}>
               <div
@@ -1281,7 +1264,13 @@ function App() {
               >
                 {/* View Type & Chain Filter Selectors */}
                 {isAggregationReady && supportedChains && supportedChains.length > 0 && (
-                  <div className="mb-16" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
+                  <div className="mb-16" style={{ 
+                    display: 'flex', 
+                    justifyContent: isMobile ? 'center' : 'flex-end', 
+                    alignItems: 'center', 
+                    gap: 12,
+                    flexWrap: 'wrap'
+                  }}>
                     <ViewModeSelector
                       value={viewType}
                       onChange={setViewType}
@@ -1882,6 +1871,7 @@ function App() {
                               return filtered.length > 0 && (
                                 <div>
                                   <LendingSectionHeader data={filtered} />
+                                  <LendingSubSectionHeader data={filtered} />
                                   <LendingCards data={filtered} />
                                 </div>
                               );
@@ -1893,6 +1883,7 @@ function App() {
                               return filtered.length > 0 && (
                                 <div>
                                   <PoolsSectionHeader data={filtered} />
+                                  <LiquiditySubSectionHeader data={filtered} />
                                   <PoolCards data={filtered} />
                                 </div>
                               );
