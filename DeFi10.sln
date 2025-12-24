@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeFi10.API", "backend\DeFi1
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeFi10.API.Tests", "backend\DeFi10.API.Tests\DeFi10.API.Tests.csproj", "{FCEB703D-1AF7-4E4B-801F-9D5DDAC131FB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeFi10.API.IntegrationTests", "backend\DeFi10.API.IntegrationTests\DeFi10.API.IntegrationTests.csproj", "{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -40,6 +42,18 @@ Global
 		{FCEB703D-1AF7-4E4B-801F-9D5DDAC131FB}.Release|x64.Build.0 = Release|Any CPU
 		{FCEB703D-1AF7-4E4B-801F-9D5DDAC131FB}.Release|x86.ActiveCfg = Release|Any CPU
 		{FCEB703D-1AF7-4E4B-801F-9D5DDAC131FB}.Release|x86.Build.0 = Release|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Debug|x64.Build.0 = Debug|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Debug|x86.Build.0 = Debug|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Release|x64.ActiveCfg = Release|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Release|x64.Build.0 = Release|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Release|x86.ActiveCfg = Release|Any CPU
+		{44C882FF-D2EA-51E7-8151-CC2BBC80FEF6}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

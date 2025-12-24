@@ -116,7 +116,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         var account = result.Account;
         var accountLower = account.ToLowerInvariant();
 
-        // 1. VERIFICAR CACHE COMPARTILHADO (cross-job)
         var cacheKey = RedisKeys.WalletCache(accountLower, chainEnum, providerSlug);
         var cachedResult = await db.StringGetAsync(cacheKey);
         
@@ -130,7 +129,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                 var cachedIntegrationResult = JsonSerializer.Deserialize<IntegrationResult>(cachedResult!, _jsonOptions);
                 if (cachedIntegrationResult != null)
                 {
-                    // Atualizar JobId para o job atual
                     cachedIntegrationResult = cachedIntegrationResult with { JobId = jobId };
                     result = cachedIntegrationResult;
                 }
@@ -142,7 +140,6 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         }
         else if (result.Status == IntegrationStatus.Success)
         {
-            // 2. SALVAR NO CACHE (TTL configurável para reutilização cross-job)
             await db.StringSetAsync(cacheKey, JsonSerializer.Serialize(result, _jsonOptions), _walletCacheTtl);
             _logger.LogDebug("CACHE SAVED: Cached result for {Account} {Provider} {Chain} (TTL={TTL}min)", 
                 account, result.Provider, chainEnum, _walletCacheTtl.TotalMinutes);

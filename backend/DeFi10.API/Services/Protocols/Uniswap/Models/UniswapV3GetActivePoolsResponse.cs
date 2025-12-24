@@ -50,6 +50,12 @@ public class UniswapV3Position
     [JsonPropertyName("token0")] public UniswapV3Token Token0 { get; set; } = new();
     [JsonPropertyName("token1")] public UniswapV3Token Token1 { get; set; } = new();
     [JsonPropertyName("pool")] public UniswapV3Pool Pool { get; set; } = new();
+    [JsonPropertyName("transaction")] public UniswapV3Transaction? Transaction { get; set; }
+}
+
+public class UniswapV3Transaction
+{
+    [JsonPropertyName("timestamp")] public string Timestamp { get; set; } = string.Empty;
 }
 
 public class UniswapV3Pool

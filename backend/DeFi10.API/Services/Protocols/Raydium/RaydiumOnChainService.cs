@@ -345,15 +345,37 @@ namespace DeFi10.API.Services.Protocols.Raydium
                                         }
                     }
                     
+                    // Try to get the creation timestamp from the first transaction on the position NFT mint
+                    long? createdAt = null;
+                    try
+                    {
+                        // Find the NFT mint for this position by matching PDA
+                        var positionNftMint = positionNfts.FirstOrDefault(nft =>
+                        {
+                            var derivedPda = DerivePositionPdaFromNftMint(nft);
+                            return derivedPda == acc.Owner; // Compare with Owner, not PublicKey
+                        });
+
+                        if (!string.IsNullOrEmpty(positionNftMint))
+                        {
+                            createdAt = await GetNftMintTimestampAsync(positionNftMint);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "[Raydium CLMM] Failed to fetch creation timestamp for position");
+                    }
+
                     positions.Add(new RaydiumPosition
                     {
-                        Pool = $"{Short(pool.TokenMintA)}-{Short(pool.TokenMintB)}",
+                        Pool = layout.PoolId,
                         Tokens = tokenList,
                         TotalValueUsd = 0,
                         SqrtPriceX96 = pool.SqrtPriceX64.ToString(),
                         TickLower = layout.TickLower,
                         TickUpper = layout.TickUpper,
-                        TickCurrent = pool.TickCurrent
+                        TickCurrent = pool.TickCurrent,
+                        CreatedAt = createdAt
                     });
                 }
                 catch (Exception ex)
@@ -817,6 +839,45 @@ namespace DeFi10.API.Services.Protocols.Raydium
             }
         }
 
+        /// <summary>
+        /// Gets the creation timestamp of an NFT mint by fetching its first transaction
+        /// </summary>
+        private async Task<long?> GetNftMintTimestampAsync(string mintAddress)
+        {
+            try
+            {
+                // Get first signature for the mint address (creation transaction)
+                var signaturesResult = await _rpc.GetSignaturesForAddressAsync(
+                    mintAddress, 
+                    limit: 1, 
+                    commitment: Commitment.Finalized);
+
+                if (!signaturesResult.WasSuccessful || 
+                    signaturesResult.Result == null || 
+                    !signaturesResult.Result.Any())
+                {
+                    _logger.LogWarning("[Raydium CLMM] No signatures found for mint {Mint}", mintAddress);
+                    return null;
+                }
+
+                var firstSignature = signaturesResult.Result.Last(); // Last in list = oldest transaction
+                
+                if (firstSignature.BlockTime.HasValue)
+                {
+                    _logger.LogDebug("[Raydium CLMM] Found creation timestamp for mint {Mint}: {Timestamp}", 
+                        mintAddress, firstSignature.BlockTime.Value);
+                    return (long)firstSignature.BlockTime.Value;
+                }
+
+                _logger.LogWarning("[Raydium CLMM] No block time found in signature for mint {Mint}", mintAddress);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Raydium CLMM] Failed to fetch creation timestamp for mint {Mint}", mintAddress);
+                return null;
+            }
+        }
         private bool ValidateApiFees(ulong feeToken0, ulong feeToken1)
         {
             const ulong MAX_REASONABLE_FEE = 1_000_000_000_000_000_000;

@@ -101,7 +101,15 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             { token0PriceUSD = EstimatePriceByToken(position.Token0.Symbol, position.Token0.Id, chain); token1PriceUSD = EstimatePriceByToken(position.Token1.Symbol, position.Token1.Id, chain); if (token0PriceUSD > 0 || token1PriceUSD > 0) priceUnavailable = false; }
             if (token0PriceUSD < 0) token0PriceUSD = 0; if (token1PriceUSD < 0) token1PriceUSD = 0;
             var lower = TryParseInvariant(position.MinPriceToken1PerToken0); var upper = TryParseInvariant(position.MaxPriceToken1PerToken0); var current = TryParseInvariant(position.CurrentPriceToken1PerToken0); bool? inRange = position.RangeStatus?.Equals("in-range", StringComparison.OrdinalIgnoreCase);
-            int? tickSpacing = TryParseInvariantInt(position.Pool?.TickSpacing); long? createdAt = TryParseInvariantLong(position.Pool?.CreatedAtUnix); var sqrtPriceX96 = string.IsNullOrEmpty(position.Pool?.SqrtPriceX96) ? null : position.Pool!.SqrtPriceX96;
+            
+            // Get position creation timestamp from transaction (when position was opened)
+            long? createdAt = TryParseInvariantLong(position.Transaction?.Timestamp);
+            
+            int? tickSpacing = TryParseInvariantInt(position.Pool?.TickSpacing); 
+            var sqrtPriceX96 = string.IsNullOrEmpty(position.Pool?.SqrtPriceX96) ? null : position.Pool!.SqrtPriceX96;
+            
+            // Note: Some Uniswap subgraphs (like Base) don't provide tickSpacing in GraphQL.
+            // createdAt comes from the position's transaction timestamp (when user opened position).
             
             var supplied0 = _tokenFactory.CreateSupplied(position.Token0.Name, position.Token0.Symbol, position.Token0.Id, chain, token0Decimals, currentSupplyToken0, token0PriceUSD);
             var supplied1 = _tokenFactory.CreateSupplied(position.Token1.Name, position.Token1.Symbol, position.Token1.Id, chain, token1Decimals, currentSupplyToken1, token1PriceUSD);
@@ -161,6 +169,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                     TickSpacing = tickSpacing,
                     SqrtPriceX96 = sqrtPriceX96,
                     CreatedAt = createdAt,
+                    PoolId = position.Pool?.Id,
                     Range = new RangeInfo { Lower = lower, Upper = upper, Current = current, InRange = inRange },
                     PriceUnavailable = priceUnavailable
                 }

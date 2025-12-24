@@ -1,0 +1,34 @@
+name: .NET Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./backend
+    
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+      working-directory: ./backend
+    
+    - name: Run Unit Tests
+      run: dotnet test DeFi10.API.Tests/DeFi10.API.Tests.csproj --no-build --configuration Release --verbosity normal
+      working-directory: ./backend
+    
+    # Integration tests are NOT run in CI as they require external dependencies
+    # To run integration tests locally: dotnet test DeFi10.API.IntegrationTests

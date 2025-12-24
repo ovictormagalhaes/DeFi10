@@ -1,12 +1,6 @@
-/**
- * DepositTables TypeScript Component
- * Component para exibir posições de depósitos (Pendle V2 Deposits, etc.)
- * Exibe tokens depositados com informações de amount e value
- */
-
 import React, { useMemo } from 'react';
 
-import { useMaskValues } from '../../context/MaskValuesContext';
+import { useMaskValues } from '../../context/MaskValuesContext.tsx';
 import type { WalletItem } from '../../types/wallet';
 import { filterSuppliedTokens } from '../../utils/tokenFilters';
 import {
@@ -19,7 +13,7 @@ import {
 import MiniMetric from '../MiniMetric';
 import StandardHeader from '../table/StandardHeader';
 import TableFooter from '../table/TableFooter';
-import TokenDisplay from '../TokenDisplay';
+import TokenDisplay from '../TokenDisplay.tsx';
 
 // Interface para props do componente
 interface DepositTablesProps {

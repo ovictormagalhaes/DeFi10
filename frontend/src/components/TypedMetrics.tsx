@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useMaskValues } from '../context/MaskValuesContext';
+import { useMaskValues } from '../context/MaskValuesContext.tsx';
 import { useTheme } from '../context/ThemeProvider';
 import type { WalletItem, Range } from '../types/wallet';
 import { extractHealthFactor, extractPoolFees24h, extractPoolRange } from '../types/wallet';

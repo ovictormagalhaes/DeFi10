@@ -157,10 +157,19 @@ namespace DeFi10.API.Services.Protocols.Kamino
 
                             if (reservesByAddress.TryGetValue(deposit.DepositReserve, out var reserve))
                             {
-                                deposit.Apy = reserve.SupplyApy;
-                                enrichedDeposits++;
-                                _logger.LogInformation("KAMINO: ✓ Enriched deposit reserve {Reserve} with supply APY: {Apy}%", 
-                                    deposit.DepositReserve, deposit.Apy * 100);
+                                // Only set APY if it's actually greater than 0 (reserve.SupplyApy returns 0 if parse fails)
+                                if (reserve.SupplyApy > 0)
+                                {
+                                    deposit.Apy = reserve.SupplyApy;
+                                    enrichedDeposits++;
+                                    _logger.LogInformation("KAMINO: ✓ Enriched deposit reserve {Reserve} with supply APY: {Apy}% (raw string: '{RawApy}')", 
+                                        deposit.DepositReserve, deposit.Apy * 100, reserve.SupplyApyString ?? "NULL");
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("KAMINO: ✗ Deposit reserve {Reserve} has zero or invalid APY (raw: '{RawApy}') - projection will not be calculated",
+                                        deposit.DepositReserve, reserve.SupplyApyString ?? "NULL");
+                                }
                             }
                             else
                             {
@@ -182,10 +191,19 @@ namespace DeFi10.API.Services.Protocols.Kamino
 
                             if (reservesByAddress.TryGetValue(borrow.BorrowReserve, out var reserve))
                             {
-                                borrow.Apy = reserve.BorrowApy;
-                                enrichedBorrows++;
-                                _logger.LogInformation("KAMINO: ✓ Enriched borrow reserve {Reserve} with borrow APY: {Apy}%", 
-                                    borrow.BorrowReserve, borrow.Apy * 100);
+                                // Only set APY if it's actually greater than 0 (reserve.BorrowApy returns 0 if parse fails)
+                                if (reserve.BorrowApy > 0)
+                                {
+                                    borrow.Apy = reserve.BorrowApy;
+                                    enrichedBorrows++;
+                                    _logger.LogInformation("KAMINO: ✓ Enriched borrow reserve {Reserve} with borrow APY: {Apy}% (raw string: '{RawApy}')", 
+                                        borrow.BorrowReserve, borrow.Apy * 100, reserve.BorrowApyString ?? "NULL");
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("KAMINO: ✗ Borrow reserve {Reserve} has zero or invalid APY (raw: '{RawApy}') - projection will not be calculated",
+                                        borrow.BorrowReserve, reserve.BorrowApyString ?? "NULL");
+                                }
                             }
                             else
                             {
@@ -315,11 +333,11 @@ namespace DeFi10.API.Services.Protocols.Kamino
                         PriceUsd = unitPriceUsd,
                         Logo = null,
                         Type = TokenType.Supplied,
-                        Apy = deposit.Apy * 100 // Convert decimal to percentage (0.04242 -> 4.242)
+                        Apy = deposit.Apy.HasValue ? deposit.Apy.Value * 100 : null // Convert decimal to percentage (0.04242 -> 4.242)
                     });
 
                     _logger.LogInformation("KAMINO Deposit added: {Symbol} = {Amount}, PriceUsd=${Price:F2}, APY={Apy}% (raw: {Raw}, decimals: {Dec})",
-                        symbol, humanAmount, unitPriceUsd, deposit.Apy * 100, rawAmount, decimals);
+                        symbol, humanAmount, unitPriceUsd, deposit.Apy.HasValue ? deposit.Apy.Value * 100 : (decimal?)null, rawAmount, decimals);
                 }
             }
             else
@@ -398,11 +416,11 @@ namespace DeFi10.API.Services.Protocols.Kamino
                         PriceUsd = unitPriceUsd,
                         Logo = null,
                         Type = TokenType.Borrowed,
-                        Apy = borrow.Apy * 100 // Convert decimal to percentage (0.05080 -> 5.080)
+                        Apy = borrow.Apy.HasValue ? borrow.Apy.Value * 100 : null // Convert decimal to percentage (0.05080 -> 5.080)
                     });
 
-                    _logger.LogInformation("KAMINO Borrow added: {Symbol} = {Amount}, PriceUsd=${Price:F2}, APY={Apy}% (raw: {Raw}, decimals: {Dec})",
-                        symbol, humanAmount, unitPriceUsd, borrow.Apy * 100, rawAmount, decimals);
+                    _logger.LogInformation("KAMINO Borrow added: {Symbol} = {Amount}, PriceUsd=${Price:F2}, APY={Apy}% (raw: {Raw}, decimals: {Dec}, borrowApySource: {BorrowApy})",
+                        symbol, humanAmount, unitPriceUsd, borrow.Apy.HasValue ? borrow.Apy.Value * 100 : (decimal?)null, rawAmount, decimals, borrow.Apy);
                 }
             }
             else

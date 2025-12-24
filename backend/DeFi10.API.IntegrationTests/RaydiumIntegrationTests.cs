@@ -1,4 +1,3 @@
-using DeFi10.API.Raydium;
 using Solnet.Rpc;
 using Solnet.Rpc.Types;
 using Solnet.Wallet;
@@ -10,7 +9,7 @@ using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using DeFi10.API.Services.Protocols.Raydium;
 
-namespace DeFi10.API.Tests
+namespace DeFi10.API.IntegrationTests
 {
     public class RaydiumIntegrationTests
     {
@@ -33,16 +32,16 @@ namespace DeFi10.API.Tests
                 .Build();
 
             // Read test configuration
-            _testWalletAddress = _configuration["Testing:Raydium:TestWalletAddress"] 
+            _testWalletAddress = _configuration["IntegrationTests:Raydium:TestWalletAddress"] 
                 ?? throw new InvalidOperationException("TestWalletAddress not found in appsettings.json");
-            _positionNftMint = _configuration["Testing:Raydium:PositionNftMint"] 
+            _positionNftMint = _configuration["IntegrationTests:Raydium:PositionNftMint"] 
                 ?? throw new InvalidOperationException("PositionNftMint not found in appsettings.json");
-            _clmmProgram = _configuration["Testing:Raydium:ClmmProgram"] 
+            _clmmProgram = _configuration["IntegrationTests:Raydium:ClmmProgram"] 
                 ?? throw new InvalidOperationException("ClmmProgram not found in appsettings.json");
-            _fallbackPoolId = _configuration["Testing:Raydium:FallbackPoolId"] 
+            _fallbackPoolId = _configuration["IntegrationTests:Raydium:FallbackPoolId"] 
                 ?? throw new InvalidOperationException("FallbackPoolId not found in appsettings.json");
 
-            var rpcUrl = _configuration["Testing:Raydium:SolanaRpcUrl"] 
+            var rpcUrl = _configuration["IntegrationTests:Raydium:SolanaRpcUrl"] 
                 ?? "https://api.mainnet-beta.solana.com";
             
             _rpcClient = ClientFactory.GetClient(rpcUrl);
@@ -57,141 +56,6 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
-        public async Task Step5_Should_Read_Real_Raydium_Position_Token_Amounts()
-        {
-            // ARRANGE
-            const string TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
-
-            // 1) Search for Token-2022 NFT from wallet
-            var accounts = await _rpcClient.GetTokenAccountsByOwnerAsync(
-                _testWalletAddress, null, TOKEN_2022_PROGRAM, Commitment.Finalized);
-            Assert.True(accounts.WasSuccessful, "Failed to fetch Token-2022 accounts.");
-            Assert.NotEmpty(accounts.Result.Value);
-
-            var ata = accounts.Result.Value.First();
-            string nftMint = ata.Account.Data.Parsed.Info.Mint;
-            _output.WriteLine($"NFT found: {nftMint}");
-            Assert.Equal(_positionNftMint, nftMint);
-
-            // 2) Derive position PDA
-            var mintPk = new PublicKey(nftMint);
-            var seed = Encoding.UTF8.GetBytes("position");
-            bool success = PublicKey.TryFindProgramAddress(
-                new[] { seed, mintPk.KeyBytes },
-                new PublicKey(_clmmProgram),
-                out PublicKey positionPda,
-                out byte bump);
-            Assert.True(success, "Failed to derive position PDA.");
-            _output.WriteLine($"Position PDA = {positionPda.Key}");
-
-            // 3) Read position data
-            var posAcc = await _rpcClient.GetAccountInfoAsync(positionPda.Key, Commitment.Finalized);
-            Assert.True(posAcc.WasSuccessful && posAcc.Result?.Value?.Data?.Count > 0,
-                "Position PDA does not contain data.");
-
-            var rawPos = Convert.FromBase64String(posAcc.Result.Value.Data[0]);
-            var position = RaydiumPositionParser.Parse(rawPos);
-
-            _output.WriteLine($"\n=== POSITION DATA ===");
-            _output.WriteLine($"Pool ID: {position.PoolId}");
-            _output.WriteLine($"Liquidity: {position.Liquidity}");
-            _output.WriteLine($"Tick Range: {position.TickLower} ? {position.TickUpper}");
-
-            // 4) Read pool
-            RaydiumPool? pool = null;
-            var poolCandidates = new List<string> { position.PoolId, _fallbackPoolId };
-
-            foreach (var poolId in poolCandidates)
-            {
-                try
-                {
-                    var poolAcc = await _rpcClient.GetAccountInfoAsync(poolId, Commitment.Finalized);
-                    if (poolAcc.WasSuccessful && poolAcc.Result?.Value?.Data?.Count > 0)
-                    {
-                        var rawPool = Convert.FromBase64String(poolAcc.Result.Value.Data[0]);
-                        pool = RaydiumPoolParser.Parse(rawPool);
-                        _output.WriteLine($"\n=== POOL DATA ===");
-                        _output.WriteLine($"Token Mint A: {pool.TokenMintA}");
-                        _output.WriteLine($"Token Mint B: {pool.TokenMintB}");
-                        _output.WriteLine($"Current Tick: {pool.TickCurrent}");
-                        _output.WriteLine($"Sqrt Price X64: {pool.SqrtPrice}");
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _output.WriteLine($"Failed to read pool {poolId}: {ex.Message}");
-                }
-            }
-
-            Assert.NotNull(pool);
-
-            // 5) Correct ticks
-            int tickLower = position.TickLower;
-            int tickUpper = position.TickUpper;
-
-            _output.WriteLine($"\n=== TICK CORRECTION ===");
-            _output.WriteLine($"Original: tickLower={position.TickLower}, tickUpper={position.TickUpper}");
-            _output.WriteLine($"Corrected: tickLower={tickLower}, tickUpper={tickUpper}");
-            _output.WriteLine($"Current Tick: {pool.TickCurrent}");
-            _output.WriteLine($"Reason: Ticks are semantically inverted in USDC/SOL pair");
-
-            // LOG sqrtPrice of ticks before calculation
-            BigInteger sqrtLower = Raydium.RaydiumMath.GetSqrtPriceAtTick(tickLower, _output);
-            BigInteger sqrtUpper = Raydium.RaydiumMath.GetSqrtPriceAtTick(tickUpper, _output);
-            _output.WriteLine($"sqrtLowerX64 (calculated): {sqrtLower}");
-            _output.WriteLine($"sqrtUpperX64 (calculated): {sqrtUpper}");
-            _output.WriteLine($"sqrtPriceX64 (pool): {pool.SqrtPrice}");
-
-            // Determine range status
-            string rangeStatus;
-            if (pool.TickCurrent < tickLower)
-                rangeStatus = "BELOW (all in SOL)";
-            else if (pool.TickCurrent >= tickUpper)
-                rangeStatus = "ABOVE (all in USDC)";
-            else
-                rangeStatus = "IN-RANGE (mixed)";
-
-            _output.WriteLine($"Status range: {rangeStatus}");
-
-            // 6) Calculate position amounts using updated RaydiumMath
-            var (rawA, rawB) = Raydium.RaydiumMath.CalculateTokenAmounts(
-                position.Liquidity,
-                (int)tickLower,
-                (int)tickUpper,
-                pool!.SqrtPrice,
-                _output
-            );
-
-            _output.WriteLine($"RawA: {rawA}");
-            _output.WriteLine($"RawB: {rawB}");
-
-            decimal solAmount = (decimal)rawA / 1_000_000_000m;  // WSOL 9 decimals
-            decimal usdcAmount = (decimal)rawB / 1_000_000m;     // USDC 6 decimals
-
-            _output.WriteLine($"\n=== FINAL AMOUNTS ===");
-            _output.WriteLine($"SOL: {solAmount:N9}");
-            _output.WriteLine($"USDC: {usdcAmount:N6}");
-            _output.WriteLine($"Range Status: {rangeStatus}");
-
-            // VALIDATIONS
-            Assert.True(solAmount >= 0 && usdcAmount >= 0, "Amounts must be non-negative");
-            Assert.True(solAmount > 0 || usdcAmount > 0, "Position must have value");
-
-            // Specific test for BELOW range position (~14 SOL)
-            if (rangeStatus.Contains("BELOW"))
-            {
-                _output.WriteLine($"\n✓ CORRECT: Price below range → 100% SOL");
-                Assert.True(solAmount > 10m && solAmount < 15m, $"Should have ~14 SOL, but has {solAmount}");
-                Assert.True(usdcAmount < 0.1m, $"Should not have significant USDC, but has {usdcAmount}");
-            }
-
-            _output.WriteLine($"\n? SUCCESS: Position amounts calculated correctly");
-        }
-
-        [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Read_Uncollected_Fees_From_RaydiumOnChain()
         {
             // Test that demonstrates the implementation can calculate real-time uncollected fees

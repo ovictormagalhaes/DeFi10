@@ -5,7 +5,7 @@
 
 import React from 'react';
 
-import { useMaskValues } from '../../context/MaskValuesContext';
+import { useMaskValues } from '../../context/MaskValuesContext.tsx';
 import { useTheme } from '../../context/ThemeProvider';
 import { getWalletTokenItems } from '../../types/filters';
 import type { WalletItem } from '../../types/wallet';
@@ -18,7 +18,7 @@ import {
 import MiniMetric from '../MiniMetric';
 import StandardHeader from '../table/StandardHeader';
 import TableFooter from '../table/TableFooter';
-import TokenDisplay from '../TokenDisplay';
+import TokenDisplay from '../TokenDisplay.tsx';
 // Pronto para usar funções TypeScript quando migrar para WalletItem[]
 
 // Interface CORRETA - APENAS WalletItem[]

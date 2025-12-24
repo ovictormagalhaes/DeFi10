@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { useChainIcons } from '../context/ChainIconsProvider';
-import { useMaskValues } from '../context/MaskValuesContext';
+import { useMaskValues } from '../context/MaskValuesContext.tsx';
 import { formatPrice, groupDefiByProtocol, groupTokensByPool } from '../utils/walletUtils';
 
 import Chip from './Chip';

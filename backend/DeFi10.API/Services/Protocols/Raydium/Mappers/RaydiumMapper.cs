@@ -150,6 +150,8 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                         Apr = p.Apr,
                         Fees24h = p.Fees24h,
                         SqrtPriceX96 = p.SqrtPriceX96,
+                        PoolId = p.Pool,
+                        CreatedAt = p.CreatedAt,
                         Range = CalculateRange(p.TickLower, p.TickUpper, p.TickCurrent),
                         Projection = _projectionCalculator.CalculateAprProjection(p.TotalValueUsd, p.Apr)
                     }

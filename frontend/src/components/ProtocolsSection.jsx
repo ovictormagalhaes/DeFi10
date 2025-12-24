@@ -63,8 +63,6 @@ const ProtocolsSection = ({
   const lockingData = getLockingData();
   const depositingData = typeof getDepositingData === 'function' ? getDepositingData() : [];
 
-  console.log('ProtocolsSection - depositingData:', depositingData);
-
   const allDefi = [
     ...getLiquidityPoolsData(),
     ...getLendingAndBorrowingData(),
@@ -79,13 +77,6 @@ const ProtocolsSection = ({
   return (
     <div>
       {protocolGroups.map((protocolGroup, pgIdx) => {
-        console.log(
-          'Processing protocolGroup:',
-          protocolGroup.protocol.name,
-          'positions:',
-          protocolGroup.positions
-        );
-
         // Classify positions by type using label/name heuristics
         const liqPositionsOriginal = protocolGroup.positions.filter((p) => {
           // Check type first for explicit categorization
@@ -124,12 +115,6 @@ const ProtocolsSection = ({
           return p.type === 'Depositing';
         });
 
-        console.log(
-          'Protocol:',
-          protocolGroup.protocol.name,
-          'depositingPositionsOriginal:',
-          depositingPositionsOriginal
-        );
         const lendingPositionsOriginal = protocolGroup.positions.filter((p) => {
           // Exclude positions already classified
           if (p.type === 'LiquidityPool') return false;

@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useMaskValues } from '../../context/MaskValuesContext';
+import { useMaskValues } from '../../context/MaskValuesContext.tsx';
 import { formatPrice } from '../../utils/walletUtils';
 
 interface TableFooterProps {
