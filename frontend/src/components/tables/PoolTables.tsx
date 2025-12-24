@@ -511,7 +511,14 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
         <TableFooter
           totalValue={totalValue}
           itemsCount={positionsCount}
-          columns={['range', 'amount', 'rewards', 'value']}
+          columns={
+            [
+              !hideRange && 'range',
+              !hideAmount && 'amount',
+              !hideRewards && 'rewards',
+              'value',
+            ].filter(Boolean) as string[]
+          }
         />
       </table>
     </div>

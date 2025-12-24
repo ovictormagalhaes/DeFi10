@@ -88,24 +88,89 @@ namespace DeFi10.API.Services.Protocols.Kamino
             
             try
             {
-                _logger.LogDebug("KAMINO: GET {Endpoint}", endpoint);
-                
-                var response = await _httpClient.GetAsync(endpoint);
-                
-                _logger.LogDebug("KAMINO: Response status: {StatusCode}", response.StatusCode);
+                // Retry logic with exponential backoff for reliability
+                const int maxRetries = 3;
+                HttpResponseMessage? response = null;
+                Exception? lastException = null;
 
-                if (!response.IsSuccessStatusCode)
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync();
-                    
-                    if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    try
                     {
-                        _logger.LogDebug("KAMINO: No obligations found for address {Address} (404)", address);
-                        return Enumerable.Empty<KaminoPosition>();
+                        _logger.LogDebug("KAMINO: GET {Endpoint} (attempt {Attempt}/{MaxRetries})", endpoint, attempt, maxRetries);
+                        
+                        response = await _httpClient.GetAsync(endpoint);
+                        
+                        _logger.LogDebug("KAMINO: Response status: {StatusCode}", response.StatusCode);
+
+                        // Success - exit retry loop
+                        if (response.IsSuccessStatusCode)
+                        {
+                            break;
+                        }
+
+                        // 404 means no obligations - don't retry
+                        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                        {
+                            _logger.LogDebug("KAMINO: No obligations found for address {Address} (404)", address);
+                            return Enumerable.Empty<KaminoPosition>();
+                        }
+
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        _logger.LogWarning("KAMINO: API error on attempt {Attempt} - Status: {Status}, Content: {Content}", 
+                            attempt, response.StatusCode, errorContent);
+
+                        // Retry on server errors (500-599)
+                        if ((int)response.StatusCode >= 500 && attempt < maxRetries)
+                        {
+                            var delayMs = (int)Math.Pow(2, attempt) * 500; // 1s, 2s, 4s
+                            _logger.LogInformation("KAMINO: Retrying in {Delay}ms due to server error...", delayMs);
+                            await Task.Delay(delayMs);
+                        }
+                        else if (attempt == maxRetries)
+                        {
+                            _logger.LogError("KAMINO: API error after {MaxRetries} attempts - Status: {Status}, Content: {Content}", 
+                                maxRetries, response.StatusCode, errorContent);
+                            return Enumerable.Empty<KaminoPosition>();
+                        }
+                        else
+                        {
+                            // Non-retryable error (e.g., 400 Bad Request)
+                            _logger.LogError("KAMINO: API error (non-retryable) - Status: {Status}, Content: {Content}", 
+                                response.StatusCode, errorContent);
+                            return Enumerable.Empty<KaminoPosition>();
+                        }
                     }
-                    
-                    _logger.LogError("KAMINO: API error - Status: {Status}, Content: {Content}", 
-                        response.StatusCode, errorContent);
+                    catch (HttpRequestException ex)
+                    {
+                        lastException = ex;
+                        _logger.LogWarning(ex, "KAMINO: HTTP request failed on attempt {Attempt}: {Message}", 
+                            attempt, ex.Message);
+                        
+                        if (attempt < maxRetries)
+                        {
+                            var delayMs = (int)Math.Pow(2, attempt) * 500;
+                            _logger.LogDebug("KAMINO: Retrying in {Delay}ms...", delayMs);
+                            await Task.Delay(delayMs);
+                        }
+                    }
+                    catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+                    {
+                        lastException = ex;
+                        _logger.LogWarning("KAMINO: Request timeout on attempt {Attempt}", attempt);
+                        
+                        if (attempt < maxRetries)
+                        {
+                            var delayMs = (int)Math.Pow(2, attempt) * 500;
+                            await Task.Delay(delayMs);
+                        }
+                    }
+                }
+
+                if (response == null || !response.IsSuccessStatusCode)
+                {
+                    _logger.LogError(lastException, "KAMINO: All {MaxRetries} attempts failed for address {Address}", 
+                        maxRetries, address);
                     return Enumerable.Empty<KaminoPosition>();
                 }
 

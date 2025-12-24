@@ -37,7 +37,7 @@ export const WalletSectionHeader = ({ data = [] }) => {
   return (
     <div style={{ marginBottom: 16 }}>
       <h3 style={{ 
-        fontSize: 18, 
+        fontSize: 22, 
         fontWeight: 600, 
         color: theme.textPrimary,
         marginBottom: 12,
@@ -147,7 +147,7 @@ export const LendingSectionHeader = ({ data = [] }) => {
   return (
     <div style={{ marginBottom: 16 }}>
       <h3 style={{ 
-        fontSize: 18, 
+        fontSize: 22, 
         fontWeight: 600, 
         color: theme.textPrimary,
         marginBottom: 12,
@@ -262,7 +262,7 @@ export const PoolsSectionHeader = ({ data = [] }) => {
   return (
     <div style={{ marginBottom: 16 }}>
       <h3 style={{ 
-        fontSize: 18, 
+        fontSize: 22, 
         fontWeight: 600, 
         color: theme.textPrimary,
         marginBottom: 12,
