@@ -27,26 +27,15 @@ export async function solveChallenge(
   const requiredPrefix = '0'.repeat(difficulty);
   const startTime = Date.now();
 
-  console.log(`[PoW] Starting challenge: ${challenge.substring(0, 16)}...`);
-  console.log(`[PoW] Difficulty: ${difficulty} (prefix: ${requiredPrefix})`);
-
   while (true) {
     const input = challenge + nonce.toString();
     const hash = await sha256(input);
 
-    // Log progress every 5000 iterations
-    if (nonce % 5000 === 0) {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`[PoW] Progress: nonce=${nonce}, elapsed=${elapsed}s, hash=${hash.substring(0, 16)}...`);
-      
-      if (onProgress) {
-        onProgress(nonce, hash);
-      }
+    if (nonce % 5000 === 0 && onProgress) {
+      onProgress(nonce, hash);
     }
 
     if (hash.startsWith(requiredPrefix)) {
-      const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log(`[PoW] ✓ Challenge solved! nonce=${nonce}, time=${totalTime}s, hash=${hash}`);
       return { nonce, hash };
     }
 

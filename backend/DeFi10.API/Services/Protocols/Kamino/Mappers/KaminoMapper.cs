@@ -134,10 +134,10 @@ namespace DeFi10.API.Services.Protocols.Kamino.Mappers
 
                     if (apy.HasValue)
                     {
-                        // For borrows, negate the APY for both display and projection (cost vs income)
-                        var projectionValue = splToken.Type == TokenType.Borrowed ? -totalPrice : totalPrice;
+                        // For borrows, negate only the APY (not the value) so projection calculator accepts it
+                        // The negative APY will result in negative projections (representing costs)
                         var projectionApy = splToken.Type == TokenType.Borrowed ? -apy.Value : apy.Value;
-                        projection = _projectionCalculator.CalculateApyProjection(projectionValue, projectionApy);
+                        projection = _projectionCalculator.CalculateApyProjection(totalPrice, projectionApy);
 
                         _logger.LogDebug("KAMINO MAPPER: APY for {Symbol}: {Apy}%, Projection OneDay={OneDay}",
                             splToken.Symbol, apy, projection?.OneDay);

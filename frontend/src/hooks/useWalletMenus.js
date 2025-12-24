@@ -1,12 +1,15 @@
 import { useState, useMemo } from 'react';
 
 import {
+  getLiquidityPoolItems,
+  getLendingItems,
+  getStakingItems,
+  getWalletTokenItems,
+} from '../types/filters';
+import {
   ITEM_TYPES,
   filterItemsByType,
   getWalletTokens,
-  getLiquidityPools,
-  getLendingAndBorrowingPositions,
-  getStakingPositions,
 } from '../utils/walletUtils';
 
 export const useWalletMenus = (walletData) => {
@@ -46,11 +49,11 @@ export const useWalletMenus = (walletData) => {
   const getLiquidityPoolsData = () => {
     // New unified structure with items array
     if (walletData.items && Array.isArray(walletData.items)) {
-      return filterItemsByType(walletData.items, ITEM_TYPES.LIQUIDITY_POOL);
+      return getLiquidityPoolItems(walletData.items);
     }
     // Legacy structure support
     if (walletData.data && Array.isArray(walletData.data)) {
-      return getLiquidityPools(walletData.data);
+      return filterItemsByType(walletData.data, ITEM_TYPES.LIQUIDITY_POOL);
     }
     return walletData.liquidityPools || [];
   };
@@ -58,11 +61,11 @@ export const useWalletMenus = (walletData) => {
   const getLendingAndBorrowingData = () => {
     // New unified structure with items array
     if (walletData.items && Array.isArray(walletData.items)) {
-      return filterItemsByType(walletData.items, ITEM_TYPES.LENDING_AND_BORROWING);
+      return getLendingItems(walletData.items);
     }
     // Legacy structure support
     if (walletData.data && Array.isArray(walletData.data)) {
-      return getLendingAndBorrowingPositions(walletData.data);
+      return filterItemsByType(walletData.data, ITEM_TYPES.LENDING_AND_BORROWING);
     }
     return walletData.lendingAndBorrowing || [];
   };
@@ -70,11 +73,11 @@ export const useWalletMenus = (walletData) => {
   const getStakingData = () => {
     // New unified structure with items array
     if (walletData.items && Array.isArray(walletData.items)) {
-      return filterItemsByType(walletData.items, ITEM_TYPES.STAKING);
+      return getStakingItems(walletData.items);
     }
     // Legacy structure support
     if (walletData.data && Array.isArray(walletData.data)) {
-      return getStakingPositions(walletData.data);
+      return filterItemsByType(walletData.data, ITEM_TYPES.STAKING);
     }
     return walletData.staking || [];
   };

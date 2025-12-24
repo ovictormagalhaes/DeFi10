@@ -6,7 +6,7 @@
 
 import React, { useMemo } from 'react';
 
-import { useMaskValues } from '../../context/MaskValuesContext';
+import { useMaskValues } from '../../context/MaskValuesContext.tsx';
 import type { WalletItem } from '../../types/wallet';
 import { filterSuppliedTokens, filterGovernanceTokens } from '../../utils/tokenFilters';
 import {
@@ -20,7 +20,7 @@ import InfoIconWithTooltip from '../InfoIconWithTooltip';
 import MiniMetric from '../MiniMetric';
 import StandardHeader from '../table/StandardHeader';
 import TableFooter from '../table/TableFooter';
-import TokenDisplay from '../TokenDisplay';
+import TokenDisplay from '../TokenDisplay.tsx';
 
 // Interface para props do componente
 interface LockingTablesProps {

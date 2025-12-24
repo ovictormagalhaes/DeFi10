@@ -21,7 +21,6 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Get_Pool_Info_From_Raydium_API()
         {
             // Arrange
@@ -110,7 +109,6 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Return_Null_For_Invalid_Pool_Id()
         {
             // Arrange
@@ -125,7 +123,6 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Handle_Multiple_Pool_Requests()
         {
             // Arrange
@@ -153,7 +150,6 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Parse_All_Required_Fields()
         {
             // Arrange
@@ -192,7 +188,6 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Have_Valid_Token_Decimals()
         {
             // Arrange

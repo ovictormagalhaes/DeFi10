@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useMaskValues } from '../context/MaskValuesContext';
+import { useMaskValues } from '../context/MaskValuesContext.tsx';
 import { useTheme } from '../context/ThemeProvider.tsx';
 import { formatBalance, formatPrice, getFilteredTokens } from '../utils/walletUtils';
 

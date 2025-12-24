@@ -62,32 +62,7 @@ export function getWalletTokens(data) {
   return collected;
 }
 
-// DEPRECATED: Use getLiquidityPoolItems from types/filters.ts instead
-// Get liquidity pools from unified data
-export function getLiquidityPools(data) {
-  console.warn(
-    'DEPRECATED: getLiquidityPools from walletUtils.js is deprecated. Use getLiquidityPoolItems from types/filters.ts'
-  );
-  return filterItemsByType(data, ITEM_TYPES.LIQUIDITY_POOL);
-}
 
-// DEPRECATED: Use getLendingItems from types/filters.ts instead
-// Get lending and borrowing positions from unified data
-export function getLendingAndBorrowingPositions(data) {
-  console.warn(
-    'DEPRECATED: getLendingAndBorrowingPositions from walletUtils.js is deprecated. Use getLendingItems from types/filters.ts'
-  );
-  return filterItemsByType(data, ITEM_TYPES.LENDING_AND_BORROWING);
-}
-
-// DEPRECATED: Use getStakingItems from types/filters.ts instead
-// Get staking positions from unified data
-export function getStakingPositions(data) {
-  console.warn(
-    'DEPRECATED: getStakingPositions from walletUtils.js is deprecated. Use getStakingItems from types/filters.ts'
-  );
-  return filterItemsByType(data, ITEM_TYPES.STAKING);
-}
 
 // Format balance (use default decimals since not provided in response)
 export function formatBalance(balance, isNative = false) {
@@ -272,14 +247,11 @@ export function groupDefiByProtocol(defiData) {
   };
 
   defiData.forEach((defi) => {
-    console.log('groupDefiByProtocol processing item:', defi);
-
     // Handle both WalletItem format (direct protocol/position) and legacy format (defi.protocol/defi.position)
     const protocol = defi.protocol;
     const position = defi.position;
 
     if (!defi || !protocol || !position) {
-      console.log('Skipping item - missing protocol or position:', defi);
       return;
     }
     const baseProtocolId = protocol.id;

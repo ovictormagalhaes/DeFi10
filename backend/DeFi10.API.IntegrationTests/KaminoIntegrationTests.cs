@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -17,14 +18,21 @@ namespace DeFi10.API.Tests
         private readonly HttpClient _httpClient;
         private readonly ILogger<KaminoService> _logger;
         private readonly KaminoService _service;
-        
-        // Wallet conhecido com posição Kamino ativa
-        private const string TEST_WALLET_ADDRESS = "FriCEbw1V99GwrJRXPnSQ6su2TabHabNxiZ3VNsJVe6R";
+        private readonly string _testWalletAddress;
 
         public KaminoIntegrationTests(ITestOutputHelper output)
         {
             _output = output;
             _httpClient = new HttpClient();
+            
+            // Load configuration for integration tests
+            var config = new ConfigurationBuilder()
+                .AddJsonFile("appsettings.json", optional: true)
+                .AddEnvironmentVariables()
+                .Build();
+
+            _testWalletAddress = config["IntegrationTests:Kamino:TestWalletAddress"]
+                                 ?? throw new InvalidOperationException("IntegrationTests:Kamino:TestWalletAddress is not configured in appsettings.json or environment variables.");
             
             // Create mock logger
             var mockLogger = new Mock<ILogger<KaminoService>>();
@@ -33,7 +41,7 @@ namespace DeFi10.API.Tests
                 It.IsAny<EventId>(),
                 It.IsAny<It.IsAnyType>(),
                 It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>() ))
                 .Callback(new InvocationAction(invocation =>
                 {
                     var logLevel = (LogLevel)invocation.Arguments[0];
@@ -76,7 +84,6 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Fetch_Kamino_Reserves_Data()
         {
             // Arrange
@@ -86,7 +93,7 @@ namespace DeFi10.API.Tests
             var reserves = await _service.GetReservesDataAsync();
 
             // Assert
-            _output.WriteLine($"\n=== RESULT ===");
+            _output.WriteLine("\n=== RESULT ===");
             _output.WriteLine($"Reserves fetched: {reserves != null}");
             
             Assert.NotNull(reserves);
@@ -94,7 +101,7 @@ namespace DeFi10.API.Tests
             Assert.NotEmpty(reserves.Reserves);
 
             _output.WriteLine($"Total reserves: {reserves.Reserves.Count}");
-            _output.WriteLine($"\n=== First 5 Reserves ===");
+            _output.WriteLine("\n=== First 5 Reserves ===");
 
             foreach (var reserve in reserves.Reserves.Take(5))
             {
@@ -118,22 +125,21 @@ namespace DeFi10.API.Tests
             Assert.NotNull(firstReserve.Symbol);
             Assert.NotNull(firstReserve.MintAddress);
             
-            _output.WriteLine($"\n✓ Reserves API working correctly");
+            _output.WriteLine("\n✓ Reserves API working correctly");
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Get_Kamino_Positions_For_Test_Wallet()
         {
             // Arrange
-            _output.WriteLine($"=== Testing KaminoService.GetPositionsAsync ===");
-            _output.WriteLine($"Test Wallet: {TEST_WALLET_ADDRESS}\n");
+            _output.WriteLine("=== Testing KaminoService.GetPositionsAsync ===");
+            _output.WriteLine($"Test Wallet: {_testWalletAddress}\n");
 
             // Act
-            var positions = await _service.GetPositionsAsync(TEST_WALLET_ADDRESS, Chain.Solana);
+            var positions = await _service.GetPositionsAsync(_testWalletAddress, Chain.Solana);
 
             // Assert
-            _output.WriteLine($"\n=== RESULT ===");
+            _output.WriteLine("\n=== RESULT ===");
             _output.WriteLine($"Total positions found: {positions.Count()}");
 
             Assert.NotNull(positions);
@@ -164,17 +170,16 @@ namespace DeFi10.API.Tests
                 var totalBorrowed = position.Tokens.Where(t => t.Type == TokenType.Borrowed)
                     .Sum(t => t.Amount * (t.PriceUsd ?? 0));
                 
-                _output.WriteLine($"\n  Summary:");
+                _output.WriteLine("\n  Summary:");
                 _output.WriteLine($"    Total Supplied: ${totalSupplied:F2}");
                 _output.WriteLine($"    Total Borrowed: ${totalBorrowed:F2}");
                 _output.WriteLine($"    Net Position: ${(totalSupplied - totalBorrowed):F2}");
             }
 
-            _output.WriteLine($"\n✓ Positions fetched successfully");
+            _output.WriteLine("\n✓ Positions fetched successfully");
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Cache_Reserves_Data()
         {
             // Arrange
@@ -204,7 +209,6 @@ namespace DeFi10.API.Tests
         }
 
         [Fact]
-        [Trait("Category", "Integration")]
         public async Task Should_Find_Specific_Token_Reserves()
         {
             // Arrange
@@ -217,7 +221,7 @@ namespace DeFi10.API.Tests
             // Assert
             Assert.NotNull(reserves);
             
-            _output.WriteLine($"Looking for popular tokens...\n");
+            _output.WriteLine("Looking for popular tokens...\n");
             
             foreach (var tokenSymbol in tokensToFind)
             {

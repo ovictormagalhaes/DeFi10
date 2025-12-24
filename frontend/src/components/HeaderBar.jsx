@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-import { useMaskValues } from '../context/MaskValuesContext';
+import { useMaskValues } from '../context/MaskValuesContext.tsx';
 import { useTheme } from '../context/ThemeProvider.tsx';
 import { useWalletGroups } from '../hooks/useWalletGroups';
 import { formatAddress } from '../types/wallet-groups';

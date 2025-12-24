@@ -9,7 +9,7 @@
       <!-- Optional: uncomment to force local API during debugging -->
       <!-- <script>window.__API_BASE__='http://localhost:5001';</script> -->
     <script>
-      // Snapshot inicial de CSS vars com guardas para evitar erro quando body ainda não existe.
+      // Initial snapshot of CSS vars with guards to avoid error when body doesn't exist yet.
       (function applyInitialTheme() {
         function run() {
           var storedMode;
@@ -36,7 +36,7 @@
             try { document.body.style.backgroundColor = t.bgApp; } catch {}
             try { document.body.style.color = t.textPrimary; } catch {}
           } else {
-            // Se body ainda não existe, agenda para DOMContentLoaded
+            // If body doesn't exist yet, schedule for DOMContentLoaded
             document.addEventListener('DOMContentLoaded', function once(){
               document.removeEventListener('DOMContentLoaded', once);
               try { document.body.style.backgroundColor = t.bgApp; } catch {}

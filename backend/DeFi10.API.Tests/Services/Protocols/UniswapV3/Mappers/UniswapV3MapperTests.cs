@@ -182,6 +182,132 @@ public class UniswapV3MapperTests
             It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once);
     }
 
+    [Fact]
+    public async Task MapAsync_WithPoolMetadata_MapsPoolIdAndCreatedAt()
+    {
+        var expectedPoolId = "0x1234567890abcdef";
+        var expectedCreatedAt = 1703347200; // Unix timestamp
+        var expectedTickSpacing = 60;
+        var expectedSqrtPrice = "79228162514264337593543950336";
+
+        var response = new UniswapV3GetActivePoolsResponse
+        {
+            Data = new UniswapV3PositionsData
+            {
+                Positions = new List<UniswapV3Position>
+                {
+                    new UniswapV3Position
+                    {
+                        Id = "1",
+                        Token0 = new UniswapV3Token
+                        {
+                            Id = "0xtoken0",
+                            Name = "Token0",
+                            Symbol = "TKN0",
+                            Decimals = "18",
+                            DerivedNative = "0.0005"
+                        },
+                        Token1 = new UniswapV3Token
+                        {
+                            Id = "0xtoken1",
+                            Name = "Token1",
+                            Symbol = "TKN1",
+                            Decimals = "18",
+                            DerivedNative = "0.001"
+                        },
+                        DepositedToken0 = "100",
+                        WithdrawnToken0 = "0",
+                        DepositedToken1 = "200",
+                        WithdrawnToken1 = "0",
+                        EstimatedUncollectedToken0 = "5",
+                        EstimatedUncollectedToken1 = "10",
+                        CurrentPriceToken1PerToken0 = "2",
+                        RangeStatus = "in-range",
+                        Pool = new UniswapV3Pool
+                        {
+                            Id = expectedPoolId,
+                            TickSpacing = expectedTickSpacing.ToString(),
+                            SqrtPriceX96 = expectedSqrtPrice
+                        },
+                        Transaction = new UniswapV3Transaction
+                        {
+                            Timestamp = expectedCreatedAt.ToString()
+                        }
+                    }
+                },
+                Bundles = new List<UniswapV3Bundle>
+                {
+                    new UniswapV3Bundle { NativePriceUSD = "2000" }
+                }
+            }
+        };
+
+        var result = await _mapper.MapAsync(response, Chain.Ethereum);
+
+        Assert.Single(result);
+        Assert.NotNull(result[0].AdditionalData);
+        Assert.Equal(expectedPoolId, result[0].AdditionalData.PoolId);
+        Assert.Equal(expectedCreatedAt, result[0].AdditionalData.CreatedAt);
+        Assert.Equal(expectedTickSpacing, result[0].AdditionalData.TickSpacing);
+        Assert.Equal(expectedSqrtPrice, result[0].AdditionalData.SqrtPriceX96);
+    }
+
+    [Fact]
+    public async Task MapAsync_WithNullPoolMetadata_HandlesGracefully()
+    {
+        var response = new UniswapV3GetActivePoolsResponse
+        {
+            Data = new UniswapV3PositionsData
+            {
+                Positions = new List<UniswapV3Position>
+                {
+                    new UniswapV3Position
+                    {
+                        Id = "1",
+                        Token0 = new UniswapV3Token
+                        {
+                            Id = "0xtoken0",
+                            Name = "Token0",
+                            Symbol = "TKN0",
+                            Decimals = "18",
+                            DerivedNative = "0.0005"
+                        },
+                        Token1 = new UniswapV3Token
+                        {
+                            Id = "0xtoken1",
+                            Name = "Token1",
+                            Symbol = "TKN1",
+                            Decimals = "18",
+                            DerivedNative = "0.001"
+                        },
+                        DepositedToken0 = "100",
+                        WithdrawnToken0 = "0",
+                        DepositedToken1 = "200",
+                        WithdrawnToken1 = "0",
+                        EstimatedUncollectedToken0 = "5",
+                        EstimatedUncollectedToken1 = "10",
+                        CurrentPriceToken1PerToken0 = "2",
+                        RangeStatus = "in-range",
+                        Pool = null // Pool is null
+                    }
+                },
+                Bundles = new List<UniswapV3Bundle>
+                {
+                    new UniswapV3Bundle { NativePriceUSD = "2000" }
+                }
+            }
+        };
+
+        var result = await _mapper.MapAsync(response, Chain.Ethereum);
+
+        Assert.Single(result);
+        Assert.NotNull(result[0].AdditionalData);
+        Assert.Null(result[0].AdditionalData.PoolId);
+        Assert.Null(result[0].AdditionalData.CreatedAt);
+        Assert.Null(result[0].AdditionalData.TickSpacing);
+        Assert.Null(result[0].AdditionalData.SqrtPriceX96);
+    }
+
     private UniswapV3Position CreateValidPosition()
     {
         return new UniswapV3Position

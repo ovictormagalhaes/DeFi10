@@ -31,4 +31,7 @@ public sealed class RaydiumPosition
     
     [JsonPropertyName("tickCurrent")]
     public int TickCurrent { get; set; }
+    
+    [JsonPropertyName("createdAt")]
+    public long? CreatedAt { get; set; }
 }

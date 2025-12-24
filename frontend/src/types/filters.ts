@@ -1,52 +1,40 @@
 /**
- * Funções utilitárias para filtrar WalletItems por tipo
- * ARQUITETURA CORRETA: Todos os componentes usam WalletItem[], apenas filtram
+ * Utility functions to filter WalletItems by type
+ * CORRECT ARCHITECTURE: All components use WalletItem[], only filter
  */
 
 import type { WalletItem } from './wallet';
 
 /**
- * Filtra WalletItems para obter apenas posições de liquidez
+ * Filter WalletItems to get only liquidity positions
  */
 export function getLiquidityPoolItems(items: WalletItem[]): WalletItem[] {
   return items.filter((item) => item.type === 'LiquidityPool');
 }
 
 /**
- * Filtra WalletItems para obter apenas posições de lending/borrowing
+ * Filter WalletItems to get only lending/borrowing positions
  */
 export function getLendingItems(items: WalletItem[]): WalletItem[] {
   return items.filter((item) => item.type === 'LendingAndBorrowing');
 }
 
 /**
- * Filtra WalletItems para obter apenas posições de staking
+ * Filter WalletItems to get only staking positions
  */
 export function getStakingItems(items: WalletItem[]): WalletItem[] {
   return items.filter((item) => item.type === 'Staking');
 }
 
 /**
- * Filtra WalletItems para obter apenas posições de locking (vePENDLE, etc.)
+ * Filter WalletItems to get only locking positions (vePENDLE, etc.)
  */
 export function getLockingItems(items: WalletItem[]): WalletItem[] {
-  console.log('getLockingItems called with items:', items);
-  const lockingItems = items.filter((item) => {
-    console.log('Checking item type:', item.type, 'for item:', item);
-    return item.type === 'Locking';
-  });
-  console.log('getLockingItems returning:', lockingItems);
-  return lockingItems;
+  return items.filter((item) => item.type === 'Locking');
 }
 
 export function getDepositingItems(items: WalletItem[]): WalletItem[] {
-  console.log('getDepositingItems called with items:', items);
-  const depositingItems = items.filter((item) => {
-    console.log('Checking item type:', item.type, 'for item:', item);
-    return item.type === 'Depositing';
-  });
-  console.log('getDepositingItems returning:', depositingItems);
-  return depositingItems;
+  return items.filter((item) => item.type === 'Depositing');
 }
 
 /**
