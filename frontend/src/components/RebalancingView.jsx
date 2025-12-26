@@ -18,6 +18,7 @@ import RebalanceItemDialog from './RebalanceItemDialog';
 import Skeleton from './Skeleton';
 import StandardHeader from './table/StandardHeader';
 import TokenDisplay from './TokenDisplay.tsx';
+import RebalancingCards from './cards/RebalancingCards';
 
 // Frontend mirror of backend enum
 const RebalanceReferenceType = {
@@ -70,6 +71,19 @@ export default function RebalancingView({
   const { theme: themeCtx } = useTheme();
   const theme = themeProp || themeCtx;
   const { maskValue } = useMaskValues();
+
+  // Responsive breakpoint detection
+  const [windowWidth, setWindowWidth] = React.useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1200
+  );
+  
+  React.useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const useCardView = windowWidth < 900; // Use cards below 900px
 
   // Normalize chain identifier for token grouping / id composition
   const getChainKey = React.useCallback((tok) => {
@@ -1157,14 +1171,7 @@ export default function RebalancingView({
   return (
     <div className="panel rebalance-panel pad-16 text-primary">
       <div className="panel-header">
-        <div className="flex-center gap-10">
-          <div className="panel-title">Rebalancing</div>
-          {initialSavedKey && (
-            <div className="badge badge-secondary badge-sm" title={`key: ${initialSavedKey}`}>
-              last saved • items: {initialSavedCount ?? 0}
-            </div>
-          )}
-        </div>
+        <div className="panel-title">Rebalancing</div>
         <button type="button" onClick={() => setShowDialog(true)} className="btn btn--outline">
           Add
         </button>
@@ -1211,7 +1218,63 @@ export default function RebalancingView({
       {/* Entries List (Grouped Collapsible Sections by Reference Type + Value) */}
       {entries.length > 0 && (
         <div className="mt-20 flex column gap-20">
-          {(() => {
+          {useCardView ? (
+            // Card View for mobile/small screens
+            (() => {
+              // Group entries by bucketKey (referenceType:referenceValue)
+              const buckets = new Map();
+              entries.forEach((e) => {
+                const key = bucketKey(e);
+                if (!buckets.has(key)) {
+                  buckets.set(key, {
+                    label: `${e.referenceLabel}`,
+                    entries: []
+                  });
+                }
+                buckets.get(key).entries.push(e);
+              });
+              
+              return Array.from(buckets.entries()).map(([key, { label, entries: groupEntries }]) => (
+                <CollapsibleMenu
+                  key={key}
+                  title={label}
+                  variant="flat"
+                  showSummary={false}
+                >
+                  <RebalancingCards
+                    entries={groupEntries}
+                    onEdit={(row) => {
+                      setEditingId(row.id);
+                      setShowDialog(true);
+                      setAssetType(row.assetType);
+                      const assets = row.assetIds || [{ type: row.assetType, id: row.assetId }];
+                      if (assets.length === 1) {
+                        setAssetId(assets[0].id || assets[0]);
+                        setAssetIds([]);
+                      } else {
+                        setAssetId('');
+                        setAssetIds(assets);
+                      }
+                      setReferenceType(row.referenceType);
+                      setReferenceValue(row.referenceValue || '');
+                      setNote(row.note || 0);
+                    }}
+                    onDelete={removeEntry}
+                    entryCurrentValues={entryCurrentValues}
+                    bucketCurrentSums={bucketCurrentSums}
+                    bucketNoteSums={bucketNoteSums}
+                    bucketKey={bucketKey}
+                    tokensList={tokensList}
+                    poolsList={poolsList}
+                    lendingList={lendingList}
+                    stakingList={stakingList}
+                  />
+                </CollapsibleMenu>
+              ));
+            })()
+          ) : (
+            // Table View for desktop/large screens
+            (() => {
             // Group entries by bucketKey (referenceType:referenceValue)
             const buckets = new Map();
             entries.forEach((e) => {
@@ -1232,12 +1295,13 @@ export default function RebalancingView({
                 variant="flat"
                 showSummary={false}
               >
-                <table className="table-unified text-primary">
-                  <StandardHeader
-                    columnDefs={[
-                      // Icon + name are merged in the first (token) column; remaining metric/action columns follow
-                      { key: 'current', label: 'Current', align: 'right' },
-                      { key: 'target', label: 'Target', align: 'right' },
+                <div className="table-wrapper">
+                  <table className="table-unified text-primary">
+                    <StandardHeader
+                      columnDefs={[
+                        // Icon + name are merged in the first (token) column; remaining metric/action columns follow
+                        { key: 'current', label: 'Current', align: 'right' },
+                        { key: 'target', label: 'Target', align: 'right' },
                       { key: 'diff', label: 'Diff', align: 'right' },
                       { key: 'note', label: 'Note', align: 'left' },
                       { key: 'actions', label: '', align: 'right', className: 'col-actions' },
@@ -1621,39 +1685,68 @@ export default function RebalancingView({
                         })}
                   </tbody>
                 </table>
+                </div>
               </CollapsibleMenu>
             ));
-          })()}
+          })()
+          )}
         </div>
       )}
       {/* Manual save bar with Save button */}
-      <div className="save-bar mt-20" style={{ justifyContent: 'space-between' }}>
-        <div>
+      <div className="save-bar mt-20" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minHeight: '32px' }}>
           {entries.length === 0 && <span>Adicione items para iniciar configuração.</span>}
-          {entries.length > 0 && !saveResult && saving && <span>Saving…</span>}
-          {entries.length > 0 && !saving && saveResult && (
-            <span>
-              Saved: key {saveResult.key} • {saveResult.itemsCount} items
-              {saveResult.savedAt ? ` • ${saveResult.savedAt.toLocaleTimeString()}` : ''}
-            </span>
+          {saving && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--mw-text-secondary, var(--app-text-secondary))' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              <span style={{ fontSize: '13px', fontWeight: 500 }}>Saving changes...</span>
+            </div>
           )}
-          {saveError && <span className="text-negative">Erro ao salvar: {saveError}</span>}
+          {!saving && saveResult && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--mw-success-text, #10b981)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span style={{ fontSize: '13px', fontWeight: 500 }}>Saved successfully</span>
+              {saveResult.savedAt && (
+                <span style={{ fontSize: '12px', opacity: 0.7, marginLeft: '4px' }}>
+                  • {saveResult.savedAt.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+          )}
+          {saveError && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--mw-danger-text, #ef4444)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+              <span style={{ fontSize: '13px', fontWeight: 500 }}>Failed to save: {saveError}</span>
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {saving && (
-            <span className="text-secondary" style={{ fontSize: 12 }}>
-              sync…
-            </span>
-          )}
           {entries.length > 0 && (
             <button
               type="button"
               onClick={() => saveRebalance()}
               disabled={saving}
               className="btn btn--primary"
-              style={{ fontSize: '14px', padding: '6px 16px' }}
+              style={{ fontSize: '14px', padding: '6px 16px', minWidth: '80px' }}
             >
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  Saving
+                </span>
+              ) : (
+                'Save'
+              )}
             </button>
           )}
         </div>

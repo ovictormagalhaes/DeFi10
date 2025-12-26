@@ -19,6 +19,7 @@ export default function HeaderBar({
   onManageGroups, // NEW: callback to open wallet groups modal
   selectedWalletGroupId, // NEW: currently selected wallet group
   onSelectWalletGroup, // NEW: callback when group is selected
+  onShowStatus, // NEW: callback to open status dialog
 }) {
   const { theme, mode, toggleTheme } = useTheme();
   const { maskValues, setMaskValues } = useMaskValues();
@@ -190,70 +191,122 @@ export default function HeaderBar({
             )
           }
         />
+        {/* Status button */}
+        {onShowStatus && (
+          <IconButton
+            label="View protocol status"
+            onClick={onShowStatus}
+            icon={
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                stroke={theme.textPrimary}
+                fill="none"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4" />
+                <path d="M12 8h.01" />
+              </svg>
+            }
+          />
+        )}
         {/* Wallet dropdown */}
         <div style={{ position: 'relative' }} ref={dropdownRef}>
           <button
             onClick={() => setWalletOpen((o) => !o)}
+            title={
+              selectedWalletGroupId
+                ? selectedGroup?.displayName || 'Wallet Group'
+                : account
+                  ? `${account.slice(0, 6)}...${account.slice(-4)}`
+                  : 'Connect Wallet'
+            }
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 8,
               background: theme.bgPanel,
               border: `1px solid ${theme.border}`,
-              padding: '6px 12px',
-              borderRadius: 14,
+              padding: isMobile ? '6px' : '6px 12px',
+              borderRadius: isMobile ? 12 : 14,
               cursor: 'pointer',
               fontSize: 13,
               color: theme.textPrimary,
               fontFamily: 'monospace',
-              width: ACCOUNT_CHIP_WIDTH,
-              justifyContent: 'flex-start',
+              width: isMobile ? 38 : ACCOUNT_CHIP_WIDTH,
+              height: 38,
+              justifyContent: isMobile ? 'center' : 'flex-start',
               position: 'relative',
               transition: 'background-color 120ms',
             }}
             aria-haspopup="menu"
             aria-expanded={walletOpen}
           >
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                background:
-                  account || selectedWalletGroupId
-                    ? theme.success || '#16a34a'
-                    : theme.danger || '#dc2626',
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontSize: 13,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                flex: 1,
-              }}
-            >
-              {selectedWalletGroupId
-                ? selectedGroup?.displayName || 'Wallet Group'
-                : account
-                  ? `${account.slice(0, 6)}...${account.slice(-4)}`
-                  : 'Connect'}
-            </span>
+            {/* Wallet icon - always visible */}
             <svg
-              width="14"
-              height="14"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
-              stroke={theme.textSecondary}
+              stroke={theme.textPrimary}
               fill="none"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{ flexShrink: 0, opacity: 0.6 }}
+              style={{ flexShrink: 0 }}
             >
-              <path d="m6 9 6 6 6-6" />
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <path d="M2 10h20" />
             </svg>
+            
+            {/* Desktop: show text + status indicator + dropdown arrow */}
+            {!isMobile && (
+              <>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background:
+                      account || selectedWalletGroupId
+                        ? theme.success || '#16a34a'
+                        : theme.danger || '#dc2626',
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 13,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                  }}
+                >
+                  {selectedWalletGroupId
+                    ? selectedGroup?.displayName || 'Wallet Group'
+                    : account
+                      ? `${account.slice(0, 6)}...${account.slice(-4)}`
+                      : 'Connect'}
+                </span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  stroke={theme.textSecondary}
+                  fill="none"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0, opacity: 0.6 }}
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </>
+            )}
           </button>
           {walletOpen && (
             <div

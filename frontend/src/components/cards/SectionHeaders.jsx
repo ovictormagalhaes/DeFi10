@@ -332,3 +332,144 @@ export const PoolsSectionHeader = ({ data = [] }) => {
     </div>
   );
 };
+
+/**
+ * LockingSectionHeader - Header for Locked Tokens section
+ */
+export const LockingSectionHeader = ({ data = [] }) => {
+  const { theme } = useTheme();
+  const { maskValue } = useMaskValues();
+  const isMobile = useIsMobile();
+  
+  let totalLockedValue = 0;
+  let totalGovernanceTokens = 0;
+  let nextUnlockDate = null;
+  
+  data.forEach(item => {
+    const position = item.position || item;
+    const tokens = position.tokens || [];
+    
+    // Get supplied (locked) tokens
+    const suppliedTokens = tokens.filter(t => 
+      t.type?.toLowerCase() === 'supplied'
+    );
+    
+    const lockedValue = suppliedTokens.reduce((sum, token) => {
+      return sum + (token.financials?.totalPrice || token.totalPrice || 0);
+    }, 0);
+    
+    totalLockedValue += lockedValue;
+    
+    // Count governance tokens
+    const governanceTokens = tokens.filter(t => 
+      t.type?.toLowerCase() === 'governance'
+    );
+    
+    totalGovernanceTokens += governanceTokens.length;
+    
+    // Get unlock date
+    const unlockTimestamp = item.additionalData?.unlockAt;
+    if (unlockTimestamp) {
+      const unlockDate = new Date(unlockTimestamp * 1000);
+      if (!nextUnlockDate || unlockDate < nextUnlockDate) {
+        nextUnlockDate = unlockDate;
+      }
+    }
+  });
+  
+  // Format unlock date
+  const formatUnlockDate = (date) => {
+    if (!date) return 'N/A';
+    
+    const now = new Date();
+    const diffMs = date.getTime() - now.getTime();
+    
+    if (diffMs <= 0) return 'Expired';
+    
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 1) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays <= 30) return `${diffDays} days`;
+    if (diffDays <= 365) {
+      const months = Math.round(diffDays / 30);
+      return `${months} month${months > 1 ? 's' : ''}`;
+    }
+    
+    const years = Math.round(diffDays / 365);
+    return `${years} year${years > 1 ? 's' : ''}`;
+  };
+  
+  const positionsCount = data.length;
+  
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <h3 style={{ 
+        fontSize: 22, 
+        fontWeight: 600, 
+        color: theme.textPrimary,
+        marginBottom: 12,
+        textAlign: 'center',
+      }}>
+        Locked Tokens
+      </h3>
+      <div style={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'stretch' : 'center',
+        padding: '16px 24px',
+        backgroundColor: theme.bgPanel,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 16,
+        boxShadow: `0 2px 8px ${theme.shadow}`,
+        gap: isMobile ? 16 : 0,
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 4 }}>
+            Positions
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            {positionsCount}
+          </div>
+        </div>
+        
+        <div style={{ 
+          flex: 1, 
+          textAlign: isMobile ? 'left' : 'center',
+          padding: isMobile ? 0 : '0 16px',
+          borderLeft: isMobile ? 'none' : `1px solid ${theme.border}`,
+          borderRight: isMobile ? 'none' : `1px solid ${theme.border}`,
+          borderTop: isMobile ? `1px solid ${theme.border}` : 'none',
+          borderBottom: isMobile ? `1px solid ${theme.border}` : 'none',
+          paddingTop: isMobile ? 16 : 0,
+          paddingBottom: isMobile ? 16 : 0,
+        }}>
+          <div style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 4 }}>
+            Locked Value
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: theme.textPrimary }}>
+            {maskValue(formatPrice(totalLockedValue))}
+          </div>
+        </div>
+        
+        <div style={{ flex: 1, textAlign: isMobile ? 'left' : 'right' }}>
+          <div style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 4 }}>
+            Next Unlock
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 8, justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            {formatUnlockDate(nextUnlockDate)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

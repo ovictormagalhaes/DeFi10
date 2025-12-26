@@ -18,6 +18,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 using DeFi10.API.Services.Core.Solana;
+using DeFi10.API.Services.Infrastructure;
 
 namespace DeFi10.API.Services.Protocols.Raydium
 {
@@ -28,53 +29,93 @@ namespace DeFi10.API.Services.Protocols.Raydium
         private readonly HttpClient _httpClient;
         private const string CLMM_PROGRAM_ID = "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK";
 
-        public RaydiumOnChainService(IRpcClient rpc, ILogger<RaydiumOnChainService> logger, HttpClient httpClient)
+        public RaydiumOnChainService(
+            IRpcClientFactory rpcFactory,
+            ILogger<RaydiumOnChainService> logger, 
+            HttpClient httpClient)
         {
-            _rpc = rpc ?? throw new ArgumentNullException(nameof(rpc));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _rpc = rpcFactory?.GetSolanaClient() ?? throw new ArgumentNullException(nameof(rpcFactory));            
         }
 
         public async Task<List<RaydiumPosition>> GetPositionsAsync(string walletAddress)
         {
+            _logger.LogInformation("[Raydium CLMM] Starting GetPositionsAsync for wallet: {Wallet}", walletAddress);
+            var startTime = DateTime.UtcNow;
             var positions = new List<RaydiumPosition>();
 
             if (!PublicKey.IsValid(walletAddress))
             {
-                _logger.LogError($"[Raydium CLMM] Invalid wallet address format: {walletAddress}");
+                _logger.LogError("[Raydium CLMM] Invalid wallet address format: {Wallet}", walletAddress);
                 return positions;
             }
 
             const string TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
             
-            var tokenAccountsResult = await _rpc.GetTokenAccountsByOwnerAsync(
-                walletAddress, null, TokenProgram.ProgramIdKey, Commitment.Finalized);
+            _logger.LogInformation("[Raydium CLMM] Fetching token accounts for wallet: {Wallet}", walletAddress);
             
-            var token2022AccountsResult = await _rpc.GetTokenAccountsByOwnerAsync(
-                walletAddress, null, TOKEN_2022_PROGRAM, Commitment.Finalized);
-
             var allTokenAccounts = new List<TokenAccount>();
             
-            if (tokenAccountsResult.WasSuccessful && tokenAccountsResult.Result?.Value != null)
+            // Query SPL Token accounts with retry
+            try
             {
-                allTokenAccounts.AddRange(tokenAccountsResult.Result.Value);
+                var tokenAccountsResult = await RetryRpcCallAsync(async () =>
+                    await _rpc.GetTokenAccountsByOwnerAsync(
+                        walletAddress, null, TokenProgram.ProgramIdKey, Commitment.Finalized),
+                    "SPL Token", 3);
+                
+                if (tokenAccountsResult.WasSuccessful && tokenAccountsResult.Result?.Value != null)
+                {
+                    allTokenAccounts.AddRange(tokenAccountsResult.Result.Value);
+                    _logger.LogInformation("[Raydium CLMM] Successfully fetched {Count} SPL Token accounts", tokenAccountsResult.Result.Value.Count);
+                }
+                else
+                {
+                    var errorMsg = tokenAccountsResult?.Reason?.ToString() ?? "Unknown error";
+                    var errorData = tokenAccountsResult?.ErrorData?.ToString() ?? "No error data";
+                    _logger.LogError("[Raydium CLMM] SPL Token query failed - WasSuccessful: {Success}, Reason: {Reason}, ErrorData: {ErrorData}",
+                        tokenAccountsResult?.WasSuccessful, errorMsg, errorData);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                _logger.LogWarning($"[Raydium CLMM] SPL Token query failed: {tokenAccountsResult?.ErrorData}");
+                _logger.LogError(ex, "[Raydium CLMM] Exception during SPL Token query: {Message}, StackTrace: {StackTrace}", 
+                    ex.Message, ex.StackTrace);
             }
             
-            if (token2022AccountsResult.WasSuccessful && token2022AccountsResult.Result?.Value != null)
+            // Query Token-2022 accounts with retry
+            try
             {
-                allTokenAccounts.AddRange(token2022AccountsResult.Result.Value);
+                var token2022AccountsResult = await RetryRpcCallAsync(async () =>
+                    await _rpc.GetTokenAccountsByOwnerAsync(
+                        walletAddress, null, TOKEN_2022_PROGRAM, Commitment.Finalized),
+                    "Token-2022", 3);
+                
+                if (token2022AccountsResult.WasSuccessful && token2022AccountsResult.Result?.Value != null)
+                {
+                    allTokenAccounts.AddRange(token2022AccountsResult.Result.Value);
+                    _logger.LogInformation("[Raydium CLMM] Successfully fetched {Count} Token-2022 accounts", token2022AccountsResult.Result.Value.Count);
+                }
+                else
+                {
+                    var errorMsg = token2022AccountsResult?.Reason?.ToString() ?? "Unknown error";
+                    var errorData = token2022AccountsResult?.ErrorData?.ToString() ?? "No error data";
+                    _logger.LogError("[Raydium CLMM] Token-2022 query failed - WasSuccessful: {Success}, Reason: {Reason}, ErrorData: {ErrorData}",
+                        token2022AccountsResult?.WasSuccessful, errorMsg, errorData);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                _logger.LogWarning($"[Raydium CLMM] Token-2022 query failed: {token2022AccountsResult?.ErrorData}");
+                _logger.LogError(ex, "[Raydium CLMM] Exception during Token-2022 query: {Message}, StackTrace: {StackTrace}", 
+                    ex.Message, ex.StackTrace);
             }
+
+            _logger.LogInformation("[Raydium CLMM] Found {Count} total token accounts for wallet: {Wallet}", allTokenAccounts.Count, walletAddress);
 
             if (!allTokenAccounts.Any())
             {
+                _logger.LogInformation("[Raydium CLMM] No token accounts found, returning empty positions");
                 return positions;
             }
 
@@ -220,22 +261,28 @@ namespace DeFi10.API.Services.Protocols.Raydium
                 }
             }
 
+            _logger.LogInformation("[Raydium CLMM] Found {Count} position NFTs for wallet: {Wallet}", positionNfts.Count, walletAddress);
+
             if (!positionNfts.Any())
             {
-                    return positions;
-            }
-
-            var positionPdas = positionNfts.Select(DerivePositionPdaFromNftMint).Where(p => p != null).ToList();
-            if (!positionPdas.Any())
-            {
-                _logger.LogDebug("[Raydium CLMM] No PDAs derived from NFTs.");
+                _logger.LogInformation("[Raydium CLMM] No position NFTs found, returning empty positions");
                 return positions;
             }
 
+            var positionPdas = positionNfts.Select(DerivePositionPdaFromNftMint).Where(p => p != null).ToList();
+            _logger.LogInformation("[Raydium CLMM] Derived {Count} position PDAs from NFTs", positionPdas.Count);
+            
+            if (!positionPdas.Any())
+            {
+                _logger.LogWarning("[Raydium CLMM] No PDAs derived from NFTs");
+                return positions;
+            }
+
+            _logger.LogInformation("[Raydium CLMM] Fetching position account data for {Count} PDAs", positionPdas.Count);
             var posAccounts = await _rpc.GetMultipleAccountsAsync(positionPdas, Commitment.Finalized);
             if (!posAccounts.WasSuccessful)
             {
-                _logger.LogError($"[Raydium CLMM] GetMultipleAccountsAsync for position PDAs failed: {posAccounts.ErrorData}");
+                _logger.LogError("[Raydium CLMM] GetMultipleAccountsAsync for position PDAs failed: {ErrorData}", posAccounts.ErrorData);
                 return positions;
             }
 
@@ -383,6 +430,10 @@ namespace DeFi10.API.Services.Protocols.Raydium
                     _logger.LogWarning(ex, "[Raydium CLMM] Failed parsing position account.");
                 }
             }
+
+            var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogInformation("[Raydium CLMM] Completed GetPositionsAsync for wallet: {Wallet} - Found {Count} positions in {Duration}ms", 
+                walletAddress, positions.Count, duration);
 
             return positions;
         }
@@ -891,8 +942,45 @@ namespace DeFi10.API.Services.Protocols.Raydium
             return true;
         }
 
+        /// <summary>
+        /// Retries an RPC call with exponential backoff
+        /// </summary>
+        private async Task<T> RetryRpcCallAsync<T>(Func<Task<T>> operation, string operationName, int maxAttempts)
+        {
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    _logger.LogInformation("[Raydium CLMM] Attempting {Operation} query (attempt {Attempt}/{Max})", 
+                        operationName, attempt, maxAttempts);
+                    
+                    var result = await operation();
+                    
+                    _logger.LogInformation("[Raydium CLMM] {Operation} query succeeded on attempt {Attempt}", 
+                        operationName, attempt);
+                    
+                    return result;
+                }
+                catch (Exception ex)
+                {
+                    if (attempt == maxAttempts)
+                    {
+                        _logger.LogError(ex, "[Raydium CLMM] {Operation} query failed after {Attempts} attempts: {Message}", 
+                            operationName, maxAttempts, ex.Message);
+                        throw;
+                    }
+                    
+                    var delayMs = 1000 * attempt; // Exponential backoff: 1s, 2s, 3s
+                    _logger.LogWarning(ex, "[Raydium CLMM] {Operation} query attempt {Attempt}/{Max} failed: {Message}. Retrying in {Delay}ms...", 
+                        operationName, attempt, maxAttempts, ex.Message, delayMs);
+                    
+                    await Task.Delay(delayMs);
+                }
+            }
+            
+            throw new InvalidOperationException($"[Raydium CLMM] Retry logic for {operationName} failed unexpectedly");
+        }
 
-
-        private static string Short(string s) => string.IsNullOrEmpty(s) ? s : s[..6] + "�" + s[^4..];
+        private static string Short(string s) => string.IsNullOrEmpty(s) ? s : s[..6] + "…" + s[^4..];
     }
 }

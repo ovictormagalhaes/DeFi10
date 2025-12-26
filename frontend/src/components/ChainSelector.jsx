@@ -13,6 +13,17 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
   const { theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  
+  // Responsive breakpoint detection
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobile = windowWidth < 640;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -148,6 +159,50 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
     );
   };
 
+  // Get icon for button (responsive)
+  const getButtonIcon = () => {
+    // All networks - globe icon
+    if (isAllSelected) {
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M2 12h20" />
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+        </svg>
+      );
+    }
+    
+    // Single network - show its icon
+    const count = selectedChains.size;
+    if (count === 1) {
+      const selectedKey = Array.from(selectedChains)[0];
+      const chain = supportedChains.find(c => getChainKey(c) === selectedKey);
+      if (chain?.iconUrl) {
+        return (
+          <img
+            src={chain.iconUrl}
+            alt={chain.displayName || chain.name}
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              objectFit: 'cover',
+            }}
+          />
+        );
+      }
+    }
+    
+    // Multiple networks - layers icon
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+        <polyline points="2 17 12 22 22 17" />
+        <polyline points="2 12 12 17 22 12" />
+      </svg>
+    );
+  };
+
   if (!supportedChains || supportedChains.length === 0) {
     return null;
   }
@@ -157,22 +212,26 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
       {/* Dropdown Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
+        title={getButtonText()}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '10px 16px',
-          minWidth: 180,
-          maxWidth: 200,
+          padding: isMobile ? '7px' : '10px 16px',
+          minWidth: isMobile ? 38 : 180,
+          maxWidth: isMobile ? 38 : 200,
+          width: isMobile ? 38 : 'auto',
+          height: isMobile ? 38 : 'auto',
           backgroundColor: theme.bgPanel,
           color: theme.textPrimary,
           border: `1px solid ${theme.border}`,
-          borderRadius: 8,
+          borderRadius: isMobile ? 12 : 8,
           cursor: 'pointer',
           fontSize: 14,
           fontWeight: 500,
           transition: 'all 0.2s ease',
           outline: 'none',
+          justifyContent: isMobile ? 'center' : 'flex-start',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.backgroundColor = theme.bgHover;
@@ -183,34 +242,45 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
           e.currentTarget.style.borderColor = theme.border;
         }}
       >
-        <span
-          style={{
-            flex: 1,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {getButtonText()}
+        {/* Always show icon */}
+        <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          {getButtonIcon()}
         </span>
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          style={{
-            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease',
-          }}
-        >
-          <path
-            d="M2 4L6 8L10 4"
-            stroke={theme.textSecondary}
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        
+        {/* Desktop: show text + dropdown arrow */}
+        {!isMobile && (
+          <>
+            <span
+              style={{
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {getButtonText()}
+            </span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              style={{
+                transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+                flexShrink: 0,
+              }}
+            >
+              <path
+                d="M2 4L6 8L10 4"
+                stroke={theme.textSecondary}
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </>
+        )}
       </button>
 
       {/* Dropdown Menu */}
@@ -219,7 +289,8 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
           style={{
             position: 'absolute',
             top: 'calc(100% + 4px)',
-            left: 0,
+            right: isMobile ? 0 : 'auto',
+            left: isMobile ? 'auto' : 0,
             width: 240,
             maxHeight: 400,
             overflowY: 'auto',

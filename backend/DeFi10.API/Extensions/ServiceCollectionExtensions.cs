@@ -19,6 +19,7 @@ using DeFi10.API.Services.Protocols.Raydium;
 using DeFi10.API.Services.Infrastructure.Moralis;
 using DeFi10.API.Services.Infrastructure.Alchemy;
 using DeFi10.API.Services.Infrastructure.CoinMarketCap;
+using DeFi10.API.Services.Infrastructure;
 using DeFi10.API.Services.Helpers;
 using DeFi10.API.Services.Interfaces;
 using DeFi10.API.Services.Infrastructure.Moralis.Models;
@@ -121,12 +122,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<ICacheService, RedisCacheService>();
-
-        services.AddSingleton<IRpcClient>(sp =>
-        {
-            var rpcUrl = "https://api.mainnet-beta.solana.com";
-            return ClientFactory.GetClient(rpcUrl);
-        });
+        services.AddSingleton<IRpcClientFactory, RpcClientFactory>();
 
         return services;
     }
@@ -167,6 +163,10 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<ICoinMarketCapService, CoinMarketCapService>();
         services.AddHttpClient<PendleService>();
         services.AddHttpClient<UniswapV3OnChainService>();
+        services.AddHttpClient<RaydiumOnChainService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60); // Increased timeout for Raydium RPC operations
+        });
 
         return services;
     }

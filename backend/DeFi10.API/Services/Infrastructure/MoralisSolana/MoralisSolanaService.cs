@@ -52,8 +52,10 @@ namespace DeFi10.API.Services.Infrastructure.MoralisSolana
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    _logger.LogError("Moralis Solana API error - Status: {Status}, Content: {Content}", response.StatusCode, errorContent);
-                    throw new HttpRequestException($"Moralis Solana API returned {response.StatusCode}: {errorContent}");
+                    _logger.LogWarning("Moralis Solana API error - Status: {Status}, Content: {Content}", response.StatusCode, errorContent);
+                    
+                    _logger.LogWarning("Returning empty token list due to Moralis API error for address {Address}", address);
+                    return new SolanaTokenResponse { Tokens = new List<SplToken>() };
                 }
 
                 var responseJson = await response.Content.ReadAsStringAsync();
@@ -119,18 +121,18 @@ namespace DeFi10.API.Services.Infrastructure.MoralisSolana
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "HTTP error fetching Solana portfolio for address {Address}", address);
-                throw new Exception($"MoralisSolanaService HTTP error: {ex.Message}", ex);
+                _logger.LogWarning(ex, "HTTP error fetching Solana portfolio for address {Address} - returning empty list", address);
+                return new SolanaTokenResponse { Tokens = new List<SplToken>() };
             }
             catch (JsonException ex)
             {
-                _logger.LogError(ex, "JSON parsing error for Solana portfolio response");
-                throw new Exception($"MoralisSolanaService JSON error: {ex.Message}", ex);
+                _logger.LogError(ex, "JSON parsing error for Solana portfolio response - returning empty list");
+                return new SolanaTokenResponse { Tokens = new List<SplToken>() };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error fetching Solana portfolio for address {Address}", address);
-                throw;
+                _logger.LogWarning(ex, "Unexpected error fetching Solana portfolio for address {Address} - returning empty list", address);
+                return new SolanaTokenResponse { Tokens = new List<SplToken>() };
             }
         }
 
