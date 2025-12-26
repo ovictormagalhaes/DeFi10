@@ -12,8 +12,8 @@ import RebalancingView from './components/RebalancingView'; // will render under
 import SectionTable from './components/SectionTable';
 import SummaryView from './components/SummaryView';
 import ViewModeSelector from './components/ViewModeSelector';
-import { LendingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
-import { WalletSectionHeader, LendingSectionHeader, PoolsSectionHeader } from './components/cards/SectionHeaders';
+import { LendingCards, LockingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
+import { WalletSectionHeader, LendingSectionHeader, PoolsSectionHeader, LockingSectionHeader } from './components/cards/SectionHeaders';
 import { LendingSubSectionHeader, LiquiditySubSectionHeader } from './components/cards/SubSectionHeaders';
 import { WalletTokensTable } from './components/tables';
 import WalletGroupModal from './components/WalletGroupModal';
@@ -80,15 +80,15 @@ function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  // Breakpoints: >=1100px => 15% side padding, >=800px => 8%, 480-799px => 20px, <480px => 0
+  // Breakpoints: >=1100px => 15% side padding, >=800px => 8%, 480-799px => 20px, <480px => 12px min
   const sidePadding =
     viewportWidth >= 1100
       ? '4%'
       : viewportWidth >= 800
-        ? '2%'
+        ? 'max(2%, 12px)'
         : viewportWidth >= 480
           ? '20px'
-          : '0';
+          : '12px';
   // Mobile breakpoint for header/menu responsiveness
   const isMobile = viewportWidth < 700;
   // Responsive column visibility breakpoints for tables
@@ -1253,33 +1253,46 @@ function App() {
                   navigator.clipboard.writeText(val);
                 } catch {}
               }}
+              onShowStatus={() => {
+                setShowStatusDialog(true);
+                fetchProtocolsStatus();
+              }}
             />
             <div className="w-full flex flex-column" style={{ minHeight: '100vh' }}>
               <div
                 className="w-full"
                 style={{
-                  padding: `8px ${sidePadding} 0px ${sidePadding}`,
+                  padding: `8px ${sidePadding} 16px ${sidePadding}`,
                   boxSizing: 'border-box',
                 }}
               >
                 {/* View Type & Chain Filter Selectors */}
                 {isAggregationReady && supportedChains && supportedChains.length > 0 && (
                   <div className="mb-16" style={{ 
-                    display: 'flex', 
-                    justifyContent: isMobile ? 'center' : 'flex-end', 
-                    alignItems: 'center', 
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto 1fr',
+                    alignItems: 'center',
                     gap: 12,
-                    flexWrap: 'wrap'
                   }}>
-                    <ViewModeSelector
-                      value={viewType}
-                      onChange={setViewType}
-                    />
-                    <ChainSelector
-                      supportedChains={supportedChains}
-                      selectedChains={selectedChains}
-                      onSelectionChange={setSelectedChains}
-                    />
+                    {/* Empty space for left */}
+                    <div />
+                    
+                    {/* Center: ViewModeSelector */}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <ViewModeSelector
+                        value={viewType}
+                        onChange={setViewType}
+                      />
+                    </div>
+                    
+                    {/* Right: ChainSelector */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <ChainSelector
+                        supportedChains={supportedChains}
+                        selectedChains={selectedChains}
+                        onSelectionChange={setSelectedChains}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -1906,6 +1919,17 @@ function App() {
                                 </div>
                               );
                             })()}
+
+                            {/* Locking Cards */}
+                            {(() => {
+                              const filtered = getLockingData().filter(defiItemMatchesSelection);
+                              return filtered.length > 0 && (
+                                <div>
+                                  <LockingSectionHeader data={filtered} />
+                                  <LockingCards data={filtered} />
+                                </div>
+                              );
+                            })()}
                           </div>
                         ) : (
                           /* Table View */
@@ -2015,12 +2039,17 @@ function App() {
             setIsWalletGroupModalOpen(false);
             setPendingWalletGroupId(null);
           }}
-          onGroupSelected={(groupId) => {
+          onGroupSelected={(groupId, isReconnect) => {
             // Select existing group
             setSelectedWalletGroupId(groupId);
             window.history.pushState({}, '', `/portfolio/${groupId}`);
             setIsWalletGroupModalOpen(false);
             setPendingWalletGroupId(null);
+            
+            // If it's a reconnect, force aggregation refresh
+            if (isReconnect) {
+              setRefreshNonce(prev => prev + 1);
+            }
           }}
         />
 
@@ -2293,36 +2322,7 @@ function App() {
           </div>
         )}
 
-        {/* Footer Status Button */}
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 8,
-            right: 8,
-            zIndex: 100,
-          }}
-        >
-          <button
-            onClick={() => {
-              setShowStatusDialog(true);
-              fetchProtocolsStatus();
-            }}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: theme.textSecondary,
-              cursor: 'pointer',
-              fontSize: 11,
-              padding: '4px 8px',
-              opacity: 0.3,
-              transition: 'opacity 0.2s',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')}
-            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.3')}
-          >
-            Status
-          </button>
-        </div>
+
       </ChainIconsProvider>
     </MaskValuesProvider>
   );

@@ -199,6 +199,8 @@ export const api = {
   // Wallet Groups CRUD
   getChallenge: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/challenge`,
   createWalletGroup: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}`,
+  checkWalletGroup: (id: string) =>
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}/check`,
   connectWalletGroup: (id: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}/connect`,
   getWalletGroup: (id: string) =>

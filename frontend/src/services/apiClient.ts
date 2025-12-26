@@ -162,6 +162,13 @@ export async function createWalletGroup(data: CreateWalletGroupRequest): Promise
   return walletGroup;
 }
 
+export async function checkWalletGroup(
+  id: string
+): Promise<{ requiresPassword: boolean }> {
+  const res = await axios.get(api.checkWalletGroup(id));
+  return res.data;
+}
+
 export async function connectWalletGroup(
   id: string,
   data: ConnectWalletGroupRequest

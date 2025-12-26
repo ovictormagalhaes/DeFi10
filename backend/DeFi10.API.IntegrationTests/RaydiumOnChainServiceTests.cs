@@ -7,13 +7,17 @@ using Xunit.Abstractions;
 using System.Net.Http;
 using DeFi10.API.Services.Protocols.Raydium;
 using Microsoft.Extensions.Configuration;
+using DeFi10.API.Services.Infrastructure;
+using DeFi10.API.Configuration;
+using Microsoft.Extensions.Options;
+using DeFi10.API.Models;
 
 namespace DeFi10.API.IntegrationTests
 {
     public class RaydiumOnChainServiceTests
     {
         private readonly ITestOutputHelper _output;
-        private readonly IRpcClient _rpcClient;
+        private readonly IRpcClientFactory _rpcFactory;
         private readonly ILogger<RaydiumOnChainService> _logger;
         private readonly HttpClient _httpClient;
         private readonly RaydiumOnChainService _service;
@@ -22,7 +26,14 @@ namespace DeFi10.API.IntegrationTests
         public RaydiumOnChainServiceTests(ITestOutputHelper output)
         {
             _output = output;
-            _rpcClient = ClientFactory.GetClient("https://api.mainnet-beta.solana.com");
+            
+            // Create RpcClientFactory for tests
+            var solanaOptions = Options.Create(new SolanaOptions { RpcUrl = "https://api.mainnet-beta.solana.com" });
+            var alchemyOptions = Options.Create(new AlchemyOptions());
+            var chainConfig = Options.Create(new ChainConfiguration());
+            var factoryLogger = new Mock<ILogger<RpcClientFactory>>().Object;
+            _rpcFactory = new RpcClientFactory(solanaOptions, alchemyOptions, chainConfig, factoryLogger);
+            
             _httpClient = new HttpClient();
 
             // Load configuration from appsettings for integration tests
@@ -57,7 +68,7 @@ namespace DeFi10.API.IntegrationTests
                 }));
 
             _logger = mockLogger.Object;
-            _service = new RaydiumOnChainService(_rpcClient, _logger, _httpClient);
+            _service = new RaydiumOnChainService(_rpcFactory, _logger, _httpClient);
         }
 
         [Fact]
