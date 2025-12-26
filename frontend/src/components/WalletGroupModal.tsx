@@ -26,7 +26,7 @@ interface WalletGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGroupCreated?: (groupId: string) => void;
-  onGroupSelected?: (groupId: string) => void;
+  onGroupSelected?: (groupId: string, isReconnect?: boolean) => void;
   currentWalletAddress?: string | null; // Current connected wallet to add to group
   onConnectToGroup?: (groupId: string) => void; // Callback when wallet is connected to group
   initialGroupId?: string | null; // Pre-fill connect form with this group ID
@@ -44,11 +44,15 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   const { theme } = useTheme();
   const { groups, loading, error, createGroup, updateGroup, deleteGroup, clearError } = useWalletGroups();
 
+  const [viewportWidth, setViewportWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'addWallet' | 'connect'>('list');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
   const [connectGroupId, setConnectGroupId] = useState<string>('');
   const [connectPassword, setConnectPassword] = useState<string>('');
+  const [isCheckingGroup, setIsCheckingGroup] = useState(false);
+  const [groupIsPublic, setGroupIsPublic] = useState<boolean | null>(null);
+  const [passwordRequired, setPasswordRequired] = useState<boolean | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [noPassword, setNoPassword] = useState(false);
@@ -61,6 +65,12 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   const [walletSelectorIndex, setWalletSelectorIndex] = useState<number | null>(null);
   const [connectedWallets, setConnectedWallets] = useState<boolean[]>([false, false, false]);
 
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Reset form when modal closes
   useEffect(() => {
     if (!isOpen) {
@@ -69,6 +79,9 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       setAddingToGroupId(null);
       setConnectGroupId('');
       setConnectPassword('');
+      setIsCheckingGroup(false);
+      setGroupIsPublic(null);
+      setPasswordRequired(null);
       setDisplayName('');
       setPassword('');
       setNoPassword(false);
@@ -90,6 +103,37 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       setConnectGroupId(initialGroupId);
     }
   }, [isOpen, initialGroupId]);
+
+  const checkGroupPasswordRequirement = async (groupId: string) => {
+    if (!groupId.trim()) {
+      setGroupIsPublic(null);
+      setPasswordRequired(null);
+      return;
+    }
+
+    try {
+      setIsCheckingGroup(true);
+      setGroupError(null);
+      
+      const response = await apiClient.checkWalletGroup(groupId.trim());
+      
+      setPasswordRequired(response.requiresPassword);
+      setGroupIsPublic(!response.requiresPassword);
+      
+      console.log('[WalletGroup] Group check:', { 
+        groupId: groupId.trim(), 
+        requiresPassword: response.requiresPassword,
+        isPublic: !response.requiresPassword
+      });
+    } catch (err: any) {
+      console.error('[WalletGroup] Error checking group:', err);
+      setGroupError(err.message || 'Group not found');
+      setGroupIsPublic(null);
+      setPasswordRequired(null);
+    } finally {
+      setIsCheckingGroup(false);
+    }
+  };
 
   const handleWalletInput = (index: number, value: string) => {
     const updated = [...walletInputs];
@@ -425,6 +469,12 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       return;
     }
 
+    // Validate password if provided
+    if (connectPassword && connectPassword.length < 8) {
+      setGroupError('Password must be at least 8 characters or leave empty');
+      return;
+    }
+
     try {
       setGroupError(null);
       console.log('[WalletGroup] Connecting to group:', trimmedId);
@@ -468,7 +518,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
       // Trigger selection if callback provided
       if (onGroupSelected) {
-        onGroupSelected(group.id);
+        // Pass isReconnect flag if it's a reconnection
+        onGroupSelected(group.id, !!initialGroupId);
       }
       
       onClose();
@@ -501,16 +552,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 2000,
-        padding: 20,
+        padding: viewportWidth < 640 ? 12 : 20,
       }}
     >
       <div
         style={{
           background: theme.bgPanel,
-          borderRadius: 20,
-          maxWidth: 700,
+          borderRadius: viewportWidth < 640 ? 16 : 20,
+          maxWidth: viewportWidth < 640 ? '100%' : 700,
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: viewportWidth < 640 ? '100vh' : '90vh',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
@@ -522,7 +573,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         {/* Header */}
         <div
           style={{
-            padding: '24px 28px',
+            padding: viewportWidth < 640 ? '16px 20px' : '24px 28px',
             borderBottom: `1px solid ${theme.border}`,
             display: 'flex',
             alignItems: 'center',
@@ -533,7 +584,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
             <h2
               style={{
                 margin: 0,
-                fontSize: 22,
+                fontSize: viewportWidth < 640 ? 18 : 22,
                 fontWeight: 600,
                 color: theme.textPrimary,
                 letterSpacing: 0.3,
@@ -544,7 +595,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
             <p
               style={{
                 margin: '4px 0 0 0',
-                fontSize: 13,
+                fontSize: viewportWidth < 640 ? 12 : 13,
                 color: theme.textSecondary,
               }}
             >
@@ -601,7 +652,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         {/* Body */}
         <div
           style={{
-            padding: '24px 28px',
+            padding: viewportWidth < 640 ? '16px 20px' : '24px 28px',
             overflowY: 'auto',
             overflowX: 'hidden',
             flex: 1,
@@ -611,7 +662,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
           {mode === 'list' ? (
             <>
               {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+              <div style={{ display: 'flex', flexDirection: viewportWidth < 640 ? 'column' : 'row', gap: 12, marginBottom: 24 }}>
                 <button
                   onClick={() => {
                     resetForm();
@@ -756,9 +807,11 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       <div
                         style={{
                           display: 'flex',
+                          flexDirection: viewportWidth < 640 ? 'column' : 'row',
                           justifyContent: 'space-between',
-                          alignItems: 'flex-start',
+                          alignItems: viewportWidth < 640 ? 'stretch' : 'flex-start',
                           marginBottom: 12,
+                          gap: viewportWidth < 640 ? 12 : 0,
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -784,7 +837,13 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             Created {new Date(group.createdAt).toLocaleDateString()}
                           </p>
                         </div>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          gap: 6, 
+                          flexShrink: 0, 
+                          marginLeft: viewportWidth < 640 ? 0 : 12,
+                          flexWrap: 'wrap',
+                        }}>
                           {onGroupSelected && (
                             <button
                               onClick={() => {
@@ -980,7 +1039,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                               display: 'flex',
                               alignItems: 'center',
                               gap: 10,
-                              padding: '8px 12px',
+                              padding: viewportWidth < 640 ? '8px 10px' : '8px 12px',
                               background: theme.bgPanel,
                               border: `1px solid ${theme.border}`,
                               borderRadius: 10,
@@ -997,6 +1056,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                 color: theme.textPrimary,
                                 textTransform: 'uppercase',
                                 letterSpacing: 0.5,
+                                flexShrink: 0,
                               }}
                             >
                               {getAddressType(w)}
@@ -1006,13 +1066,13 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                 flex: 1,
                                 color: theme.textSecondary,
                                 fontFamily: 'monospace',
-                                fontSize: 12,
+                                fontSize: viewportWidth < 640 ? 11 : 12,
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 wordBreak: 'break-all',
                               }}
                             >
-                              {formatAddress(w, 10)}
+                              {formatAddress(w, viewportWidth < 640 ? 6 : 10)}
                             </code>
                           </div>
                         ))}
@@ -1069,15 +1129,23 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                     readOnly={!!initialGroupId}
                     onChange={(e) => {
                       if (!initialGroupId) {
-                        setConnectGroupId(e.target.value);
+                        const value = e.target.value;
+                        setConnectGroupId(value);
                         setGroupError(null);
+                        
+                        if (value.trim().length > 10) {
+                          checkGroupPasswordRequirement(value);
+                        } else {
+                          setGroupIsPublic(null);
+                          setPasswordRequired(null);
+                        }
                       }
                     }}
                     style={{
                       width: '100%',
                       padding: '12px 14px',
                       borderRadius: 10,
-                      border: `1px solid ${groupError ? theme.danger || '#ef4444' : theme.border}`,
+                      border: `1px solid ${(groupError && groupError.includes('Group ID')) ? theme.danger || '#ef4444' : theme.border}`,
                       background: initialGroupId ? theme.bgElevated || theme.bgPanel : theme.bgApp,
                       color: theme.textPrimary,
                       fontSize: 14,
@@ -1088,9 +1156,73 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       cursor: initialGroupId ? 'not-allowed' : 'text',
                       opacity: initialGroupId ? 0.7 : 1,
                     }}
-                    onFocus={(e) => !initialGroupId && (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.primary)}
-                    onBlur={(e) => !initialGroupId && (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.border)}
+                    onFocus={(e) => !initialGroupId && (e.currentTarget.style.borderColor = theme.primary)}
+                    onBlur={(e) => !initialGroupId && (e.currentTarget.style.borderColor = (groupError && groupError.includes('Group ID')) ? theme.danger || '#ef4444' : theme.border)}
                   />
+                  {isCheckingGroup && (
+                    <p style={{ margin: '8px 0 0', fontSize: 12, color: theme.textSecondary, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        style={{ animation: 'spin 1s linear infinite' }}
+                      >
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                      Checking group...
+                    </p>
+                  )}
+                  {!isCheckingGroup && groupIsPublic !== null && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        padding: '8px 12px',
+                        background: groupIsPublic 
+                          ? 'rgba(16, 185, 129, 0.1)' 
+                          : 'rgba(245, 158, 11, 0.1)',
+                        border: `1px solid ${groupIsPublic ? '#10b981' : '#f59e0b'}`,
+                        borderRadius: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={groupIsPublic ? '#10b981' : '#f59e0b'}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        {groupIsPublic ? (
+                          <>
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                          </>
+                        ) : (
+                          <>
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                          </>
+                        )}
+                      </svg>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: groupIsPublic ? '#10b981' : '#f59e0b',
+                        }}
+                      >
+                        {groupIsPublic ? '🌐 Public Group' : '🔒 Password Protected'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1104,22 +1236,31 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       marginBottom: 8,
                     }}
                   >
-                    Password <span style={{ opacity: 0.5 }}>(if required)</span>
+                    Password {passwordRequired ? <span style={{ color: theme.danger || '#ef4444' }}>*</span> : <span style={{ opacity: 0.5 }}>(if required)</span>}
                   </label>
                   <input
                     id="connect-password"
                     type="password"
-                    placeholder="Enter password if group is protected"
+                    placeholder={passwordRequired ? "Enter group password" : "Enter password if group is protected"}
                     value={connectPassword}
                     onChange={(e) => {
-                      setConnectPassword(e.target.value);
-                      setGroupError(null);
+                      const newPassword = e.target.value;
+                      setConnectPassword(newPassword);
+                      // Validate password in real-time
+                      if (newPassword.length > 0 && newPassword.length < 8) {
+                        setGroupError('Password must be at least 8 characters');
+                      } else {
+                        // Clear password error if it was a password error
+                        if (groupError?.includes('Password')) {
+                          setGroupError(null);
+                        }
+                      }
                     }}
                     style={{
                       width: '100%',
                       padding: '12px 14px',
                       borderRadius: 10,
-                      border: `1px solid ${groupError ? theme.danger || '#ef4444' : theme.border}`,
+                      border: `1px solid ${(connectPassword.length > 0 && connectPassword.length < 8) || groupError ? theme.danger || '#ef4444' : theme.border}`,
                       background: theme.bgApp,
                       color: theme.textPrimary,
                       fontSize: 14,
@@ -1127,10 +1268,19 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       transition: 'border-color 0.15s',
                       boxSizing: 'border-box',
                     }}
-                    onFocus={(e) => (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.primary)}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = groupError ? theme.danger || '#ef4444' : theme.border)}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = (connectPassword.length > 0 && connectPassword.length < 8) || groupError ? theme.danger || '#ef4444' : theme.border)}
                   />
-                  {groupError && (
+                  {connectPassword.length > 0 && connectPassword.length < 8 && (
+                    <p style={{ 
+                      margin: '6px 0 0', 
+                      fontSize: 12, 
+                      color: theme.danger || '#ef4444' 
+                    }}>
+                      Password must be at least 8 characters
+                    </p>
+                  )}
+                  {groupError && groupError.includes('Group ID') && (
                     <p
                       style={{
                         margin: '8px 0 0 0',
@@ -1141,7 +1291,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       {groupError}
                     </p>
                   )}
-                  {!groupError && (
+                  {!groupError && !(connectPassword.length > 0 && connectPassword.length < 8) && (
                     <p style={{ 
                       margin: '6px 0 0', 
                       fontSize: 12, 
@@ -1262,6 +1412,10 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             setNoPassword(e.target.checked);
                             if (e.target.checked) {
                               setPassword('');
+                              // Clear password-related errors when creating without password
+                              if (groupError?.includes('Password')) {
+                                setGroupError(null);
+                              }
                             }
                           }}
                           style={{
@@ -1344,7 +1498,19 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                           type="password"
                           placeholder="Enter a secure password"
                           value={password}
-                          onChange={(e) => setPassword(e.target.value)}
+                          onChange={(e) => {
+                            const newPassword = e.target.value;
+                            setPassword(newPassword);
+                            // Validate password in real-time
+                            if (newPassword.length > 0 && newPassword.length < 8) {
+                              setGroupError('Password must be at least 8 characters');
+                            } else {
+                              // Clear password error if it was a password error
+                              if (groupError?.includes('Password')) {
+                                setGroupError(null);
+                              }
+                            }
+                          }}
                           minLength={8}
                           style={{
                             width: '100%',
@@ -1368,6 +1534,15 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             color: theme.danger || '#ef4444' 
                           }}>
                             Password must be at least 8 characters
+                          </p>
+                        )}
+                        {groupError && groupError.includes('Password') && (
+                          <p style={{ 
+                            margin: '6px 0 0', 
+                            fontSize: 12, 
+                            color: theme.danger || '#ef4444' 
+                          }}>
+                            {groupError}
                           </p>
                         )}
                         <p style={{ 
@@ -1428,7 +1603,12 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {walletInputs.map((wallet, idx) => (
                       <div key={idx}>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          flexDirection: viewportWidth < 640 ? 'column' : 'row',
+                          gap: 8, 
+                          alignItems: viewportWidth < 640 ? 'stretch' : 'flex-start' 
+                        }}>
                           <span
                             style={{
                               width: 24,
@@ -1438,7 +1618,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                               color: theme.textPrimary,
                               fontSize: 11,
                               fontWeight: 700,
-                              display: 'flex',
+                              display: viewportWidth < 480 ? 'none' : 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               flexShrink: 0,
@@ -1447,8 +1627,13 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                           >
                             {idx + 1}
                           </span>
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              flexDirection: viewportWidth < 640 ? 'column' : 'row',
+                              gap: 8, 
+                              alignItems: viewportWidth < 640 ? 'stretch' : 'center' 
+                            }}>
                               <div style={{ position: 'relative', flex: 1 }}>
                                 <input
                                 id={`wallet-${idx}`}
@@ -1459,12 +1644,12 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                 readOnly={connectedWallets[idx]}
                                 style={{
                                   width: '100%',
-                                  padding: wallet && !validationErrors[idx] ? '12px 70px 12px 14px' : '12px 14px',
+                                  padding: wallet && !validationErrors[idx] && viewportWidth >= 640 ? '12px 70px 12px 14px' : '12px 14px',
                                   borderRadius: 10,
                                   border: `1px solid ${validationErrors[idx] ? theme.danger || '#ef4444' : theme.border}`,
                                   background: connectedWallets[idx] ? theme.primarySubtle : theme.bgApp,
                                   color: theme.textPrimary,
-                                  fontSize: 13,
+                                  fontSize: viewportWidth < 640 ? 12 : 13,
                                   fontFamily: 'monospace',
                                   outline: 'none',
                                   transition: 'border-color 0.15s, padding 0.15s, background 0.15s',
@@ -1484,7 +1669,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                     : theme.border)
                                 }
                               />
-                            {wallet && !validationErrors[idx] && (
+                            {wallet && !validationErrors[idx] && viewportWidth >= 640 && (
                               <div
                                 style={{
                                   position: 'absolute',
@@ -1611,7 +1796,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                 }}
                                 title="Connect wallet"
                                 style={{
-                                  padding: '8px 12px',
+                                  padding: viewportWidth < 640 ? '10px 16px' : '8px 12px',
                                   borderRadius: 8,
                                   border: `1px solid ${theme.border}`,
                                   background: theme.bgApp,
@@ -1622,9 +1807,10 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                   transition: 'all 0.2s',
                                   display: 'flex',
                                   alignItems: 'center',
+                                  justifyContent: 'center',
                                   gap: 6,
+                                  width: viewportWidth < 640 ? '100%' : 'auto',
                                   flexShrink: 0,
-                                  whiteSpace: 'nowrap',
                                 }}
                                 onMouseEnter={(e) => {
                                   e.currentTarget.style.background = theme.primarySubtle;
@@ -1651,10 +1837,54 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                 Connect
                               </button>
                             </div>
+                            {wallet && !validationErrors[idx] && viewportWidth < 640 && (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 0',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    padding: '4px 8px',
+                                    background: theme.success + '20' || '#10b98120',
+                                    color: theme.success || '#10b981',
+                                    borderRadius: 6,
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: 0.5,
+                                  }}
+                                >
+                                  {getAddressType(wallet)}
+                                </span>
+                                {connectedWallets[idx] && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDisconnectWallet(idx)}
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 6,
+                                      border: 'none',
+                                      background: theme.danger + '20' || '#ef444420',
+                                      color: theme.danger || '#ef4444',
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      transition: 'all 0.2s',
+                                    }}
+                                  >
+                                    Disconnect
+                                  </button>
+                                )}
+                              </div>
+                            )}
                             {validationErrors[idx] && (
                               <div
                                 style={{
-                                  marginLeft: 32,
+                                  marginLeft: viewportWidth < 480 ? 0 : 32,
                                   fontSize: 12,
                                   color: theme.danger || '#ef4444',
                                 }}
@@ -1766,9 +1996,10 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         {mode !== 'list' && (
           <div
             style={{
-              padding: '20px 28px',
+              padding: viewportWidth < 640 ? '16px 20px' : '20px 28px',
               borderTop: `1px solid ${theme.border}`,
               display: 'flex',
+              flexDirection: viewportWidth < 640 ? 'column' : 'row',
               gap: 10,
               justifyContent: 'flex-end',
             }}
@@ -1785,6 +2016,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.15s',
+                width: viewportWidth < 640 ? '100%' : 'auto',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = theme.bgPanelHover;
@@ -1805,11 +2037,11 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       ? handleConnectToExistingGroup
                       : handleCreateGroup
               }
-              disabled={loading || powStatus === 'solving' || (mode === 'connect' ? !connectGroupId.trim() : !canSubmit)}
+              disabled={loading || powStatus === 'solving' || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)}
               style={{
                 padding: '10px 24px',
                 background:
-                  loading || powStatus === 'solving' || (mode === 'connect' ? !connectGroupId.trim() : !canSubmit)
+                  loading || powStatus === 'solving' || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)
                     ? theme.textMuted
                     : `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
                 border: 'none',
@@ -1817,18 +2049,19 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 color: '#fff',
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: loading || powStatus === 'solving' || (mode === 'connect' ? !connectGroupId.trim() : !canSubmit) ? 'not-allowed' : 'pointer',
-                opacity: loading || powStatus === 'solving' || (mode === 'connect' ? !connectGroupId.trim() : !canSubmit) ? 0.5 : 1,
+                cursor: loading || powStatus === 'solving' || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 'not-allowed' : 'pointer',
+                opacity: loading || powStatus === 'solving' || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 0.5 : 1,
                 transition: 'all 0.15s',
+                width: viewportWidth < 640 ? '100%' : 'auto',
               }}
               onMouseEnter={(e) => {
-                if (!loading && powStatus !== 'solving' && (mode === 'connect' ? connectGroupId.trim() : canSubmit)) {
+                if (!loading && powStatus !== 'solving' && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
                   e.currentTarget.style.transform = 'translateY(-1px)';
                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
                 }
               }}
               onMouseLeave={(e) => {
-                if (!loading && powStatus !== 'solving' && (mode === 'connect' ? connectGroupId.trim() : canSubmit)) {
+                if (!loading && powStatus !== 'solving' && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = 'none';
                 }

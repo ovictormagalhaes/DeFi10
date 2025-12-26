@@ -8,13 +8,17 @@ using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using DeFi10.API.Services.Protocols.Raydium;
+using DeFi10.API.Services.Infrastructure;
+using DeFi10.API.Configuration;
+using Microsoft.Extensions.Options;
+using DeFi10.API.Models;
 
-namespace DeFi10.API.IntegrationTests
+namespace DeFi10.API.Tests
 {
     public class RaydiumIntegrationTests
     {
         private readonly ITestOutputHelper _output;
-        private readonly IRpcClient _rpcClient;
+        private readonly IRpcClientFactory _rpcFactory;
         private readonly IConfiguration _configuration;
         private readonly string _testWalletAddress;
         private readonly string _positionNftMint;
@@ -44,7 +48,12 @@ namespace DeFi10.API.IntegrationTests
             var rpcUrl = _configuration["IntegrationTests:Raydium:SolanaRpcUrl"] 
                 ?? "https://api.mainnet-beta.solana.com";
             
-            _rpcClient = ClientFactory.GetClient(rpcUrl);
+            // Create RpcClientFactory for tests
+            var solanaOptions = Options.Create(new SolanaOptions { RpcUrl = rpcUrl });
+            var alchemyOptions = Options.Create(new AlchemyOptions());
+            var chainConfig = Options.Create(new ChainConfiguration());
+            var logger = new TestLogger<RpcClientFactory>(_output);
+            _rpcFactory = new RpcClientFactory(solanaOptions, alchemyOptions, chainConfig, logger);
             
             _output.WriteLine("=== Test Configuration ===");
             _output.WriteLine($"Test Wallet: {_testWalletAddress}");
@@ -63,7 +72,7 @@ namespace DeFi10.API.IntegrationTests
             // ARRANGE
             var logger = new TestLogger<RaydiumOnChainService>(_output);
             var httpClient = new HttpClient();
-            var service = new RaydiumOnChainService(_rpcClient, logger, httpClient);
+            var service = new RaydiumOnChainService(_rpcFactory, logger, httpClient);
 
             const string SOL_MINT = "So11111111111111111111111111111111111111112";
             const string USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";

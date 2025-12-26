@@ -370,9 +370,10 @@ body.light, .theme-light {
   border-top: 0;
   border-radius: 10px;
   /* When removing top border, visually keep radius on top by adding an inset shadow shim if needed */
-  overflow: hidden;
   overflow-x: auto;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
+  width: 100%;
 }
 .table {
   width: 100%;
@@ -413,7 +414,7 @@ body.light, .theme-light {
 .th-left { text-align:left; }
 .th-right { text-align:right; }
 .th-center { text-align:center; }
-.col-name { width:35%; }
+.col-name { width:35%; min-width: 200px; }
 .col-range { width:15%; }
 .col-price { width:20%; }
 .col-amount { width:20%; }
@@ -421,13 +422,29 @@ body.light, .theme-light {
 .col-value { width:25%; }
 .col-collateral { width:15%; }
 /* Rebalancing custom metric columns */
-.col-current { width:14%; }
-.col-target { width:14%; }
-.col-diff { width:14%; }
-.col-note { width:12%; }
-.col-actions { width:12%; }
-@media (max-width: 640px) { .col-actions { display:none; } }
-@media (max-width: 520px) { .col-note { display:none; } }
+.col-current { width:14%; min-width: 100px; }
+.col-target { width:14%; min-width: 100px; }
+.col-diff { width:14%; min-width: 100px; }
+.col-note { width:12%; min-width: 80px; }
+.col-actions { width:12%; min-width: 100px; }
+/* Rebalancing responsive: hide columns progressively on smaller screens */
+@media (max-width: 768px) { 
+  .col-diff { display:none; }
+  .col-current { width:20%; min-width: 100px; }
+  .col-target { width:20%; min-width: 100px; }
+  .col-name { width:40%; min-width: 180px; }
+}
+/* Mobile: show fewer columns, enable horizontal scroll */
+@media (max-width: 640px) { 
+  .col-note { display:none; }
+  .col-target { display:none; }
+  .col-name { width:50%; min-width: 160px; }
+  .col-current { width:25%; min-width: 90px; }
+  .col-actions { width:25%; min-width: 90px; }
+  /* Force table to have minimum width to enable scroll */
+  .rebalance-panel .table-unified { min-width: 400px; }
+}
+/* Other responsive column hiding */
 @media (max-width: 900px) { .col-range { display:none; } }
 @media (max-width: 760px) { .col-rewards { display:none; } }
 @media (max-width: 640px) { .col-amount { display:none; } }
@@ -1193,6 +1210,16 @@ pre {
 
 /* Reusable spin animation (moved from inline ActionButton) */
 @keyframes mw-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Alias for spin animation */
+@keyframes spin {
   from {
     transform: rotate(0deg);
   }
