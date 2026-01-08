@@ -196,7 +196,7 @@ const LockingCards = ({ data = [] }) => {
                       />
                     )}
                     <span style={{ fontSize: 12, color: theme.textMuted }}>
-                      {mainToken.chain}
+                      {mainToken.chain.charAt(0).toUpperCase() + mainToken.chain.slice(1)}
                     </span>
                   </div>
                 )}
@@ -236,6 +236,21 @@ const LockingCards = ({ data = [] }) => {
               gap: 12,
               marginBottom: 12,
             }}>
+              {/* Value */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 13, color: theme.textSecondary }}>
+                  Value
+                </span>
+                <span style={{ 
+                  fontSize: 14, 
+                  fontWeight: 600, 
+                  color: theme.textPrimary,
+                  fontFamily: 'monospace',
+                }}>
+                  {maskValue(formatPrice(totalValue))}
+                </span>
+              </div>
+
               {/* Locked Amount */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, color: theme.textSecondary }}>
@@ -248,21 +263,6 @@ const LockingCards = ({ data = [] }) => {
                   fontFamily: 'monospace',
                 }}>
                   {formatBalance(mainToken?.financials?.balanceFormatted || mainToken?.balance || 0)} {mainToken?.symbol}
-                </span>
-              </div>
-
-              {/* Value */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 13, color: theme.textSecondary }}>
-                  Value
-                </span>
-                <span style={{ 
-                  fontSize: 15, 
-                  fontWeight: 700, 
-                  color: theme.textPrimary,
-                  fontFamily: 'monospace',
-                }}>
-                  {maskValue(formatPrice(totalValue))}
                 </span>
               </div>
 

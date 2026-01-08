@@ -69,6 +69,12 @@ public class JobExpansionService
             "JobExpansion: Starting expansion for job {JobId} - adding {Count} providers triggered by {Trigger}",
             jobId, newProviders.Count, triggeredBy);
 
+        // Get account from metadata to check deduplication properly
+        var accountsField = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Accounts);
+        var firstAccount = accountsField.HasValue 
+            ? RedisKeys.DeserializeAccounts(accountsField.ToString()).FirstOrDefault() ?? account
+            : account;
+        
         // Deduplicate: check which providers are already pending or completed
         var existingPending = await db.SetMembersAsync(pendingKey);
         var existingPendingSet = new HashSet<string>(existingPending.Select(rv => rv.ToString()));
@@ -77,7 +83,7 @@ public class JobExpansionService
         
         foreach (var (provider, chain) in newProviders)
         {
-            var providerChainKey = $"{ProviderSlug(provider)}:{chain.ToString().ToLowerInvariant()}";
+            var providerChainKey = RedisKeys.PendingEntry(ProviderSlug(provider), chain.ToString(), firstAccount);
             
             if (existingPendingSet.Contains(providerChainKey))
             {
@@ -95,8 +101,6 @@ public class JobExpansionService
             return 0;
         }
 
-        // Check if this is a multi-wallet job
-        var accountsField = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Accounts);
         bool isMultiWallet = accountsField.HasValue && accountsField.ToString().Contains(',');
         var accounts = isMultiWallet 
             ? RedisKeys.DeserializeAccounts(accountsField.ToString())
@@ -138,7 +142,7 @@ public class JobExpansionService
         
         foreach (var (provider, chain, acc) in validCombos)
         {
-            var pendingEntry = RedisKeys.DurationEntry(ProviderSlug(provider), chain.ToString(), isMultiWallet ? acc : null);
+            var pendingEntry = RedisKeys.PendingEntry(ProviderSlug(provider), chain.ToString(), acc);
             tran.SetAddAsync(pendingKey, pendingEntry);
         }
 

@@ -68,27 +68,41 @@ public static class RedisKeys
         var hash = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(combined));
         var hashStr = Convert.ToHexString(hash).ToLowerInvariant();
         
-        return $"wallet:agg:active:{hashStr}";
+        return $"{RedisKeyPrefixes.WalletAggPrefix}active:{hashStr}";
     }
     
-    public static string ActiveWalletGroup(Guid walletGroupId, IEnumerable<ChainEnum> chains) => $"wallet:agg:active:group:{walletGroupId}:{string.Join('+', chains.OrderBy(c => c.ToString()))}";
-    public static string Meta(Guid jobId) => $"wallet:agg:{jobId}:meta";
-    public static string Pending(Guid jobId) => $"wallet:agg:{jobId}:pending";
-    public static string ResultPrefix(Guid jobId) => $"wallet:agg:{jobId}:result:"; 
-    public static string Summary(Guid jobId) => $"wallet:agg:{jobId}:summary";
-    public static string Durations(Guid jobId) => $"wallet:agg:{jobId}:durations";
-    public static string Wallet(Guid jobId) => $"wallet:agg:{jobId}:wallet";
-    public static string WalletForAccount(Guid jobId, string account) => $"wallet:agg:{jobId}:wallet:{account.ToLowerInvariant()}";
-    public static string ConsolidationDone(Guid jobId) => $"wallet:agg:{jobId}:consolidation_done";
-    public static string Index(string accountLower) => $"wallet:agg:index:{accountLower}";
+    public static string ActiveWalletGroup(Guid walletGroupId, IEnumerable<ChainEnum> chains) =>
+        $"{RedisKeyPrefixes.WalletAggPrefix}active:group:{walletGroupId}:{string.Join('+', chains.OrderBy(c => c.ToString()))}";
+
+    public static string Meta(Guid jobId) => $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:meta";
+    public static string Pending(Guid jobId) => $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:pending";
+    public static string ResultPrefix(Guid jobId) => $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:{RedisKeyPrefixes.ResultPrefixSuffix}"; 
+    public static string Summary(Guid jobId) => $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:summary";
+    public static string Durations(Guid jobId) => $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:durations";
+    public static string Wallet(Guid jobId) => $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:wallet";
+    public static string WalletForAccount(Guid jobId, string account) => $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:wallet:{account.ToLowerInvariant()}";
+    public static string ConsolidationDone(Guid jobId) => $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:consolidation_done";
+    public static string Done(Guid jobId) => $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:done";
+    public static string Index(string accountLower) => $"{RedisKeyPrefixes.WalletAggPrefix}index:{accountLower}";
     
     public static string DurationEntry(string provider, string chain, string? account = null)
     {
         var providerLower = provider.ToLowerInvariant();
         var chainLower = chain.ToLowerInvariant();
-        return account != null
-            ? $"{providerLower}:{chainLower}:{account.ToLowerInvariant()}"
-            : $"{providerLower}:{chainLower}";
+        if (string.IsNullOrEmpty(account))
+            return $"{providerLower}:{chainLower}";
+        var accountLower = account.ToLowerInvariant();
+        return $"{providerLower}:{chainLower}:{accountLower}";
+    }
+    
+    public static string PendingEntry(string provider, string chain, string? account = null)
+    {
+        var providerLower = provider.ToLowerInvariant();
+        var chainLower = chain.ToLowerInvariant();
+        if (string.IsNullOrEmpty(account))
+            return $"{providerLower}:{chainLower}";
+        var accountLower = account.ToLowerInvariant();
+        return $"{providerLower}:{chainLower}:{accountLower}";
     }
     
     public static string Result(Guid jobId, string provider, ChainEnum chain, string? account = null)
@@ -100,6 +114,17 @@ public static class RedisKeys
             : $"wallet:agg:{jobId}:result:{providerLower}:{chainLower}";
     }
     
-    public static string WalletCache(string accountLower, ChainEnum chain, string provider) => $"wallet:cache:{accountLower}:{chain.ToString().ToLowerInvariant()}:{provider.ToLowerInvariant()}";
-    public static string WalletCachePattern(string accountLower) => $"wallet:cache:{accountLower}:*";
+    public static string ResultLegacy(Guid jobId, string provider, ChainEnum chain, string? account = null)
+    {
+        var providerLower = provider.ToLowerInvariant();
+        var chainLower = chain.ToString().ToLowerInvariant();
+        return account != null
+            ? $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:{RedisKeyPrefixes.ResultPrefixSuffix}{providerLower}:{chainLower}:{account.ToLowerInvariant()}"
+            : $"{RedisKeyPrefixes.WalletAggPrefix}{jobId}:{RedisKeyPrefixes.ResultPrefixSuffix}{providerLower}:{chainLower}";
+    }
+
+    public static string WalletCache(string accountLower, ChainEnum chain, string provider) =>
+        $"{RedisKeyPrefixes.WalletCachePrefix}{accountLower}:{chain.ToString().ToLowerInvariant()}:{provider.ToLowerInvariant()}";
+
+    public static string WalletCachePattern(string accountLower) => $"{RedisKeyPrefixes.WalletCachePrefix}{accountLower}:*";
 }

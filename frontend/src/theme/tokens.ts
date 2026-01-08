@@ -68,7 +68,7 @@ export const darkTokens: ColorPalette = {
   primaryHover: '#54c381',
   primaryActive: '#379f62',
   primarySubtle: '#1c2d24',
-  accent: '#9fe8c0',
+  accent: '#45b773',
   accentAlt: '#45b773',
   accentGrad: 'linear-gradient(135deg,#45b773 0%, #6fd299 50%, #9fe8c0 100%)',
   success: '#45b773',

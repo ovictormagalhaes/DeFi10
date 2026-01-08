@@ -27,15 +27,18 @@ namespace DeFi10.API.Services.Protocols.Raydium
         private readonly IRpcClient _rpc;
         private readonly ILogger<RaydiumOnChainService> _logger;
         private readonly HttpClient _httpClient;
+        private readonly IRaydiumApiService _raydiumApiService;
         private const string CLMM_PROGRAM_ID = "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK";
 
         public RaydiumOnChainService(
             IRpcClientFactory rpcFactory,
             ILogger<RaydiumOnChainService> logger, 
-            HttpClient httpClient)
+            HttpClient httpClient,
+            IRaydiumApiService raydiumApiService)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _raydiumApiService = raydiumApiService ?? throw new ArgumentNullException(nameof(raydiumApiService));
             _rpc = rpcFactory?.GetSolanaClient() ?? throw new ArgumentNullException(nameof(rpcFactory));            
         }
 
@@ -286,8 +289,48 @@ namespace DeFi10.API.Services.Protocols.Raydium
                 return positions;
             }
 
+            // Parse positions to get pool IDs, then fetch APRs
+            var poolIds = new List<string>();
             foreach (var acc in posAccounts.Result.Value.Where(v => v != null))
             {
+                try
+                {
+                    var layoutBytes = Convert.FromBase64String(acc.Data[0]);
+                    var layout = ClmmPositionDTO.Parse(layoutBytes);
+                    if (!poolIds.Contains(layout.PoolId))
+                    {
+                        poolIds.Add(layout.PoolId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "[Raydium CLMM] Failed to parse position for pool ID extraction");
+                }
+            }
+
+            // Fetch APRs for all pools in one API call
+            Dictionary<string, decimal> poolAprs = new();
+            if (poolIds.Any())
+            {
+                try
+                {
+                    poolAprs = await _raydiumApiService.GetPoolAprsAsync(poolIds);
+                    _logger.LogInformation("[Raydium CLMM] Fetched APRs for {Count} pools", poolAprs.Count);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "[Raydium CLMM] Failed to fetch pool APRs from Raydium API");
+                }
+            }
+
+            // Process each position with index to map back to PDA
+            for (int idx = 0; idx < posAccounts.Result.Value.Count; idx++)
+            {
+                var acc = posAccounts.Result.Value[idx];
+                if (acc == null) continue;
+                
+                var positionPda = positionPdas[idx]; // Get the corresponding PDA address
+                
                 try
                 {
                     var layoutBytes = Convert.FromBase64String(acc.Data[0]);
@@ -302,7 +345,22 @@ namespace DeFi10.API.Services.Protocols.Raydium
                     }
 
                     var poolBytes = Convert.FromBase64String(poolInfo.Result.Value.Data[0]);
-                    var pool = ClmmPoolDTO.Parse(poolBytes, layout.PoolId);
+                    var pool = ClmmPoolDTO.Parse(poolBytes, layout.PoolId, _logger);
+                
+                    // Fetch AmmConfig to get TradeFeeRate
+                    var ammConfigInfo = await _rpc.GetAccountInfoAsync(pool.AmmConfig, Commitment.Finalized);
+                    if (!ammConfigInfo.WasSuccessful || ammConfigInfo.Result.Value == null)
+                    {
+                        _logger.LogWarning($"[Raydium CLMM] AmmConfig account missing configId={pool.AmmConfig}");
+                        continue;
+                    }
+                    
+                    var ammConfigBytes = Convert.FromBase64String(ammConfigInfo.Result.Value.Data[0]);
+                    var ammConfig = AmmConfigDTO.Parse(ammConfigBytes);
+                    
+                    _logger.LogInformation("[Raydium CLMM] Position {PoolId} - AmmConfig={Config}, TradeFeeRate={FeeRate}", 
+                        layout.PoolId, pool.AmmConfig, ammConfig.TradeFeeRate);
+                
                 
                     if (layout.Liquidity == 0)
                     {
@@ -352,7 +410,6 @@ namespace DeFi10.API.Services.Protocols.Raydium
                     // Convert back to raw amounts (ulong) for the token list
                     ulong finalFeeToken0 = (ulong)(uncollectedFees.Amount0 * (decimal)Math.Pow(10, tokenADecimals));
                     ulong finalFeeToken1 = (ulong)(uncollectedFees.Amount1 * (decimal)Math.Pow(10, tokenBDecimals));
-                    
                             
                     var tokenList = new List<SplToken>
                     {
@@ -360,6 +417,36 @@ namespace DeFi10.API.Services.Protocols.Raydium
                         new SplToken { Mint = pool.TokenMintB, Amount = tokenBAmount, Decimals = tokenBDecimals, Type = TokenType.Supplied }
                     };
                     
+                    // Fetch historical collected fees from transaction history
+                    _logger.LogInformation("[Raydium CLMM] Calling GetHistoricalCollectedFeesAsync for position PDA: {Pda}", positionPda);
+                    var (historicalFeesToken0, historicalFeesToken1) = await GetHistoricalCollectedFeesAsync(
+                        positionPda, pool.TokenMintA, pool.TokenMintB, tokenADecimals, tokenBDecimals);
+                    _logger.LogInformation("[Raydium CLMM] GetHistoricalCollectedFeesAsync returned: Token0={Fee0}, Token1={Fee1}", 
+                        historicalFeesToken0, historicalFeesToken1);
+                    
+                    // Add historical collected fees (total fees already collected/withdrawn)
+                    if (historicalFeesToken0 > 0)
+                    {
+                        tokenList.Add(new SplToken 
+                        { 
+                            Mint = pool.TokenMintA, 
+                            Amount = historicalFeesToken0, 
+                            Decimals = tokenADecimals, 
+                            Type = TokenType.LiquidityCollectedFee 
+                        });
+                    }
+                    if (historicalFeesToken1 > 0)
+                    {
+                        tokenList.Add(new SplToken 
+                        { 
+                            Mint = pool.TokenMintB, 
+                            Amount = historicalFeesToken1, 
+                            Decimals = tokenBDecimals, 
+                            Type = TokenType.LiquidityCollectedFee 
+                        });
+                    }
+                    
+                    // Add uncollected fees (calculated from pool state and tick data)
                     if (finalFeeToken0 > 0)
                     {
                         tokenList.Add(new SplToken 
@@ -397,32 +484,58 @@ namespace DeFi10.API.Services.Protocols.Raydium
                     try
                     {
                         // Find the NFT mint for this position by matching PDA
+                        _logger.LogDebug("[Raydium CLMM] Searching for NFT mint matching position PDA: {Pda}. Total NFTs: {Count}", 
+                            positionPda, positionNfts.Count);
                         var positionNftMint = positionNfts.FirstOrDefault(nft =>
                         {
                             var derivedPda = DerivePositionPdaFromNftMint(nft);
-                            return derivedPda == acc.Owner; // Compare with Owner, not PublicKey
+                            _logger.LogTrace("[Raydium CLMM] NFT {Nft} -> Derived PDA {Pda}, Expected PDA {Expected}", 
+                                nft, derivedPda, positionPda);
+                            return derivedPda == positionPda; // Compare with position PDA
                         });
 
                         if (!string.IsNullOrEmpty(positionNftMint))
                         {
+                            _logger.LogDebug("[Raydium CLMM] Found matching NFT mint: {Mint}, fetching timestamp...", positionNftMint);
                             createdAt = await GetNftMintTimestampAsync(positionNftMint);
+                            if (createdAt.HasValue)
+                            {
+                                _logger.LogInformation("[Raydium CLMM] Successfully fetched CreatedAt for position: {Timestamp}", createdAt.Value);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("[Raydium CLMM] GetNftMintTimestampAsync returned null for mint {Mint}", positionNftMint);
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning("[Raydium CLMM] No matching NFT mint found for position PDA {Pda}", positionPda);
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "[Raydium CLMM] Failed to fetch creation timestamp for position");
+                        _logger.LogWarning(ex, "[Raydium CLMM] Failed to fetch creation timestamp for position PDA {Pda}", positionPda);
                     }
+
+                    var tierPercent = FormatFeeTier(ammConfig.TradeFeeRate);
+                    _logger.LogInformation("[Raydium CLMM] Position {PoolId} - TradeFeeRate={FeeRate} -> TierPercent={Tier}%", 
+                        layout.PoolId, ammConfig.TradeFeeRate, tierPercent);
+
+                    // Get APR for this pool
+                    poolAprs.TryGetValue(layout.PoolId, out var poolApr);
 
                     positions.Add(new RaydiumPosition
                     {
                         Pool = layout.PoolId,
                         Tokens = tokenList,
                         TotalValueUsd = 0,
+                        Apr = poolApr > 0 ? poolApr : null,
                         SqrtPriceX96 = pool.SqrtPriceX64.ToString(),
                         TickLower = layout.TickLower,
                         TickUpper = layout.TickUpper,
                         TickCurrent = pool.TickCurrent,
-                        CreatedAt = createdAt
+                        CreatedAt = createdAt,
+                        TierPercent = tierPercent
                     });
                 }
                 catch (Exception ex)
@@ -897,10 +1010,14 @@ namespace DeFi10.API.Services.Protocols.Raydium
         {
             try
             {
-                // Get first signature for the mint address (creation transaction)
+                _logger.LogDebug("[Raydium CLMM] Fetching signatures for mint {Mint} to find creation timestamp", mintAddress);
+                
+                // Get all signatures for the mint address to find the oldest one (creation transaction)
+                // Note: GetSignaturesForAddressAsync returns signatures in descending order (newest first)
+                // So we need to get all of them and take the last one
                 var signaturesResult = await _rpc.GetSignaturesForAddressAsync(
                     mintAddress, 
-                    limit: 1, 
+                    limit: 1000, // Get many signatures to ensure we get the oldest
                     commitment: Commitment.Finalized);
 
                 if (!signaturesResult.WasSuccessful || 
@@ -911,12 +1028,17 @@ namespace DeFi10.API.Services.Protocols.Raydium
                     return null;
                 }
 
-                var firstSignature = signaturesResult.Result.Last(); // Last in list = oldest transaction
+                _logger.LogDebug("[Raydium CLMM] Found {Count} signatures for mint {Mint}", 
+                    signaturesResult.Result.Count, mintAddress);
+
+                // Last signature in the list is the oldest (creation transaction)
+                var firstSignature = signaturesResult.Result.Last();
                 
                 if (firstSignature.BlockTime.HasValue)
                 {
-                    _logger.LogDebug("[Raydium CLMM] Found creation timestamp for mint {Mint}: {Timestamp}", 
-                        mintAddress, firstSignature.BlockTime.Value);
+                    _logger.LogInformation("[Raydium CLMM] Found creation timestamp for mint {Mint}: {Timestamp} ({Date})", 
+                        mintAddress, firstSignature.BlockTime.Value, 
+                        DateTimeOffset.FromUnixTimeSeconds((long)firstSignature.BlockTime.Value).DateTime);
                     return (long)firstSignature.BlockTime.Value;
                 }
 
@@ -929,6 +1051,291 @@ namespace DeFi10.API.Services.Protocols.Raydium
                 return null;
             }
         }
+
+        /// <summary>
+        /// Makes a direct HTTP RPC call to get transaction with versioned transaction support
+        /// </summary>
+        private async Task<TransactionMetaInfo?> GetTransactionWithVersionSupportAsync(string signature)
+        {
+            try
+            {
+                var request = new
+                {
+                    jsonrpc = "2.0",
+                    id = 1,
+                    method = "getTransaction",
+                    @params = new object[]
+                    {
+                        signature,
+                        new
+                        {
+                            encoding = "jsonParsed",
+                            commitment = "finalized",
+                            maxSupportedTransactionVersion = 0
+                        }
+                    }
+                };
+
+                var json = System.Text.Json.JsonSerializer.Serialize(request);
+                var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                
+                var response = await _httpClient.PostAsync(_rpc.NodeAddress.ToString(), content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("[Raydium CLMM] HTTP request failed for {Sig}: Status={Status}", signature, response.StatusCode);
+                    return null;
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var jsonDoc = System.Text.Json.JsonDocument.Parse(responseJson);
+                
+                if (!jsonDoc.RootElement.TryGetProperty("result", out var result) || result.ValueKind == System.Text.Json.JsonValueKind.Null)
+                {
+                    _logger.LogWarning("[Raydium CLMM] No result in HTTP response for {Sig}: ResponseJson={Json}", signature, responseJson.Length > 500 ? responseJson.Substring(0, 500) : responseJson);
+                    return null;
+                }
+
+                // Extract meta from the response
+                if (!result.TryGetProperty("meta", out var metaJson))
+                {
+                    _logger.LogWarning("[Raydium CLMM] No meta in HTTP response for {Sig}", signature);
+                    return null;
+                }
+
+                var preTokenBalances = new List<TokenBalanceInfo>();
+                var postTokenBalances = new List<TokenBalanceInfo>();
+
+                if (metaJson.TryGetProperty("preTokenBalances", out var preBalances) && preBalances.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var balance in preBalances.EnumerateArray())
+                    {
+                        if (TryParseTokenBalance(balance, out var tokenBalance))
+                        {
+                            preTokenBalances.Add(tokenBalance);
+                        }
+                    }
+                }
+
+                if (metaJson.TryGetProperty("postTokenBalances", out var postBalances) && postBalances.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var balance in postBalances.EnumerateArray())
+                    {
+                        if (TryParseTokenBalance(balance, out var tokenBalance))
+                        {
+                            postTokenBalances.Add(tokenBalance);
+                        }
+                    }
+                }
+
+                return new TransactionMetaInfo
+                {
+                    PreTokenBalances = preTokenBalances,
+                    PostTokenBalances = postTokenBalances
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Raydium CLMM] Failed to get versioned transaction {Sig} via HTTP: {Error}", signature, ex.Message);
+                return null;
+            }
+        }
+
+        private bool TryParseTokenBalance(System.Text.Json.JsonElement element, out TokenBalanceInfo tokenBalance)
+        {
+            tokenBalance = null!;
+            try
+            {
+                if (!element.TryGetProperty("accountIndex", out var accountIndexEl) ||
+                    !element.TryGetProperty("mint", out var mintEl) ||
+                    !element.TryGetProperty("uiTokenAmount", out var uiAmountEl))
+                {
+                    return false;
+                }
+
+                if (!uiAmountEl.TryGetProperty("amount", out var amountEl) ||
+                    !uiAmountEl.TryGetProperty("decimals", out var decimalsEl))
+                {
+                    return false;
+                }
+
+                tokenBalance = new TokenBalanceInfo
+                {
+                    AccountIndex = accountIndexEl.GetInt32(),
+                    Mint = mintEl.GetString() ?? "",
+                    Amount = amountEl.GetString() ?? "0",
+                    Decimals = decimalsEl.GetInt32()
+                };
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Helper class to hold token balance info
+        private class TokenBalanceInfo
+        {
+            public int AccountIndex { get; set; }
+            public string Mint { get; set; } = "";
+            public string Amount { get; set; } = "0";
+            public int Decimals { get; set; }
+        }
+
+        // Helper class to hold transaction metadata
+        private class TransactionMetaInfo
+        {
+            public List<TokenBalanceInfo> PreTokenBalances { get; set; } = new();
+            public List<TokenBalanceInfo> PostTokenBalances { get; set; } = new();
+        }
+
+        /// <summary>
+        /// Gets the historical collected fees for a position by analyzing transaction history
+        /// Returns the total amount of fees that have been collected (withdrawn) from the position
+        /// </summary>
+        private async Task<(ulong feesToken0, ulong feesToken1)> GetHistoricalCollectedFeesAsync(
+            string positionPda, 
+            string token0Mint, 
+            string token1Mint,
+            int token0Decimals,
+            int token1Decimals)
+        {
+            try
+            {
+                _logger.LogInformation("[Raydium CLMM] Fetching transaction history for position {Pda} to calculate collected fees", positionPda);
+                
+                // Get all transactions for the position PDA
+                var signaturesResult = await _rpc.GetSignaturesForAddressAsync(
+                    positionPda, 
+                    limit: 1000,
+                    commitment: Commitment.Finalized);
+
+                if (!signaturesResult.WasSuccessful)
+                {
+                    _logger.LogWarning("[Raydium CLMM] Failed to get transaction history for position {Pda}: WasSuccessful=False, Reason={Reason}", 
+                        positionPda, signaturesResult.Reason);
+                    return (0, 0);
+                }
+
+                if (signaturesResult.Result == null)
+                {
+                    _logger.LogWarning("[Raydium CLMM] Failed to get transaction history for position {Pda}: Result is null", positionPda);
+                    return (0, 0);
+                }
+
+                if (!signaturesResult.Result.Any())
+                {
+                    _logger.LogInformation("[Raydium CLMM] No transaction history found for position {Pda} (position may be newly created)", positionPda);
+                    return (0, 0);
+                }
+
+                _logger.LogInformation("[Raydium CLMM] Found {Count} transactions for position {Pda}", 
+                    signaturesResult.Result.Count, positionPda);
+
+                ulong totalCollectedToken0 = 0;
+                ulong totalCollectedToken1 = 0;
+                int processedCount = 0;
+
+                // Analyze each transaction to find "collect" operations
+                foreach (var signature in signaturesResult.Result)
+                {
+                    try
+                    {
+                        TransactionMetaInfo? meta = null;
+                        
+                        // Try to get transaction with standard Solnet method first
+                        var txResult = await _rpc.GetTransactionAsync(
+                            signature.Signature,
+                            Commitment.Finalized);
+
+                        if (txResult.WasSuccessful && txResult.Result?.Transaction != null && txResult.Result.Meta != null)
+                        {
+                            // Successfully got transaction with standard method, use direct HTTP call to get full structure
+                            _logger.LogTrace("[Raydium CLMM] Processing transaction {Sig} via HTTP to get token balance details", signature.Signature);
+                            meta = await GetTransactionWithVersionSupportAsync(signature.Signature);
+                        }
+                        else
+                        {
+                            // Failed or versioned transaction, try direct HTTP call
+                            _logger.LogTrace("[Raydium CLMM] Solnet method failed for {Sig} (Reason: {Reason}), trying HTTP method", 
+                                signature.Signature, txResult.Reason ?? "Unknown");
+                            meta = await GetTransactionWithVersionSupportAsync(signature.Signature);
+                        }
+
+                        if (meta == null)
+                        {
+                            _logger.LogTrace("[Raydium CLMM] Could not retrieve transaction {Sig} via any method", signature.Signature);
+                            continue;
+                        }
+                        
+                        // Look for token transfers that indicate fee collection
+                        // In Raydium CLMM, "collect" operations transfer tokens from the position/pool to the owner
+                        if (meta.PostTokenBalances != null && meta.PreTokenBalances != null)
+                        {
+                            int preCount = meta.PreTokenBalances.Count();
+                            int postCount = meta.PostTokenBalances.Count();
+                            _logger.LogTrace("[Raydium CLMM] Analyzing transaction {Sig} with {Pre} pre and {Post} post token balances",
+                                signature.Signature, preCount, postCount);
+                            
+                            // Find balance changes for the fee tokens
+                            foreach (var postBalance in meta.PostTokenBalances)
+                            {
+                                var preBalance = meta.PreTokenBalances.FirstOrDefault(
+                                    pb => pb.AccountIndex == postBalance.AccountIndex);
+
+                                if (preBalance == null) continue;
+
+                                var mint = postBalance.Mint;
+                                if (mint != token0Mint && mint != token1Mint)
+                                    continue;
+
+                                // Calculate the change in balance
+                                if (ulong.TryParse(preBalance.Amount, out var preAmount) &&
+                                    ulong.TryParse(postBalance.Amount, out var postAmount))
+                                {
+                                    // If balance decreased in the pool/position account, tokens were withdrawn (collected fees)
+                                    if (preAmount > postAmount)
+                                    {
+                                        var amountCollected = preAmount - postAmount;
+                                        
+                                        _logger.LogTrace("[Raydium CLMM] Detected fee collection in tx {Sig}: mint={Mint}, amount={Amount}",
+                                            signature.Signature, mint, amountCollected);
+                                        
+                                        if (mint == token0Mint)
+                                            totalCollectedToken0 += amountCollected;
+                                        else if (mint == token1Mint)
+                                            totalCollectedToken1 += amountCollected;
+                                    }
+                                }
+                            }
+                        }
+
+                        processedCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogTrace("[Raydium CLMM] Error processing transaction {Sig} for position {Pda}: {Error}", 
+                            signature.Signature, positionPda, ex.Message);
+                    }
+                }
+
+                _logger.LogInformation(
+                    "[Raydium CLMM] Historical collected fees for position {Pda} - Processed {ProcessedCount} txs: Token0={Fee0} ({Formatted0}), Token1={Fee1} ({Formatted1})",
+                    positionPda, processedCount, totalCollectedToken0, 
+                    token0Decimals > 0 ? (totalCollectedToken0 / (decimal)Math.Pow(10, token0Decimals)).ToString("N9") : totalCollectedToken0.ToString(),
+                    totalCollectedToken1,
+                    token1Decimals > 0 ? (totalCollectedToken1 / (decimal)Math.Pow(10, token1Decimals)).ToString("N9") : totalCollectedToken1.ToString());
+
+                return (totalCollectedToken0, totalCollectedToken1);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Raydium CLMM] Failed to fetch historical collected fees for position {Pda}", positionPda);
+                return (0, 0);
+            }
+        }
+        
         private bool ValidateApiFees(ulong feeToken0, ulong feeToken1)
         {
             const ulong MAX_REASONABLE_FEE = 1_000_000_000_000_000_000;
@@ -979,6 +1386,16 @@ namespace DeFi10.API.Services.Protocols.Raydium
             }
             
             throw new InvalidOperationException($"[Raydium CLMM] Retry logic for {operationName} failed unexpectedly");
+        }
+
+        private static decimal? FormatFeeTier(uint feeRate)
+        {
+            // Raydium stores fee rate in "hundredths of a bip" (10^-6)
+            // e.g., 2500 = 0.25% (divide by 1000000 to get decimal percentage)
+            // 400 = 0.04%
+            if (feeRate == 0) return 0m;
+            
+            return feeRate / 1000000m;
         }
 
         private static string Short(string s) => string.IsNullOrEmpty(s) ? s : s[..6] + "…" + s[^4..];

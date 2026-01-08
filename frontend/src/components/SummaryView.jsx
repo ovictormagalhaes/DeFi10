@@ -7,6 +7,7 @@ const SummaryView = ({
   getLiquidityPoolsData,
   getLendingAndBorrowingData,
   getStakingData,
+  getLockingData,
   getTotalPortfolioValue,
   getPortfolioBreakdown,
   maskValue,
@@ -129,6 +130,7 @@ const SummaryView = ({
         getLiquidityPoolsData={getLiquidityPoolsData}
         getLendingAndBorrowingData={getLendingAndBorrowingData}
         getStakingData={getStakingData}
+        getLockingData={getLockingData}
         getTotalPortfolioValue={getTotalPortfolioValue}
         maskValue={maskValue}
         formatPrice={formatPrice}

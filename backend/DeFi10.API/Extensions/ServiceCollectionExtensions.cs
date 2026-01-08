@@ -12,6 +12,7 @@ using DeFi10.API.Services.Configuration;
 using DeFi10.API.Services.Domain;
 using DeFi10.API.Services.Protocols.Aave;
 using DeFi10.API.Services.Protocols.Uniswap;
+using DeFi10.API.Services.Graph;
 using DeFi10.API.Services.Protocols.Pendle;
 using DeFi10.API.Services.Protocols.Kamino;
 using DeFi10.API.Services.Infrastructure.MoralisSolana;
@@ -147,6 +148,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAaveeService, AaveeService>();
         services.AddScoped<IUniswapV3Service, UniswapV3Service>();
         services.AddSingleton<IUniswapV3OnChainService, UniswapV3OnChainService>();
+        services.AddSingleton<IGraphUrlBuilder, GraphUrlBuilder>();
+        services.AddSingleton<IUniswapGraphEndpointBuilder, UniswapGraphEndpointBuilder>();
         services.AddScoped<IAlchemyNftService, AlchemyNftService>();
         services.AddScoped<IPendleService, PendleService>();
         services.AddScoped<IKaminioService, KaminoService>();
@@ -162,7 +165,13 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<MoralisEVMService>();
         services.AddHttpClient<ICoinMarketCapService, CoinMarketCapService>();
         services.AddHttpClient<PendleService>();
+        services.AddHttpClient<IUniswapV3ApiService, UniswapV3ApiService>();
         services.AddHttpClient<UniswapV3OnChainService>();
+        services.AddHttpClient<IRaydiumApiService, RaydiumApiService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api-v3.raydium.io");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
         services.AddHttpClient<RaydiumOnChainService>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60); // Increased timeout for Raydium RPC operations

@@ -254,31 +254,8 @@ export const REBALANCE_REFERENCE_TYPES = {
   TotalWallet: RebalanceReferenceType.TotalWallet,
 } as const;
 
-export const CHAIN_MAPPINGS: Record<string, ChainKey> = {
-  '1': 'eth',
-  eth: 'eth',
-  ethereum: 'eth',
-  mainnet: 'eth',
-  erc20: 'eth',
-  '137': 'polygon',
-  polygon: 'polygon',
-  matic: 'polygon',
-  avalanche: 'avalanche',
-  '43114': 'avalanche',
-  avax: 'avalanche',
-  '10': 'optimism',
-  optimism: 'optimism',
-  op: 'optimism',
-  '56': 'bsc',
-  bsc: 'bsc',
-  bnb: 'bsc',
-  binance: 'bsc',
-  '250': 'fantom',
-  fantom: 'fantom',
-  ftm: 'fantom',
-  base: 'base',
-  '84531': 'base',
-};
+// Re-export centralized chain mappings for backward compatibility
+export { CHAIN_MAPPINGS, getChainKey } from '../constants/chains';
 
 export default {
   RebalanceAssetType,

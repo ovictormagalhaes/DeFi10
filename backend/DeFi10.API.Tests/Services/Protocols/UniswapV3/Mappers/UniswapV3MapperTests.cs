@@ -36,9 +36,10 @@ public class UniswapV3MapperTests
         _protocolConfig = new Mock<IProtocolConfigurationService>();
         _chainConfig = new Mock<IChainConfigurationService>();
         _metadataService = new Mock<ITokenMetadataService>();
+        var projectionCalculator = new Mock<IProjectionCalculator>();
 
         SetupDefaultMocks();
-        _mapper = new UniswapV3Mapper(_onChainService.Object, _logger.Object, _tokenFactory.Object, _protocolConfig.Object, _chainConfig.Object, _metadataService.Object);
+        _mapper = new UniswapV3Mapper(_onChainService.Object, _logger.Object, _tokenFactory.Object, _protocolConfig.Object, _chainConfig.Object, _metadataService.Object, projectionCalculator.Object);
     }
 
     private void SetupDefaultMocks()
@@ -60,6 +61,11 @@ public class UniswapV3MapperTests
             It.IsAny<Chain>(), It.IsAny<int>(), It.IsAny<decimal>(), It.IsAny<decimal>()))
             .Returns((string name, string symbol, string addr, Chain chain, int dec, decimal amt, decimal price) =>
                 new Token { Symbol = symbol, Type = TokenType.LiquidityUncollectedFee });
+        
+        _tokenFactory.Setup(x => x.CreateCollectedFee(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), 
+            It.IsAny<Chain>(), It.IsAny<int>(), It.IsAny<decimal>(), It.IsAny<decimal>()))
+            .Returns((string name, string symbol, string addr, Chain chain, int dec, decimal amt, decimal price) =>
+                new Token { Symbol = symbol, Type = TokenType.LiquidityCollectedFee });
     }
 
     private ChainConfig CreateMockChainConfig(Chain chain)
@@ -121,7 +127,7 @@ public class UniswapV3MapperTests
         Assert.Single(result);
         Assert.Equal(WalletItemType.LiquidityPool, result[0].Type);
         Assert.Equal("Liquidity Pool", result[0].Position.Label);
-        Assert.Equal(4, result[0].Position.Tokens.Count); // 2 supplied + 2 rewards
+        Assert.Equal(6, result[0].Position.Tokens.Count); // 2 supplied + 2 uncollected fees + 2 collected fees
     }
 
     [Fact]
@@ -335,8 +341,84 @@ public class UniswapV3MapperTests
             WithdrawnToken1 = "0",
             EstimatedUncollectedToken0 = "5",
             EstimatedUncollectedToken1 = "10",
+            CollectedFeesToken0 = "0",
+            CollectedFeesToken1 = "0",
             CurrentPriceToken1PerToken0 = "2",
             RangeStatus = "in-range"
         };
+    }
+
+    [Fact]
+    public async Task MapAsync_WithCollectedFees_CreatesCollectedFeeTokens()
+    {
+        var response = new UniswapV3GetActivePoolsResponse
+        {
+            Data = new UniswapV3PositionsData
+            {
+                Positions = new List<UniswapV3Position>
+                {
+                    new UniswapV3Position
+                    {
+                        Id = "1",
+                        Token0 = new UniswapV3Token
+                        {
+                            Id = "0xtoken0",
+                            Name = "Token0",
+                            Symbol = "TKN0",
+                            Decimals = "18",
+                            DerivedNative = "0.0005"
+                        },
+                        Token1 = new UniswapV3Token
+                        {
+                            Id = "0xtoken1",
+                            Name = "Token1",
+                            Symbol = "TKN1",
+                            Decimals = "6",
+                            DerivedNative = "0.001"
+                        },
+                        DepositedToken0 = "100",
+                        WithdrawnToken0 = "0",
+                        DepositedToken1 = "200",
+                        WithdrawnToken1 = "0",
+                        EstimatedUncollectedToken0 = "5",
+                        EstimatedUncollectedToken1 = "10",
+                        CollectedFeesToken0 = "25.5",
+                        CollectedFeesToken1 = "50.75",
+                        CurrentPriceToken1PerToken0 = "2",
+                        RangeStatus = "in-range"
+                    }
+                },
+                Bundles = new List<UniswapV3Bundle>
+                {
+                    new UniswapV3Bundle { NativePriceUSD = "2000" }
+                }
+            }
+        };
+
+        var result = await _mapper.MapAsync(response, Chain.Ethereum);
+
+        Assert.Single(result);
+        Assert.Equal(6, result[0].Position.Tokens.Count);
+        
+        var collectedFeeTokens = result[0].Position.Tokens.Where(t => t.Type == TokenType.LiquidityCollectedFee).ToList();
+        Assert.Equal(2, collectedFeeTokens.Count);
+        
+        _tokenFactory.Verify(x => x.CreateCollectedFee(
+            It.IsAny<string>(), 
+            "TKN0", 
+            "0xtoken0", 
+            Chain.Ethereum, 
+            18, 
+            25.5m, 
+            It.IsAny<decimal>()), Times.Once);
+        
+        _tokenFactory.Verify(x => x.CreateCollectedFee(
+            It.IsAny<string>(), 
+            "TKN1", 
+            "0xtoken1", 
+            Chain.Ethereum, 
+            6, 
+            50.75m, 
+            It.IsAny<decimal>()), Times.Once);
     }
 }

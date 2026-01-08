@@ -47,6 +47,10 @@ public class UniswapV3Position
     [JsonPropertyName("estimatedUncollectedToken0")] public string EstimatedUncollectedToken0 { get; set; } = string.Empty;
     [JsonPropertyName("estimatedUncollectedToken1")] public string EstimatedUncollectedToken1 { get; set; } = string.Empty;
 
+    // APR is set by the service, not from GraphQL
+    [JsonPropertyName("apr")]
+    public decimal? Apr { get; set; }
+
     [JsonPropertyName("token0")] public UniswapV3Token Token0 { get; set; } = new();
     [JsonPropertyName("token1")] public UniswapV3Token Token1 { get; set; } = new();
     [JsonPropertyName("pool")] public UniswapV3Pool Pool { get; set; } = new();

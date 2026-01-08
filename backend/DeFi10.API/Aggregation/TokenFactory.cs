@@ -14,6 +14,9 @@ public sealed class TokenFactory : ITokenFactory
     public Token CreateUncollectedReward(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd)
         => Build(TokenType.LiquidityUncollectedFee, name, symbol, contract, chain, decimals, formattedAmount, unitPriceUsd);
 
+    public Token CreateCollectedFee(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd)
+        => Build(TokenType.LiquidityCollectedFee, name, symbol, contract, chain, decimals, formattedAmount, unitPriceUsd);
+
     public Token CreateStaked(string name, string symbol, string contract, ChainEnum chain, int decimals, decimal formattedAmount, decimal unitPriceUsd)
         => Build(TokenType.Supplied, name, symbol, contract, chain, decimals, formattedAmount, unitPriceUsd);
 

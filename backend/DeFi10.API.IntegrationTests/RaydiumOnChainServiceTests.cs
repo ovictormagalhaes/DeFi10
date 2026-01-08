@@ -68,7 +68,10 @@ namespace DeFi10.API.IntegrationTests
                 }));
 
             _logger = mockLogger.Object;
-            _service = new RaydiumOnChainService(_rpcFactory, _logger, _httpClient);
+            var apiLogger = new Mock<ILogger<RaydiumApiService>>();
+            var apiHttpClient = new HttpClient { BaseAddress = new Uri("https://api-v3.raydium.io") };
+            var apiService = new RaydiumApiService(apiHttpClient, apiLogger.Object);
+            _service = new RaydiumOnChainService(_rpcFactory, _logger, _httpClient, apiService);
         }
 
         [Fact]

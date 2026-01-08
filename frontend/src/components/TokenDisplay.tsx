@@ -4,6 +4,7 @@ import { useChainIcons } from '../context/ChainIconsProvider';
 import { useTheme } from '../context/ThemeProvider';
 import type { Token } from '../types/wallet';
 import { formatTokenDisplay } from '../utils/tokenDisplay.js';
+import { getChainKeyFromId, getChainKey } from '../constants/chains';
 
 interface TokenDisplayProps {
   tokens?: (Token | any)[];
@@ -43,56 +44,31 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
   const { logos, text } = formatTokenDisplay(normalizedTokens, { showName });
 
   const isPair = logos.length === 2;
-  const pairSize = Math.round(size * 0.77);
-  const overlap = Math.round(pairSize * 0.52);
+  const overlap = Math.round(size * 0.5);
+  const containerWidth = size + overlap; // Container sempre do mesmo tamanho
 
   // Determine chain (prefer first token's chain-like fields)
   const baseToken = normalizedTokens[0] || {};
 
-  // Attempt direct field extraction
-  const raw: string =
+  // Get chain identifier from various fields
+  const chainRaw =
     baseToken.chain ||
     baseToken.chainId ||
     baseToken.chainID ||
     baseToken.network ||
     baseToken.networkId ||
-    baseToken.networkID ||
-    '';
+    baseToken.networkID;
 
-  // Extract numeric ID if present
-  let chainNumericId: number | null = null;
-  if (typeof raw === 'string') {
-    const match = raw.match(/\d+/);
-    if (match) chainNumericId = parseInt(match[0], 10);
-  } else if (typeof raw === 'number') {
-    chainNumericId = raw;
-  }
-
-  // Chain key mapping
+  // Use centralized chain mapping
   let chainKey = '';
-  if (typeof raw === 'string') {
-    chainKey = raw.toLowerCase();
-  }
-
-  // Map numeric chain IDs to keys
-  const chainIdMapping: Record<number, string> = {
-    1: 'ethereum',
-    56: 'bsc',
-    137: 'polygon',
-    250: 'fantom',
-    43114: 'avalanche',
-    42161: 'arbitrum',
-    10: 'optimism',
-    25: 'cronos',
-    100: 'xdai',
-  };
-
-  if (chainNumericId && chainIdMapping[chainNumericId]) {
-    chainKey = chainIdMapping[chainNumericId];
+  if (typeof chainRaw === 'number') {
+    chainKey = getChainKeyFromId(chainRaw);
+  } else if (chainRaw) {
+    chainKey = getChainKey(chainRaw);
   }
 
   // Get chain icon
-  const chainIconUrl = getChainIcon ? getChainIcon(chainKey) : getChainIconFromContext();
+  const chainIconUrl = getChainIcon ? getChainIcon(chainKey) : getChainIconFromContext(chainKey);
 
   return (
     <div
@@ -107,7 +83,7 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
         className="token-logos relative flex-shrink-0"
         style={{
           height: `${size}px`,
-          width: isPair ? `${pairSize + overlap}px` : `${size}px`,
+          width: `${containerWidth}px`,
         }}
       >
         {logos.map((logo: any, index: number) => (
@@ -120,9 +96,9 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
               position: isPair ? 'absolute' : 'static',
               left: isPair && index === 1 ? `${overlap}px` : '0px',
               top: '0px',
-              width: isPair ? `${pairSize}px` : `${size}px`,
-              height: isPair ? `${pairSize}px` : `${size}px`,
-              border: isPair ? `2px solid ${theme.bgApp}` : 'none',
+              width: `${size}px`,
+              height: `${size}px`,
+              border: 'none',
               backgroundColor: theme.bgPanel,
               zIndex: isPair ? (index === 0 ? 2 : 1) : 'auto',
             }}
@@ -140,12 +116,12 @@ const TokenDisplay: React.FC<TokenDisplayProps> = ({
             alt="Chain"
             style={{
               position: 'absolute',
-              bottom: '-2px',
-              right: isPair ? `${Math.max(0, overlap - 8)}px` : '-2px',
+              top: '-2px',
+              right: isPair ? '-2px' : `${overlap - 2}px`,
               width: `${Math.round(size * 0.4)}px`,
               height: `${Math.round(size * 0.4)}px`,
               borderRadius: '50%',
-              border: `2px solid ${theme.bgApp}`,
+              border: `1px solid ${theme.bgApp}`,
               backgroundColor: theme.bgPanel,
               zIndex: 10,
             }}

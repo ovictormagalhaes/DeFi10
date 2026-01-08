@@ -212,7 +212,12 @@ function truncateAndFormat(value, maxDecimals) {
 
 // Group DeFi positions by protocol
 export function groupDefiByProtocol(defiData) {
-  if (!defiData || !Array.isArray(defiData)) return [];
+  if (!defiData || !Array.isArray(defiData)) {
+    console.log('[groupDefiByProtocol] Invalid input:', defiData);
+    return [];
+  }
+  
+  console.log('[groupDefiByProtocol] Processing items:', defiData.length, defiData);
 
   const grouped = {};
 
@@ -309,7 +314,9 @@ export function groupDefiByProtocol(defiData) {
     });
   });
 
-  return Object.values(grouped);
+  const result = Object.values(grouped);
+  console.log('[groupDefiByProtocol] Grouped result:', result);
+  return result;
 }
 
 // Group data by protocol name for table display
@@ -614,6 +621,7 @@ export function computePortfolioBreakdown({
   liquidityGroups = [],
   lendingGroups = [],
   stakingPositions = [],
+  lockingGroups = [],
   filterLendingDefiTokens = (toks) => toks || [],
   filterStakingDefiTokens = (toks) => toks || [],
   showLendingDefiTokens = true,
@@ -633,7 +641,10 @@ export function computePortfolioBreakdown({
       group.positions.reduce(
         (sum, pos) =>
           sum +
-          (pos.tokens?.reduce((tokenSum, t) => tokenSum + (parseFloat(t.totalPrice) || 0), 0) || 0),
+          (pos.tokens?.reduce(
+            (tokenSum, t) => tokenSum + (parseFloat(t.financials?.totalPrice || t.totalPrice) || 0), 
+            0
+          ) || 0),
         0
       )
     );
@@ -677,8 +688,25 @@ export function computePortfolioBreakdown({
     return sum;
   }, 0);
 
-  const defiGross = liquidityValue + lendingSupplied + stakingValue; // borrowed excluded from gross
-  const defiNet = liquidityValue + lendingNet + stakingValue; // borrowed subtracts
+  // Locking total (locked tokens as positive assets)
+  const lockingValue = lockingGroups.reduce((total, group) => {
+    return (
+      total +
+      group.positions.reduce(
+        (sum, pos) =>
+          sum +
+          (pos.tokens?.reduce(
+            // Locking tokens have totalPrice inside financials (like liquidity tokens)
+            (tokenSum, t) => tokenSum + (parseFloat(t.financials?.totalPrice || t.totalPrice) || 0),
+            0
+          ) || 0),
+        0
+      )
+    );
+  }, 0);
+
+  const defiGross = liquidityValue + lendingSupplied + stakingValue + lockingValue; // borrowed excluded from gross
+  const defiNet = liquidityValue + lendingNet + stakingValue + lockingValue; // borrowed subtracts
   const totalNet = walletValue + defiNet;
 
   return {
@@ -688,6 +716,7 @@ export function computePortfolioBreakdown({
     lendingBorrowed,
     lendingNet,
     stakingValue,
+    lockingValue,
     defiGross,
     defiNet,
     totalNet,

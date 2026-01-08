@@ -3,6 +3,7 @@ import { useTheme } from '../../context/ThemeProvider.tsx';
 import { useMaskValues } from '../../context/MaskValuesContext.tsx';
 import { useChainIcons } from '../../context/ChainIconsProvider.jsx';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
+import ProjectionSelector from '../ProjectionSelector.jsx';
 
 /**
  * LendingCards - Card view for lending positions
@@ -12,7 +13,6 @@ const LendingCards = ({ data = [] }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const { getIcon: getChainIcon } = useChainIcons();
-  const [expandedProjections, setExpandedProjections] = React.useState({});
 
   if (!data || data.length === 0) {
     return (
@@ -30,10 +30,11 @@ const LendingCards = ({ data = [] }) => {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
       gap: 20,
       padding: '8px 0',
       maxWidth: '100%',
+      overflow: 'visible',
     }}>
       {data.map((item, index) => {
         const position = item.position || item;
@@ -73,19 +74,25 @@ const LendingCards = ({ data = [] }) => {
         const mainToken = isBorrowPosition ? (borrowedTokens[0] || tokens[0]) : (suppliedTokens[0] || tokens[0]);
         const positionType = isBorrowPosition ? 'Borrow' : 'Supply';
         
-        // Get projection data
+        // Get projection data (support both new array format and legacy single projection)
+        const projections = item.additionalData?.projections || item.additionalInfo?.projections || position?.projections || null;
         const projection = item.additionalInfo?.projection || item.additionalData?.projection || position.projection || null;
         
         // Get health factor
         const healthFactor = item.additionalData?.healthFactor || item.additionalInfo?.healthFactor || null;
         
-        // Check if projection is expanded
-        const isProjectionExpanded = expandedProjections[index] || false;
-        
-        // Toggle projection expansion
-        const toggleProjectionExpansion = () => {
-          setExpandedProjections(prev => ({ ...prev, [index]: !prev[index] }));
-        };
+        // Get collateral (boolean)
+        const isCollateral = [
+          position?.isCollateral,
+          position?.IsCollateral,
+          position?.additionalData?.isCollateral,
+          position?.additionalData?.IsCollateral,
+          position?.AdditionalData?.IsCollateral,
+          position?.additionalInfo?.IsCollateral,
+          position?.additional_info?.is_collateral,
+          item?.additionalData?.IsCollateral,
+          item?.additionalData?.isCollateral,
+        ].some((v) => v === true);
         
         return (
           <div
@@ -99,6 +106,7 @@ const LendingCards = ({ data = [] }) => {
               cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
+              overflow: 'visible',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = theme.accent;
@@ -202,33 +210,6 @@ const LendingCards = ({ data = [] }) => {
 
             {/* Metrics */}
             <div style={{ flex: 1 }}>
-              {/* Amount (quantity of tokens) */}
-              <div style={{ 
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 10,
-              }}>
-                <span style={{ 
-                  fontSize: 13,
-                  color: theme.textSecondary,
-                }}>
-                  Amount
-                </span>
-                <span style={{ 
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: theme.textPrimary,
-                }}>
-                  {maskValue(
-                    (mainToken?.financials?.amountFormatted ?? mainToken?.financials?.balanceFormatted ?? mainToken?.balance ?? 0).toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 6
-                    })
-                  )} {mainToken?.symbol || ''}
-                </span>
-              </div>
-
               {/* Value (total in USD) */}
               <div style={{ 
                 display: 'flex',
@@ -244,10 +225,37 @@ const LendingCards = ({ data = [] }) => {
                 </span>
                 <span style={{ 
                   fontSize: 14,
-                  fontWeight: 700,
+                  fontWeight: 600,
                   color: theme.textPrimary,
                 }}>
                   {maskValue(formatPrice(isBorrowPosition ? totalBorrowed : totalSupplied))}
+                </span>
+              </div>
+
+              {/* Amount (quantity of tokens) */}
+              <div style={{ 
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 10,
+              }}>
+                <span style={{ 
+                  fontSize: 13,
+                  color: theme.textSecondary,
+                }}>
+                  Amount
+                </span>
+                <span style={{ 
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: theme.textPrimary,
+                }}>
+                  {maskValue(
+                    (mainToken?.financials?.amountFormatted ?? mainToken?.financials?.balanceFormatted ?? mainToken?.balance ?? 0).toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 6
+                    })
+                  )} {mainToken?.symbol || ''}
                 </span>
               </div>
 
@@ -264,7 +272,7 @@ const LendingCards = ({ data = [] }) => {
                   </span>
                   <span style={{ 
                     fontSize: 14, 
-                    fontWeight: 700, 
+                    fontWeight: 600, 
                     color: healthFactor >= 2 ? '#10b981' : healthFactor >= 1.5 ? '#f59e0b' : '#ef4444'
                   }}>
                     {healthFactor.toFixed(2)}
@@ -277,12 +285,12 @@ const LendingCards = ({ data = [] }) => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: projection ? 10 : 0,
+                marginBottom: 10,
               }}>
-                <span style={{ fontSize: 14, color: theme.textSecondary }}>
+                <span style={{ fontSize: 13, color: theme.textSecondary }}>
                   APY
                 </span>
-                <span style={{ fontSize: 16, fontWeight: 700, color: theme.textPrimary }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
                   {isBorrowPosition 
                     ? (borrowRate ? `${borrowRate.toFixed(2)}%` : '0.00%')
                     : (supplyRate ? `${supplyRate.toFixed(2)}%` : '0.00%')
@@ -290,83 +298,80 @@ const LendingCards = ({ data = [] }) => {
                 </span>
               </div>
 
-              {/* Projection */}
-              {projection && (() => {
-                const projections = [
-                  { label: '1 Day', value: projection.oneDay, key: 'oneDay' },
-                  { label: '1 Week', value: projection.oneWeek, key: 'oneWeek' },
-                  { label: '1 Month', value: projection.oneMonth, key: 'oneMonth' },
-                  { label: '1 Year', value: projection.oneYear, key: 'oneYear' },
-                ].filter(p => p.value != null);
-                
-                if (projections.length === 0) return null;
-                
-                return (
+              {/* Collateral - sempre renderiza para manter espaçamento consistente */}
+              <div style={{ 
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: projection ? 10 : 0,
+                visibility: isBorrowPosition ? 'hidden' : 'visible',
+              }}>
+                <span style={{ fontSize: 13, color: theme.textSecondary }}>
+                  Collateral
+                </span>
+                <div style={{
+                  width: 36,
+                  height: 18,
+                  borderRadius: 12,
+                  backgroundColor: isCollateral ? theme.accent : theme.bgSecondary,
+                  border: `1px solid ${isCollateral ? theme.accent : theme.border}`,
+                  position: 'relative',
+                  transition: 'all 0.2s ease',
+                }}>
                   <div style={{
-                    marginTop: 10,
-                    paddingTop: 10,
-                    borderTop: `1px solid ${theme.border}`,
-                  }}>
-                    {/* Projection Header - Always Visible */}
+                    position: 'absolute',
+                    top: '50%',
+                    transform: `translate(${isCollateral ? '18px' : '2px'}, -50%)`,
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    backgroundColor: '#fff',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.2)',
+                  }} />
+                </div>
+              </div>
+
+              {/* Projection */}
+              {(projections || projection) && (() => {
+                // Handle new projections array format
+                if (projections && Array.isArray(projections) && projections.length > 0) {
+                  return (
                     <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: 8,
-                      cursor: 'pointer',
-                    }}
-                    onClick={toggleProjectionExpansion}
-                    >
-                      <span style={{ fontSize: 14, color: theme.textSecondary }}>Projection</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <svg 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 12 12" 
-                          fill="none"
-                          style={{
-                            transform: isProjectionExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                            transition: 'transform 0.2s ease',
-                          }}
-                        >
-                          <path 
-                            d="M3 5L6 8L9 5" 
-                            stroke={theme.textSecondary} 
-                            strokeWidth="1.5" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </div>
+                      marginTop: 10,
+                    }}>
+                      <ProjectionSelector 
+                        projections={projections} 
+                        defaultType="apr" 
+                        defaultPeriod="Day"
+                        showTypeWhenSingle={false}
+                      />
                     </div>
-                    
-                    {/* Projection Details - Collapsible */}
-                    {isProjectionExpanded && (
-                      <div style={{
-                        backgroundColor: theme.bgSecondary,
-                        borderRadius: 8,
-                        padding: '6px 12px 12px 12px',
-                        marginTop: 4,
-                      }}>
-                        {projections.map((proj, idx) => (
-                          <div key={proj.key} style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: idx < projections.length - 1 ? 6 : 0,
-                          }}>
-                            <span style={{ fontSize: 12, color: theme.textSecondary }}>
-                              {proj.label}
-                            </span>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
-                              {maskValue(formatPrice(proj.value))}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
+                  );
+                }
+                
+                // Handle legacy single projection format
+                if (projection) {
+                  // Check if at least one projection value exists
+                  const hasProjection = projection.oneDay != null || projection.oneWeek != null || 
+                                       projection.oneMonth != null || projection.oneYear != null;
+                  
+                  if (!hasProjection) return null;
+                  
+                  return (
+                    <div style={{
+                      marginTop: 10,
+                    }}>
+                      <ProjectionSelector 
+                        projection={projection} 
+                        defaultPeriod="Day"
+                        showTypeWhenSingle={false}
+                      />
+                    </div>
+                  );
+                }
+                
+                return null;
               })()}
             </div>
           </div>

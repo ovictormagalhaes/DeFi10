@@ -35,8 +35,19 @@ public class AdditionalData
     public decimal? Apr { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public decimal? Apy { get; set; }
+    public decimal? AprHistorical { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public Projection? Projection { get; set; }
+    public decimal? Apy { get; set; }
+
+    /// <summary>
+    /// Multiple projection calculations for liquidity pool positions
+    /// Each projection uses a different methodology (APR-based, CreatedAt-based, Fees24h-based)
+    /// </summary>
+    [JsonPropertyName("projections")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ProjectionData>? Projections { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? TierPercent { get; set; }
 }

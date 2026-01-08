@@ -2,6 +2,7 @@
 using DeFi10.API.Configuration;
 using DeFi10.API.Models;
 using DeFi10.API.Services.Configuration;
+using DeFi10.API.Services.Core.Solana;
 using DeFi10.API.Services.Domain;
 using DeFi10.API.Services.Domain.Mappers;
 using DeFi10.API.Services.Helpers;
@@ -118,6 +119,18 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                             priceUsd ?? 0
                         );
                     }
+                    else if (t.Type == TokenType.LiquidityCollectedFee)
+                    {
+                        token = _tokenFactory.CreateCollectedFee(
+                            name ?? string.Empty,
+                            symbol ?? string.Empty,
+                            t.Mint,
+                            chain,
+                            t.Decimals,
+                            formattedAmount,
+                            priceUsd ?? 0
+                        );
+                    }
                     else
                     {
                         token = _tokenFactory.CreateSupplied(
@@ -135,6 +148,89 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                     tokens.Add(token);
                 }
 
+                // Calculate range info to determine if position is in range
+                var rangeInfo = CalculateRange(p.TickLower, p.TickUpper, p.TickCurrent, p.Tokens);
+                
+                // Calculate total position value (sum only Supplied tokens, not fees)
+                var totalValueUsd = tokens
+                    .Where(t => t.Type == TokenType.Supplied)
+                    .Sum(t => t.Financials?.TotalPrice ?? 0m);
+                
+                // APR is only earned when position is in range
+                var effectiveApr = rangeInfo.InRange == true ? (p.Apr ?? 0m) : 0m;
+
+                // Build multiple projections
+                var projections = new List<ProjectionData>();
+
+                // 1. APR-based projection
+                if (effectiveApr > 0 && totalValueUsd > 0)
+                {
+                    var aprProjection = _projectionCalculator.CalculateAprProjection(totalValueUsd, effectiveApr);
+                    if (aprProjection != null)
+                    {
+                        projections.Add(_projectionCalculator.CreateProjectionData(
+                            ProjectionType.Apr,
+                            aprProjection,
+                            new ProjectionMetadata { Apr = effectiveApr }
+                        ));
+                    }
+                }
+
+                // 2. AprHistorical-based projection (historical fees)
+                decimal? calculatedAprHistorical = null;
+                if (p.CreatedAt.HasValue && p.CreatedAt.Value > 0 && totalValueUsd > 0)
+                {
+                    // Calculate total fees (collected + uncollected)
+                    var totalFees = tokens
+                        .Where(t => t.Type == TokenType.LiquidityCollectedFee || 
+                                    t.Type == TokenType.LiquidityUncollectedFee)
+                        .Sum(t => t.Financials?.TotalPrice ?? 0m);
+
+                    if (totalFees > 0)
+                    {
+                        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                        var (aprHistoricalProjection, aprHistorical) = _projectionCalculator.CalculateAprHistoricalProjection(
+                            totalFees,
+                            totalValueUsd,
+                            p.CreatedAt.Value,
+                            now
+                        );
+
+                        if (aprHistoricalProjection != null && aprHistorical.HasValue)
+                        {
+                            calculatedAprHistorical = aprHistorical.Value;
+                            var daysActive = (DateTimeOffset.UtcNow - 
+                                DateTimeOffset.FromUnixTimeSeconds(p.CreatedAt.Value)).TotalDays;
+
+                            projections.Add(_projectionCalculator.CreateProjectionData(
+                                ProjectionType.AprHistorical,
+                                aprHistoricalProjection,
+                                new ProjectionMetadata
+                                {
+                                    AprHistorical = aprHistorical.Value,
+                                    CreatedAt = p.CreatedAt.Value,
+                                    TotalFeesGenerated = totalFees,
+                                    DaysActive = (decimal)daysActive
+                                }
+                            ));
+                        }
+                    }
+                }
+
+                // 3. Fees24h-based projection
+                if (p.Fees24h.HasValue && p.Fees24h.Value > 0)
+                {
+                    var fees24hProjection = _projectionCalculator.CalculateFees24hProjection((decimal)p.Fees24h.Value);
+                    if (fees24hProjection != null)
+                    {
+                        projections.Add(_projectionCalculator.CreateProjectionData(
+                            ProjectionType.Fees24h,
+                            fees24hProjection,
+                            new ProjectionMetadata { Fees24h = p.Fees24h.Value }
+                        ));
+                    }
+                }
+
                 var walletItem = new WalletItem
                 {
                     Type = WalletItemType.LiquidityPool,
@@ -146,14 +242,16 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                     },
                     AdditionalData = new AdditionalData
                     {
-                        TotalValueUsd = p.TotalValueUsd,
-                        Apr = p.Apr,
+                        TotalValueUsd = totalValueUsd,
+                        Apr = effectiveApr,
+                        AprHistorical = calculatedAprHistorical,
                         Fees24h = p.Fees24h,
                         SqrtPriceX96 = p.SqrtPriceX96,
                         PoolId = p.Pool,
                         CreatedAt = p.CreatedAt,
-                        Range = CalculateRange(p.TickLower, p.TickUpper, p.TickCurrent),
-                        Projection = _projectionCalculator.CalculateAprProjection(p.TotalValueUsd, p.Apr)
+                        Range = rangeInfo,
+                        Projections = projections.Any() ? projections : null,
+                        TierPercent = p.TierPercent
                     }
                 };
 
@@ -167,11 +265,24 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
             return walletItems;
         }
 
-        private RangeInfo CalculateRange(int tickLower, int tickUpper, int tickCurrent)
+        private RangeInfo CalculateRange(int tickLower, int tickUpper, int tickCurrent, List<SplToken> tokens)
         {
-            var priceLower = Math.Pow(1.0001, tickLower);
-            var priceUpper = Math.Pow(1.0001, tickUpper);
-            var priceCurrent = Math.Pow(1.0001, tickCurrent);
+            // Get decimals from the first two tokens (token0 and token1)
+            int decimal0 = tokens.Count > 0 ? tokens[0].Decimals : 0;
+            int decimal1 = tokens.Count > 1 ? tokens[1].Decimals : 0;
+            
+            // Calculate raw price using tick formula: price = 1.0001^tick
+            var rawPriceLower = Math.Pow(1.0001, tickLower);
+            var rawPriceUpper = Math.Pow(1.0001, tickUpper);
+            var rawPriceCurrent = Math.Pow(1.0001, tickCurrent);
+            
+            // Adjust for token decimals: price = rawPrice * 10^(decimal0 - decimal1)
+            // Example: SOL (9 decimals) / USDC (6 decimals) = 10^(9-6) = 10^3 = 1000x multiplier
+            var decimalAdjustment = Math.Pow(10, decimal0 - decimal1);
+            
+            var priceLower = rawPriceLower * decimalAdjustment;
+            var priceUpper = rawPriceUpper * decimalAdjustment;
+            var priceCurrent = rawPriceCurrent * decimalAdjustment;
 
             return new RangeInfo
             {

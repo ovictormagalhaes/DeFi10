@@ -171,10 +171,33 @@ public class IntegrationRequestWorker : BaseConsumer
                 }
                 case IntegrationProvider.UniswapV3Positions:
                 {
-
+                    try
+                    {
+                        var graphqlSvc = scope.ServiceProvider.GetRequiredService<IUniswapV3Service>();
+                        var graphqlResult = await graphqlSvc.GetActivePoolsHybridAsync(request.Account, chainEnum);
+                        
+                        if (graphqlResult?.Data?.Positions != null && graphqlResult.Data.Positions.Any())
+                        {
+                            _logger.LogInformation("[Uniswap Phase1] GraphQL found {Count} positions for {Account} - saved ~90% RPC costs", 
+                                graphqlResult.Data.Positions.Count, request.Account);
+                            payload = graphqlResult;
+                            status = IntegrationStatus.Success;
+                            break;
+                        }
+                        else
+                        {
+                            _logger.LogDebug("[Uniswap Phase1] GraphQL returned no positions for {Account} - trying RPC fallback", request.Account);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "[Uniswap Phase1] GraphQL failed for {Account} (Chains={Chains}, Attempt={Attempt}) - falling back to RPC. Exception: {Message}",
+                            request.Account, string.Join(',', request.Chains), request.Attempt, ex.Message);
+                    }
+                    
+                    // Fallback to RPC if GraphQL fails or returns empty
                     if (_uniswapV3Options.EnableGranularProcessing)
                     {
-
                         var uniSvc = scope.ServiceProvider.GetRequiredService<IUniswapV3OnChainService>();
                         var ids = await uniSvc.EnumeratePositionIdsAsync(request.Account, chainEnum, onlyOpen: true);
                         if (ids != null && ids.Any())
@@ -184,14 +207,12 @@ public class IntegrationRequestWorker : BaseConsumer
                         }
                         else
                         {
-
                             payload = await uniSvc.GetActivePoolsOnChainAsync(Array.Empty<BigInteger>(), chainEnum, onlyOpenPositions: true);
                             status = IntegrationStatus.Success;
                         }
                     }
                     else
                     {
-
                         var svc = scope.ServiceProvider.GetRequiredService<IUniswapV3OnChainService>();
                         const bool onlyOpen = true;
                         payload = await svc.GetActivePoolsOnChainAsync(request.Account, onlyOpen, chainEnum);
