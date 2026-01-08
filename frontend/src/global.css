@@ -926,7 +926,7 @@ select.input-base option { background: var(--mw-bg-panel,var(--app-bg-panel)); c
 .text-transparent { color: transparent !important; }
 .rebalance-panel { background: var(--mw-bg-interactive,var(--app-bg-interactive)); color: var(--mw-text-primary,var(--app-text-primary)); }
 .modal-title { margin-bottom:12px; font-weight:700; font-size:16px; }
-.rebalance-form-grid { display:grid; grid-template-columns:1fr 1.4fr 1fr 1.2fr 0.8fr; gap:14px 14px; align-items:start; }
+.rebalance-form-grid { display:grid; grid-template-columns:1fr 1.5fr 1fr 1.2fr 1fr; gap:14px 14px; align-items:start; }
 /* Medium screens: stack into 2 columns for better readability */
 @media (max-width: 1100px) {
   .rebalance-form-grid { grid-template-columns: 1fr 1fr 1fr; }
@@ -972,7 +972,7 @@ select.input-base option { background: var(--mw-bg-panel,var(--app-bg-panel)); c
 .pad-6 { padding:6px; }
 .dropdown-btn { background: var(--mw-bg-panel,var(--app-bg-panel)); border:1px solid var(--mw-border,var(--app-border)); color: var(--mw-text-primary,var(--app-text-primary)); padding:8px 10px; border-radius:8px; font-size:13px; width:100%; min-width:0; height:38px; display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; box-sizing:border-box; transition: background .15s, border-color .15s; }
 .dropdown-btn:hover { background: var(--mw-bg-panel-hover,var(--app-bg-panel-hover,var(--mw-bg-panel,var(--app-bg-panel)))); }
-.dropdown-menu { position:absolute; z-index:20; top:calc(100% + 6px); left:0; right:0; background: var(--mw-bg-panel-elevated,var(--mw-bg-panel,var(--app-bg-panel))); border:1px solid var(--mw-border,var(--app-border)); border-radius:8px; box-shadow: var(--mw-shadow-popover,var(--mw-shadow-hover,var(--app-shadow-hover))); max-height:300px; overflow-y:auto; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.dropdown-menu { position:absolute; z-index:20; top:calc(100% + 6px); left:0; right:0; min-width:350px; background: var(--mw-bg-panel-elevated,var(--mw-bg-panel,var(--app-bg-panel))); border:1px solid var(--mw-border,var(--app-border)); border-radius:8px; box-shadow: var(--mw-shadow-popover,var(--mw-shadow-hover,var(--app-shadow-hover))); max-height:300px; overflow-y:auto; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 .dropdown-menu { opacity:0; transform:translateY(4px); animation: dropdown-enter .18s ease forwards; }
 @keyframes dropdown-enter { to { opacity:1; transform:translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .dropdown-menu { animation:none; opacity:1; transform:none; } }

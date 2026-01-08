@@ -153,7 +153,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         var metaKey = RedisKeys.Meta(jobId);
 
         var accountsField = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Accounts);
-        bool isMultiWallet = accountsField.HasValue && accountsField.ToString().Contains(',');
+        bool isMultiWallet = accountsField.HasValue && !string.IsNullOrEmpty(accountsField.ToString());
 
         var pendingKey = RedisKeys.Pending(jobId);
 
@@ -182,18 +182,19 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         // Track provider duration
         var duration = result.FinishedAtUtc - result.StartedAtUtc;
         var durationKey = RedisKeys.Durations(jobId);
-        var durationEntry = RedisKeys.DurationEntry(providerSlug, chainStr ?? "", isMultiWallet ? account : null);
+        var durationEntry = RedisKeys.DurationEntry(providerSlug, chainStr ?? "", account);
         await db.HashSetAsync(durationKey, durationEntry, duration.TotalMilliseconds.ToString("F0"), flags: CommandFlags.FireAndForget);
         
         _logger.LogInformation("[Aggregator] Provider completed: {Provider} chain={Chain} account={Account} status={Status} duration={Duration}ms jobId={JobId}",
             result.Provider, chainEnum, account, result.Status, duration.TotalMilliseconds, jobId);
 
-        var pendingEntry = RedisKeys.DurationEntry(providerSlug, chainStr ?? "", isMultiWallet ? account : null);
-        
+        // Remove from pending list
+        var pendingEntry = RedisKeys.PendingEntry(providerSlug, chainStr ?? "", account);
         var removed = await db.SetRemoveAsync(pendingKey, pendingEntry);
-        if (!removed && !isMultiWallet)
+        
+        if (!removed)
         {
-            await db.SetRemoveAsync(pendingKey, providerSlug);
+            _logger.LogWarning("[Aggregator] Failed to remove pending entry: {Entry} jobId={JobId}", pendingEntry, jobId);
         }
 
         var tran = db.CreateTransaction();

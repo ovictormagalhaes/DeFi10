@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useCallback } from 'react';
 
 /**
  * RebalanceItemDialog
- * Glass-style dialog for adding or editing a rebalancing item.
+ * Glass-style dialog for adding or editing a strategy item.
  * Accessible: focus trap, ESC to close, aria labels.
  */
 export default function RebalanceItemDialog({
   open,
   editing = false,
-  title = editing ? 'Edit Rebalancing Item' : 'Add Rebalancing Item',
+  title = editing ? 'Edit Strategy Item' : 'Add Strategy Item',
   description = 'Define a target allocation using a token, protocol, group or total wallet reference.',
   assetType,
   setAssetType,
@@ -101,7 +101,7 @@ export default function RebalanceItemDialog({
         aria-labelledby="rebalanceDialogTitle"
         aria-describedby="rebalanceDialogDesc"
         ref={dialogRef}
-        style={{ maxWidth: 860, width: 'min(96vw,860px)', padding: 24 }}
+        style={{ maxWidth: 1000, width: 'min(96vw,1000px)', padding: 24 }}
       >
         <header
           style={{
@@ -200,7 +200,7 @@ export default function RebalanceItemDialog({
                     }
                   }}
                   style={{
-                    background: 'var(--mw-accent,var(--app-accent))',
+                    background: theme.mode === 'dark' ? theme.primary : theme.accent,
                     color: 'white',
                     border: 'none',
                     padding: '0 16px',
@@ -240,13 +240,62 @@ export default function RebalanceItemDialog({
                     
                     if (Array.isArray(pos.tokens) && pos.tokens.length > 0) {
                       tokens = pos.tokens.slice(0, 2).map(t => t?.token || t).filter(Boolean);
-                      // Check first token type to determine supply/borrow
-                      const firstToken = pos.tokens[0];
-                      if (firstToken?.type === 'borrowed' || firstToken?.type === 'borrow' || firstToken?.type === 'debt') {
+                      
+                      // 🔍 DEBUG: Log position data
+                      console.log('🔍 [DIALOG LENDING DETECTION] Position:', {
+                        label: pos.label,
+                        key: pos.key,
+                        name: pos.name,
+                        tokensCount: pos.tokens?.length,
+                        allTokens: pos.tokens
+                      });
+                      
+                      // Check position label/key first
+                      const positionLabel = pos.label?.toLowerCase() || pos.key?.toLowerCase() || pos.name?.toLowerCase() || '';
+                      const isBorrowPosition = positionLabel.includes('borrow') || positionLabel.includes('debt');
+                      
+                      console.log('📊 Dialog position label check:', { positionLabel, isBorrowPosition });
+                      
+                      // Check all tokens to find if any is borrowed
+                      const hasBorrowedToken = pos.tokens.some(t => {
+                        const tokenType = t?.type?.toLowerCase();
+                        const tokenLabel = t?.label?.toLowerCase() || t?.name?.toLowerCase() || '';
+                        const hasDebt = t?.debt === true || t?.debt > 0;
+                        const negativeBalance = t?.balance && t.balance < 0;
+                        const negativePrice = (t?.totalPrice || t?.financials?.totalPrice || 0) < 0;
+                        
+                        const isBorrowed = tokenType === 'borrowed' || 
+                               tokenType === 'borrow' || 
+                               tokenType === 'debt' ||
+                               tokenLabel.includes('borrow') ||
+                               tokenLabel.includes('debt') ||
+                               hasDebt || 
+                               negativeBalance ||
+                               negativePrice;
+                        
+                        console.log('🪙 Dialog token check:', t.symbol, {
+                          type: t?.type,
+                          tokenType,
+                          tokenLabel,
+                          hasDebt,
+                          negativeBalance,
+                          negativePrice,
+                          isBorrowed
+                        });
+                        
+                        return isBorrowed;
+                      });
+                      
+                      console.log('✅ Dialog token check result:', { hasBorrowedToken });
+                      
+                      if (isBorrowPosition || hasBorrowedToken) {
                         lendingType = 'borrow';
                       } else {
                         lendingType = 'supply';
                       }
+                      
+                      console.log('🎯 DIALOG FINAL RESULT:', { lendingType, label: pos.label });
+                      console.log('---');
                     }
                   } else if (assetTypeNum === 2 || assetTypeNum === 4) { // LP, Staking
                     // For LP/Staking, extract tokens
@@ -280,18 +329,6 @@ export default function RebalanceItemDialog({
                         fontSize: 13,
                       }}
                     >
-                      {/* Type icon */}
-                      <span style={{ fontSize: 14, opacity: 0.7 }} title={
-                        assetTypeNum === 1 ? 'Wallet' :
-                        assetTypeNum === 2 ? 'Liquidity Pool' :
-                        assetTypeNum === 3 ? 'Lending Position' :
-                        assetTypeNum === 4 ? 'Staking Position' : 'Asset'
-                      }>
-                        {assetTypeNum === 1 ? '💼' : 
-                         assetTypeNum === 2 ? '💧' : 
-                         assetTypeNum === 3 ? '🏦' : 
-                         assetTypeNum === 4 ? '🔒' : '📦'}
-                      </span>
                       {tokens.length > 0 && TokenDisplay && (
                         <TokenDisplay
                           tokens={tokens}
@@ -302,7 +339,7 @@ export default function RebalanceItemDialog({
                           showChain={true}
                         />
                       )}
-                      <span>{label}</span>
+                      <span style={{ flex: 1 }}>{label}</span>
                       {/* Lending type badge */}
                       {lendingType && (
                         <span style={{
@@ -310,7 +347,6 @@ export default function RebalanceItemDialog({
                           padding: '2px 6px',
                           borderRadius: 4,
                           fontWeight: 600,
-                          marginLeft: 4,
                           background: lendingType === 'borrow' 
                             ? 'rgba(239, 68, 68, 0.15)' 
                             : 'rgba(34, 197, 94, 0.15)',
@@ -321,6 +357,24 @@ export default function RebalanceItemDialog({
                           {lendingType === 'borrow' ? 'BORROW' : 'SUPPLY'}
                         </span>
                       )}
+                      {/* Type icon - monocromático e à direita */}
+                      <span style={{ 
+                        fontSize: 14, 
+                        opacity: 0.5,
+                        filter: 'grayscale(1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                      }} title={
+                        assetTypeNum === 1 ? 'Wallet' :
+                        assetTypeNum === 2 ? 'Liquidity Pool' :
+                        assetTypeNum === 3 ? 'Lending Position' :
+                        assetTypeNum === 4 ? 'Staking Position' : 'Asset'
+                      }>
+                        {assetTypeNum === 1 ? '💼' : 
+                         assetTypeNum === 2 ? '💧' : 
+                         assetTypeNum === 3 ? '🏦' : 
+                         assetTypeNum === 4 ? '🔒' : '📦'}
+                      </span>
                       <button
                         type="button"
                         onClick={() => setAssetIds(assetIds.filter((a) => !(a.type === asset.type && a.id === asset.id)))}

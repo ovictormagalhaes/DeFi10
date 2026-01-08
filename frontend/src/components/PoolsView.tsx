@@ -589,24 +589,6 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
           const { raw, pos, tokens, rewards } = enrichedPool;
           const { name: protocolName, logo: protocolLogo } = getProtocolInfo(raw);
 
-          console.log(`Pool ${index}:`, {
-            enrichedPoolProtocolName: enrichedPool.protocolName,
-            localProtocolName: protocolName,
-            protocolLogo: protocolLogo,
-            pos: pos,
-            raw: raw,
-            posKeys: Object.keys(pos || {}),
-            rawKeys: Object.keys(raw || {}),
-            posProtocol: pos?.protocol,
-            posProvider: pos?.provider,
-            posPlatform: pos?.platform,
-            posDex: pos?.dex,
-            rawProtocol: (raw as any)?.protocol,
-            rawProvider: (raw as any)?.provider,
-            rawPlatform: (raw as any)?.platform,
-            rawDex: (raw as any)?.dex,
-          });
-
           const poolValue = safeNum(pos?.totalPrice || pos?.value || 0);
           const poolApr = safeNum(pos?.apr || pos?.apy || 0);
           const fees24h = extractPoolFees24h(raw);

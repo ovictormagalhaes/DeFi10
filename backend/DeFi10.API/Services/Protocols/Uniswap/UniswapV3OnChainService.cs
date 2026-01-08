@@ -209,6 +209,10 @@ namespace DeFi10.API.Services.Protocols.Uniswap
                     return null;
                 }
 
+                _logger.LogDebug("[OnChain] Position {TokenId} retrieved - TokensOwed0={Owed0}, TokensOwed1={Owed1}, Liquidity={Liquidity}, FeeGrowthInside0Last={FG0}, FeeGrowthInside1Last={FG1}",
+                    id, positionResult.TokensOwed0, positionResult.TokensOwed1, positionResult.Liquidity, 
+                    positionResult.FeeGrowthInside0LastX128, positionResult.FeeGrowthInside1LastX128);
+
                 return positionResult;
             }
             catch (Exception ex) when (ex.Message.Contains("Invalid token ID") || ex.Message.Contains("ERC721: owner query"))
@@ -397,10 +401,16 @@ namespace DeFi10.API.Services.Protocols.Uniswap
                 decimal finalOwed0 = ScaleToken(pos.TokensOwed0, dec0); 
                 decimal finalOwed1 = ScaleToken(pos.TokensOwed1, dec1);
                 
+                _logger.LogDebug("[OnChain Fees] Position {TokenId} - Initial TokensOwed0={Owed0}, TokensOwed1={Owed1} (scaled: {S0}, {S1})",
+                    id, pos.TokensOwed0, pos.TokensOwed1, finalOwed0, finalOwed1);
+                
                 if (fg != null)
                 {
                     try
                     {
+                        _logger.LogDebug("[OnChain Fees] Position {TokenId} - Calculating uncollected fees with FeeGrowthGlobal0={FG0}, FeeGrowthGlobal1={FG1}",
+                            id, fg.Value.Item1, fg.Value.Item2);
+                        
                         var uncollected = new UncollectedFees().CalculateUncollectedFees(
                             pos,
                             fg.Value.Item1,
@@ -412,6 +422,9 @@ namespace DeFi10.API.Services.Protocols.Uniswap
                             upperTickInfo,
                             _logger);
                             
+                        _logger.LogDebug("[OnChain Fees] Position {TokenId} - Calculated uncollected fees: Amount0={A0}, Amount1={A1} (was {O0}, {O1})",
+                            id, uncollected.Amount0, uncollected.Amount1, finalOwed0, finalOwed1);
+                            
                         finalOwed0 = uncollected.Amount0;
                         finalOwed1 = uncollected.Amount1;
                     }
@@ -419,6 +432,10 @@ namespace DeFi10.API.Services.Protocols.Uniswap
                     {
                         _logger.LogWarning(ex, "Failed to calculate uncollected fees for position {TokenId} on chain {Chain}", id, ctx.Chain);
                     }
+                }
+                else
+                {
+                    _logger.LogWarning("[OnChain Fees] Position {TokenId} - FeeGrowth data not available, using raw TokensOwed only", id);
                 }
 
                 _logger.LogDebug("UNI-V3 FEES TRACE pos={Pos} pool={Pool} token0={Sym0} token1={Sym1} dec=[{D0},{D1}] tickCurrent={Tick} range=[{TL},{TU}] fg0={FG0} fg1={FG1} feeInsideLast0={FIL0} feeInsideLast1={FIL1} owedRaw0={Raw0} owedRaw1={Raw1} finalOwed0={Final0} finalOwed1={Final1}",
@@ -496,8 +513,8 @@ namespace DeFi10.API.Services.Protocols.Uniswap
                     DepositedToken1 = amt1.ToString("G17"),
                     WithdrawnToken0 = "0",
                     WithdrawnToken1 = "0",
-                    CollectedFeesToken0 = finalOwed0.ToString("G17"),
-                    CollectedFeesToken1 = finalOwed1.ToString("G17"),
+                    CollectedFeesToken0 = "0", // RPC doesn't provide historical collected fees
+                    CollectedFeesToken1 = "0", // RPC doesn't provide historical collected fees
                     FeeGrowthInside0LastX128 = pos.FeeGrowthInside0LastX128.ToString(),
                     FeeGrowthInside1LastX128 = pos.FeeGrowthInside1LastX128.ToString(),
                     TickLower = pos.TickLower,
@@ -644,7 +661,116 @@ namespace DeFi10.API.Services.Protocols.Uniswap
                     _logger.LogWarning(ex, "Failed to resolve pool address for tokenId {TokenId}", tokenId);
                 }
 
+                _logger.LogInformation("[GetPositionDataSafe] TokenId={TokenId} returning TokensOwed0={Owed0}, TokensOwed1={Owed1}",
+                    tokenId, position.TokensOwed0, position.TokensOwed1);
+
                 return PositionDataResult.CreateSuccess(tokenId, position, poolAddress);
+            }
+            catch (Exception ex)
+            {
+                return PositionDataResult.CreateFailure(tokenId, ex.Message);
+            }
+        }
+
+        public async Task<PositionDataResult> GetPositionWithCalculatedFeesAsync(BigInteger tokenId, ChainEnum chain)
+        {
+            try
+            {
+                var ctx = GetContext(chain);
+                var position = await TryGetPositionAsync(ctx, tokenId);
+                
+                if (position == null)
+                {
+                    return PositionDataResult.CreateFailure(tokenId, "Position not found or inaccessible");
+                }
+
+                if (string.IsNullOrEmpty(position.Token0) || string.IsNullOrEmpty(position.Token1))
+                {
+                    return PositionDataResult.CreateFailure(tokenId, "Position has invalid token addresses");
+                }
+
+                string? poolAddress = null;
+                try
+                {
+                    poolAddress = await ResolvePoolAsync(ctx, position.Token0, position.Token1, position.Fee);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to resolve pool address for tokenId {TokenId}", tokenId);
+                }
+
+                // Calculate uncollected fees if position has liquidity
+                if (position.Liquidity > 0 && !string.IsNullOrEmpty(poolAddress))
+                {
+                    try
+                    {
+                        _logger.LogDebug("[GetPositionWithCalculatedFees] Calculating uncollected fees for position {TokenId}", tokenId);
+                        
+                        // Get token metadata for decimals
+                        var meta0Task = GetErc20MetadataAsync(ctx, position.Token0);
+                        var meta1Task = GetErc20MetadataAsync(ctx, position.Token1);
+                        var slot0Task = TryGetSlot0Async(ctx, poolAddress);
+                        var feeGrowthTask = TryGetFeeGrowthAsync(ctx, poolAddress);
+                        
+                        await Task.WhenAll(meta0Task, meta1Task, slot0Task, feeGrowthTask);
+                        
+                        var (sym0, name0, dec0) = await meta0Task;
+                        var (sym1, name1, dec1) = await meta1Task;
+                        var slot0 = await slot0Task;
+                        var fg = await feeGrowthTask;
+                        
+                        if (fg != null && slot0 != null)
+                        {
+                            // Get tick data
+                            var lowerTickTask = GetTickInfoSafeAsync(ctx, poolAddress, position.TickLower);
+                            var upperTickTask = GetTickInfoSafeAsync(ctx, poolAddress, position.TickUpper);
+                            await Task.WhenAll(lowerTickTask, upperTickTask);
+                            
+                            var lowerTickInfo = await lowerTickTask;
+                            var upperTickInfo = await upperTickTask;
+                            
+                            int currTick = slot0.Tick;
+                            
+                            _logger.LogDebug("[GetPositionWithCalculatedFees] Position {TokenId} - FeeGrowthGlobal0={FG0}, FeeGrowthGlobal1={FG1}, CurrentTick={Tick}",
+                                tokenId, fg.Value.Item1, fg.Value.Item2, currTick);
+                            
+                            // Calculate uncollected fees
+                            var uncollected = new UncollectedFees().CalculateUncollectedFees(
+                                position,
+                                fg.Value.Item1,
+                                fg.Value.Item2,
+                                dec0,
+                                dec1,
+                                currTick,
+                                lowerTickInfo,
+                                upperTickInfo,
+                                _logger);
+                            
+                            _logger.LogInformation("[GetPositionWithCalculatedFees] Position {TokenId} - Calculated fees: Token0={Amount0}, Token1={Amount1}",
+                                tokenId, uncollected.Amount0, uncollected.Amount1);
+                            
+                            // Convert back to raw BigInteger values and update position
+                            var divisor0 = (decimal)Math.Pow(10, dec0);
+                            var divisor1 = (decimal)Math.Pow(10, dec1);
+                            
+                            position.TokensOwed0 = (BigInteger)(uncollected.Amount0 * divisor0);
+                            position.TokensOwed1 = (BigInteger)(uncollected.Amount1 * divisor1);
+                            
+                            // Return decimals for proper scaling in the service layer
+                            return PositionDataResult.CreateSuccess(tokenId, position, poolAddress, dec0, dec1);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("[GetPositionWithCalculatedFees] Position {TokenId} - Missing fee growth or slot0 data, using raw TokensOwed", tokenId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "[GetPositionWithCalculatedFees] Failed to calculate uncollected fees for position {TokenId}, using raw TokensOwed", tokenId);
+                    }
+                }
+
+                return PositionDataResult.CreateSuccess(tokenId, position, poolAddress, 0, 0);
             }
             catch (Exception ex)
             {

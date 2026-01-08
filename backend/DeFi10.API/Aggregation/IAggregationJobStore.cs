@@ -129,24 +129,24 @@ public sealed class AggregationJobStore : IAggregationJobStore
         var hashEntries = new List<HashEntry>
         {
             new("account", accountLower),
-            new("chains", string.Join(',', chains)),
-            new("created_at", now.ToString("o")),
-            new("expected_total", providersCount),
-            new("status", AggregationStatus.Running.ToString()),
-            new("succeeded", 0),
-            new("failed", 0),
-            new("timed_out", 0),
-            new("final_emitted", 0),
-            new("processed_count", 0)
+            new(RedisKeys.MetaFields.Chains, string.Join(',', chains)),
+            new(RedisKeys.MetaFields.CreatedAt, now.ToString("o")),
+            new(RedisKeys.MetaFields.ExpectedTotal, providersCount),
+            new(RedisKeys.MetaFields.Status, AggregationStatus.Running.ToString()),
+            new(RedisKeys.MetaFields.Succeeded, 0),
+            new(RedisKeys.MetaFields.Failed, 0),
+            new(RedisKeys.MetaFields.TimedOut, 0),
+            new(RedisKeys.MetaFields.FinalEmitted, 0),
+            new(RedisKeys.MetaFields.ProcessedCount, 0)
         };
         if (walletGroupId.HasValue)
         {
-            hashEntries.Add(new("wallet_group_id", walletGroupId.Value.ToString()));
+            hashEntries.Add(new(RedisKeys.MetaFields.WalletGroupId, walletGroupId.Value.ToString()));
         }
         await db.HashSetAsync(metaKey, hashEntries.ToArray());
         var pendingKey = RedisKeys.Pending(jobId);
         foreach (var c in comboList)
-            await db.SetAddAsync(pendingKey, $"{c.provider.ToString().ToLowerInvariant()}:{c.chain.ToString().ToLowerInvariant()}");
+            await db.SetAddAsync(pendingKey, RedisKeys.PendingEntry(c.provider.ToString(), c.chain.ToString(), accountLower));
         await db.KeyExpireAsync(metaKey, ttl);
         await db.KeyExpireAsync(pendingKey, ttl);
     }

@@ -37,6 +37,8 @@ export interface Position {
   contractAddress?: string;
 }
 
+import type { WalletItemType } from '../constants/walletItemTypes';
+
 export interface Protocol {
   name: string;
   chain: string;
@@ -75,7 +77,7 @@ export interface AdditionalData {
 }
 
 export interface WalletItem {
-  type: 'Wallet' | 'LiquidityPool' | 'LendingAndBorrowing' | 'Staking' | 'Locking' | 'Depositing';
+  type: WalletItemType;
   protocol: Protocol;
   position: Position;
   additionalData: AdditionalData | null;

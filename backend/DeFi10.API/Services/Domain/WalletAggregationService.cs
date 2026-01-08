@@ -244,18 +244,18 @@ public class WalletAggregationService : IWalletAggregationService
         var hash = new HashEntry[]
         {
             new("account", account),
-            new("chains", chain.ToString()),
-            new("created_at", now.ToString("o")),
-            new("expected_total", providers.Count),
-            new("status", AggregationStatus.Running.ToString()),
-            new("succeeded", 0),
-            new("failed", 0),
-            new("timed_out", 0),
-            new("final_emitted", 0),
-            new("processed_count", 0)
+            new(RedisKeys.MetaFields.Chains, chain.ToString()),
+            new(RedisKeys.MetaFields.CreatedAt, now.ToString("o")),
+            new(RedisKeys.MetaFields.ExpectedTotal, providers.Count),
+            new(RedisKeys.MetaFields.Status, AggregationStatus.Running.ToString()),
+            new(RedisKeys.MetaFields.Succeeded, 0),
+            new(RedisKeys.MetaFields.Failed, 0),
+            new(RedisKeys.MetaFields.TimedOut, 0),
+            new(RedisKeys.MetaFields.FinalEmitted, 0),
+            new(RedisKeys.MetaFields.ProcessedCount, 0)
         };
         await db.HashSetAsync(metaKey, hash);
-        foreach (var p in providers) await db.SetAddAsync(pendingKey, $"{ProviderSlug(p)}:{chain.ToString().ToLowerInvariant()}");
+        foreach (var p in providers) await db.SetAddAsync(pendingKey, RedisKeys.PendingEntry(ProviderSlug(p), chain.ToString(), account));
         await db.KeyExpireAsync(metaKey, _aggregationTtl);
         await db.KeyExpireAsync(pendingKey, _aggregationTtl);
     }
@@ -270,18 +270,18 @@ public class WalletAggregationService : IWalletAggregationService
         var hash = new HashEntry[]
         {
             new("account", account),
-            new("chains", string.Join(',', chains)),
-            new("created_at", now.ToString("o")),
-            new("expected_total", combos.Count),
-            new("status", AggregationStatus.Running.ToString()),
-            new("succeeded", 0),
-            new("failed", 0),
-            new("timed_out", 0),
-            new("final_emitted", 0),
-            new("processed_count", 0)
+            new(RedisKeys.MetaFields.Chains, string.Join(',', chains)),
+            new(RedisKeys.MetaFields.CreatedAt, now.ToString("o")),
+            new(RedisKeys.MetaFields.ExpectedTotal, combos.Count),
+            new(RedisKeys.MetaFields.Status, AggregationStatus.Running.ToString()),
+            new(RedisKeys.MetaFields.Succeeded, 0),
+            new(RedisKeys.MetaFields.Failed, 0),
+            new(RedisKeys.MetaFields.TimedOut, 0),
+            new(RedisKeys.MetaFields.FinalEmitted, 0),
+            new(RedisKeys.MetaFields.ProcessedCount, 0)
         };
         await db.HashSetAsync(metaKey, hash);
-        foreach (var c in combos) await db.SetAddAsync(pendingKey, $"{ProviderSlug(c.provider)}:{c.chain.ToString().ToLowerInvariant()}");
+        foreach (var c in combos) await db.SetAddAsync(pendingKey, RedisKeys.PendingEntry(ProviderSlug(c.provider), c.chain.ToString(), account));
         await db.KeyExpireAsync(metaKey, _aggregationTtl);
         await db.KeyExpireAsync(pendingKey, _aggregationTtl);
     }
@@ -323,7 +323,7 @@ public class WalletAggregationService : IWalletAggregationService
 
         foreach (var combo in combos)
         {
-            var pendingEntry = $"{ProviderSlug(combo.provider)}:{combo.chain.ToString().ToLowerInvariant()}:{combo.account.ToLowerInvariant()}";
+            var pendingEntry = RedisKeys.PendingEntry(ProviderSlug(combo.provider), combo.chain.ToString(), combo.account);
             await db.SetAddAsync(pendingKey, pendingEntry);
         }
         

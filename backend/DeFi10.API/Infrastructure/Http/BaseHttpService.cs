@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Linq;
+using System;
 
 namespace DeFi10.API.Infrastructure.Http;
 
@@ -65,24 +67,43 @@ public abstract class BaseHttpService
         CancellationToken cancellationToken = default)
     {
         ConfigureHeaders(headers);
-        
+
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-        
-        var response = await HttpClient.PostAsync(url, content, cancellationToken);
-        
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-            Logger.LogError(
-                "HTTP POST failed - URL: {Url}, Status: {StatusCode}, Content: {ErrorContent}",
-                url, response.StatusCode, errorContent);
-            response.EnsureSuccessStatusCode();
-        }
 
-        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-        return JsonSerializer.Deserialize<TResponse>(responseJson, JsonOptions) 
-            ?? throw new InvalidOperationException($"Failed to deserialize {typeof(TResponse).Name}");
+        try
+        {
+            Logger.LogDebug("HTTP POST - Endpoint: {Url}, BaseAddress: {BaseAddress}, PayloadLength: {Len}, HeaderCount: {HeaderCount}",
+                url, HttpClient.BaseAddress?.ToString() ?? "(null)", json?.Length ?? 0, HttpClient.DefaultRequestHeaders.Count());
+
+            var response = await HttpClient.PostAsync(url, content, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                Logger.LogError(
+                    "HTTP POST failed - URL: {Url}, Status: {StatusCode}, Content: {ErrorContent}",
+                    url, response.StatusCode, errorContent);
+                response.EnsureSuccessStatusCode();
+            }
+
+            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+            var deserialized = JsonSerializer.Deserialize<TResponse>(responseJson, JsonOptions);
+            if (deserialized == null)
+            {
+                var preview = responseJson?.Length > 1000 ? responseJson.Substring(0, 1000) + "..." : responseJson;
+                Logger.LogError("Failed to deserialize {Type}. Response length={Len}. Preview: {Preview}", typeof(TResponse).Name, responseJson?.Length ?? 0, preview);
+                throw new InvalidOperationException($"Failed to deserialize {typeof(TResponse).Name}. See logs for response preview.");
+            }
+            return deserialized;
+        }
+        catch (Exception ex)
+        {
+            var isAbsolute = Uri.TryCreate(url, UriKind.Absolute, out var tmp) && tmp.IsAbsoluteUri;
+            Logger.LogError(ex, "HTTP POST exception for URL '{Url}'. IsAbsolute: {IsAbsolute}. HttpClient.BaseAddress: {BaseAddress}. Exception: {ExceptionMessage}",
+                url, isAbsolute, HttpClient.BaseAddress?.ToString() ?? "(null)", ex.Message);
+            throw;
+        }
     }
 
     private void ConfigureHeaders(Dictionary<string, string>? headers)

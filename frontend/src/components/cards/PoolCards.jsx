@@ -4,6 +4,7 @@ import { useMaskValues } from '../../context/MaskValuesContext.tsx';
 import { useChainIcons } from '../../context/ChainIconsProvider.jsx';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
 import RangeChip from '../RangeChip.jsx';
+import ProjectionSelector from '../ProjectionSelector.jsx';
 
 /**
  * PoolCards - Card view for liquidity pool positions
@@ -16,6 +17,10 @@ const PoolCards = ({ data = [] }) => {
   const [flippedCards, setFlippedCards] = React.useState({});
   const [expandedRanges, setExpandedRanges] = React.useState({});
   const [expandedFees, setExpandedFees] = React.useState({});
+  const [expandedCollectedFees, setExpandedCollectedFees] = React.useState({});
+  const [expandedValues, setExpandedValues] = React.useState({});
+  const [expandedProjections, setExpandedProjections] = React.useState({});
+  const [expandedAmounts, setExpandedAmounts] = React.useState({});
 
   if (!data || data.length === 0) {
     return (
@@ -37,6 +42,7 @@ const PoolCards = ({ data = [] }) => {
       gap: 20,
       padding: '8px 0',
       maxWidth: '100%',
+      overflow: 'visible',
     }}>
       {data.map((item, index) => {
         const position = item.position || item;
@@ -44,6 +50,7 @@ const PoolCards = ({ data = [] }) => {
         const tokens = position.tokens || [];
         const rewards = position.rewards || [];
         const additionalInfo = item.additionalInfo || position.additionalInfo || {};
+        const additionalData = item.additionalData || position.additionalData || {};
         
         // Check if this card is flipped
         const isFlipped = flippedCards[index] || false;
@@ -53,6 +60,9 @@ const PoolCards = ({ data = [] }) => {
         
         // Check if fees are expanded
         const isFeesExpanded = expandedFees[index] || false;
+        
+        // Check if collected fees are expanded
+        const isCollectedFeesExpanded = expandedCollectedFees[index] || false;
         
         // Toggle flip function
         const handleFlip = () => {
@@ -69,36 +79,87 @@ const PoolCards = ({ data = [] }) => {
           setExpandedFees(prev => ({ ...prev, [index]: !prev[index] }));
         };
         
-        // Calculate age from createdAt
+        // Toggle collected fees expansion
+        const toggleCollectedFeesExpansion = () => {
+          setExpandedCollectedFees(prev => ({ ...prev, [index]: !prev[index] }));
+        };
+        
+        // Check if values are expanded
+        const isValuesExpanded = expandedValues[index] || false;
+        
+        // Toggle values expansion
+        const toggleValuesExpansion = () => {
+          setExpandedValues(prev => ({ ...prev, [index]: !prev[index] }));
+        };
+        
+        // Check if amounts are expanded
+        const isAmountsExpanded = expandedAmounts[index] || false;
+        
+        // Toggle amounts expansion
+        const toggleAmountsExpansion = () => {
+          setExpandedAmounts(prev => ({ ...prev, [index]: !prev[index] }));
+        };
+        
+        // Check if projections are expanded
+        const isProjectionsExpanded = expandedProjections[index] || false;
+        
+        // Toggle projections expansion
+        const toggleProjectionsExpansion = () => {
+          setExpandedProjections(prev => ({ ...prev, [index]: !prev[index] }));
+        };
+        
+        // Calculate age from createdAt (Unix timestamp in seconds)
         const getAge = (createdAt) => {
           if (!createdAt) return '-';
-          const created = new Date(createdAt);
+          const created = new Date(createdAt * 1000); // Convert Unix timestamp to ms
           const now = new Date();
           const diffMs = now - created;
+          
+          const diffMinutes = Math.floor(diffMs / (1000 * 60));
+          const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
           const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
           
-          if (diffDays === 0) return 'Today';
+          // Less than 1 hour: show minutes
+          if (diffHours < 1) {
+            if (diffMinutes === 0) return 'Just now';
+            if (diffMinutes === 1) return '1 minute';
+            return `${diffMinutes} minutes`;
+          }
+          
+          // Less than 24 hours: show hours
+          if (diffDays === 0) {
+            if (diffHours === 1) return '1 hour';
+            return `${diffHours} hours`;
+          }
+          
+          // Less than 30 days: show days
           if (diffDays === 1) return '1 day';
           if (diffDays < 30) return `${diffDays} days`;
           
+          // Less than 12 months: show months
           const diffMonths = Math.floor(diffDays / 30);
           if (diffMonths === 1) return '1 month';
           if (diffMonths < 12) return `${diffMonths} months`;
           
+          // 12+ months: show years
           const diffYears = Math.floor(diffMonths / 12);
           return diffYears === 1 ? '1 year' : `${diffYears} years`;
         };
         
-        const age = getAge(additionalInfo.createdAt);
+        const age = getAge(additionalData?.createdAt || additionalInfo?.createdAt);
         
-        // Separate regular tokens from uncollected fees
+        // Separate regular tokens from uncollected and collected fees
         const suppliedTokens = tokens.filter(t => {
           const type = (t.type || '').toLowerCase();
-          return type !== 'liquidityuncollectedfee';
+          return type !== 'liquidityuncollectedfee' && type !== 'liquiditycollectedfee';
         });
-        const feeTokens = tokens.filter(t => {
+        const uncollectedFeeTokens = tokens.filter(t => {
           const type = (t.type || '').toLowerCase();
           return type === 'liquidityuncollectedfee';
+        });
+        const collectedFeeTokens = tokens.filter(t => {
+          const type = (t.type || '').toLowerCase();
+          return type === 'liquiditycollectedfee';
         });
         
         const totalValue = suppliedTokens.reduce((sum, token) => {
@@ -115,8 +176,8 @@ const PoolCards = ({ data = [] }) => {
         const displayToken0 = isFlipped ? token1 : token0;
         const displayToken1 = isFlipped ? token0 : token1;
         
-        // Pool metrics (mock - replace with actual data)
-        const apr = position.apr || position.apy || 0;
+        // Pool metrics - get APR from additionalData
+        const apr = additionalInfo.apr || item.additionalData?.apr || position.apr || position.apy || 0;
         
         // Range data from additionalData or additionalInfo
         const rangeData = additionalInfo.range || item.additionalData?.range || position.range || null;
@@ -126,11 +187,11 @@ const PoolCards = ({ data = [] }) => {
         let uncollectedFees = position.uncollectedFees || additionalInfo.uncollectedFees || item.additionalData?.uncollectedFees || null;
         
         // If not found in additionalData, extract from tokens array
-        if (!uncollectedFees && feeTokens.length > 0) {
+        if (!uncollectedFees && uncollectedFeeTokens.length > 0) {
           uncollectedFees = {};
           
           // Match fee tokens to supplied tokens by symbol or contract address
-          feeTokens.forEach((feeToken) => {
+          uncollectedFeeTokens.forEach((feeToken) => {
             const feeSymbol = (feeToken.symbol || '').toLowerCase();
             const feeContract = (feeToken.contractAddress || '').toLowerCase();
             
@@ -160,6 +221,60 @@ const PoolCards = ({ data = [] }) => {
           });
         }
         
+        // Build collected fees from tokens with type "LiquidityCollectedFee"
+        let collectedFees = position.collectedFees || additionalInfo.collectedFees || item.additionalData?.collectedFees || null;
+        
+        // If not found in additionalData, extract from tokens array
+        if (!collectedFees && collectedFeeTokens.length > 0) {
+          collectedFees = {};
+          
+          // Match fee tokens to supplied tokens by symbol or contract address
+          collectedFeeTokens.forEach((feeToken) => {
+            const feeSymbol = (feeToken.symbol || '').toLowerCase();
+            const feeContract = (feeToken.contractAddress || '').toLowerCase();
+            
+            // Try to match with token0
+            const token0Symbol = (token0?.symbol || '').toLowerCase();
+            const token0Contract = (token0?.contractAddress || '').toLowerCase();
+            
+            // Try to match with token1
+            const token1Symbol = (token1?.symbol || '').toLowerCase();
+            const token1Contract = (token1?.contractAddress || '').toLowerCase();
+            
+            if ((feeSymbol && feeSymbol === token0Symbol) || (feeContract && feeContract === token0Contract)) {
+              // Accumulate if already exists (multiple entries for same token)
+              if (collectedFees.token0) {
+                collectedFees.token0.amount += (feeToken.financials?.amountFormatted || feeToken.financials?.balanceFormatted || 0);
+                collectedFees.token0.balance += (feeToken.financials?.balanceFormatted || 0);
+                collectedFees.token0.value += (feeToken.financials?.totalPrice || 0);
+                collectedFees.token0.totalPrice += (feeToken.financials?.totalPrice || 0);
+              } else {
+                collectedFees.token0 = {
+                  amount: feeToken.financials?.amountFormatted || feeToken.financials?.balanceFormatted || 0,
+                  balance: feeToken.financials?.balanceFormatted || 0,
+                  value: feeToken.financials?.totalPrice || 0,
+                  totalPrice: feeToken.financials?.totalPrice || 0,
+                };
+              }
+            } else if ((feeSymbol && feeSymbol === token1Symbol) || (feeContract && feeContract === token1Contract)) {
+              // Accumulate if already exists (multiple entries for same token)
+              if (collectedFees.token1) {
+                collectedFees.token1.amount += (feeToken.financials?.amountFormatted || feeToken.financials?.balanceFormatted || 0);
+                collectedFees.token1.balance += (feeToken.financials?.balanceFormatted || 0);
+                collectedFees.token1.value += (feeToken.financials?.totalPrice || 0);
+                collectedFees.token1.totalPrice += (feeToken.financials?.totalPrice || 0);
+              } else {
+                collectedFees.token1 = {
+                  amount: feeToken.financials?.amountFormatted || feeToken.financials?.balanceFormatted || 0,
+                  balance: feeToken.financials?.balanceFormatted || 0,
+                  value: feeToken.financials?.totalPrice || 0,
+                  totalPrice: feeToken.financials?.totalPrice || 0,
+                };
+              }
+            }
+          });
+        }
+        
         // Apply range flip if needed (invert values and swap lower/upper)
         const displayRangeData = rangeData && isFlipped && rangeData.current && rangeData.lower && rangeData.upper ? {
           ...rangeData,
@@ -180,6 +295,7 @@ const PoolCards = ({ data = [] }) => {
               cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
+              overflow: 'visible',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = theme.accent;
@@ -332,163 +448,201 @@ const PoolCards = ({ data = [] }) => {
 
             {/* Metrics */}
             <div style={{ flex: 1 }}>
-              {/* Amount Section */}
+              {/* Value Section - Collapsible */}
               <div style={{ 
-                marginBottom: 6,
+                marginBottom: 10,
               }}>
-                <div style={{ 
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: theme.textSecondary,
-                  marginBottom: 8,
-                }}>
-                  Amount
-                </div>
-                
-                {/* Token 0 Amount */}
-                <div style={{ 
+                {/* Value Header - Always Visible */}
+                <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: 6,
-                  paddingLeft: 8,
-                }}>
-                  <span style={{ 
-                    fontSize: 13,
-                    color: theme.textSecondary,
-                  }}>
-                    {displayToken0?.symbol || 'Token'}
-                  </span>
-                  <span style={{ 
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: theme.textPrimary,
-                  }}>
-                    {maskValue(
-                      (displayToken0?.financials?.amountFormatted ?? displayToken0?.financials?.balanceFormatted ?? displayToken0?.balance ?? 0).toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 6
-                      })
-                    )} {displayToken0?.symbol || ''}
-                  </span>
+                  marginBottom: 8,
+                  cursor: 'pointer',
+                }}
+                onClick={toggleValuesExpansion}
+                >
+                  <span style={{ fontSize: 13, color: theme.textSecondary }}>Value</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+                      {maskValue(formatPrice(totalValue))}
+                    </span>
+                    <svg 
+                      width="12" 
+                      height="12" 
+                      viewBox="0 0 12 12" 
+                      fill="none"
+                      style={{
+                        transform: isValuesExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease',
+                      }}
+                    >
+                      <path 
+                        d="M3 5L6 8L9 5" 
+                        stroke={theme.textSecondary} 
+                        strokeWidth="1.5" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
                 </div>
                 
-                {/* Token 1 Amount */}
-                {displayToken1 && (
-                  <div style={{ 
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 6,
-                    paddingLeft: 8,
+                {/* Value Details - Collapsible */}
+                {isValuesExpanded && (
+                  <div style={{
+                    backgroundColor: theme.bgSecondary,
+                    borderRadius: 8,
+                    padding: '6px 12px 12px 12px',
+                    marginTop: 4,
                   }}>
-                    <span style={{ 
-                      fontSize: 13,
-                      color: theme.textSecondary,
+                    {/* Token 0 Value */}
+                    <div style={{ 
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
                     }}>
-                      {displayToken1?.symbol || 'Token'}
-                    </span>
-                    <span style={{ 
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: theme.textPrimary,
-                    }}>
-                      {maskValue(
-                        (displayToken1?.financials?.amountFormatted ?? displayToken1?.financials?.balanceFormatted ?? displayToken1?.balance ?? 0).toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 6
-                        })
-                      )} {displayToken1?.symbol || ''}
-                    </span>
+                      <span style={{ 
+                        fontSize: 12,
+                        color: theme.textSecondary,
+                      }}>
+                        {displayToken0?.symbol || 'Token'}
+                      </span>
+                      <span style={{ 
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: theme.textPrimary,
+                      }}>
+                        {maskValue(formatPrice(displayToken0?.financials?.totalPrice || displayToken0?.totalPrice || 0))}
+                      </span>
+                    </div>
+                    
+                    {/* Token 1 Value */}
+                    {displayToken1 && (
+                      <div style={{ 
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}>
+                        <span style={{ 
+                          fontSize: 12,
+                          color: theme.textSecondary,
+                        }}>
+                          {displayToken1?.symbol || 'Token'}
+                        </span>
+                        <span style={{ 
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: theme.textPrimary,
+                        }}>
+                          {maskValue(formatPrice(displayToken1?.financials?.totalPrice || displayToken1?.totalPrice || 0))}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Value Section */}
+              {/* Amount Section - Collapsible */}
               <div style={{ 
                 marginBottom: 10,
               }}>
-                <div style={{ 
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: theme.textSecondary,
-                  marginBottom: 8,
-                }}>
-                  Value
-                </div>
-                
-                {/* Token 0 Value */}
-                <div style={{ 
+                {/* Amount Header - Always Visible */}
+                <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: 6,
-                  paddingLeft: 8,
-                }}>
-                  <span style={{ 
-                    fontSize: 13,
-                    color: theme.textSecondary,
-                  }}>
-                    {displayToken0?.symbol || 'Token'}
-                  </span>
-                  <span style={{ 
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: theme.textPrimary,
-                  }}>
-                    {maskValue(formatPrice(displayToken0?.financials?.totalPrice || displayToken0?.totalPrice || 0))}
-                  </span>
+                  marginBottom: 8,
+                  cursor: 'pointer',
+                }}
+                onClick={toggleAmountsExpansion}
+                >
+                  <span style={{ fontSize: 13, color: theme.textSecondary }}>Amount</span>
+                  <svg 
+                    width="12" 
+                    height="12" 
+                    viewBox="0 0 12 12" 
+                    fill="none"
+                    style={{
+                      transform: isAmountsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease',
+                    }}
+                  >
+                    <path 
+                      d="M3 5L6 8L9 5" 
+                      stroke={theme.textSecondary} 
+                      strokeWidth="1.5" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </div>
                 
-                {/* Token 1 Value */}
-                {displayToken1 && (
-                  <div style={{ 
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 6,
-                    paddingLeft: 8,
+                {/* Amount Details - Collapsible */}
+                {isAmountsExpanded && (
+                  <div style={{
+                    backgroundColor: theme.bgSecondary,
+                    borderRadius: 8,
+                    padding: '6px 12px 12px 12px',
+                    marginTop: 4,
                   }}>
-                    <span style={{ 
-                      fontSize: 13,
-                      color: theme.textSecondary,
+                    {/* Token 0 Amount */}
+                    <div style={{ 
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
                     }}>
-                      {displayToken1?.symbol || 'Token'}
-                    </span>
-                    <span style={{ 
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: theme.textPrimary,
-                    }}>
-                      {maskValue(formatPrice(displayToken1?.financials?.totalPrice || displayToken1?.totalPrice || 0))}
-                    </span>
+                      <span style={{ 
+                        fontSize: 12,
+                        color: theme.textSecondary,
+                      }}>
+                        {displayToken0?.symbol || 'Token'}
+                      </span>
+                      <span style={{ 
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: theme.textPrimary,
+                      }}>
+                        {maskValue(
+                          (displayToken0?.financials?.amountFormatted ?? displayToken0?.financials?.balanceFormatted ?? displayToken0?.balance ?? 0).toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 6
+                          })
+                        )} {displayToken0?.symbol || ''}
+                      </span>
+                    </div>
+                    
+                    {/* Token 1 Amount */}
+                    {displayToken1 && (
+                      <div style={{ 
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}>
+                        <span style={{ 
+                          fontSize: 12,
+                          color: theme.textSecondary,
+                        }}>
+                          {displayToken1?.symbol || 'Token'}
+                        </span>
+                        <span style={{ 
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: theme.textPrimary,
+                        }}>
+                          {maskValue(
+                            (displayToken1?.financials?.amountFormatted ?? displayToken1?.financials?.balanceFormatted ?? displayToken1?.balance ?? 0).toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 6
+                            })
+                          )} {displayToken1?.symbol || ''}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
-                
-                {/* Total Value */}
-                <div style={{ 
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: 8,
-                  paddingTop: 8,
-                  borderTop: `1px solid ${theme.border}`,
-                }}>
-                  <span style={{ 
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: theme.textSecondary,
-                  }}>
-                    Total
-                  </span>
-                  <span style={{ 
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: theme.textPrimary,
-                  }}>
-                    {maskValue(formatPrice(totalValue))}
-                  </span>
-                </div>
               </div>
 
               {/* APR */}
@@ -498,8 +652,8 @@ const PoolCards = ({ data = [] }) => {
                 alignItems: 'center',
                 marginBottom: 10,
               }}>
-                <span style={{ fontSize: 14, color: theme.textSecondary }}>APR</span>
-                <span style={{ fontSize: 16, fontWeight: 700, color: theme.textPrimary }}>
+                <span style={{ fontSize: 13, color: theme.textSecondary }}>APR</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
                   {apr ? `${apr.toFixed(2)}%` : '0.00%'}
                 </span>
               </div>
@@ -509,11 +663,26 @@ const PoolCards = ({ data = [] }) => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: rangeData ? 10 : 0,
+                marginBottom: 10,
               }}>
-                <span style={{ fontSize: 14, color: theme.textSecondary }}>Age</span>
+                <span style={{ fontSize: 13, color: theme.textSecondary }}>Age</span>
                 <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
                   {age}
+                </span>
+              </div>
+
+              {/* Tier */}
+              <div style={{ 
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: rangeData ? 10 : 0,
+              }}>
+                <span style={{ fontSize: 13, color: theme.textSecondary }}>Tier</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+                  {(additionalInfo.tierPercent || item.additionalData?.tierPercent) 
+                    ? `${((additionalInfo.tierPercent || item.additionalData?.tierPercent) * 100).toFixed(2)}%`
+                    : '-'}
                 </span>
               </div>
 
@@ -526,7 +695,7 @@ const PoolCards = ({ data = [] }) => {
                     alignItems: 'center',
                     marginBottom: 8,
                   }}>
-                    <span style={{ fontSize: 14, color: theme.textSecondary }}>Range</span>
+                    <span style={{ fontSize: 13, color: theme.textSecondary }}>Range</span>
                     <RangeChip range={displayRangeData} width={90} height={14} />
                   </div>
                   
@@ -563,8 +732,7 @@ const PoolCards = ({ data = [] }) => {
                               const distance = ((current - upper) / upper * 100).toFixed(1);
                               return `${distance}% above`;
                             } else {
-                              const position = ((current - lower) / (upper - lower) * 100).toFixed(1);
-                              return `${position}% in range`;
+                              return 'In Range';
                             }
                           })()}
                         </span>
@@ -649,8 +817,6 @@ const PoolCards = ({ data = [] }) => {
                 return (
                   <div style={{
                     marginTop: 10,
-                    paddingTop: 10,
-                    borderTop: `1px solid ${theme.border}`,
                   }}>
                     {/* Uncollected Fees Header - Always Visible */}
                     <div style={{
@@ -664,7 +830,7 @@ const PoolCards = ({ data = [] }) => {
                     >
                       <span style={{ fontSize: 14, color: theme.textSecondary }}>Uncollected Fees</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
                           {maskValue(formatPrice(totalFees))}
                         </span>
                         <svg 
@@ -706,15 +872,10 @@ const PoolCards = ({ data = [] }) => {
                               marginBottom: 6,
                             }}>
                               <span style={{ fontSize: 12, color: theme.textSecondary }}>
-                                {displayToken0?.symbol || 'Token'} Amount
+                                {displayToken0?.symbol || 'Token'} Value
                               </span>
                               <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
-                                {maskValue(
-                                  (uncollectedFees.token0.amount ?? uncollectedFees.token0.balance ?? 0).toLocaleString('en-US', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 6
-                                  })
-                                )} {displayToken0?.symbol || ''}
+                                {maskValue(formatPrice(uncollectedFees.token0.value || uncollectedFees.token0.totalPrice || 0))}
                               </span>
                             </div>
                             <div style={{
@@ -724,10 +885,15 @@ const PoolCards = ({ data = [] }) => {
                               marginBottom: uncollectedFees.token1 ? 10 : 0,
                             }}>
                               <span style={{ fontSize: 12, color: theme.textSecondary }}>
-                                {displayToken0?.symbol || 'Token'} Value
+                                {displayToken0?.symbol || 'Token'} Amount
                               </span>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>
-                                {maskValue(formatPrice(uncollectedFees.token0.value || uncollectedFees.token0.totalPrice || 0))}
+                              <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
+                                {maskValue(
+                                  (uncollectedFees.token0.amount ?? uncollectedFees.token0.balance ?? 0).toLocaleString('en-US', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 6
+                                  })
+                                )} {displayToken0?.symbol || ''}
                               </span>
                             </div>
                           </>
@@ -743,6 +909,18 @@ const PoolCards = ({ data = [] }) => {
                               marginBottom: 6,
                             }}>
                               <span style={{ fontSize: 12, color: theme.textSecondary }}>
+                                {displayToken1?.symbol || 'Token'} Value
+                              </span>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
+                                {maskValue(formatPrice(uncollectedFees.token1.value || uncollectedFees.token1.totalPrice || 0))}
+                              </span>
+                            </div>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                            }}>
+                              <span style={{ fontSize: 12, color: theme.textSecondary }}>
                                 {displayToken1?.symbol || 'Token'} Amount
                               </span>
                               <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
@@ -754,24 +932,184 @@ const PoolCards = ({ data = [] }) => {
                                 )} {displayToken1?.symbol || ''}
                               </span>
                             </div>
-                            <div style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                            }}>
-                              <span style={{ fontSize: 12, color: theme.textSecondary }}>
-                                {displayToken1?.symbol || 'Token'} Value
-                              </span>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>
-                                {maskValue(formatPrice(uncollectedFees.token1.value || uncollectedFees.token1.totalPrice || 0))}
-                              </span>
-                            </div>
                           </>
                         )}
                       </div>
                     )}
                   </div>
                 );
+              })()}
+
+              {/* Collected Fees */}
+              {(() => {
+                // Always show Collected Fees section for consistency, even if zero
+                const totalCollectedFees = collectedFees 
+                  ? (collectedFees.token0?.value || collectedFees.token0?.totalPrice || 0) + 
+                    (collectedFees.token1?.value || collectedFees.token1?.totalPrice || 0)
+                  : 0;
+                
+                return (
+                  <div style={{
+                    marginTop: 10,
+                  }}>
+                    {/* Collected Fees Header - Collapsible */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 8,
+                      cursor: 'pointer',
+                    }}
+                    onClick={toggleCollectedFeesExpansion}
+                    >
+                      <span style={{ fontSize: 14, color: theme.textSecondary }}>Collected Fees</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+                          {maskValue(formatPrice(totalCollectedFees))}
+                        </span>
+                        <svg 
+                          width="12" 
+                          height="12" 
+                          viewBox="0 0 12 12" 
+                          fill="none"
+                          style={{
+                            transform: isCollectedFeesExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s ease',
+                          }}
+                        >
+                          <path 
+                            d="M3 5L6 8L9 5" 
+                            stroke={theme.textSecondary} 
+                            strokeWidth="1.5" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    {/* Fees Details - Collapsible */}
+                    {isCollectedFeesExpanded && (
+                      <div style={{
+                        backgroundColor: theme.bgSecondary,
+                        borderRadius: 8,
+                        padding: '6px 12px 12px 12px',
+                        marginTop: 4,
+                      }}>
+                      {/* Token 0 Fees */}
+                      {collectedFees && collectedFees.token0 && (
+                        <>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 6,
+                          }}>
+                            <span style={{ fontSize: 12, color: theme.textSecondary }}>
+                              {displayToken0?.symbol || 'Token'} Value
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
+                              {maskValue(formatPrice(collectedFees.token0.value || collectedFees.token0.totalPrice || 0))}
+                            </span>
+                          </div>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: collectedFees.token1 ? 10 : 0,
+                          }}>
+                            <span style={{ fontSize: 12, color: theme.textSecondary }}>
+                              {displayToken0?.symbol || 'Token'} Amount
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
+                              {maskValue(
+                                (collectedFees.token0.amount ?? collectedFees.token0.balance ?? 0).toLocaleString('en-US', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 6
+                                })
+                              )} {displayToken0?.symbol || ''}
+                            </span>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Token 1 Fees */}
+                      {collectedFees && collectedFees.token1 && (
+                        <>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 6,
+                          }}>
+                            <span style={{ fontSize: 12, color: theme.textSecondary }}>
+                              {displayToken1?.symbol || 'Token'} Value
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
+                              {maskValue(formatPrice(collectedFees.token1.value || collectedFees.token1.totalPrice || 0))}
+                            </span>
+                          </div>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}>
+                            <span style={{ fontSize: 12, color: theme.textSecondary }}>
+                              {displayToken1?.symbol || 'Token'} Amount
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
+                              {maskValue(
+                                (collectedFees.token1.amount ?? collectedFees.token1.balance ?? 0).toLocaleString('en-US', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 6
+                                })
+                              )} {displayToken1?.symbol || ''}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Projection */}
+              {(() => {
+                // Support new projections array format
+                const projections = additionalData?.projections || additionalInfo?.projections || position?.projections || null;
+                // Support legacy single projection format
+                const projection = additionalInfo.projection || additionalData?.projection || position.projection || null;
+                
+                if (!projections && !projection) return null;
+                
+                // Check if at least one projection value exists
+                if (projections && Array.isArray(projections) && projections.length > 0) {
+                  return (
+                    <div style={{
+                      marginTop: 10,
+                    }}>
+                      <ProjectionSelector projections={projections} defaultType="apr" defaultPeriod="Day" />
+                    </div>
+                  );
+                }
+                
+                if (projection) {
+                  const hasProjection = projection.oneDay != null || projection.oneWeek != null || 
+                                       projection.oneMonth != null || projection.oneYear != null;
+                  
+                  if (!hasProjection) return null;
+                  
+                  return (
+                    <div style={{
+                      marginTop: 10,
+                    }}>
+                      <ProjectionSelector projection={projection} defaultPeriod="Day" />
+                    </div>
+                  );
+                }
+                
+                return null;
               })()}
             </div>
           </div>

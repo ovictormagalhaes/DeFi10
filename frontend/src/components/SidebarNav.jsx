@@ -12,7 +12,7 @@ import { useTheme } from '../context/ThemeProvider.tsx';
 const ITEMS = [
   { key: 'overview', label: 'Overview', icon: '📊' },
   { key: 'summary', label: 'Summary', icon: 'Σ' },
-  { key: 'rebalancing', label: 'Rebalance', icon: '♻' },
+  { key: 'rebalancing', label: 'Strategies', icon: '♻' },
   { key: 'liquidity', label: 'Liquidity', icon: '💧' },
 ];
 

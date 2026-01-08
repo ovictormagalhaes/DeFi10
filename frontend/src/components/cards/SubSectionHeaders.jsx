@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeProvider.tsx';
 import { useMaskValues } from '../../context/MaskValuesContext.tsx';
 import { formatPrice } from '../../utils/walletUtils';
+import PeriodDropdown from '../PeriodDropdown.jsx';
 
 // Hook to detect screen sizes
 const useScreenSize = () => {
@@ -40,7 +41,7 @@ const SubSectionItem = ({
   const getFlexStyle = () => {
     if (screenSize === 'mobile') return '1 1 100%';
     if (screenSize === 'tablet') return '1 1 calc(50% - 5px)';
-    return '1 1 auto';
+    return '1 1 0';
   };
 
   return (
@@ -83,9 +84,156 @@ const SubSectionItem = ({
 };
 
 /**
- * LendingSubSectionHeader - Subsection for Lending details
+ * SubSectionItemWithDropdown - SubSection item with integrated dropdown selector for projections
  */
-export const LendingSubSectionHeader = ({ data = [] }) => {
+const SubSectionItemWithDropdown = ({ 
+  label, 
+  values, // Can be: 1) Object with keys {day, week, month, year}, 2) Object with type keys like {apr: {...}, aprHistorical: {...}}, or 3) Simple object like {apr: "5.00", aprHistorical: "6.00"}
+  defaultType = 'apr',
+  defaultPeriod = 'day',
+  showTypeWhenSingle = true,
+  color,
+  flex = 1,
+  screenSize 
+}) => {
+  const { theme } = useTheme();
+  const { maskValue } = useMaskValues();
+  const [selectedType, setSelectedType] = useState(defaultType);
+  const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
+
+  const periodOptions = [
+    { key: 'day', label: 'Day' },
+    { key: 'week', label: 'Week' },
+    { key: 'month', label: 'Month' },
+    { key: 'year', label: 'Year' },
+  ];
+
+  // Check if values contains projection types (apr, aprhistorical, etc.) or direct periods (day, week, etc.)
+  const hasTypes = values && !values.day && !values.week && !values.month && !values.year;
+  
+  // Check if values are simple (not nested objects with periods)
+  const currentTypeValues = hasTypes ? values[selectedType] : values;
+  const isSimpleValue = typeof currentTypeValues === 'string' || typeof currentTypeValues === 'number';
+  
+  // Get available types
+  const typeOptions = hasTypes 
+    ? Object.keys(values).map(type => {
+        const lowerType = type.toLowerCase();
+        switch (lowerType) {
+          case 'apr': return { key: type, label: 'APR' };
+          case 'aprhistorical': return { key: type, label: 'APR Historical' };
+          default: return { key: type, label: type.charAt(0).toUpperCase() + type.slice(1) };
+        }
+      })
+    : [{ key: 'apr', label: 'APR' }];
+
+  // Get current value based on selected type and period
+  let currentValue, currentColor;
+  if (isSimpleValue) {
+    // Simple value - just use it directly with % suffix
+    currentValue = currentTypeValues;
+    const numValue = typeof currentValue === 'string' ? parseFloat(currentValue) : currentValue;
+    currentColor = typeof color === 'function' ? color(currentValue) : color;
+  } else {
+    // Complex value with periods
+    currentValue = currentTypeValues?.[selectedPeriod];
+    currentColor = typeof color === 'function' ? color(currentValue) : color;
+  }
+
+  // Handler for type change
+  const handleTypeChange = (displayLabel) => {
+    const typeOption = typeOptions.find(t => t.label === displayLabel);
+    if (typeOption) setSelectedType(typeOption.key);
+  };
+
+  // Handler for period change
+  const handlePeriodChange = (displayLabel) => {
+    const periodOption = periodOptions.find(p => p.label === displayLabel);
+    if (periodOption) setSelectedPeriod(periodOption.key);
+  };
+
+  const showTypeDropdown = (typeOptions.length > 1 || showTypeWhenSingle) && hasTypes;
+  const showPeriodDropdown = !isSimpleValue; // Only show period dropdown if not simple value
+
+  const getFlexStyle = () => {
+    if (screenSize === 'mobile') return '1 1 100%';
+    if (screenSize === 'tablet') return '1 1 calc(50% - 5px)';
+    return '1 1 0';
+  };
+
+  return (
+    <div style={{ 
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+      padding: '8px 14px',
+      backgroundColor: theme.bgPanel || theme.bgSecondary,
+      border: `1px solid ${theme.border}`,
+      borderRadius: 8,
+      flex: getFlexStyle(),
+      minWidth: screenSize === 'mobile' ? '100%' : screenSize === 'tablet' ? 'calc(50% - 5px)' : '120px',
+      boxSizing: 'border-box',
+      position: 'relative',
+    }}>
+      {/* Header: Label and Dropdown */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+      }}>
+        <div style={{ 
+          fontSize: 11, 
+          color: theme.textSecondary, 
+          fontWeight: 500,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          {label}
+        </div>
+        
+        {/* Type Selector */}
+        {showTypeDropdown && (
+          <PeriodDropdown
+            periods={typeOptions.map(t => t.label)}
+            selectedPeriod={typeOptions.find(t => t.key === selectedType)?.label || typeOptions[0]?.label}
+            onPeriodChange={handleTypeChange}
+            compact={true}
+          />
+        )}
+
+        {/* Period Selector - only show if not simple value */}
+        {showPeriodDropdown && (
+          <PeriodDropdown
+            periods={periodOptions.map(p => p.label)}
+            selectedPeriod={periodOptions.find(p => p.key === selectedPeriod)?.label || 'Day'}
+            onPeriodChange={handlePeriodChange}
+            compact={true}
+          />
+        )}
+      </div>
+
+      {/* Value Display */}
+      <div style={{ 
+        fontSize: 15, 
+        fontWeight: 600, 
+        color: currentColor || theme.textPrimary,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        wordBreak: 'break-word',
+        overflowWrap: 'break-word'
+      }}>
+        {isSimpleValue ? `${currentValue}%` : maskValue(formatPrice(currentValue))}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * LendingSubSectionHeader - Subsection for Lending details
+ * Opcionalmente agrupa por Protocol + Chain para mostrar Health Factors únicos
+ */
+export const LendingSubSectionHeader = ({ data = [], groupByProtocol = false }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const screenSize = useScreenSize();
@@ -98,10 +246,14 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
   let weightedApySum = 0;
   let weightForApy = 0;
   
-  let dailyProjectionSum = 0;
-  let weeklyProjectionSum = 0;
-  let monthlyProjectionSum = 0;
-  let yearlyProjectionSum = 0;
+  // Projection sums by type
+  const projectionSums = {
+    apr: { day: 0, week: 0, month: 0, year: 0 },
+    aprHistorical: { day: 0, week: 0, month: 0, year: 0 },
+  };
+
+  // Se groupByProtocol, calcular Health Factor único por protocolo + chain
+  let uniqueHealthFactors = new Map();
 
   data.forEach(item => {
     const position = item.position || item;
@@ -112,7 +264,16 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
                item.additionalData?.healthFactor ||
                item.healthFactor;
     
-    if (hf != null && isFinite(parseFloat(hf)) && parseFloat(hf) > 0) {
+    if (groupByProtocol && hf != null && isFinite(parseFloat(hf)) && parseFloat(hf) > 0) {
+      // Agrupar por protocol + chain para não contar o mesmo HF múltiplas vezes
+      const protocol = position.protocol || item.protocol || {};
+      const chain = tokens[0]?.chain || 'unknown';
+      const key = `${protocol.name || 'unknown'}-${chain}`;
+      
+      if (!uniqueHealthFactors.has(key)) {
+        uniqueHealthFactors.set(key, parseFloat(hf));
+      }
+    } else if (!groupByProtocol && hf != null && isFinite(parseFloat(hf)) && parseFloat(hf) > 0) {
       healthFactorSum += parseFloat(hf);
       healthFactorCount++;
     }
@@ -120,21 +281,39 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
     const supplyRate = position.supplyRate || position.apy || item.additionalData?.apy || 0;
     const borrowRate = position.borrowRate || position.borrowApy || item.additionalData?.apy || 0;
     
-    const projection = item.additionalInfo?.projection || 
-                       item.additionalData?.projection || 
-                       position.projection ||
+    // Support both new projections array and legacy single projection
+    const projections = item.additionalData?.projections || 
+                       item.additionalInfo?.projections || 
+                       position?.projections ||
                        null;
     
-    if (projection) {
-      const daily = parseFloat(projection.oneDay || 0);
-      const weekly = parseFloat(projection.oneWeek || 0);
-      const monthly = parseFloat(projection.oneMonth || 0);
-      const yearly = parseFloat(projection.oneYear || 0);
-      
-      dailyProjectionSum += daily;
-      weeklyProjectionSum += weekly;
-      monthlyProjectionSum += monthly;
-      yearlyProjectionSum += yearly;
+    const legacyProjection = item.additionalInfo?.projection || 
+                            item.additionalData?.projection || 
+                            position.projection ||
+                            null;
+    
+    // Process projections array (new format)
+    if (projections && Array.isArray(projections)) {
+      projections.forEach(proj => {
+        const rawType = proj.type?.toLowerCase() || 'apr';
+        // Map type to correct key in projectionSums
+        const type = rawType === 'aprhistorical' ? 'aprHistorical' : rawType;
+        const projection = proj.projection;
+        
+        if (projection && projectionSums[type]) {
+          projectionSums[type].day += parseFloat(projection.oneDay || 0);
+          projectionSums[type].week += parseFloat(projection.oneWeek || 0);
+          projectionSums[type].month += parseFloat(projection.oneMonth || 0);
+          projectionSums[type].year += parseFloat(projection.oneYear || 0);
+        }
+      });
+    } 
+    // Process legacy projection (backward compatibility)
+    else if (legacyProjection) {
+      projectionSums.apr.day += parseFloat(legacyProjection.oneDay || 0);
+      projectionSums.apr.week += parseFloat(legacyProjection.oneWeek || 0);
+      projectionSums.apr.month += parseFloat(legacyProjection.oneMonth || 0);
+      projectionSums.apr.year += parseFloat(legacyProjection.oneYear || 0);
     }
     
     // Processar tokens
@@ -168,18 +347,24 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
     });
   });
 
-  const avgHealthFactor = healthFactorCount > 0 ? healthFactorSum / healthFactorCount : null;
+  // Calcular average Health Factor
+  let avgHealthFactor = null;
+  if (groupByProtocol && uniqueHealthFactors.size > 0) {
+    const hfArray = Array.from(uniqueHealthFactors.values());
+    avgHealthFactor = hfArray.reduce((sum, hf) => sum + hf, 0) / hfArray.length;
+  } else if (!groupByProtocol && healthFactorCount > 0) {
+    avgHealthFactor = healthFactorSum / healthFactorCount;
+  }
   
   const netPosition = suppliedValue - borrowedValue;
   const avgApy = netPosition !== 0 ? (weightedApySum / netPosition) : null;
 
-  const totalProjections = {
-    dailyProjectionSum, 
-    weeklyProjectionSum, 
-    monthlyProjectionSum, 
-    yearlyProjectionSum,
-    'Has projections': dailyProjectionSum !== 0 || weeklyProjectionSum !== 0 || monthlyProjectionSum !== 0 || yearlyProjectionSum !== 0
-  };
+  // Check if any projection type has values
+  const hasAprProjections = projectionSums.apr.day !== 0 || projectionSums.apr.week !== 0 || 
+                           projectionSums.apr.month !== 0 || projectionSums.apr.year !== 0;
+  const hasAprHistoricalProjections = projectionSums.aprHistorical.day !== 0 || projectionSums.aprHistorical.week !== 0 || 
+                                 projectionSums.aprHistorical.month !== 0 || projectionSums.aprHistorical.year !== 0;
+  const hasProjections = hasAprProjections || hasAprHistoricalProjections;
 
   const items = [
     avgHealthFactor !== null && {
@@ -199,33 +384,45 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
       flex: 1,
       color: avgApy >= 0 ? '#10b981' : '#ef4444',
     },
-    dailyProjectionSum !== 0 && {
-      label: 'Day',
-      value: maskValue(formatPrice(dailyProjectionSum)),
-      flex: 1,
-      color: dailyProjectionSum >= 0 ? '#10b981' : '#ef4444',
-    },
-    weeklyProjectionSum !== 0 && {
-      label: 'Week',
-      value: maskValue(formatPrice(weeklyProjectionSum)),
-      flex: 1,
-      color: weeklyProjectionSum >= 0 ? '#10b981' : '#ef4444',
-    },
-    monthlyProjectionSum !== 0 && {
-      label: 'Month',
-      value: maskValue(formatPrice(monthlyProjectionSum)),
-      flex: 1,
-      color: monthlyProjectionSum >= 0 ? '#10b981' : '#ef4444',
-    },
-    yearlyProjectionSum !== 0 && {
-      label: 'Year',
-      value: maskValue(formatPrice(yearlyProjectionSum)),
-      flex: 1,
-      color: yearlyProjectionSum >= 0 ? '#10b981' : '#ef4444',
-    },
   ].filter(Boolean);
 
-  if (items.length === 0) return null;
+  // Build projection values object
+  let projectionValues = {};
+  const shouldShowTypeDropdown = false; // LendingCards uses showTypeWhenSingle: false
+  
+  if (hasAprProjections && hasAprHistoricalProjections) {
+    // Multiple types: create nested structure
+    projectionValues = {
+      apr: projectionSums.apr,
+      aprHistorical: projectionSums.aprHistorical,
+    };
+  } else if (hasAprProjections) {
+    // Single type: use nested structure if showTypeWhenSingle is true, otherwise flat
+    if (shouldShowTypeDropdown) {
+      projectionValues = { apr: projectionSums.apr };
+    } else {
+      projectionValues = projectionSums.apr;
+    }
+  } else if (hasAprHistoricalProjections) {
+    if (shouldShowTypeDropdown) {
+      projectionValues = { aprHistorical: projectionSums.aprHistorical };
+    } else {
+      projectionValues = projectionSums.aprHistorical;
+    }
+  }
+
+  const projectionItem = hasProjections ? {
+    label: 'Projection',
+    values: projectionValues,
+    defaultType: 'apr',
+    defaultPeriod: 'day',
+    showTypeWhenSingle: false,
+    color: (value) => value >= 0 ? '#10b981' : '#ef4444',
+    flex: 1,
+    withDropdown: true,
+  } : null;
+
+  if (items.length === 0 && !projectionItem) return null;
 
   return (
     <div style={{
@@ -241,6 +438,13 @@ export const LendingSubSectionHeader = ({ data = [] }) => {
           screenSize={screenSize}
         />
       ))}
+      {projectionItem && (
+        <SubSectionItemWithDropdown
+          key="projection"
+          {...projectionItem}
+          screenSize={screenSize}
+        />
+      )}
     </div>
   );
 };
@@ -264,6 +468,16 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
   let aprCount = 0;
   let totalAprWeighted = 0;
   let totalWeightForApr = 0;
+  
+  // Historical APR tracking
+  let totalAprHistoricalWeighted = 0;
+  let totalWeightForAprHistorical = 0;
+  
+  // Projection sums by type
+  const projectionSums = {
+    apr: { day: 0, week: 0, month: 0, year: 0 },
+    aprHistorical: { day: 0, week: 0, month: 0, year: 0 },
+  };
 
   data.forEach(item => {
     const position = item.position || item;
@@ -276,6 +490,47 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
                         item.additionalData?.apr ||
                         position.additionalData?.apy ||
                         position.apy;
+    
+    // APR Historical do backend
+    const positionAprHistorical = position.additionalData?.aprHistorical || 
+                                  position.aprHistorical || 
+                                  item.aprHistorical ||
+                                  item.additionalData?.aprHistorical;
+    
+    // Support both new projections array and legacy single projection
+    const projections = item.additionalData?.projections || 
+                       item.additionalInfo?.projections || 
+                       position?.projections ||
+                       null;
+    
+    const legacyProjection = item.additionalInfo?.projection || 
+                            item.additionalData?.projection || 
+                            position.projection ||
+                            null;
+    
+    // Process projections array (new format)
+    if (projections && Array.isArray(projections)) {
+      projections.forEach(proj => {
+        const rawType = proj.type?.toLowerCase() || 'apr';
+        // Map type to correct key in projectionSums
+        const type = rawType === 'aprhistorical' ? 'aprHistorical' : rawType;
+        const projection = proj.projection;
+        
+        if (projection && projectionSums[type]) {
+          projectionSums[type].day += parseFloat(projection.oneDay || 0);
+          projectionSums[type].week += parseFloat(projection.oneWeek || 0);
+          projectionSums[type].month += parseFloat(projection.oneMonth || 0);
+          projectionSums[type].year += parseFloat(projection.oneYear || 0);
+        }
+      });
+    } 
+    // Process legacy projection (backward compatibility)
+    else if (legacyProjection) {
+      projectionSums.apr.day += parseFloat(legacyProjection.oneDay || 0);
+      projectionSums.apr.week += parseFloat(legacyProjection.oneWeek || 0);
+      projectionSums.apr.month += parseFloat(legacyProjection.oneMonth || 0);
+      projectionSums.apr.year += parseFloat(legacyProjection.oneYear || 0);
+    }
     
     // Check range status - IMPORTANTE: item.additionalData vem primeiro!
     const rangeData = item.additionalData?.range || 
@@ -331,6 +586,12 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
       aprSum += positionApr;
       aprCount++;
     }
+    
+    // APR Historical weighted by position liquidity value
+    if (positionAprHistorical != null && !isNaN(positionAprHistorical) && positionLiquidityValue > 0) {
+      totalAprHistoricalWeighted += positionAprHistorical * positionLiquidityValue;
+      totalWeightForAprHistorical += positionLiquidityValue;
+    }
 
     // Count in range vs out of range baseado em rangeData.inRange
     if (rangeData) {
@@ -343,6 +604,14 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
   });
 
   const avgAPR = totalWeightForApr > 0 ? totalAprWeighted / totalWeightForApr : null;
+  const avgAprHistorical = totalWeightForAprHistorical > 0 ? totalAprHistoricalWeighted / totalWeightForAprHistorical : null;
+  
+  // Check if any projection type has values
+  const hasAprProjections = projectionSums.apr.day !== 0 || projectionSums.apr.week !== 0 || 
+                           projectionSums.apr.month !== 0 || projectionSums.apr.year !== 0;
+  const hasAprHistoricalProjections = projectionSums.aprHistorical.day !== 0 || projectionSums.aprHistorical.week !== 0 || 
+                                 projectionSums.aprHistorical.month !== 0 || projectionSums.aprHistorical.year !== 0;
+  const hasProjections = hasAprProjections || hasAprHistoricalProjections;
 
   const items = [
     {
@@ -369,13 +638,60 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
         </svg>
       ),
     },
-    {
-      label: 'AVG APR',
-      value: avgAPR !== null ? `${avgAPR.toFixed(2)}%` : '0.00%',
-      flex: 1,
-      color: avgAPR > 10 ? '#10b981' : theme.textPrimary,
-    },
   ];
+  
+  // AVG APR item with dropdown to choose between APR and APR Historical
+  const avgAprItem = (avgAPR !== null || avgAprHistorical !== null) ? {
+    label: 'AVG',
+    values: {
+      apr: avgAPR !== null ? avgAPR.toFixed(2) : '0.00',
+      aprHistorical: avgAprHistorical !== null ? avgAprHistorical.toFixed(2) : '0.00',
+    },
+    defaultType: 'apr',
+    showTypeWhenSingle: true,
+    color: (value) => {
+      const numValue = parseFloat(value);
+      return numValue > 10 ? '#10b981' : theme.textPrimary;
+    },
+    flex: 1,
+    withDropdown: true,
+  } : null;
+
+  // Build projection values object
+  let projectionValues = {};
+  const shouldShowTypeDropdown = true; // From prop showTypeWhenSingle in projectionItem
+  
+  if (hasAprProjections && hasAprHistoricalProjections) {
+    // Multiple types: create nested structure
+    projectionValues = {
+      apr: projectionSums.apr,
+      aprHistorical: projectionSums.aprHistorical,
+    };
+  } else if (hasAprProjections) {
+    // Single type: use nested structure if showTypeWhenSingle is true, otherwise flat
+    if (shouldShowTypeDropdown) {
+      projectionValues = { apr: projectionSums.apr };
+    } else {
+      projectionValues = projectionSums.apr;
+    }
+  } else if (hasAprHistoricalProjections) {
+    if (shouldShowTypeDropdown) {
+      projectionValues = { aprHistorical: projectionSums.aprHistorical };
+    } else {
+      projectionValues = projectionSums.aprHistorical;
+    }
+  }
+
+  const projectionItem = hasProjections ? {
+    label: 'Projection',
+    values: projectionValues,
+    defaultType: 'apr',
+    defaultPeriod: 'day',
+    showTypeWhenSingle: true, // PoolCards shows type dropdown even with single type
+    color: (value) => value >= 0 ? '#10b981' : '#ef4444',
+    flex: 1,
+    withDropdown: true,
+  } : null;
 
   return (
     <div style={{
@@ -391,6 +707,22 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
           screenSize={screenSize}
         />
       ))}
+      {avgAprItem && (
+        <SubSectionItemWithDropdown
+          key="avgApr"
+          {...avgAprItem}
+          screenSize={screenSize}
+        />
+      )}
+      {projectionItem && (
+        <SubSectionItemWithDropdown
+          key="projection"
+          {...projectionItem}
+          screenSize={screenSize}
+        />
+      )}
     </div>
   );
 };
+
+

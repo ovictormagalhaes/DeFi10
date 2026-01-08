@@ -40,6 +40,11 @@ namespace DeFi10.API.Services.Protocols.Uniswap
 
         Task<PositionDataResult> GetPositionDataSafeAsync(BigInteger tokenId, ChainEnum chain);
 
+        /// <summary>
+        /// Gets position data with calculated uncollected fees (not just TokensOwed).
+        /// Use this for hybrid mode to get accurate fee estimates.
+        /// </summary>
+        Task<PositionDataResult> GetPositionWithCalculatedFeesAsync(BigInteger tokenId, ChainEnum chain);
 
         Task<PoolMetadataResult> GetPoolMetadataSafeAsync(string poolAddress, ChainEnum chain);
 
@@ -59,12 +64,14 @@ namespace DeFi10.API.Services.Protocols.Uniswap
         public BigInteger TokenId { get; init; }
         public PositionDTO? Position { get; init; }
         public string? PoolAddress { get; init; }
+        public int Token0Decimals { get; init; }
+        public int Token1Decimals { get; init; }
         public bool Success { get; init; }
         public string? ErrorMessage { get; init; }
         public DateTime RetrievedAt { get; init; } = DateTime.UtcNow;
 
-        public static PositionDataResult CreateSuccess(BigInteger tokenId, PositionDTO position, string? poolAddress = null)
-            => new() { TokenId = tokenId, Position = position, PoolAddress = poolAddress, Success = true };
+        public static PositionDataResult CreateSuccess(BigInteger tokenId, PositionDTO position, string? poolAddress = null, int token0Decimals = 0, int token1Decimals = 0)
+            => new() { TokenId = tokenId, Position = position, PoolAddress = poolAddress, Token0Decimals = token0Decimals, Token1Decimals = token1Decimals, Success = true };
 
         public static PositionDataResult CreateFailure(BigInteger tokenId, string errorMessage)
             => new() { TokenId = tokenId, Success = false, ErrorMessage = errorMessage };
