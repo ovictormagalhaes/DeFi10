@@ -102,6 +102,14 @@ public class SolanaKaminoMapperTests
                 OneMonth = balance * 0.30m,
                 OneYear = balance * 3.65m
             });
+
+        _projectionCalculator.Setup(x => x.CreateProjectionData(It.IsAny<string>(), It.IsAny<Projection>(), It.IsAny<ProjectionMetadata>()))
+            .Returns((string type, Projection proj, ProjectionMetadata meta) => new ProjectionData
+            {
+                Type = type,
+                Projection = proj,
+                Metadata = meta
+            });
     }
 
     private ChainConfig CreateMockChainConfig(Chain chain)
@@ -174,7 +182,7 @@ public class SolanaKaminoMapperTests
         Assert.Equal(WalletItemType.LendingAndBorrowing, result[0].Type);
         Assert.Equal(1.5m, result[0].AdditionalData.HealthFactor);
         Assert.Null(result[0].AdditionalData.Apy);
-        Assert.Null(result[0].AdditionalData.Projections);
+        Assert.Empty(result[0].AdditionalData.Projections);
     }
 
     [Fact]
