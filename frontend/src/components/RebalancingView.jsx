@@ -12,13 +12,16 @@ import { useTheme } from '../context/ThemeProvider.tsx';
 import { formatPercent, formatUsd } from '../utils/formatting';
 import { ITEM_TYPES } from '../utils/walletUtils';
 
-import CollapsibleMenu from './CollapsibleMenu';
 import IconButton from './IconButton';
 import RebalanceItemDialog from './RebalanceItemDialog';
 import Skeleton from './Skeleton';
-import StandardHeader from './table/StandardHeader';
+import LoadingScreen from './LoadingScreen';
+
 import TokenDisplay from './TokenDisplay.tsx';
 import RebalancingCards from './cards/RebalancingCards';
+import StrategyGroupCard from './cards/StrategyGroupCard';
+import FAQSection from './FAQSection';
+import { StrategiesSectionHeader } from './cards/SectionHeaders';
 
 // Frontend mirror of backend enum
 const RebalanceReferenceType = {
@@ -72,18 +75,8 @@ export default function RebalancingView({
   const theme = themeProp || themeCtx;
   const { maskValue } = useMaskValues();
 
-  // Responsive breakpoint detection
-  const [windowWidth, setWindowWidth] = React.useState(
-    typeof window !== 'undefined' ? window.innerWidth : 1200
-  );
-  
-  React.useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const useCardView = windowWidth < 900; // Use cards below 900px
+  // Always use card view
+  const useCardView = true;
 
   // Normalize chain identifier for token grouping / id composition
   const getChainKey = React.useCallback((tok) => {
@@ -189,13 +182,24 @@ export default function RebalancingView({
       if (!label) {
         const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
         const norm = (x) => (x && x.token ? x.token : x);
+        
+        // Include both supplied AND borrowed tokens
         const supplied = toks
           .filter((t) => {
             const ty = (t?.type || '').toString().toLowerCase();
             return ty === 'supplied' || ty === 'supply' || ty === 'deposit' || ty === 'collateral';
           })
           .map(norm);
-        const choose = supplied.length ? supplied : toks.map(norm);
+        
+        const borrowed = toks
+          .filter((t) => {
+            const ty = (t?.type || '').toString().toLowerCase();
+            return ty === 'borrowed' || ty === 'borrow' || ty === 'debt';
+          })
+          .map(norm);
+        
+        // Prefer supplied, then borrowed, then all tokens
+        const choose = supplied.length ? supplied : (borrowed.length ? borrowed : toks.map(norm));
         const syms = choose.map((t) => t?.symbol || t?.name).filter(Boolean);
         if (syms.length >= 2) label = `${syms[0]}/${syms[1]}`;
         else if (syms.length === 1) label = syms[0];
@@ -295,6 +299,7 @@ export default function RebalancingView({
   const [saveResult, setSaveResult] = React.useState(null);
   const [saveError, setSaveError] = React.useState(null);
   const [didInitialLoad, setDidInitialLoad] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   // Map reference type to backend enum numeric values (Token=0, Protocol=1, Group=2, TotalWallet=3)
   const REF_ENUM_MAP = React.useMemo(
@@ -830,9 +835,22 @@ export default function RebalancingView({
     return m;
   }, [entries, entryCurrentValues, totalPortfolioCurrent]);
 
+  // Mark initial load done (for auto-save skip)
+  const lastSavedHashRef = React.useRef(null);
+  const hasLoadedInitialDataRef = React.useRef(false);
+
   // Prefill entries from backend-saved items
   React.useEffect(() => {
-    if (!Array.isArray(initialSavedItems) || initialSavedItems.length === 0) return;
+    if (!Array.isArray(initialSavedItems) || initialSavedItems.length === 0) {
+      // Mark as loaded even if empty
+      if (!hasLoadedInitialDataRef.current) {
+        hasLoadedInitialDataRef.current = true;
+        setDidInitialLoad(true);
+        setIsLoading(false);
+        lastSavedHashRef.current = JSON.stringify([]);
+      }
+      return;
+    }
     // Build a lookup for labels
     const tokenById = new Map(tokensList.map((t) => [t.id, t]));
     const poolById = new Map(poolsList.map((p) => [p.id, p]));
@@ -915,31 +933,46 @@ export default function RebalancingView({
       mapped.forEach((m) => {
         if (!byId.has(m.id)) byId.set(m.id, m);
       });
-      return Array.from(byId.values());
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSavedItems, tokensList, poolsList, lendingList, stakingList, depositingList, lockingList, protocolsList, ASSET_TYPE_FROM_STRING]);
-
-  // Mark initial load done (for auto-save skip)
-  const lastSavedHashRef = React.useRef(null);
-
-  React.useEffect(() => {
-    if (!didInitialLoad) {
-      setDidInitialLoad(true);
-      // Initialize hash with current entries to prevent initial save
-      if (entries.length > 0) {
+      const finalEntries = Array.from(byId.values());
+      
+      // Initialize lastSavedHashRef with loaded entries from backend
+      if (!hasLoadedInitialDataRef.current) {
+        hasLoadedInitialDataRef.current = true;
+        setDidInitialLoad(true);
+        setIsLoading(false);
         lastSavedHashRef.current = JSON.stringify(
-          entries.map((e) => ({
+          finalEntries.map((e) => ({
             id: e.id,
             assetType: e.assetType,
-            assetIds: e.assetIds || [e.assetId],
+            assetIds: e.assetIds || [],
             referenceType: e.referenceType,
             referenceValue: e.referenceValue,
             note: e.note,
           }))
         );
       }
-    }
+      
+      return finalEntries;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSavedItems, tokensList, poolsList, lendingList, stakingList, depositingList, lockingList, protocolsList, ASSET_TYPE_FROM_STRING]);
+
+  // Track unsaved changes
+  const hasUnsavedChanges = React.useMemo(() => {
+    if (!didInitialLoad) return false;
+    const currentHash = JSON.stringify(
+      entries.map((e) => ({
+        id: e.id,
+        assetType: e.assetType,
+        assetIds: e.assetIds || [],
+        referenceType: e.referenceType,
+        referenceValue: e.referenceValue,
+        note: e.note,
+      }))
+    );
+    const hasChanges = lastSavedHashRef.current !== currentHash;
+    
+    return hasChanges;
   }, [entries, didInitialLoad]);
 
   const saveRebalance = React.useCallback(async () => {
@@ -1089,6 +1122,17 @@ export default function RebalancingView({
         accounts: data.accounts,
         savedAt: new Date(),
       });
+      // Update lastSavedHashRef after successful save
+      lastSavedHashRef.current = JSON.stringify(
+        entries.map((e) => ({
+          id: e.id,
+          assetType: e.assetType,
+          assetIds: e.assetIds || [],
+          referenceType: e.referenceType,
+          referenceValue: e.referenceValue,
+          note: e.note,
+        }))
+      );
       // Notify parent to refresh rebalances data
       if (onRebalancesSaved) {
         onRebalancesSaved();
@@ -1168,14 +1212,23 @@ export default function RebalancingView({
 
   // (REF_ENUM_MAP declared earlier)
 
+  // Show loading screen while waiting for backend data
+  if (isLoading) {
+    return <LoadingScreen theme={theme} message="Loading strategies..." />;
+  }
+
   return (
-    <div className="panel rebalance-panel pad-16 text-primary">
-      <div className="panel-header">
-        <div className="panel-title">Rebalancing</div>
-        <button type="button" onClick={() => setShowDialog(true)} className="btn btn--outline">
-          Add
-        </button>
-      </div>
+    <div>
+      {/* Section Header */}
+      <StrategiesSectionHeader 
+        itemCount={entries.length}
+        onAddClick={() => setShowDialog(true)}
+        onSaveClick={() => saveRebalance()}
+        hasUnsavedChanges={hasUnsavedChanges}
+        saving={saving}
+        saveResult={saveResult}
+        saveError={saveError}
+      />
 
       {/* Rebalance Item Dialog (glass UI) */}
       <RebalanceItemDialog
@@ -1218,63 +1271,8 @@ export default function RebalancingView({
       {/* Entries List (Grouped Collapsible Sections by Reference Type + Value) */}
       {entries.length > 0 && (
         <div className="mt-20 flex column gap-20">
-          {useCardView ? (
-            // Card View for mobile/small screens
-            (() => {
-              // Group entries by bucketKey (referenceType:referenceValue)
-              const buckets = new Map();
-              entries.forEach((e) => {
-                const key = bucketKey(e);
-                if (!buckets.has(key)) {
-                  buckets.set(key, {
-                    label: `${e.referenceLabel}`,
-                    entries: []
-                  });
-                }
-                buckets.get(key).entries.push(e);
-              });
-              
-              return Array.from(buckets.entries()).map(([key, { label, entries: groupEntries }]) => (
-                <CollapsibleMenu
-                  key={key}
-                  title={label}
-                  variant="flat"
-                  showSummary={false}
-                >
-                  <RebalancingCards
-                    entries={groupEntries}
-                    onEdit={(row) => {
-                      setEditingId(row.id);
-                      setShowDialog(true);
-                      setAssetType(row.assetType);
-                      const assets = row.assetIds || [{ type: row.assetType, id: row.assetId }];
-                      if (assets.length === 1) {
-                        setAssetId(assets[0].id || assets[0]);
-                        setAssetIds([]);
-                      } else {
-                        setAssetId('');
-                        setAssetIds(assets);
-                      }
-                      setReferenceType(row.referenceType);
-                      setReferenceValue(row.referenceValue || '');
-                      setNote(row.note || 0);
-                    }}
-                    onDelete={removeEntry}
-                    entryCurrentValues={entryCurrentValues}
-                    bucketCurrentSums={bucketCurrentSums}
-                    bucketNoteSums={bucketNoteSums}
-                    bucketKey={bucketKey}
-                    tokensList={tokensList}
-                    poolsList={poolsList}
-                    lendingList={lendingList}
-                    stakingList={stakingList}
-                  />
-                </CollapsibleMenu>
-              ));
-            })()
-          ) : (
-            // Table View for desktop/large screens
-            (() => {
+          {/* Card View - always enabled */}
+          {(() => {
             // Group entries by bucketKey (referenceType:referenceValue)
             const buckets = new Map();
             entries.forEach((e) => {
@@ -1282,475 +1280,146 @@ export default function RebalancingView({
               if (!buckets.has(key)) {
                 buckets.set(key, {
                   label: `${e.referenceLabel}`,
+                  referenceType: e.referenceType,
                   entries: []
                 });
               }
               buckets.get(key).entries.push(e);
             });
             
-            return Array.from(buckets.entries()).map(([key, { label, entries: groupEntries }]) => (
-              <CollapsibleMenu
-                key={key}
-                title={label}
-                variant="flat"
-                showSummary={false}
-              >
-                <div className="table-wrapper">
-                  <table className="table-unified text-primary">
-                    <StandardHeader
-                      columnDefs={[
-                        // Icon + name are merged in the first (token) column; remaining metric/action columns follow
-                        { key: 'current', label: 'Current', align: 'right' },
-                        { key: 'target', label: 'Target', align: 'right' },
-                      { key: 'diff', label: 'Diff', align: 'right' },
-                      { key: 'note', label: 'Note', align: 'left' },
-                      { key: 'actions', label: '', align: 'right', className: 'col-actions' },
-                    ]}
-                    labels={{ token: 'Asset' }}
-                  />
-                  <tbody>
-                    {isLoadingPrimary && groupEntries.length === 0
-                      ? skeletonRows.map((_, i) => (
-                          <tr
-                            key={'sk-' + group.type + i}
-                            className={`table-row ${i === skeletonRows.length - 1 ? '' : 'tbody-divider'}`}
-                          >
-                            <td className="td col-name">
-                              <span className="flex align-center gap-8">
-                                <Skeleton width={26} height={26} className="circle" />
-                                <Skeleton width={140} className="text" />
-                              </span>
-                            </td>
-                            <td className="td td-right col-current">
-                              <Skeleton width={60} className="text" />
-                            </td>
-                            <td className="td td-right col-target">
-                              <Skeleton width={60} className="text" />
-                            </td>
-                            <td className="td td-right col-diff">
-                              <Skeleton width={60} className="text" />
-                            </td>
-                            <td className="td col-note text-secondary">
-                              <Skeleton width={40} className="text" />
-                            </td>
-                            <td className="td td-right col-actions">
-                              <div className="flex-end gap-6">
-                                <Skeleton width={34} height={34} />
-                                <Skeleton width={34} height={34} />
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      : groupEntries.map((row, idx) => {
-                          // Support both assetIds with {type, id} format and legacy assetId (single)
-                          const assetsWithType = row.assetIds || [{ type: row.assetType, id: row.assetId }];
-                          const primaryAsset = assetsWithType[0];
-                          const primaryAssetId = primaryAsset.id || primaryAsset;
-                          const primaryAssetType = primaryAsset.type || row.assetType;
-                          
-                          let assetOpt = null;
-                          if (primaryAssetType === RebalanceAssetType.Wallet)
-                            assetOpt = tokensList.find((o) => o.id === primaryAssetId);
-                          else if (primaryAssetType === RebalanceAssetType.LiquidityPool)
-                            assetOpt = poolsList.find((o) => o.id === primaryAssetId);
-                          else if (primaryAssetType === RebalanceAssetType.LendingAndBorrowing)
-                            assetOpt = lendingList.find((o) => o.id === primaryAssetId);
-                          else if (primaryAssetType === RebalanceAssetType.Staking)
-                            assetOpt = stakingList.find((o) => o.id === primaryAssetId);
-
-                          const renderAssetIcons = () => {
-                            // Render individual TokenDisplay for each asset
-                            return assetsWithType.slice(0, 10).map((asset, idx) => {
-                              const assetId = asset.id || asset;
-                              const assetType = typeof asset.type === 'number' ? asset.type : (asset.type || row.assetType);
-                              let opt = null;
-                              
-                              if (assetType === RebalanceAssetType.Wallet)
-                                opt = tokensList.find(o => o.id === assetId);
-                              else if (assetType === RebalanceAssetType.LiquidityPool)
-                                opt = poolsList.find(o => o.id === assetId);
-                              else if (assetType === RebalanceAssetType.LendingAndBorrowing)
-                                opt = lendingList.find(o => o.id === assetId);
-                              else if (assetType === RebalanceAssetType.Staking)
-                                opt = stakingList.find(o => o.id === assetId);
-                              
-                              if (!opt) return null;
-                              
-                              // For Wallet, use raw directly
-                              if (assetType === RebalanceAssetType.Wallet) {
-                                return (
-                                  <TokenDisplay
-                                    key={`${idx}-${assetId}`}
-                                    tokens={[opt.raw]}
-                                    showName={false}
-                                    showText={false}
-                                    size={18}
-                                    gap={6}
-                                    showChain={true}
-                                  />
-                                );
-                              } else {
-                                // For LP/Lending/Staking, extract tokens
-                                const pos = opt.raw?.position || opt.raw;
-                                let toks = [];
-                                if (Array.isArray(pos?.tokens) && pos.tokens.length) {
-                                  toks = pos.tokens.map((x) => (x && x.token ? x.token : x));
-                                } else if (Array.isArray(pos?.pool?.tokens) && pos.pool.tokens.length) {
-                                  toks = pos.pool.tokens.map((x) => (x && x.token ? x.token : x));
-                                } else {
-                                  const t0 = pos.token0 || pos.tokenA || pos.baseToken || pos.primaryToken;
-                                  const t1 = pos.token1 || pos.tokenB || pos.quoteToken || pos.secondaryToken;
-                                  if (t0) toks.push(t0 && t0.token ? t0.token : t0);
-                                  if (t1) toks.push(t1 && t1.token ? t1.token : t1);
-                                }
-                                toks = toks.filter(Boolean).slice(0, 2);
-                                
-                                if (toks.length > 0) {
-                                  return (
-                                    <TokenDisplay
-                                      key={`${idx}-${assetId}`}
-                                      tokens={toks}
-                                      showName={false}
-                                      showText={false}
-                                      size={18}
-                                      gap={6}
-                                      showChain={true}
-                                    />
-                                  );
-                                }
-                              }
-                              
-                              return null;
-                            }).filter(Boolean);
-                          };
-
-                          const bucket = bucketKey(row);
-                          const curSum = bucketCurrentSums.get(bucket) || 0;
-                          const noteSum = bucketNoteSums.get(bucket) || 0;
-                          const curVal = entryCurrentValues.get(row.id) || 0;
-                          const pctCurrent = curSum > 0 ? (curVal / curSum) * 100 : 0;
-                          const pctTarget =
-                            noteSum > 0 ? ((Number(row.note) || 0) / noteSum) * 100 : 0;
-                          const fmtPct = (n) => formatPercent(n, { decimals: 2 });
-                          const fmtUSD = (n) => maskValue(formatUsd(n, { decimals: 2 }));
-                          const targetVal =
-                            noteSum > 0 ? ((Number(row.note) || 0) / noteSum) * curSum : 0;
-                          const diffVal = targetVal - curVal;
-
-                          return (
-                            <tr
-                              key={row.id}
-                              className={`table-row table-row-hover ${idx === groupEntries.length - 1 ? '' : 'tbody-divider'}`}
-                            >
-                              <td className="td text-primary col-name">
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                  {assetsWithType.slice(0, 10).map((asset, assetIdx) => {
-                                    const assetId = asset.id || asset;
-                                    const assetType = typeof asset.type === 'number' ? asset.type : (asset.type || row.assetType);
-                                    let opt = null;
-                                    
-                                    if (assetType === RebalanceAssetType.Wallet)
-                                      opt = tokensList.find(o => o.id === assetId);
-                                    else if (assetType === RebalanceAssetType.LiquidityPool)
-                                      opt = poolsList.find(o => o.id === assetId);
-                                    else if (assetType === RebalanceAssetType.LendingAndBorrowing)
-                                      opt = lendingList.find(o => o.id === assetId);
-                                    else if (assetType === RebalanceAssetType.Staking)
-                                      opt = stakingList.find(o => o.id === assetId);
-                                    
-                                    if (!opt) return null;
-                                    
-                                    const label = opt.label || assetId;
-                                    let tokens = [];
-                                    let lendingType = null; // 'supply' or 'borrow'
-                                    
-                                    // Extract tokens for TokenDisplay
-                                    if (assetType === RebalanceAssetType.Wallet) {
-                                      tokens = [opt.raw];
-                                    } else if (assetType === RebalanceAssetType.LendingAndBorrowing) {
-                                      const pos = opt.raw?.position || opt.raw;
-                                      if (Array.isArray(pos?.tokens) && pos.tokens.length) {
-                                        tokens = pos.tokens.slice(0, 2).map((x) => (x && x.token ? x.token : x)).filter(Boolean);
-                                        // Check first token type to determine supply/borrow
-                                        const firstToken = pos.tokens[0];
-                                        if (firstToken?.type === 'borrowed' || firstToken?.type === 'borrow' || firstToken?.type === 'debt') {
-                                          lendingType = 'borrow';
-                                        } else {
-                                          lendingType = 'supply';
-                                        }
-                                      }
-                                    } else {
-                                      const pos = opt.raw?.position || opt.raw;
-                                      if (Array.isArray(pos?.tokens) && pos.tokens.length) {
-                                        tokens = pos.tokens.slice(0, 2).map((x) => (x && x.token ? x.token : x)).filter(Boolean);
-                                      } else if (Array.isArray(pos?.pool?.tokens) && pos.pool.tokens.length) {
-                                        tokens = pos.pool.tokens.slice(0, 2).map((x) => (x && x.token ? x.token : x)).filter(Boolean);
-                                      } else {
-                                        const t0 = pos?.token0 || pos?.tokenA || pos?.baseToken || pos?.primaryToken;
-                                        const t1 = pos?.token1 || pos?.tokenB || pos?.quoteToken || pos?.secondaryToken;
-                                        if (t0) tokens.push(t0 && t0.token ? t0.token : t0);
-                                        if (t1) tokens.push(t1 && t1.token ? t1.token : t1);
-                                        tokens = tokens.filter(Boolean);
-                                      }
-                                    }
-                                    
-                                    return (
-                                      <div
-                                        key={`${assetType}-${assetId}-${assetIdx}`}
-                                        style={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          gap: 6,
-                                          padding: '0 10px',
-                                          minHeight: 32,
-                                          background: 'var(--mw-bg-panel,var(--app-bg-panel))',
-                                          border: '1px solid var(--mw-border,var(--app-border))',
-                                          borderRadius: 8,
-                                          fontSize: 13,
-                                        }}
-                                      >
-                                        {/* Type icon */}
-                                        <span style={{ fontSize: 14, opacity: 0.7 }} title={
-                                          assetType === 1 ? 'Wallet' :
-                                          assetType === 2 ? 'Liquidity Pool' :
-                                          assetType === 3 ? 'Lending Position' :
-                                          assetType === 4 ? 'Staking Position' : 
-                                          assetType === 8 ? 'Depositing Position' : 
-                                          assetType === 9 ? 'Locking Position' : 'Asset'
-                                        }>
-                                          {assetType === 1 ? '💼' : 
-                                           assetType === 2 ? '💧' : 
-                                           assetType === 3 ? '🏦' : 
-                                           assetType === 4 ? '🔒' : 
-                                           assetType === 8 ? '💰' : 
-                                           assetType === 9 ? '🔐' : '📦'}
-                                        </span>
-                                        {tokens.length > 0 && TokenDisplay && (
-                                          <TokenDisplay
-                                            tokens={tokens}
-                                            showName={false}
-                                            showText={false}
-                                            size={18}
-                                            gap={6}
-                                            showChain={true}
-                                          />
-                                        )}
-                                        <span className="truncate" style={{ maxWidth: 200 }}>{label}</span>
-                                        {/* Lending type badge */}
-                                        {lendingType && (
-                                          <span style={{
-                                            fontSize: 10,
-                                            padding: '2px 6px',
-                                            borderRadius: 4,
-                                            fontWeight: 600,
-                                            marginLeft: 'auto',
-                                            background: lendingType === 'borrow' 
-                                              ? 'rgba(239, 68, 68, 0.15)' 
-                                              : 'rgba(34, 197, 94, 0.15)',
-                                            color: lendingType === 'borrow' 
-                                              ? 'rgb(239, 68, 68)' 
-                                              : 'rgb(34, 197, 94)',
-                                          }}>
-                                            {lendingType === 'borrow' ? 'BORROW' : 'SUPPLY'}
-                                          </span>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </td>
-                              <td className="td td-right td-mono tabular-nums text-primary col-current">
-                                {(() => {
-                                  const pctStr = fmtPct(Math.max(0, pctCurrent));
-                                  return (
-                                    <div className="flex flex-column items-end leading-tight">
-                                      <span className="text-base">{pctStr}</span>
-                                      <span className="text-secondary text-sm">
-                                        {fmtUSD(curVal)}
-                                      </span>
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-                              <td className="td td-right td-mono tabular-nums text-primary col-target">
-                                {(() => {
-                                  const pctStr = fmtPct(Math.max(0, pctTarget));
-                                  return (
-                                    <div
-                                      className="flex column align-end"
-                                      style={{ lineHeight: '14px' }}
-                                    >
-                                      <span style={{ fontSize: 12 }}>{pctStr}</span>
-                                      <span className="text-secondary" style={{ fontSize: 11 }}>
-                                        {fmtUSD(targetVal)}
-                                      </span>
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-                              <td className="td td-right td-mono tabular-nums text-primary col-diff">
-                                {(() => {
-                                  const diffPct = pctTarget - pctCurrent;
-                                  const arrow = diffPct > 0 ? '▲' : diffPct < 0 ? '▼' : '•';
-                                  const cls =
-                                    diffPct > 0
-                                      ? 'text-positive'
-                                      : diffPct < 0
-                                        ? 'text-negative'
-                                        : 'text-secondary';
-                                  const pctStr = `${arrow} ${formatPercent(diffPct, { decimals: 2, sign: true })}`;
-                                  const valStr = fmtUSD(diffVal);
-                                  return (
-                                    <div
-                                      className={`flex column align-end`}
-                                      style={{ lineHeight: '14px' }}
-                                    >
-                                      <span className={cls} style={{ fontSize: 12 }}>
-                                        {pctStr}
-                                      </span>
-                                      <span className="text-secondary" style={{ fontSize: 11 }}>
-                                        {valStr}
-                                      </span>
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-                              <td className="td col-note text-secondary">{row.note || '-'}</td>
-                              <td className="td td-right col-actions">
-                                <div className="flex-end gap-6 w-full">
-                                  <IconButton
-                                    label="Edit"
-                                    size={34}
-                                    onClick={() => {
-                                      setEditingId(row.id);
-                                      setShowDialog(true);
-                                      setAssetType(row.assetType);
-                                      // Support both legacy assetId and new assetIds array with {type, id}
-                                      const assets = row.assetIds || [{ type: row.assetType, id: row.assetId }];
-                                      if (assets.length === 1) {
-                                        setAssetId(assets[0].id || assets[0]);
-                                        setAssetIds([]);
-                                      } else {
-                                        setAssetId('');
-                                        setAssetIds(assets);
-                                      }
-                                      setReferenceType(row.referenceType);
-                                      setReferenceValue(row.referenceValue || '');
-                                      setNote(row.note || 0);
-                                    }}
-                                    icon={
-                                      <svg
-                                        width="18"
-                                        height="18"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <path d="M12 20h9" />
-                                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                                      </svg>
-                                    }
-                                  />
-                                  <IconButton
-                                    label="Delete"
-                                    size={34}
-                                    variant="danger"
-                                    onClick={() => removeEntry(row.id)}
-                                    icon={
-                                      <svg
-                                        width="18"
-                                        height="18"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <polyline points="3 6 5 6 21 6" />
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                        <line x1="10" y1="11" x2="10" y2="17" />
-                                        <line x1="14" y1="11" x2="14" y2="17" />
-                                      </svg>
-                                    }
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                  </tbody>
-                </table>
-                </div>
-              </CollapsibleMenu>
-            ));
-          })()
-          )}
+            return Array.from(buckets.entries()).map(([key, { label, referenceType, entries: groupEntries }]) => {
+              // Calculate general totals based on reference type
+              let totalCurrentGeneral = 0;
+              
+              // For TotalWallet reference type, use the entire portfolio value
+              if (referenceType === RebalanceReferenceType.TotalWallet) {
+                totalCurrentGeneral = totalPortfolioCurrent;
+              } else {
+                // For other reference types, detect asset type from first entry
+                const firstEntry = groupEntries[0];
+                const assetType = firstEntry?.assetType;
+                
+                // Calculate total for the specific asset type
+                if (assetType === RebalanceAssetType.Wallet) {
+                  // Just wallet tokens
+                  totalCurrentGeneral = tokensList.reduce((s, o) => s + tokenTotalPrice(o.raw), 0);
+                } else if (assetType === RebalanceAssetType.LiquidityPool) {
+                  // Total Liquidity Pools
+                  totalCurrentGeneral = poolsList.reduce((s, o) => {
+                    const pos = o.raw?.position || o.raw;
+                    const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
+                    if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
+                    const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+                    return s + explicit;
+                  }, 0);
+                } else if (assetType === RebalanceAssetType.LendingAndBorrowing) {
+                  // Total Lending
+                  totalCurrentGeneral = lendingList.reduce((s, o) => {
+                    const pos = o.raw?.position || o.raw;
+                    const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
+                    if (toks.length) return s + toks.reduce((ss, t) => ss + signedTokenValue(t, pos), 0);
+                    const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+                    return s + explicit;
+                  }, 0);
+                } else if (assetType === RebalanceAssetType.Staking) {
+                  // Total Staking
+                  totalCurrentGeneral = stakingList.reduce((s, o) => {
+                    const pos = o.raw?.position || o.raw;
+                    const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+                    if (explicit) return s + explicit;
+                    const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
+                    if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
+                    return s + toNumber(pos?.balance);
+                  }, 0);
+                }
+              }
+              
+              // Target is sum of notes in this bucket
+              const totalTargetGeneral = bucketNoteSums?.[key] || 0;
+              
+              return (
+                <StrategyGroupCard
+                  key={key}
+                  label={label}
+                  entries={groupEntries}
+                  onEdit={(row) => {
+                    setEditingId(row.id);
+                    setShowDialog(true);
+                    setAssetType(row.assetType);
+                    const assets = row.assetIds || [{ type: row.assetType, id: row.assetId }];
+                    if (assets.length === 1) {
+                      setAssetId(assets[0].id || assets[0]);
+                      setAssetIds([]);
+                    } else {
+                      setAssetId('');
+                      setAssetIds(assets);
+                    }
+                    setReferenceType(row.referenceType);
+                    setReferenceValue(row.referenceValue || '');
+                    setNote(row.note || 0);
+                  }}
+                  onDelete={removeEntry}
+                  entryCurrentValues={entryCurrentValues}
+                  bucketCurrentSums={bucketCurrentSums}
+                  bucketNoteSums={bucketNoteSums}
+                  bucketKey={bucketKey}
+                  tokensList={tokensList}
+                  poolsList={poolsList}
+                  lendingList={lendingList}
+                  stakingList={stakingList}
+                  totalCurrentGeneral={totalCurrentGeneral}
+                  totalTargetGeneral={totalTargetGeneral}
+                />
+              );
+            });
+          })()}
         </div>
       )}
-      {/* Manual save bar with Save button */}
-      <div className="save-bar mt-20" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minHeight: '32px' }}>
-          {entries.length === 0 && <span>Adicione items para iniciar configuração.</span>}
-          {saving && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--mw-text-secondary, var(--app-text-secondary))' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
-                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-              </svg>
-              <span style={{ fontSize: '13px', fontWeight: 500 }}>Saving changes...</span>
-            </div>
-          )}
-          {!saving && saveResult && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--mw-success-text, #10b981)' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <span style={{ fontSize: '13px', fontWeight: 500 }}>Saved successfully</span>
-              {saveResult.savedAt && (
-                <span style={{ fontSize: '12px', opacity: 0.7, marginLeft: '4px' }}>
-                  • {saveResult.savedAt.toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-          )}
-          {saveError && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--mw-danger-text, #ef4444)' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
-              <span style={{ fontSize: '13px', fontWeight: 500 }}>Failed to save: {saveError}</span>
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {entries.length > 0 && (
-            <button
-              type="button"
-              onClick={() => saveRebalance()}
-              disabled={saving}
-              className="btn btn--primary"
-              style={{ fontSize: '14px', padding: '6px 16px', minWidth: '80px' }}
-            >
-              {saving ? (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                  Saving
-                </span>
-              ) : (
-                'Save'
-              )}
-            </button>
-          )}
-        </div>
-      </div>
+
+
+      {/* FAQ Section */}
+      <FAQSection
+        title="FAQS"
+        subtitle="Here you can find all the frequently asked questions about Strategies!"
+        faqs={[
+          {
+            question: "What are Strategies in DeFi10?",
+            answer: "Strategies allow you to define target allocations for your crypto assets across different protocols and asset types. Set percentage targets for each position and track how your current holdings compare to your desired portfolio allocation."
+          },
+          {
+            question: "How do I create a new strategy?",
+            answer: "Click the 'Add' button at the top right of the Strategies page. Select the asset type (Wallet, Liquidity Pool, Lending, or Staking), choose specific assets, set a reference (like Portfolio % or Fixed Value), and define your target allocation using the 'Note' field as a percentage or value."
+          },
+          {
+            question: "What do the Current, Target, and Diff columns mean?",
+            answer: "'Current' shows your actual holdings and their percentage of the total. 'Target' displays your desired allocation as defined in your strategy. 'Diff' shows the difference between your current and target allocation, helping you identify which assets to buy or sell to reach your goals."
+          },
+          {
+            question: "Can I group multiple assets in one strategy?",
+            answer: "Yes! Each strategy entry supports multiple assets. The first asset always appears, and if there are more, you'll see a 'Show N more' button to expand and view all assets in that strategy entry."
+          },
+          {
+            question: "What are the different reference types?",
+            answer: "Reference types let you organize strategies by different contexts: Portfolio % allocates based on total portfolio value, Wallet groups assets by specific wallet addresses, and other options include Token, LP Pool, Lending Position, and Staking Position for more granular strategy management."
+          },
+          {
+            question: "How is the percentage calculated?",
+            answer: "Percentages are calculated within each reference group. For example, if you have two tokens in a 'Portfolio %' group with notes of 60 and 40, they represent 60% and 40% of that group's total value. The system automatically calculates the dollar values based on current prices."
+          },
+          {
+            question: "Can I edit or delete strategy entries?",
+            answer: "Absolutely! Each strategy card has Edit and Delete buttons at the bottom. Click Edit to modify the asset selection, reference type, or target allocation. Click Delete to remove the strategy entry entirely. Changes are saved automatically."
+          },
+          {
+            question: "Are strategies saved automatically?",
+            answer: "Yes, all strategy changes are automatically saved when you add, edit, or delete entries. You'll see a 'Saving changes...' indicator at the bottom of the page, followed by 'Saved successfully' with a timestamp when the operation completes."
+          }
+        ]}
+        style={{
+          marginTop: 60,
+          padding: '40px 16px',
+        }}
+      />
     </div>
   );
 }
@@ -1949,9 +1618,19 @@ function AssetDropdown({
               let lendingType = null;
               if (assetType === RebalanceAssetType.LendingAndBorrowing) {
                 const pos = opt.raw?.position || opt.raw;
+                
                 if (Array.isArray(pos?.tokens) && pos.tokens.length > 0) {
-                  const firstToken = pos.tokens[0];
-                  if (firstToken?.type === 'borrowed' || firstToken?.type === 'borrow' || firstToken?.type === 'debt') {
+                  // Check position label first (case-insensitive)
+                  const positionLabel = (pos.label || pos.key || '').toLowerCase();
+                  const isBorrowPosition = positionLabel.includes('borrow') || positionLabel.includes('debt');
+                  
+                  // Check if ANY token is borrowed (case-insensitive)
+                  const hasBorrowedToken = pos.tokens.some(t => {
+                    const tokenType = (t?.type || '').toLowerCase();
+                    return tokenType === 'borrowed' || tokenType === 'borrow' || tokenType === 'debt';
+                  });
+                  
+                  if (isBorrowPosition || hasBorrowedToken) {
                     lendingType = 'borrow';
                   } else {
                     lendingType = 'supply';

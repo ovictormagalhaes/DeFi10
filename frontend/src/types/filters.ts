@@ -4,44 +4,54 @@
  */
 
 import type { WalletItem } from './wallet';
+import { WalletItemType } from '../constants/walletItemTypes';
 
 /**
  * Filter WalletItems to get only liquidity positions
  */
 export function getLiquidityPoolItems(items: WalletItem[]): WalletItem[] {
-  return items.filter((item) => item.type === 'LiquidityPool');
+  return items.filter((item) => item.type === WalletItemType.LIQUIDITY_POOL);
 }
 
 /**
  * Filter WalletItems to get only lending/borrowing positions
  */
 export function getLendingItems(items: WalletItem[]): WalletItem[] {
-  return items.filter((item) => item.type === 'LendingAndBorrowing');
+  return items.filter((item) => item.type === WalletItemType.LENDING_AND_BORROWING);
 }
 
 /**
  * Filter WalletItems to get only staking positions
  */
 export function getStakingItems(items: WalletItem[]): WalletItem[] {
-  return items.filter((item) => item.type === 'Staking');
+  return items.filter((item) => item.type === WalletItemType.STAKING);
 }
 
 /**
  * Filter WalletItems to get only locking positions (vePENDLE, etc.)
  */
 export function getLockingItems(items: WalletItem[]): WalletItem[] {
-  return items.filter((item) => item.type === 'Locking');
+  console.log('[getLockingItems] Filtering items:', items.length);
+  const lockingItems = items.filter((item) => {
+    const isLocking = item.type === WalletItemType.LOCKING;
+    if (isLocking) {
+      console.log('[getLockingItems] Found locking item:', item);
+    }
+    return isLocking;
+  });
+  console.log('[getLockingItems] Filtered locking items:', lockingItems.length);
+  return lockingItems;
 }
 
 export function getDepositingItems(items: WalletItem[]): WalletItem[] {
-  return items.filter((item) => item.type === 'Depositing');
+  return items.filter((item) => item.type === WalletItemType.DEPOSITING);
 }
 
 /**
  * Filtra WalletItems para obter apenas tokens de carteira
  */
 export function getWalletTokenItems(items: WalletItem[]): WalletItem[] {
-  return items.filter((item) => item.type === 'Wallet');
+  return items.filter((item) => item.type === WalletItemType.WALLET);
 }
 
 /**

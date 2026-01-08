@@ -99,6 +99,21 @@ public class TokenFactoryTests
 
     #endregion
 
+    #region CreateCollectedFee Tests
+
+    [Fact]
+    public void CreateCollectedFee_WithValidInputs_CreatesCorrectToken()
+    {
+        var token = _sut.CreateCollectedFee("Collected Fee", "CFE", "0x789", ChainEnum.Base, 18, 100m, 2m);
+        
+        Assert.Equal(TokenType.LiquidityCollectedFee, token.Type);
+        Assert.Equal("Collected Fee", token.Name);
+        Assert.Equal("CFE", token.Symbol);
+        Assert.Equal(200m, token.Financials!.TotalPrice); // 100 * 2
+    }
+
+    #endregion
+
     #region CreateStaked Tests
 
     [Fact]

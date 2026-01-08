@@ -72,7 +72,10 @@ namespace DeFi10.API.Tests
             // ARRANGE
             var logger = new TestLogger<RaydiumOnChainService>(_output);
             var httpClient = new HttpClient();
-            var service = new RaydiumOnChainService(_rpcFactory, logger, httpClient);
+            var apiLogger = new TestLogger<RaydiumApiService>(_output);
+            var apiHttpClient = new HttpClient { BaseAddress = new Uri("https://api-v3.raydium.io") };
+            var apiService = new RaydiumApiService(apiHttpClient, apiLogger);
+            var service = new RaydiumOnChainService(_rpcFactory, logger, httpClient, apiService);
 
             const string SOL_MINT = "So11111111111111111111111111111111111111112";
             const string USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -90,6 +93,8 @@ namespace DeFi10.API.Tests
                 
                 _output.WriteLine($"\n=== POSITION TOKENS ===");
                 _output.WriteLine($"Total tokens in position: {position.Tokens.Count}");
+                _output.WriteLine($"Pool Tier: {position.TierPercent?.ToString("0.####") ?? "N/A"}%");
+                _output.WriteLine($"Pool ID: {position.Pool}");
                 
                 foreach (var token in position.Tokens)
                 {
@@ -104,17 +109,47 @@ namespace DeFi10.API.Tests
                     _output.WriteLine($"  Decimals: {token.Decimals}");
                 }
 
-                // Find uncollected fee tokens
+                // Find fee tokens by type
                 var uncollectedFees = position.Tokens
                     .Where(t => t.Type == DeFi10.API.Models.TokenType.LiquidityUncollectedFee)
                     .ToList();
+                    
+                var collectedFees = position.Tokens
+                    .Where(t => t.Type == DeFi10.API.Models.TokenType.LiquidityCollectedFee)
+                    .ToList();
 
-                _output.WriteLine($"\n=== UNCOLLECTED FEES ===");
+                _output.WriteLine($"\n=== COLLECTED FEES (FeesOwed) ===");
+                _output.WriteLine($"Found {collectedFees.Count} collected fee token(s)");
+                _output.WriteLine("NOTE: Collected fees are fees that were collected by the protocol");
+                _output.WriteLine("      but not yet withdrawn by the user. They are stored in the");
+                _output.WriteLine("      position's FeesOwedTokenA/FeesOwedTokenB fields.");
+                
+                if (collectedFees.Count > 0)
+                {
+                    _output.WriteLine("\n✓ Position has collected fees awaiting withdrawal:");
+                    foreach (var fee in collectedFees)
+                    {
+                        var formattedAmount = fee.Decimals > 0 
+                            ? fee.Amount / (decimal)Math.Pow(10, fee.Decimals) 
+                            : fee.Amount;
+                        var tokenSymbol = fee.Mint == SOL_MINT ? "SOL" : fee.Mint == USDC_MINT ? "USDC" : "???";
+                        _output.WriteLine($"  {tokenSymbol}: {formattedAmount:N9}");
+                    }
+                }
+                else
+                {
+                    _output.WriteLine("\n✓ No collected fees - user has withdrawn all fees or none were collected yet.");
+                }
+
+                _output.WriteLine($"\n=== UNCOLLECTED FEES (Real-time calculation) ===");
                 _output.WriteLine($"Found {uncollectedFees.Count} uncollected fee token(s)");
+                _output.WriteLine("NOTE: Uncollected fees are fees that have been earned by the position");
+                _output.WriteLine("      but not yet collected by the protocol. They are calculated in");
+                _output.WriteLine("      real-time based on the pool state and position parameters.");
 
                 if (uncollectedFees.Count > 0)
                 {
-                    _output.WriteLine("\n? Successfully calculated real-time uncollected fees:");
+                    _output.WriteLine("\n✓ Successfully calculated real-time uncollected fees:");
                     foreach (var fee in uncollectedFees)
                     {
                         var formattedAmount = fee.Decimals > 0 
@@ -126,18 +161,137 @@ namespace DeFi10.API.Tests
                 }
                 else
                 {
-                    _output.WriteLine("\n? Position found but no uncollected fees at this time.");
+                    _output.WriteLine("\n✓ Position found but no uncollected fees at this time.");
                     _output.WriteLine("  This is normal if fees were recently collected or position is out of range.");
                 }
+                
+                // Summary of fees
+                _output.WriteLine($"\n=== FEE SUMMARY ===");
+                _output.WriteLine($"Total fees awaiting withdrawal: {collectedFees.Count} token type(s)");
+                _output.WriteLine($"Real-time uncollected fees: {uncollectedFees.Count} token type(s)");
+                _output.WriteLine($"\nTo collect uncollected fees, the user must call the 'collect' function");
+                _output.WriteLine($"on the Raydium protocol, which will move them to FeesOwed (collected).");
+                _output.WriteLine($"Then they can withdraw the collected fees from FeesOwed.");
             }
             else
             {
-                _output.WriteLine("\n? No positions found for this wallet.");
+                _output.WriteLine("\n✓ No positions found for this wallet.");
                 _output.WriteLine("  This may be expected depending on the test wallet used.");
+            }
+
+            // Verify that TierPercent is populated if positions exist
+            if (positions.Count > 0)
+            {
+                var position = positions.First();
+                Assert.NotNull(position.TierPercent);
+                Assert.True(position.TierPercent >= 0, "TierPercent should be non-negative");
+                _output.WriteLine($"\n? TierPercent validation passed: {position.TierPercent:0.####}%");
+                
+                // Verify that CreatedAt is populated
+                if (position.CreatedAt.HasValue)
+                {
+                    var createdDate = DateTimeOffset.FromUnixTimeSeconds(position.CreatedAt.Value).DateTime;
+                    _output.WriteLine($"? CreatedAt validation passed: {position.CreatedAt.Value} ({createdDate:yyyy-MM-dd HH:mm:ss} UTC)");
+                }
+                else
+                {
+                    _output.WriteLine("⚠️ Warning: CreatedAt is null (may not be available for this position)");
+                }
             }
 
             // Test passes - we successfully demonstrated the implementation works
             Assert.True(true, "Test completed - implementation verified");
+        }
+
+        [Fact]
+        public async Task Should_Show_Position_Raw_Data_For_Debugging()
+        {
+            // This test shows the raw position data to help debug collected fees issues
+            
+            // ARRANGE
+            var logger = new TestLogger<RaydiumOnChainService>(_output);
+            var httpClient = new HttpClient();
+            var apiLogger = new TestLogger<RaydiumApiService>(_output);
+            var apiHttpClient = new HttpClient { BaseAddress = new Uri("https://api-v3.raydium.io") };
+            var apiService = new RaydiumApiService(apiHttpClient, apiLogger);
+            var service = new RaydiumOnChainService(_rpcFactory, logger, httpClient, apiService);
+
+            // ACT
+            var positions = await service.GetPositionsAsync(_testWalletAddress);
+
+            // ASSERT & DISPLAY
+            _output.WriteLine($"\n=== RAW POSITION DATA DEBUG ===");
+            _output.WriteLine($"Wallet: {_testWalletAddress}");
+            _output.WriteLine($"Found {positions.Count} position(s)\n");
+            
+            if (positions.Count > 0)
+            {
+                var position = positions.First();
+                
+                _output.WriteLine($"Pool ID: {position.Pool}");
+                _output.WriteLine($"Position PDA: (derived from NFT)");
+                _output.WriteLine($"NFT Mint: {_positionNftMint}");
+                _output.WriteLine($"\n=== TOKEN BREAKDOWN ===");
+                
+                var supplied = position.Tokens.Where(t => t.Type == DeFi10.API.Models.TokenType.Supplied).ToList();
+                var collected = position.Tokens.Where(t => t.Type == DeFi10.API.Models.TokenType.LiquidityCollectedFee).ToList();
+                var uncollected = position.Tokens.Where(t => t.Type == DeFi10.API.Models.TokenType.LiquidityUncollectedFee).ToList();
+                var rewards = position.Tokens.Where(t => 
+                    t.Type != DeFi10.API.Models.TokenType.Supplied && 
+                    t.Type != DeFi10.API.Models.TokenType.LiquidityCollectedFee && 
+                    t.Type != DeFi10.API.Models.TokenType.LiquidityUncollectedFee).ToList();
+                
+                _output.WriteLine($"\nSupplied (Liquidity): {supplied.Count} tokens");
+                foreach (var token in supplied)
+                {
+                    var formatted = token.Decimals > 0 ? token.Amount / (decimal)Math.Pow(10, token.Decimals) : token.Amount;
+                    _output.WriteLine($"  • {token.Mint}: {formatted:N9} (raw: {token.Amount})");
+                }
+                
+                _output.WriteLine($"\n🔴 COLLECTED FEES (FeesOwed): {collected.Count} tokens");
+                _output.WriteLine($"   ⮕ These come directly from position.FeesOwedTokenA/B fields");
+                if (collected.Count == 0)
+                {
+                    _output.WriteLine($"   ⮕ ZERO - Either never collected, or already withdrawn!");
+                }
+                else
+                {
+                    foreach (var token in collected)
+                    {
+                        var formatted = token.Decimals > 0 ? token.Amount / (decimal)Math.Pow(10, token.Decimals) : token.Amount;
+                        _output.WriteLine($"  • {token.Mint}: {formatted:N9} (raw: {token.Amount})");
+                    }
+                }
+                
+                _output.WriteLine($"\n🟢 UNCOLLECTED FEES (Calculated): {uncollected.Count} tokens");
+                _output.WriteLine($"   ⮕ These are calculated in real-time from pool state");
+                foreach (var token in uncollected)
+                {
+                    var formatted = token.Decimals > 0 ? token.Amount / (decimal)Math.Pow(10, token.Decimals) : token.Amount;
+                    _output.WriteLine($"  • {token.Mint}: {formatted:N9} (raw: {token.Amount})");
+                }
+                
+                if (rewards.Count > 0)
+                {
+                    _output.WriteLine($"\n🎁 REWARDS: {rewards.Count} tokens");
+                    foreach (var token in rewards)
+                    {
+                        var formatted = token.Decimals > 0 ? token.Amount / (decimal)Math.Pow(10, token.Decimals) : token.Amount;
+                        _output.WriteLine($"  • {token.Mint}: {formatted:N9} (raw: {token.Amount})");
+                    }
+                }
+                
+                _output.WriteLine($"\n=== EXPLANATION ===");
+                _output.WriteLine($"If FeesOwed is ZERO but you're sure you collected fees:");
+                _output.WriteLine($"  1. Check if you withdrew them after collecting (most likely)");
+                _output.WriteLine($"  2. Verify this is the correct position/NFT mint");
+                _output.WriteLine($"  3. Check transaction history on Solscan for this position");
+                _output.WriteLine($"\nUncollected fees will ALWAYS show the real-time fees earned");
+                _output.WriteLine($"since the last time you called 'collect' on the protocol.");
+                _output.WriteLine($"\nTOTAL FEES IN POSITION = Collected (FeesOwed) + Uncollected");
+            }
+            
+            Assert.True(true, "Debug test completed");
         }
 
         // Helper classes

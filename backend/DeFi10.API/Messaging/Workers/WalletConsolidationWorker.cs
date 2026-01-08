@@ -304,6 +304,10 @@ public class WalletConsolidationWorker : BaseConsumer
                 }
             }
 
+            // Always recalculate projections after price hydration (regardless of filled count)
+            var projectionCalculator = scope.ServiceProvider.GetRequiredService<IProjectionCalculator>();
+            await RecalculateAllProjectionsAsync(wallet, projectionCalculator, jobId);
+            
             if (filled > 0)
             {
                 _logger.LogInformation("[Consolidation] Price hydration filled {Filled} prices for jobId={JobId}", filled, jobId);
@@ -313,6 +317,175 @@ public class WalletConsolidationWorker : BaseConsumer
         {
             _logger.LogError(ex, "[Consolidation] Failed price hydration for jobId={JobId}", jobId);
         }
+    }
+
+    private async Task RecalculateAllProjectionsAsync(ConsolidatedWallet wallet, IProjectionCalculator projectionCalculator, Guid jobId)
+    {
+        int recalculated = 0;
+        
+        foreach (var item in wallet.Items)
+        {
+            try
+            {
+                switch (item.Type)
+                {
+                    case WalletItemType.LiquidityPool:
+                        recalculated += RecalculateLiquidityPoolProjection(item, projectionCalculator);
+                        break;
+                    
+                    case WalletItemType.LendingAndBorrowing:
+                        recalculated += RecalculateLendingProjection(item, projectionCalculator);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Consolidation] Failed to recalculate projection for item type={Type}", item.Type);
+            }
+        }
+        
+        if (recalculated > 0)
+        {
+            _logger.LogInformation("[Consolidation] Recalculated projections for {Count} items in job {JobId}", recalculated, jobId);
+        }
+        
+        await Task.CompletedTask;
+    }
+
+    private int RecalculateLiquidityPoolProjection(WalletItem item, IProjectionCalculator projectionCalculator)
+    {
+        if (item.Position?.Tokens == null || item.AdditionalData == null) 
+            return 0;
+        
+        // Calculate total value from Supplied tokens only (not fees)
+        var totalValueUsd = item.Position.Tokens
+            .Where(t => t.Type == TokenType.Supplied && t.Financials != null)
+            .Sum(t => t.Financials?.TotalPrice ?? 0m);
+        
+        if (totalValueUsd <= 0) 
+            return 0;
+        
+        var apr = item.AdditionalData.Apr ?? 0m;
+        
+        item.AdditionalData.TotalValueUsd = totalValueUsd;
+
+        // Rebuild all projections
+        var projections = new List<ProjectionData>();
+
+        // 1. APR-based projection
+        if (apr > 0)
+        {
+            var aprProjection = projectionCalculator.CalculateAprProjection(totalValueUsd, apr);
+            if (aprProjection != null)
+            {
+                projections.Add(projectionCalculator.CreateProjectionData(
+                    ProjectionType.Apr,
+                    aprProjection,
+                    new ProjectionMetadata { Apr = apr }
+                ));
+            }
+        }
+
+        // 2. AprHistorical-based projection
+        if (item.AdditionalData.CreatedAt.HasValue && item.AdditionalData.CreatedAt.Value > 0 && totalValueUsd > 0)
+        {
+            var totalFees = item.Position.Tokens
+                .Where(t => t.Type == TokenType.LiquidityCollectedFee || 
+                            t.Type == TokenType.LiquidityUncollectedFee)
+                .Where(t => t.Financials != null)
+                .Sum(t => t.Financials?.TotalPrice ?? 0m);
+
+            if (totalFees > 0)
+            {
+                var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var (aprHistoricalProjection, aprHistorical) = projectionCalculator.CalculateAprHistoricalProjection(
+                    totalFees,
+                    totalValueUsd,
+                    item.AdditionalData.CreatedAt.Value,
+                    now
+                );
+
+                if (aprHistoricalProjection != null && aprHistorical.HasValue)
+                {
+                    // Update the AdditionalData field
+                    item.AdditionalData.AprHistorical = aprHistorical.Value;
+                    
+                    var daysActive = (DateTimeOffset.UtcNow - 
+                        DateTimeOffset.FromUnixTimeSeconds(item.AdditionalData.CreatedAt.Value)).TotalDays;
+
+                    projections.Add(projectionCalculator.CreateProjectionData(
+                        ProjectionType.AprHistorical,
+                        aprHistoricalProjection,
+                        new ProjectionMetadata
+                        {
+                            AprHistorical = aprHistorical.Value,
+                            CreatedAt = item.AdditionalData.CreatedAt.Value,
+                            TotalFeesGenerated = totalFees,
+                            DaysActive = (decimal)daysActive
+                        }
+                    ));
+                }
+            }
+        }
+
+        // 3. Fees24h-based projection
+        if (item.AdditionalData.Fees24h.HasValue && item.AdditionalData.Fees24h.Value > 0)
+        {
+            var fees24hProjection = projectionCalculator.CalculateFees24hProjection((decimal)item.AdditionalData.Fees24h.Value);
+            if (fees24hProjection != null)
+            {
+                projections.Add(projectionCalculator.CreateProjectionData(
+                    ProjectionType.Fees24h,
+                    fees24hProjection,
+                    new ProjectionMetadata { Fees24h = item.AdditionalData.Fees24h.Value }
+                ));
+            }
+        }
+
+        item.AdditionalData.Projections = projections.Any() ? projections : null;
+        
+        _logger.LogDebug("[Consolidation] LiquidityPool projection: poolId={PoolId}, totalValue={Total:F2} USD, apr={Apr:F2}%, projections={Count}",
+            item.AdditionalData.PoolId, totalValueUsd, apr, projections.Count);
+        
+        return 1;
+    }
+
+    private int RecalculateLendingProjection(WalletItem item, IProjectionCalculator projectionCalculator)
+    {
+        if (item.Position?.Tokens == null || item.AdditionalData == null) 
+            return 0;
+        
+        // For lending positions, sum all token values
+        var totalValueUsd = item.Position.Tokens
+            .Where(t => t.Financials != null)
+            .Sum(t => t.Financials.TotalPrice);
+        
+        if (totalValueUsd <= 0) 
+            return 0;
+        
+        var apy = item.AdditionalData.Apy ?? 0m;
+
+        // For lending, we typically only have APY-based projections
+        var apyProjection = projectionCalculator.CalculateApyProjection(totalValueUsd, apy);
+        
+        if (apyProjection != null)
+        {
+            var projections = new List<ProjectionData>
+            {
+                projectionCalculator.CreateProjectionData(
+                    ProjectionType.Apy,
+                    apyProjection,
+                    new ProjectionMetadata { Apy = apy }
+                )
+            };
+
+            item.AdditionalData.Projections = projections;
+        }
+        
+        _logger.LogDebug("[Consolidation] Lending projection: type={Type}, protocol={Protocol}, totalValue={Total:F2} USD, apy={Apy:F2}%",
+            item.Type, item.Protocol?.Name, totalValueUsd, apy);
+        
+        return 1;
     }
 
     private async Task FinalizeJobAsync(Guid jobId, string metaKey, WalletConsolidationRequested request, CancellationToken ct)
@@ -357,7 +530,7 @@ public class WalletConsolidationWorker : BaseConsumer
         
         await _publisher.PublishAsync("aggregation.completed", completedEvent, ct);
         
-        var doneKey = $"wallet:agg:{jobId}:done";
+        var doneKey = RedisKeys.Done(jobId);
         await db.StringSetAsync(doneKey, "1", _walletCacheTtl);
 
         _logger.LogInformation("[Consolidation] Published completion event for jobId={JobId}, status={Status}", jobId, aggStatus);

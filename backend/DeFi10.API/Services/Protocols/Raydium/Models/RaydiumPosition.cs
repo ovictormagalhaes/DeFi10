@@ -34,4 +34,7 @@ public sealed class RaydiumPosition
     
     [JsonPropertyName("createdAt")]
     public long? CreatedAt { get; set; }
+    
+    [JsonPropertyName("tierPercent")]
+    public decimal? TierPercent { get; set; }
 }

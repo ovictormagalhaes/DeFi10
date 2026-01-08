@@ -12,7 +12,7 @@ import RebalancingView from './components/RebalancingView'; // will render under
 import SectionTable from './components/SectionTable';
 import SummaryView from './components/SummaryView';
 import ViewModeSelector from './components/ViewModeSelector';
-import { LendingCards, LockingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
+import { LendingGroupedView, LockingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
 import { WalletSectionHeader, LendingSectionHeader, PoolsSectionHeader, LockingSectionHeader } from './components/cards/SectionHeaders';
 import { LendingSubSectionHeader, LiquiditySubSectionHeader } from './components/cards/SubSectionHeaders';
 import { WalletTokensTable } from './components/tables';
@@ -431,7 +431,8 @@ function App() {
       // API error (network, start failed, polling timeout)
       const errorMessage = aggError.message || String(aggError);
       setAggregationError(errorMessage);
-    } else if (aggCompleted && aggExpired) {
+    } else if (aggExpired) {
+      // Só exibe erro se job realmente expirou (404), não apenas status TimedOut
       setAggregationError('Aggregation timed out. Please try again.');
     } else if (aggCompleted && aggFailed && aggFailed > 0 && aggSucceeded === 0) {
       setAggregationError('Failed to load data from all sources.');
@@ -590,16 +591,24 @@ function App() {
   };
 
   const getLockingData = () => {
-    if (!walletData) return [];
+    if (!walletData) {
+      console.log('[getLockingData] No walletData');
+      return [];
+    }
 
     if (walletData.items && Array.isArray(walletData.items)) {
-      return getLockingItems(walletData.items);
+      console.log('[getLockingData] Processing walletData.items:', walletData.items.length);
+      const lockingItems = getLockingItems(walletData.items);
+      console.log('[getLockingData] Returning locking items:', lockingItems);
+      return lockingItems;
     }
 
     if (walletData.data && Array.isArray(walletData.data)) {
+      console.log('[getLockingData] Processing walletData.data:', walletData.data.length);
       return getLockingItems(walletData.data);
     }
 
+    console.log('[getLockingData] No items or data found');
     return [];
   };
 
@@ -623,11 +632,13 @@ function App() {
     const liquidityGroups = groupDefiByProtocol(getLiquidityPoolsData());
     const lendingGroups = groupDefiByProtocol(getLendingAndBorrowingData());
     const stakingPositions = getStakingData();
+    const lockingGroups = groupDefiByProtocol(getLockingData());
     const breakdown = computePortfolioBreakdown({
       walletTokens,
       liquidityGroups,
       lendingGroups,
       stakingPositions,
+      lockingGroups,
       filterLendingDefiTokens,
       filterStakingDefiTokens,
       showLendingDefiTokens,
@@ -1219,6 +1230,7 @@ function App() {
             error={aggregationError}
             onRetry={() => {
               setAggregationError(null);
+              resetAgg(); // Reset aggregation state including attempt counter
               setRefreshNonce((n) => n + 1);
             }}
             onGoBack={() => {
@@ -1580,6 +1592,7 @@ function App() {
                         getLiquidityPoolsData={getLiquidityPoolsData}
                         getLendingAndBorrowingData={getLendingAndBorrowingData}
                         getStakingData={getStakingData}
+                        getLockingData={getLockingData}
                         getTotalPortfolioValue={getTotalPortfolioValue}
                         getPortfolioBreakdown={getPortfolioBreakdown}
                         maskValue={maskValue}
@@ -1884,8 +1897,8 @@ function App() {
                               return filtered.length > 0 && (
                                 <div>
                                   <LendingSectionHeader data={filtered} />
-                                  <LendingSubSectionHeader data={filtered} />
-                                  <LendingCards data={filtered} />
+                                  <LendingSubSectionHeader data={filtered} groupByProtocol={true} />
+                                  <LendingGroupedView data={filtered} />
                                 </div>
                               );
                             })()}

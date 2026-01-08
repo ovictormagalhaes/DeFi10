@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DeFi10.API.Aggregation;
 using DeFi10.API.Configuration;
 using DeFi10.API.Messaging.Contracts.Enums;
 using DeFi10.API.Messaging.Contracts.Progress;
@@ -113,10 +114,10 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
                     _logger.LogWarning("Job exceeds timeout: {JobId} account={Account} age={Age}s expected={Expected} succeeded={Succeeded} failed={Failed}", 
                         jobId, account, (int)age.TotalSeconds, expectedTotal, succeeded, failed);
 
-                    var pendingKey = $"wallet:agg:{jobId}:pending";
+                    var pendingKey = RedisKeys.Pending(jobId);
                     var pendingCount = (int)await db.SetLengthAsync(pendingKey);
 
-                    var finalCheck = await db.HashGetAsync(key, "final_emitted");
+                    var finalCheck = await db.HashGetAsync(key, RedisKeys.MetaFields.FinalEmitted);
                     if (finalCheck == "1") 
                     {
                         _logger.LogDebug("Job {JobId} was finalized by another process, skipping timeout", jobId);
@@ -126,9 +127,9 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
                     var tran = db.CreateTransaction();
                     if (pendingCount > 0)
                     {
-                        tran.HashIncrementAsync(key, "timed_out", pendingCount);
+                        tran.HashIncrementAsync(key, RedisKeys.MetaFields.TimedOut, pendingCount);
                     }
-                    tran.HashSetAsync(key, "status", AggregationStatus.TimedOut.ToString());
+                    tran.HashSetAsync(key, RedisKeys.MetaFields.Status, AggregationStatus.TimedOut.ToString());
                     var exec = await tran.ExecuteAsync();
                     if (!exec)
                     {
@@ -136,10 +137,10 @@ public class AggregationTimeoutMonitorWorker : BackgroundService
                         continue;
                     }
 
-                    int succeededCount = (int)(long)(await db.HashGetAsync(key, "succeeded"));
-                    int failedCount = (int)(long)(await db.HashGetAsync(key, "failed"));
-                    int timedOutCount = (int)(long)(await db.HashGetAsync(key, "timed_out"));
-                    int expectedCount = (int)(long)(await db.HashGetAsync(key, "expected_total"));
+                    int succeededCount = (int)(long)(await db.HashGetAsync(key, RedisKeys.MetaFields.Succeeded));
+                    int failedCount = (int)(long)(await db.HashGetAsync(key, RedisKeys.MetaFields.Failed));
+                    int timedOutCount = (int)(long)(await db.HashGetAsync(key, RedisKeys.MetaFields.TimedOut));
+                    int expectedCount = (int)(long)(await db.HashGetAsync(key, RedisKeys.MetaFields.ExpectedTotal));
 
                     var evt = new WalletAggregationCompleted(
                         JobId: jobId,

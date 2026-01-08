@@ -152,7 +152,7 @@ const WalletCards = ({ data = [] }) => {
 
             {/* Metrics */}
             <div style={{ flex: 1 }}>
-              {/* Price */}
+              {/* Value */}
               <div style={{ 
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -163,14 +163,14 @@ const WalletCards = ({ data = [] }) => {
                   fontSize: 13,
                   color: theme.textSecondary,
                 }}>
-                  Price
+                  Value
                 </span>
                 <span style={{ 
                   fontSize: 14,
-                  fontWeight: 700,
+                  fontWeight: 600,
                   color: theme.textPrimary,
                 }}>
-                  {maskValue(formatPrice(price))}
+                  {maskValue(formatPrice(totalValue))}
                 </span>
               </div>
 
@@ -189,7 +189,7 @@ const WalletCards = ({ data = [] }) => {
                 </span>
                 <span style={{ 
                   fontSize: 14,
-                  fontWeight: 700,
+                  fontWeight: 600,
                   color: theme.textPrimary,
                 }}>
                   {maskValue(
@@ -201,7 +201,7 @@ const WalletCards = ({ data = [] }) => {
                 </span>
               </div>
 
-              {/* Value */}
+              {/* Price */}
               <div style={{ 
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -211,14 +211,14 @@ const WalletCards = ({ data = [] }) => {
                   fontSize: 13,
                   color: theme.textSecondary,
                 }}>
-                  Value
+                  Price
                 </span>
                 <span style={{ 
-                  fontSize: 16,
-                  fontWeight: 700,
+                  fontSize: 14,
+                  fontWeight: 600,
                   color: theme.textPrimary,
                 }}>
-                  {maskValue(formatPrice(totalValue))}
+                  {maskValue(formatPrice(price))}
                 </span>
               </div>
             </div>

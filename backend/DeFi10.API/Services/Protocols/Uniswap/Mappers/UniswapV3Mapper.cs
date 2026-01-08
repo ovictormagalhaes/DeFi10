@@ -19,6 +19,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
     private readonly ITokenMetadataService _metadataService;
+    private readonly IProjectionCalculator _projectionCalculator;
 
     public UniswapV3Mapper(
         IUniswapV3OnChainService uniswapV3OnChainService, 
@@ -26,7 +27,8 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
         ITokenFactory tokenFactory, 
         IProtocolConfigurationService protocolConfig, 
         IChainConfigurationService chainConfig,
-        ITokenMetadataService metadataService)
+        ITokenMetadataService metadataService,
+        IProjectionCalculator projectionCalculator)
     { 
         _uniswapV3OnChainService = uniswapV3OnChainService; 
         _logger = logger; 
@@ -34,6 +36,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
         _protocolConfig = protocolConfig; 
         _chainConfig = chainConfig; 
         _metadataService = metadataService;
+        _projectionCalculator = projectionCalculator;
     }
 
     public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
@@ -83,6 +86,10 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             var currentSupplyToken1 = depositedToken1 - withdrawnToken1;
             var feesToken0 = TryParseInvariant(position.EstimatedUncollectedToken0) ?? 0m;
             var feesToken1 = TryParseInvariant(position.EstimatedUncollectedToken1) ?? 0m;
+            
+            _logger.LogDebug("[Mapper] Position {PositionId} - EstimatedUncollectedToken0={U0} (raw: {R0}), EstimatedUncollectedToken1={U1} (raw: {R1})",
+                position.Id, position.EstimatedUncollectedToken0, position.RawTokensOwed0, position.EstimatedUncollectedToken1, position.RawTokensOwed1);
+            
             currentSupplyToken0 = ValidateTokenAmount(currentSupplyToken0, position.Id, "currentSupplyToken0");
             currentSupplyToken1 = ValidateTokenAmount(currentSupplyToken1, position.Id, "currentSupplyToken1");
             feesToken0 = ValidateTokenAmount(feesToken0, position.Id, "feesToken0");
@@ -116,6 +123,15 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             var reward0 = _tokenFactory.CreateUncollectedReward(position.Token0.Name, position.Token0.Symbol, position.Token0.Id, chain, token0Decimals, feesToken0, token0PriceUSD);
             var reward1 = _tokenFactory.CreateUncollectedReward(position.Token1.Name, position.Token1.Symbol, position.Token1.Id, chain, token1Decimals, feesToken1, token1PriceUSD);
             
+            // Process collected fees from GraphQL (historical fees already claimed)
+            var collectedToken0 = TryParseInvariant(position.CollectedFeesToken0) ?? 0m;
+            var collectedToken1 = TryParseInvariant(position.CollectedFeesToken1) ?? 0m;
+            collectedToken0 = ValidateTokenAmount(collectedToken0, position.Id, "collectedFeesToken0");
+            collectedToken1 = ValidateTokenAmount(collectedToken1, position.Id, "collectedFeesToken1");
+            
+            var collected0 = _tokenFactory.CreateCollectedFee(position.Token0.Name, position.Token0.Symbol, position.Token0.Id, chain, token0Decimals, collectedToken0, token0PriceUSD);
+            var collected1 = _tokenFactory.CreateCollectedFee(position.Token1.Name, position.Token1.Symbol, position.Token1.Id, chain, token1Decimals, collectedToken1, token1PriceUSD);
+            
             // ? FETCH LOGOS FROM TOKENMETADATASERVICE (uses in-memory cache -> Redis -> CMC)
             // Strategy 1: Lookup by address (most specific)
             var metadata0 = await _metadataService.GetTokenMetadataAsync(chain, position.Token0.Id);
@@ -123,6 +139,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             {
                 supplied0.Logo = metadata0.LogoUrl;
                 reward0.Logo = metadata0.LogoUrl;
+                collected0.Logo = metadata0.LogoUrl;
                 _logger.LogDebug("[UniswapV3Mapper] Applied logo to token0 {Symbol} via address lookup", position.Token0.Symbol);
             }
             else if (!string.IsNullOrEmpty(position.Token0.Symbol) && !string.IsNullOrEmpty(position.Token0.Name))
@@ -133,6 +150,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                 {
                     supplied0.Logo = metadata0ByName.LogoUrl;
                     reward0.Logo = metadata0ByName.LogoUrl;
+                    collected0.Logo = metadata0ByName.LogoUrl;
                     _logger.LogDebug("[UniswapV3Mapper] Applied logo to token0 {Symbol} via symbol+name lookup", position.Token0.Symbol);
                 }
             }
@@ -142,6 +160,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             {
                 supplied1.Logo = metadata1.LogoUrl;
                 reward1.Logo = metadata1.LogoUrl;
+                collected1.Logo = metadata1.LogoUrl;
                 _logger.LogDebug("[UniswapV3Mapper] Applied logo to token1 {Symbol} via address lookup", position.Token1.Symbol);
             }
             else if (!string.IsNullOrEmpty(position.Token1.Symbol) && !string.IsNullOrEmpty(position.Token1.Name))
@@ -151,6 +170,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                 {
                     supplied1.Logo = metadata1ByName.LogoUrl;
                     reward1.Logo = metadata1ByName.LogoUrl;
+                    collected1.Logo = metadata1ByName.LogoUrl;
                     _logger.LogDebug("[UniswapV3Mapper] Applied logo to token1 {Symbol} via symbol+name lookup", position.Token1.Symbol);
                 }
             }
@@ -159,11 +179,79 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             await SaveTokenMetadataIfNeededAsync(position.Token0, chain);
             await SaveTokenMetadataIfNeededAsync(position.Token1, chain);
             
+            // Calculate total position value
+            var totalValueUsd = (currentSupplyToken0 * token0PriceUSD) + (currentSupplyToken1 * token1PriceUSD);
+            
+            // APR is only earned when position is in range
+            var effectiveApr = inRange == true ? position.Apr : 0m;
+            
+            _logger.LogDebug("[UniswapV3Mapper] Position {PositionId}: rawApr={RawApr}, inRange={InRange}, effectiveApr={EffectiveApr}", 
+                position.Id, position.Apr, inRange, effectiveApr);
+            
+            // Build multiple projections
+            var projections = new List<ProjectionData>();
+
+            // 1. APR-based projection
+            if (effectiveApr > 0 && totalValueUsd > 0)
+            {
+                var aprProjection = _projectionCalculator.CalculateAprProjection(totalValueUsd, effectiveApr);
+                if (aprProjection != null)
+                {
+                    projections.Add(_projectionCalculator.CreateProjectionData(
+                        ProjectionType.Apr,
+                        aprProjection,
+                        new ProjectionMetadata { Apr = effectiveApr }
+                    ));
+                }
+            }
+
+            // 2. AprHistorical-based projection (historical fees)
+            decimal? calculatedAprHistorical = null;
+            if (createdAt.HasValue && createdAt.Value > 0 && totalValueUsd > 0)
+            {
+                // Calculate total fees from reward + collected tokens
+                var totalFees = 
+                    (reward0.Financials?.TotalPrice ?? 0m) + 
+                    (reward1.Financials?.TotalPrice ?? 0m) + 
+                    (collected0.Financials?.TotalPrice ?? 0m) + 
+                    (collected1.Financials?.TotalPrice ?? 0m);
+
+                if (totalFees > 0)
+                {
+                    var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    var (aprHistoricalProjection, aprHistorical) = _projectionCalculator.CalculateAprHistoricalProjection(
+                        totalFees,
+                        totalValueUsd,
+                        createdAt.Value,
+                        now
+                    );
+
+                    if (aprHistoricalProjection != null && aprHistorical.HasValue)
+                    {
+                        calculatedAprHistorical = aprHistorical.Value;
+                        var daysActive = (DateTimeOffset.UtcNow - 
+                            DateTimeOffset.FromUnixTimeSeconds(createdAt.Value)).TotalDays;
+
+                        projections.Add(_projectionCalculator.CreateProjectionData(
+                            ProjectionType.AprHistorical,
+                            aprHistoricalProjection,
+                            new ProjectionMetadata
+                            {
+                                AprHistorical = aprHistorical.Value,
+                                CreatedAt = (long)createdAt.Value,
+                                TotalFeesGenerated = totalFees,
+                                DaysActive = (decimal)daysActive
+                            }
+                        ));
+                    }
+                }
+            }
+            
             return new WalletItem
             {
                 Type = WalletItemType.LiquidityPool,
                 Protocol = protocol,
-                Position = new Position { Label = "Liquidity Pool", Tokens = [ supplied0, supplied1, reward0, reward1 ] },
+                Position = new Position { Label = "Liquidity Pool", Tokens = [ supplied0, supplied1, reward0, reward1, collected0, collected1 ] },
                 AdditionalData = new AdditionalData
                 {
                     TickSpacing = tickSpacing,
@@ -171,7 +259,11 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                     CreatedAt = createdAt,
                     PoolId = position.Pool?.Id,
                     Range = new RangeInfo { Lower = lower, Upper = upper, Current = current, InRange = inRange },
-                    PriceUnavailable = priceUnavailable
+                    PriceUnavailable = priceUnavailable,
+                    TierPercent = FormatFeeTier(position.Pool?.FeeTier),
+                    Apr = effectiveApr,
+                    AprHistorical = calculatedAprHistorical,
+                    Projections = projections.Any() ? projections : null
                 }
             };
         }
@@ -218,6 +310,21 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
     private static decimal? TryParseInvariant(string? s) => decimal.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
     private static int? TryParseInvariantInt(string? s) => int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
     private static long? TryParseInvariantLong(string? s) => long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : null;
+    
+    private static decimal? FormatFeeTier(string? feeTier)
+    {
+        if (string.IsNullOrEmpty(feeTier)) return null;
+        
+        // UniswapV3 stores fee tier as basis points (e.g., "500" = 0.05%, "3000" = 0.3%)
+        // Returns as decimal: 500 -> 0.0005 (0.05%), 3000 -> 0.003 (0.3%)
+        if (int.TryParse(feeTier, out var feeValue))
+        {
+            return feeValue / 1000000m;
+        }
+        
+        return null;
+    }
+    
     private static decimal EstimatePriceByToken(string symbol, string address, ChainEnum chain)
     { var sym = symbol?.ToUpperInvariant(); var addr = address?.ToLowerInvariant(); if (chain == ChainEnum.Base) { return sym switch { "WETH" when addr == "0x4200000000000000000000000000000000000006" => 4500m, "USDC" when addr == "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913" => 1.0m, "AAVE" when addr == "0x63706e401c06ac8513145b7687a14804d17f814b" => 285m, "CBBTC" when addr == "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf" => 125000m, "WBTC" when addr == "0x2260fac5e5542a9196b8a140fb341d58c700682" => 125000m, _ => 0m }; } return 0m; }
 }

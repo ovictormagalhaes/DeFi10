@@ -77,7 +77,14 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
                         IsCollateral = supply.IsCollateral, 
                         CanBeCollateral = supply.CanBeCollateral,
                         Apy = apy,
-                        Projection = projection
+                        Projections = projection != null ? new List<ProjectionData> 
+                        {
+                            _projectionCalculator.CreateProjectionData(
+                                ProjectionType.Apy,
+                                projection,
+                                new ProjectionMetadata { Apy = apy }
+                            )
+                        } : null
                     }
                 });
             }
