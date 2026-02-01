@@ -3,7 +3,6 @@ import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ChartContainer } from './ChartContainer';
 import { useChartTheme } from './hooks/useChartTheme';
-import { useMaskValues } from '../../context/MaskValuesContext';
 
 interface ProjectionData {
   type: string;
@@ -37,7 +36,6 @@ export const ProjectionsChart: React.FC<Props> = ({
   totalLendingValue = 0
 }) => {
   const { theme, chartColors } = useChartTheme();
-  const { maskValues } = useMaskValues();
   
   // Helper to format projection type labels
   const formatTypeLabel = (type: string): string => {
@@ -127,60 +125,6 @@ export const ProjectionsChart: React.FC<Props> = ({
 
     const data = payload[0].payload;
     
-    // Calculate rate percentages based on period (same as table)
-    let liquidityRatePercent = '';
-    let lendingRatePercent = '';
-    let totalRatePercent = '';
-    
-    if (liquidityAvg != null) {
-      if (data.label === '1 Day') {
-        liquidityRatePercent = (liquidityAvg / 365).toFixed(2) + '%';
-      } else if (data.label === '1 Week') {
-        liquidityRatePercent = (liquidityAvg * 7 / 365).toFixed(2) + '%';
-      } else if (data.label === '1 Month') {
-        liquidityRatePercent = (liquidityAvg / 12).toFixed(2) + '%';
-      } else if (data.label === '1 Year') {
-        liquidityRatePercent = liquidityAvg.toFixed(2) + '%';
-      }
-    }
-    
-    if (lendingAvg != null) {
-      if (data.label === '1 Day') {
-        lendingRatePercent = (lendingAvg / 365).toFixed(2) + '%';
-      } else if (data.label === '1 Week') {
-        lendingRatePercent = (lendingAvg * 7 / 365).toFixed(2) + '%';
-      } else if (data.label === '1 Month') {
-        lendingRatePercent = (lendingAvg / 12).toFixed(2) + '%';
-      } else if (data.label === '1 Year') {
-        lendingRatePercent = lendingAvg.toFixed(2) + '%';
-      }
-    }
-    
-    // Calculate weighted average rate for total
-    const totalValue = totalLiquidityValue + Math.abs(totalLendingValue);
-    let portfolioRate = 0;
-    
-    if (totalValue > 0) {
-      if (liquidityAvg != null) {
-        portfolioRate += (liquidityAvg * totalLiquidityValue / totalValue);
-      }
-      if (lendingAvg != null) {
-        portfolioRate += (lendingAvg * Math.abs(totalLendingValue) / totalValue);
-      }
-    }
-    
-    if (portfolioRate > 0) {
-      if (data.label === '1 Day') {
-        totalRatePercent = (portfolioRate / 365).toFixed(2) + '%';
-      } else if (data.label === '1 Week') {
-        totalRatePercent = (portfolioRate * 7 / 365).toFixed(2) + '%';
-      } else if (data.label === '1 Month') {
-        totalRatePercent = (portfolioRate / 12).toFixed(2) + '%';
-      } else if (data.label === '1 Year') {
-        totalRatePercent = portfolioRate.toFixed(2) + '%';
-      }
-    }
-    
     return (
       <div style={{
         background: 'rgba(0, 0, 0, 0.95)',
@@ -202,34 +146,93 @@ export const ProjectionsChart: React.FC<Props> = ({
           <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
             {maskValue(formatPrice(data.liquidity))}
           </span>
-          {liquidityRatePercent && (
-            <span style={{ color: theme.textSecondary, fontSize: 11, marginLeft: 6 }}>
-              ({liquidityRatePercent})
-            </span>
-          )}
         </div>
         <div style={{ marginBottom: 4 }}>
           <span style={{ color: chartColors.lending, fontSize: 12 }}>Lending: </span>
           <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
             {maskValue(formatPrice(data.lending))}
           </span>
-          {lendingRatePercent && (
-            <span style={{ color: theme.textSecondary, fontSize: 11, marginLeft: 6 }}>
-              ({lendingRatePercent})
-            </span>
-          )}
         </div>
         <div style={{ paddingTop: 6, borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
-          <span style={{ color: chartColors.positive, fontSize: 12 }}>Portfolio: </span>
+          <span style={{ color: chartColors.positive, fontSize: 12 }}>Total: </span>
           <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>
             {maskValue(formatPrice(data.total))}
           </span>
-          {totalRatePercent && (
-            <span style={{ color: theme.textSecondary, fontSize: 11, marginLeft: 6 }}>
-              ({totalRatePercent})
-            </span>
-          )}
         </div>
+      </div>
+    );
+  };
+
+  // Type selectors for each category
+  const TypeSelectors = () => {
+    const selectStyle = {
+      background: theme.bgPanel,
+      color: theme.textPrimary,
+      border: `1px solid ${theme.borderStrong || theme.border}`,
+      borderRadius: 6,
+      padding: '8px 12px',
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: 'pointer',
+      outline: 'none',
+      transition: 'all 0.2s ease',
+      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+    } as React.CSSProperties;
+
+    const selectHoverStyle = {
+      borderColor: chartColors.liquidity
+    };
+
+    return (
+      <div style={{ 
+        display: 'grid',
+        gridTemplateColumns: 'auto 1fr auto',
+        gap: '8px 12px',
+        alignItems: 'center',
+        width: '100%'
+      }}>
+        {liquidityTypes.length > 0 && (
+          <>
+            <span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 500, whiteSpace: 'nowrap' }}>Liquidity:</span>
+            <select
+              value={selectedLiquidityType}
+              onChange={(e) => setSelectedLiquidityType(e.target.value)}
+              style={selectStyle}
+            >
+              {liquidityTypes.map(type => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+            {liquidityAvg != null && (
+              <span style={{ fontSize: 13, fontWeight: 700, color: chartColors.liquidity }}>
+                {liquidityAvg.toFixed(2)}%
+              </span>
+            )}
+          </>
+        )}
+        {lendingTypes.length > 0 && (
+          <>
+            <span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 500, whiteSpace: 'nowrap' }}>Lending:</span>
+            <select
+              value={selectedLendingType}
+              onChange={(e) => setSelectedLendingType(e.target.value)}
+              style={selectStyle}
+            >
+              {lendingTypes.map(type => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+            {lendingAvg != null && (
+              <span style={{ fontSize: 13, fontWeight: 700, color: chartColors.lending }}>
+                {lendingAvg.toFixed(2)}%
+              </span>
+            )}
+          </>
+        )}
       </div>
     );
   };
@@ -283,7 +286,7 @@ export const ProjectionsChart: React.FC<Props> = ({
           <YAxis 
             stroke={chartColors.axis}
             style={{ fontSize: 11 }}
-            tickFormatter={(value) => maskValues ? '' : `$${(value / 1000).toFixed(1)}K`}
+            tickFormatter={(value) => `$${(value / 1000).toFixed(1)}K`}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend 
@@ -327,12 +330,12 @@ export const ProjectionsChart: React.FC<Props> = ({
           <Line
             type="monotone"
             dataKey="total"
-            name="Portfolio"
-            stroke="#fff"
+            name="Total"
+            stroke={chartColors.positive}
             strokeWidth={3}
             strokeDasharray="5 5"
             dot={{ 
-              fill: '#fff', 
+              fill: chartColors.positive, 
               strokeWidth: 2, 
               r: 5,
               stroke: theme.bgPanel
@@ -343,15 +346,17 @@ export const ProjectionsChart: React.FC<Props> = ({
         </LineChart>
       </ResponsiveContainer>
 
+      {/* Summary stats - Reorganized layout */}
       <div style={{
         marginTop: 16,
         paddingTop: 16,
         borderTop: `1px solid ${theme.border}`,
         overflowX: 'auto'
       }}>
+        {/* Header row with label "Projection" and period columns */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(100px, 120px) minmax(100px, 210px) repeat(4, minmax(80px, 1fr))',
+          gridTemplateColumns: 'minmax(100px, 120px) repeat(4, minmax(80px, 1fr))',
           gap: 12,
           marginBottom: 8,
           minWidth: 500
@@ -365,14 +370,6 @@ export const ProjectionsChart: React.FC<Props> = ({
           }}>
             Projection
           </div>
-          <div style={{ 
-            textAlign: 'center',
-            fontSize: 11,
-            color: theme.textSecondary,
-            fontWeight: 500
-          }}>
-            Rate
-          </div>
           {chartData.map((item, index) => (
             <div key={index} style={{ 
               textAlign: 'center',
@@ -385,10 +382,11 @@ export const ProjectionsChart: React.FC<Props> = ({
           ))}
         </div>
 
+        {/* Liquidity row */}
         {liquidityProjection && (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(100px, 120px) minmax(100px, 210px) repeat(4, minmax(80px, 1fr))',
+            gridTemplateColumns: 'minmax(100px, 120px) repeat(4, minmax(80px, 1fr))',
             gap: 12,
             marginBottom: 8,
             padding: '8px 0',
@@ -408,15 +406,6 @@ export const ProjectionsChart: React.FC<Props> = ({
               }}>
                 Liquidity
               </span>
-            </div>
-            <div style={{
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4
-            }}>
               {liquidityTypes.length > 0 && (
                 <select
                   value={selectedLiquidityType}
@@ -427,12 +416,12 @@ export const ProjectionsChart: React.FC<Props> = ({
                     border: `1px solid ${theme.borderStrong || theme.border}`,
                     borderRadius: 4,
                     padding: '4px 6px',
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
                     outline: 'none',
-                    width: 'fit-content',
-                    maxWidth: 200
+                    minWidth: 90,
+                    maxWidth: 120
                   }}
                 >
                   {liquidityTypes.map(type => (
@@ -454,19 +443,9 @@ export const ProjectionsChart: React.FC<Props> = ({
               )}
             </div>
             {chartData.map((item, index) => {
-              // Calculate rate fraction based on period
-              let ratePercent = '0%';
-              if (liquidityAvg != null) {
-                if (item.label === '1 Day') {
-                  ratePercent = (liquidityAvg / 365).toFixed(2) + '%';
-                } else if (item.label === '1 Week') {
-                  ratePercent = (liquidityAvg * 7 / 365).toFixed(2) + '%';
-                } else if (item.label === '1 Month') {
-                  ratePercent = (liquidityAvg / 12).toFixed(2) + '%';
-                } else if (item.label === '1 Year') {
-                  ratePercent = liquidityAvg.toFixed(2) + '%';
-                }
-              }
+              const percentOfLiquidity = totalLiquidityValue && totalLiquidityValue > 0 
+                ? ((Math.abs(item.liquidity) / totalLiquidityValue) * 100).toFixed(1) + '%'
+                : '0%';
               
               return (
                 <div key={index} style={{ 
@@ -485,9 +464,10 @@ export const ProjectionsChart: React.FC<Props> = ({
                   <div style={{
                     fontSize: 11,
                     fontWeight: 600,
-                    color: chartColors.liquidity
+                    color: chartColors.liquidity,
+                    opacity: 0.7
                   }}>
-                    {ratePercent}
+                    {percentOfLiquidity}
                   </div>
                 </div>
               );
@@ -495,10 +475,11 @@ export const ProjectionsChart: React.FC<Props> = ({
           </div>
         )}
 
+        {/* Lending row */
         {lendingProjection && (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(100px, 120px) minmax(100px, 210px) repeat(4, minmax(80px, 1fr))',
+            gridTemplateColumns: 'minmax(100px, 120px) repeat(4, minmax(80px, 1fr))',
             gap: 12,
             marginBottom: 8,
             padding: '8px 0',
@@ -518,15 +499,6 @@ export const ProjectionsChart: React.FC<Props> = ({
               }}>
                 Lending
               </span>
-            </div>
-            <div style={{
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4
-            }}>
               {lendingTypes.length > 0 && (
                 <select
                   value={selectedLendingType}
@@ -537,12 +509,12 @@ export const ProjectionsChart: React.FC<Props> = ({
                     border: `1px solid ${theme.borderStrong || theme.border}`,
                     borderRadius: 4,
                     padding: '4px 6px',
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: 600,
                     cursor: 'pointer',
                     outline: 'none',
-                    width: 'fit-content',
-                    maxWidth: 200
+                    minWidth: 90,
+                    maxWidth: 120
                   }}
                 >
                   {lendingTypes.map(type => (
@@ -564,19 +536,9 @@ export const ProjectionsChart: React.FC<Props> = ({
               )}
             </div>
             {chartData.map((item, index) => {
-              // Calculate rate fraction based on period
-              let ratePercent = '0%';
-              if (lendingAvg != null) {
-                if (item.label === '1 Day') {
-                  ratePercent = (lendingAvg / 365).toFixed(2) + '%';
-                } else if (item.label === '1 Week') {
-                  ratePercent = (lendingAvg * 7 / 365).toFixed(2) + '%';
-                } else if (item.label === '1 Month') {
-                  ratePercent = (lendingAvg / 12).toFixed(2) + '%';
-                } else if (item.label === '1 Year') {
-                  ratePercent = lendingAvg.toFixed(2) + '%';
-                }
-              }
+              const percentOfLending = totalLendingValue && totalLendingValue > 0 
+                ? ((Math.abs(item.lending) / totalLendingValue) * 100).toFixed(1) + '%'
+                : '0%';
               
               return (
                 <div key={index} style={{ 
@@ -595,9 +557,10 @@ export const ProjectionsChart: React.FC<Props> = ({
                   <div style={{
                     fontSize: 11,
                     fontWeight: 600,
-                    color: chartColors.lending
+                    color: chartColors.lending,
+                    opacity: 0.7
                   }}>
-                    {ratePercent}
+                    {percentOfLending}
                   </div>
                 </div>
               );
@@ -605,9 +568,10 @@ export const ProjectionsChart: React.FC<Props> = ({
           </div>
         )}
 
+        {/* Portfolio total row */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(100px, 120px) minmax(100px, 210px) repeat(4, minmax(80px, 1fr))',
+          gridTemplateColumns: 'minmax(100px, 120px) repeat(4, minmax(80px, 1fr))',
           gap: 12,
           paddingTop: 12,
           borderTop: `1px solid ${theme.border}`,
@@ -627,34 +591,10 @@ export const ProjectionsChart: React.FC<Props> = ({
               Portfolio
             </span>
           </div>
-          <div></div>
           {chartData.map((item, index) => {
-            // Calculate combined rate for portfolio (weighted by total values of each segment)
-            const totalValue = totalLiquidityValue + Math.abs(totalLendingValue);
-            let portfolioRate = 0;
-            
-            if (totalValue > 0) {
-              if (liquidityAvg != null) {
-                portfolioRate += (liquidityAvg * totalLiquidityValue / totalValue);
-              }
-              if (lendingAvg != null) {
-                portfolioRate += (lendingAvg * Math.abs(totalLendingValue) / totalValue);
-              }
-            }
-            
-            // Calculate rate fraction based on period
-            let ratePercent = '0%';
-            if (portfolioRate > 0) {
-              if (item.label === '1 Day') {
-                ratePercent = (portfolioRate / 365).toFixed(2) + '%';
-              } else if (item.label === '1 Week') {
-                ratePercent = (portfolioRate * 7 / 365).toFixed(2) + '%';
-              } else if (item.label === '1 Month') {
-                ratePercent = (portfolioRate / 12).toFixed(2) + '%';
-              } else if (item.label === '1 Year') {
-                ratePercent = portfolioRate.toFixed(2) + '%';
-              }
-            }
+            const percentOfPortfolio = totalPortfolioValue && totalPortfolioValue > 0 
+              ? ((item.total / totalPortfolioValue) * 100).toFixed(1) + '%'
+              : '0%';
             
             return (
               <div key={index} style={{ 
@@ -673,9 +613,10 @@ export const ProjectionsChart: React.FC<Props> = ({
                 <div style={{
                   fontSize: 11,
                   fontWeight: 600,
-                  color: chartColors.positive
+                  color: chartColors.positive,
+                  opacity: 0.7
                 }}>
-                  {ratePercent}
+                  {percentOfPortfolio}
                 </div>
               </div>
             );

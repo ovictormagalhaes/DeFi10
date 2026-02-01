@@ -95,6 +95,10 @@ public class UniswapV3Service : BaseHttpService, IUniswapV3Service
             var tokenId = BigInteger.Parse(pos.Id);
             Logger.LogDebug("[Uniswap Hybrid] Fetching on-chain data for position {TokenId}", tokenId);
             
+            // Log collected fees from Graph (these are historical fees that were already collected)
+            Logger.LogInformation("[Uniswap Hybrid] Position {TokenId} - CollectedFees from Graph: Token0={CFToken0}, Token1={CFToken1}", 
+                tokenId, pos.CollectedFeesToken0, pos.CollectedFeesToken1);
+            
             // Use GetPositionWithCalculatedFeesAsync instead of GetPositionDataSafeAsync to get accurate uncollected fees
             var dataResult = await _onChainService.GetPositionWithCalculatedFeesAsync(tokenId, chain);
             
@@ -116,10 +120,15 @@ public class UniswapV3Service : BaseHttpService, IUniswapV3Service
             Logger.LogInformation("[Uniswap Hybrid] Position {TokenId} - Scaled fees: Token0={Scaled0} (raw={Raw0}), Token1={Scaled1} (raw={Raw1})", 
                 tokenId, scaledToken0, dataResult.Position.TokensOwed0, scaledToken1, dataResult.Position.TokensOwed1);
             
+            // Update UNCOLLECTED fees from on-chain calculation
+            // Note: CollectedFeesToken0/1 remain unchanged from Graph (historical collected fees)
             pos.EstimatedUncollectedToken0 = scaledToken0;
             pos.EstimatedUncollectedToken1 = scaledToken1;
             pos.RawTokensOwed0 = dataResult.Position.TokensOwed0.ToString();
             pos.RawTokensOwed1 = dataResult.Position.TokensOwed1.ToString();
+            
+            Logger.LogInformation("[Uniswap Hybrid] Position {TokenId} - Final fees summary: Collected(Graph)=[{CF0},{CF1}], Uncollected(OnChain)=[{UF0},{UF1}]",
+                tokenId, pos.CollectedFeesToken0, pos.CollectedFeesToken1, pos.EstimatedUncollectedToken0, pos.EstimatedUncollectedToken1);
 
             // Update current tick, price info, and token amounts from on-chain pool state if available
             if (!string.IsNullOrEmpty(dataResult.PoolAddress))

@@ -5,6 +5,7 @@ import { useChainIcons } from '../../context/ChainIconsProvider.jsx';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
 import RangeChip from '../RangeChip.jsx';
 import ProjectionSelector from '../ProjectionSelector.jsx';
+import PeriodDropdown from '../PeriodDropdown.jsx';
 
 /**
  * PoolCards - Card view for liquidity pool positions
@@ -21,6 +22,7 @@ const PoolCards = ({ data = [] }) => {
   const [expandedValues, setExpandedValues] = React.useState({});
   const [expandedProjections, setExpandedProjections] = React.useState({});
   const [expandedAmounts, setExpandedAmounts] = React.useState({});
+  const [selectedAprTypes, setSelectedAprTypes] = React.useState({});
 
   if (!data || data.length === 0) {
     return (
@@ -178,6 +180,16 @@ const PoolCards = ({ data = [] }) => {
         
         // Pool metrics - get APR from additionalData
         const apr = additionalInfo.apr || item.additionalData?.apr || position.apr || position.apy || 0;
+        const aprHistorical = additionalInfo.aprHistorical || item.additionalData?.aprHistorical || position.aprHistorical || null;
+        
+        // Check if we have both APR types
+        const hasMultipleAprTypes = apr != null && aprHistorical != null && aprHistorical > 0;
+        
+        // Get selected APR type for this card, default to 'APR'
+        const selectedAprType = selectedAprTypes[index] || 'APR';
+        
+        // Get the displayed APR value based on selection
+        const displayedApr = selectedAprType === 'APR Historical' ? aprHistorical : apr;
         
         // Range data from additionalData or additionalInfo
         const rangeData = additionalInfo.range || item.additionalData?.range || position.range || null;
@@ -652,10 +664,51 @@ const PoolCards = ({ data = [] }) => {
                 alignItems: 'center',
                 marginBottom: 10,
               }}>
-                <span style={{ fontSize: 13, color: theme.textSecondary }}>APR</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
-                  {apr ? `${apr.toFixed(2)}%` : '0.00%'}
-                </span>
+                {hasMultipleAprTypes ? (
+                  <>
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <PeriodDropdown
+                        periods={['APR', 'APR Historical']}
+                        selectedPeriod={selectedAprType}
+                        onPeriodChange={(type) => {
+                          setSelectedAprTypes(prev => ({ ...prev, [index]: type }));
+                        }}
+                        compact={true}
+                        disableHoverEffects={true}
+                        buttonStyle={{
+                          fontSize: 13,
+                          fontWeight: 400,
+                          fontFamily: 'inherit',
+                          color: 'rgb(162, 169, 181)',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          borderRadius: 0,
+                          padding: 0,
+                          transition: 'none',
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+                      {displayedApr ? `${displayedApr.toFixed(2)}%` : '0.00%'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 13, color: theme.textSecondary }}>APR</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+                      {apr ? `${apr.toFixed(2)}%` : '0.00%'}
+                    </span>
+                  </>
+                )}
               </div>
 
               {/* Age */}
@@ -798,12 +851,27 @@ const PoolCards = ({ data = [] }) => {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
+                        marginBottom: 6,
                       }}>
                         <span style={{ fontSize: 12, color: theme.textSecondary }}>Lower</span>
                         <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
                           ${displayRangeData.lower?.toFixed(displayRangeData.lower < 0.01 ? 8 : displayRangeData.lower < 1 ? 4 : 2) || '0.00'}
                         </span>
                       </div>
+
+                      {/* Range Size */}
+                      {displayRangeData.rangeSize != null && (
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}>
+                          <span style={{ fontSize: 12, color: theme.textSecondary }}>Range Size</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
+                            {(displayRangeData.rangeSize * 100).toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -1089,7 +1157,23 @@ const PoolCards = ({ data = [] }) => {
                     <div style={{
                       marginTop: 10,
                     }}>
-                      <ProjectionSelector projections={projections} defaultType="apr" defaultPeriod="Day" />
+                      <ProjectionSelector 
+                        projections={projections} 
+                        defaultType="apr" 
+                        defaultPeriod="Day" 
+                        disableDropdownHoverEffects={true}
+                        dropdownButtonStyle={{
+                          fontSize: 13,
+                          fontWeight: 400,
+                          fontFamily: 'inherit',
+                          color: 'rgb(162, 169, 181)',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          borderRadius: 0,
+                          padding: 0,
+                          transition: 'none',
+                        }}
+                      />
                     </div>
                   );
                 }
@@ -1104,7 +1188,22 @@ const PoolCards = ({ data = [] }) => {
                     <div style={{
                       marginTop: 10,
                     }}>
-                      <ProjectionSelector projection={projection} defaultPeriod="Day" />
+                      <ProjectionSelector 
+                        projection={projection} 
+                        defaultPeriod="Day" 
+                        disableDropdownHoverEffects={true}
+                        dropdownButtonStyle={{
+                          fontSize: 13,
+                          fontWeight: 400,
+                          fontFamily: 'inherit',
+                          color: 'rgb(162, 169, 181)',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          borderRadius: 0,
+                          padding: 0,
+                          transition: 'none',
+                        }}
+                      />
                     </div>
                   );
                 }

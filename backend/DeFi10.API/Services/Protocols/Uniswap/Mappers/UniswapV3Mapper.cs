@@ -108,6 +108,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
             { token0PriceUSD = EstimatePriceByToken(position.Token0.Symbol, position.Token0.Id, chain); token1PriceUSD = EstimatePriceByToken(position.Token1.Symbol, position.Token1.Id, chain); if (token0PriceUSD > 0 || token1PriceUSD > 0) priceUnavailable = false; }
             if (token0PriceUSD < 0) token0PriceUSD = 0; if (token1PriceUSD < 0) token1PriceUSD = 0;
             var lower = TryParseInvariant(position.MinPriceToken1PerToken0); var upper = TryParseInvariant(position.MaxPriceToken1PerToken0); var current = TryParseInvariant(position.CurrentPriceToken1PerToken0); bool? inRange = position.RangeStatus?.Equals("in-range", StringComparison.OrdinalIgnoreCase);
+            decimal? rangeSize = (lower.HasValue && upper.HasValue && lower.Value > 0) ? (upper.Value - lower.Value) / lower.Value : null;
             
             // Get position creation timestamp from transaction (when position was opened)
             long? createdAt = TryParseInvariantLong(position.Transaction?.Timestamp);
@@ -258,7 +259,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                     SqrtPriceX96 = sqrtPriceX96,
                     CreatedAt = createdAt,
                     PoolId = position.Pool?.Id,
-                    Range = new RangeInfo { Lower = lower, Upper = upper, Current = current, InRange = inRange },
+                    Range = new RangeInfo { Lower = lower, Upper = upper, Current = current, InRange = inRange, RangeSize = rangeSize },
                     PriceUnavailable = priceUnavailable,
                     TierPercent = FormatFeeTier(position.Pool?.FeeTier),
                     Apr = effectiveApr,

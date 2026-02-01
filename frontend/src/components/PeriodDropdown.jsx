@@ -8,6 +8,7 @@ import { useTheme } from '../context/ThemeProvider.tsx';
  * @param {string} selectedPeriod - Currently selected period
  * @param {Function} onPeriodChange - Callback when period changes
  * @param {Object} style - Custom style overrides for the button
+ * @param {boolean} disableHoverEffects - If true, disables hover border effects
  */
 const PeriodDropdown = ({ 
   periods = ['Day', 'Week', 'Month', 'Year'],
@@ -15,7 +16,8 @@ const PeriodDropdown = ({
   onPeriodChange,
   style = {},
   buttonStyle = {},
-  compact = false // If true, uses compact styling
+  compact = false, // If true, uses compact styling
+  disableHoverEffects = false // If true, disables hover effects
 }) => {
   const { theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
@@ -107,13 +109,24 @@ const PeriodDropdown = ({
           transition: 'all 0.2s ease',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = theme.accent;
+          if (!disableHoverEffects) {
+            e.currentTarget.style.borderColor = theme.accent;
+          }
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = theme.border;
+          if (!disableHoverEffects) {
+            e.currentTarget.style.borderColor = theme.border;
+          }
         }}
       >
-        <span style={{ fontSize: compact ? 10 : 12, whiteSpace: 'nowrap' }}>{selectedPeriod}</span>
+        <span style={{ 
+          fontSize: buttonStyle.fontSize || (compact ? 10 : 12), 
+          color: buttonStyle.color || 'inherit',
+          fontWeight: buttonStyle.fontWeight || 'inherit',
+          textTransform: buttonStyle.textTransform || 'none',
+          letterSpacing: buttonStyle.letterSpacing || 'normal',
+          whiteSpace: 'nowrap' 
+        }}>{selectedPeriod}</span>
         <svg 
           width={compact ? "8" : "10"}
           height={compact ? "8" : "10"}

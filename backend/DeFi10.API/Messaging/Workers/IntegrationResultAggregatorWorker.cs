@@ -746,7 +746,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
         }
     }
 
-    private static async Task<List<WalletItem>> MapPayloadAsync(IntegrationResult result, IWalletItemMapperFactory factory, ChainEnum chain)
+    private async Task<List<WalletItem>> MapPayloadAsync(IntegrationResult result, IWalletItemMapperFactory factory, ChainEnum chain)
     {
         var list = new List<WalletItem>();
         switch (result.Provider)
@@ -757,6 +757,14 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     var tokens = JsonSerializer.Deserialize<List<TokenDetail>>(tokensArr.GetRawText());
                     if (tokens != null) list.AddRange(await factory.CreateMoralisTokenMapper().MapAsync(tokens, chain));
                 }
+                break;
+            case IntegrationProvider.MoralisNfts:
+                // NFTs from EVM chains - processed for trigger detection only (not added to wallet items)
+                _logger.LogDebug("[MapPayload] MoralisNfts processed for triggers (EVM) - chain={Chain}", chain);
+                break;
+            case IntegrationProvider.SolanaNfts:
+                // NFTs from Solana - processed for trigger detection only (not added to wallet items)
+                _logger.LogDebug("[MapPayload] SolanaNfts processed for triggers - chain={Chain}", chain);
                 break;
             case IntegrationProvider.AaveSupplies:
                 if (result.Payload is JsonElement supEl)
@@ -806,19 +814,57 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
             case IntegrationProvider.SolanaKaminoPositions:
                 if (result.Payload is JsonElement kaminoEl)
                 {
-                    var positions = JsonSerializer.Deserialize<IEnumerable<KaminoPosition>>(kaminoEl.GetRawText()) ?? Enumerable.Empty<KaminoPosition>();
-                    list.AddRange(await factory.CreateSolanaKaminoMapper().MapAsync(positions, chain));
+                    var positions = JsonSerializer.Deserialize<IEnumerable<KaminoPosition>>(kaminoEl.GetRawText());
+                    if (positions != null && positions.Any())
+                    {
+                        list.AddRange(await factory.CreateSolanaKaminoMapper().MapAsync(positions, chain));
+                    }
                 }
                 break;
             case IntegrationProvider.SolanaRaydiumPositions:
+                _logger.LogInformation("[AGGREGATOR-RAYDIUM] Processing Raydium result - Payload type: {Type}", result.Payload?.GetType().FullName ?? "null");
                 if (result.Payload is JsonElement raydiumEl)
                 {
+                    _logger.LogInformation("[AGGREGATOR-RAYDIUM] Payload is JsonElement - Raw: {Raw}", raydiumEl.GetRawText());
                     var positions = JsonSerializer.Deserialize<IEnumerable<RaydiumPosition>>(raydiumEl.GetRawText());
+                    _logger.LogInformation("[AGGREGATOR-RAYDIUM] Deserialized {Count} positions", positions?.Count() ?? 0);
+                    
                     if (positions != null)
                     {
-                        list.AddRange(await factory.CreateSolanaRaydiumMapper().MapAsync(positions, chain));
+                        var mapper = factory.CreateSolanaRaydiumMapper();
+                        _logger.LogInformation("[AGGREGATOR-RAYDIUM] Calling mapper.MapAsync with {Count} positions for chain {Chain}", positions.Count(), chain);
+                        
+                        var mapped = await mapper.MapAsync(positions, chain);
+                        _logger.LogInformation("[AGGREGATOR-RAYDIUM] Mapper returned {Count} WalletItems", mapped?.Count ?? 0);
+                        
+                        if (mapped != null && mapped.Any())
+                        {
+                            foreach (var item in mapped)
+                            {
+                                _logger.LogInformation("[AGGREGATOR-RAYDIUM] WalletItem: Type={Type}, Protocol={Protocol}, Value={Value}, Tokens={TokenCount}",
+                                    item.Type, item.Protocol?.Key, item.AdditionalData?.TotalValueUsd ?? 0, item.Position?.Tokens?.Count ?? 0);
+                            }
+                            list.AddRange(mapped);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("[AGGREGATOR-RAYDIUM] Mapper returned empty or null list!");
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("[AGGREGATOR-RAYDIUM] Deserialization returned null!");
                     }
                 }
+                else
+                {
+                    _logger.LogWarning("[AGGREGATOR-RAYDIUM] Payload is NOT JsonElement! Type: {Type}", result.Payload?.GetType().FullName ?? "null");
+                }
+                break;
+            default:
+                _logger.LogError("[CRITICAL] UNHANDLED PROVIDER IN MAPPER: {Provider} - This provider will be marked as completed but NO DATA will be processed! Add a case for this provider.", result.Provider);
+                // This is a critical error - a provider succeeded but we don't know how to map its data
+                // The system will mark it as completed but silently lose data
                 break;
         }
         return list;

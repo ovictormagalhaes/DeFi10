@@ -283,13 +283,16 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
             var priceLower = rawPriceLower * decimalAdjustment;
             var priceUpper = rawPriceUpper * decimalAdjustment;
             var priceCurrent = rawPriceCurrent * decimalAdjustment;
+            
+            decimal? rangeSize = priceLower > 0 ? (decimal)((priceUpper - priceLower) / priceLower) : null;
 
             return new RangeInfo
             {
                 Lower = (decimal)priceLower,
                 Upper = (decimal)priceUpper,
                 Current = (decimal)priceCurrent,
-                InRange = tickCurrent >= tickLower && tickCurrent <= tickUpper
+                InRange = tickCurrent >= tickLower && tickCurrent <= tickUpper,
+                RangeSize = rangeSize
             };
         }
     }

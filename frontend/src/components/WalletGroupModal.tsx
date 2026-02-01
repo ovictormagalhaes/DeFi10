@@ -64,6 +64,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const [walletSelectorIndex, setWalletSelectorIndex] = useState<number | null>(null);
   const [connectedWallets, setConnectedWallets] = useState<boolean[]>([false, false, false]);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
@@ -91,6 +92,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       setPowStatus('idle');
       setPowProgress('');
       setConnectedWallets([false, false, false]);
+      setIsConnecting(false);
       clearError();
     }
   }, [isOpen, clearError]);
@@ -476,6 +478,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     }
 
     try {
+      setIsConnecting(true);
       setGroupError(null);
       console.log('[WalletGroup] Connecting to group:', trimmedId);
 
@@ -532,6 +535,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       } else {
         setGroupError(err.message || 'Failed to connect to group. Please try again.');
       }
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -2037,11 +2042,11 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       ? handleConnectToExistingGroup
                       : handleCreateGroup
               }
-              disabled={loading || powStatus === 'solving' || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)}
+              disabled={loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)}
               style={{
                 padding: '10px 24px',
                 background:
-                  loading || powStatus === 'solving' || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)
+                  loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)
                     ? theme.textMuted
                     : `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
                 border: 'none',
@@ -2049,25 +2054,25 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 color: '#fff',
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: loading || powStatus === 'solving' || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 'not-allowed' : 'pointer',
-                opacity: loading || powStatus === 'solving' || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 0.5 : 1,
+                cursor: loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 'not-allowed' : 'pointer',
+                opacity: loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 0.5 : 1,
                 transition: 'all 0.15s',
                 width: viewportWidth < 640 ? '100%' : 'auto',
               }}
               onMouseEnter={(e) => {
-                if (!loading && powStatus !== 'solving' && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
+                if (!loading && powStatus !== 'solving' && !isConnecting && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
                   e.currentTarget.style.transform = 'translateY(-1px)';
                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
                 }
               }}
               onMouseLeave={(e) => {
-                if (!loading && powStatus !== 'solving' && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
+                if (!loading && powStatus !== 'solving' && !isConnecting && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = 'none';
                 }
               }}
             >
-              {loading || powStatus === 'solving'
+              {loading || powStatus === 'solving' || isConnecting
                 ? powStatus === 'solving' ? 'Solving Challenge...' : 'Connecting...'
                 : mode === 'edit'
                   ? 'Update Group'

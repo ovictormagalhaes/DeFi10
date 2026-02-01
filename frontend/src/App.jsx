@@ -480,9 +480,6 @@ function App() {
     if (!walletData) {
       walletDataSnapshotRef.current = null;
       setSnapshotVersion((v) => v + 1);
-      try {
-        console.log('[Chains] Snapshot cleared (no walletData). Version bumped.');
-      } catch {}
       return;
     }
     // Deep clone to avoid downstream mutations affecting aggregates
@@ -592,23 +589,18 @@ function App() {
 
   const getLockingData = () => {
     if (!walletData) {
-      console.log('[getLockingData] No walletData');
       return [];
     }
 
     if (walletData.items && Array.isArray(walletData.items)) {
-      console.log('[getLockingData] Processing walletData.items:', walletData.items.length);
       const lockingItems = getLockingItems(walletData.items);
-      console.log('[getLockingData] Returning locking items:', lockingItems);
       return lockingItems;
     }
 
     if (walletData.data && Array.isArray(walletData.data)) {
-      console.log('[getLockingData] Processing walletData.data:', walletData.data.length);
       return getLockingItems(walletData.data);
     }
 
-    console.log('[getLockingData] No items or data found');
     return [];
   };
 
@@ -2048,6 +2040,7 @@ function App() {
           onGroupCreated={(groupId) => {
             // Auto-select the created group
             setSelectedWalletGroupId(groupId);
+            setAggregationError(null); // Clear any previous errors
             window.history.pushState({}, '', `/portfolio/${groupId}`);
             setIsWalletGroupModalOpen(false);
             setPendingWalletGroupId(null);
@@ -2055,6 +2048,7 @@ function App() {
           onGroupSelected={(groupId, isReconnect) => {
             // Select existing group
             setSelectedWalletGroupId(groupId);
+            setAggregationError(null); // Clear any previous errors
             window.history.pushState({}, '', `/portfolio/${groupId}`);
             setIsWalletGroupModalOpen(false);
             setPendingWalletGroupId(null);

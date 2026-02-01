@@ -19,6 +19,64 @@ namespace DeFi10.API.Services.Protocols.Uniswap
 {
     public class UniswapV3OnChainService : IUniswapV3OnChainService
     {
+        private int _maxRetryAttempts = 3;
+        private const int BaseDelayMilliseconds = 1000;
+
+        /// <summary>
+        /// Executes an operation with retry logic and exponential backoff for transient errors.
+        /// </summary>
+        private async Task<T?> ExecuteWithRetryAsync<T>(Func<Task<T?>> operation, string operationName, int? maxAttempts = null) where T : class
+        {
+            int attempts = maxAttempts ?? _maxRetryAttempts;
+            for (int attempt = 1; attempt <= attempts; attempt++)
+            {
+                try
+                {
+                    return await operation();
+                }
+                catch (Exception ex) when (IsTransientError(ex) && attempt < attempts)
+                {
+                    var delay = TimeSpan.FromMilliseconds(BaseDelayMilliseconds * Math.Pow(2, attempt - 1));
+                    _logger.LogWarning(ex, "{Operation} failed (attempt {Attempt}/{Max}). Retrying in {Delay}ms...", 
+                        operationName, attempt, attempts, delay.TotalMilliseconds);
+                    await Task.Delay(delay);
+                }
+            }
+            return await operation();
+        }
+
+        /// <summary>
+        /// Executes an operation with retry logic and exponential backoff for transient errors (value types).
+        /// </summary>
+        private async Task<T?> ExecuteWithRetryValueAsync<T>(Func<Task<T?>> operation, string operationName, int? maxAttempts = null) where T : struct
+        {
+            int attempts = maxAttempts ?? _maxRetryAttempts;
+            for (int attempt = 1; attempt <= attempts; attempt++)
+            {
+                try
+                {
+                    return await operation();
+                }
+                catch (Exception ex) when (IsTransientError(ex) && attempt < attempts)
+                {
+                    var delay = TimeSpan.FromMilliseconds(BaseDelayMilliseconds * Math.Pow(2, attempt - 1));
+                    _logger.LogWarning(ex, "{Operation} failed (attempt {Attempt}/{Max}). Retrying in {Delay}ms...", 
+                        operationName, attempt, attempts, delay.TotalMilliseconds);
+                    await Task.Delay(delay);
+                }
+            }
+            return await operation();
+        }
+
+        private bool IsTransientError(Exception ex)
+        {
+            return ex.GetType().Name.Contains("RpcClientTimeoutException") ||
+                   ex is TaskCanceledException ||
+                   ex is TimeoutException ||
+                   (ex is System.IO.IOException ioEx && ioEx.InnerException is System.Net.Sockets.SocketException) ||
+                   ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
+                   ex.Message.Contains("connection", StringComparison.OrdinalIgnoreCase);
+        }
 
         private async Task<double?> TryGetNativeUsdFromChainlinkAsync(ChainContext ctx)
         {
@@ -76,6 +134,18 @@ namespace DeFi10.API.Services.Protocols.Uniswap
             _configuration = configuration;
             _chainConfigService = chainConfigService;
             _logger = logger;
+            
+            // Read MaxRetries from configuration, default to 3
+            var chainConfig = _chainConfigService.GetChainConfig(ChainEnum.Base);
+            if (chainConfig?.Rpc?.MaxRetries > 0)
+            {
+                _maxRetryAttempts = chainConfig.Rpc.MaxRetries;
+                _logger.LogInformation("UniswapV3OnChainService: Using MaxRetries={MaxRetries} from configuration", _maxRetryAttempts);
+            }
+            else
+            {
+                _logger.LogInformation("UniswapV3OnChainService: Using default MaxRetries={MaxRetries}", _maxRetryAttempts);
+            }
         }
 
         private ChainContext GetContext(ChainEnum chain) => _contexts.GetOrAdd(chain, c => BuildContext(c));
@@ -197,53 +267,87 @@ namespace DeFi10.API.Services.Protocols.Uniswap
 
         private async Task<PositionDTO?> TryGetPositionAsync(ChainContext ctx, BigInteger id)
         {
-            try
+            return await ExecuteWithRetryAsync(async () =>
             {
-
-                var positionResult = await ctx.Web3.Eth.GetContractHandler(ctx.PositionManager)
-                    .QueryDeserializingToObjectAsync<PositionsFunction, PositionDTO>(new PositionsFunction { TokenId = id });
-                
-                if (positionResult == null)
+                try
                 {
-                    _logger.LogWarning("Position {TokenId} on chain {Chain} not found", id, ctx.Chain);
+                    var positionResult = await ctx.Web3.Eth.GetContractHandler(ctx.PositionManager)
+                        .QueryDeserializingToObjectAsync<PositionsFunction, PositionDTO>(new PositionsFunction { TokenId = id });
+                    
+                    if (positionResult == null)
+                    {
+                        _logger.LogWarning("Position {TokenId} on chain {Chain} not found", id, ctx.Chain);
+                        return null;
+                    }
+
+                    _logger.LogDebug("[OnChain] Position {TokenId} retrieved - TokensOwed0={Owed0}, TokensOwed1={Owed1}, Liquidity={Liquidity}, FeeGrowthInside0Last={FG0}, FeeGrowthInside1Last={FG1}",
+                        id, positionResult.TokensOwed0, positionResult.TokensOwed1, positionResult.Liquidity, 
+                        positionResult.FeeGrowthInside0LastX128, positionResult.FeeGrowthInside1LastX128);
+
+                    return positionResult;
+                }
+                catch (Exception ex) when (ex.Message.Contains("Invalid token ID") || ex.Message.Contains("ERC721: owner query"))
+                {
+                    _logger.LogWarning("Position {TokenId} on chain {Chain} failed: {Message}", id, ctx.Chain, ex.Message);
                     return null;
                 }
-
-                _logger.LogDebug("[OnChain] Position {TokenId} retrieved - TokensOwed0={Owed0}, TokensOwed1={Owed1}, Liquidity={Liquidity}, FeeGrowthInside0Last={FG0}, FeeGrowthInside1Last={FG1}",
-                    id, positionResult.TokensOwed0, positionResult.TokensOwed1, positionResult.Liquidity, 
-                    positionResult.FeeGrowthInside0LastX128, positionResult.FeeGrowthInside1LastX128);
-
-                return positionResult;
-            }
-            catch (Exception ex) when (ex.Message.Contains("Invalid token ID") || ex.Message.Contains("ERC721: owner query"))
-            {
-                _logger.LogWarning("Position {TokenId} on chain {Chain} failed: {Message}", id, ctx.Chain, ex.Message);
-                return null;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Position {TokenId} on chain {Chain} failed with exception", id, ctx.Chain);
-                throw;
-            }
+                catch (Exception ex) when (IsTransientError(ex))
+                {
+                    _logger.LogDebug(ex, "Transient error getting position {TokenId} on chain {Chain}, will retry", id, ctx.Chain);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Position {TokenId} on chain {Chain} failed with non-transient exception", id, ctx.Chain);
+                    throw;
+                }
+            }, $"TryGetPositionAsync(tokenId={id}, chain={ctx.Chain})") ?? null;
         }
 
         private async Task<Slot0OutputDTO?> TryGetSlot0Async(ChainContext ctx, string pool)
         {
-            try { return await ctx.Web3.Eth.GetContractHandler(pool).QueryDeserializingToObjectAsync<Slot0Function, Slot0OutputDTO>(new()); }
-            catch (Exception ex) { _logger.LogDebug(ex, "TryGetSlot0Async failed pool={Pool}", pool); return null; }
+            return await ExecuteWithRetryAsync(async () =>
+            {
+                try 
+                { 
+                    return await ctx.Web3.Eth.GetContractHandler(pool).QueryDeserializingToObjectAsync<Slot0Function, Slot0OutputDTO>(new()); 
+                }
+                catch (Exception ex) when (IsTransientError(ex))
+                {
+                    _logger.LogDebug(ex, "Transient error in TryGetSlot0Async pool={Pool}, will retry", pool);
+                    throw;
+                }
+                catch (Exception ex) 
+                { 
+                    _logger.LogDebug(ex, "TryGetSlot0Async failed pool={Pool}", pool); 
+                    return null; 
+                }
+            }, $"TryGetSlot0Async(pool={pool})") ?? null;
         }
 
         private async Task<(BigInteger fg0, BigInteger fg1)?> TryGetFeeGrowthAsync(ChainContext ctx, string pool)
         {
-            try
+            return await ExecuteWithRetryValueAsync(async () =>
             {
-                var h = ctx.Web3.Eth.GetContractHandler(pool);
-                var t0 = h.QueryAsync<FeeGrowthGlobal0X128Function, BigInteger>(new());
-                var t1 = h.QueryAsync<FeeGrowthGlobal1X128Function, BigInteger>(new());
-                await Task.WhenAll(t0, t1);
-                return (await t0, await t1);
-            }
-            catch (Exception ex) { _logger.LogDebug(ex, "TryGetFeeGrowthAsync failed pool={Pool}", pool); return null; }
+                try
+                {
+                    var h = ctx.Web3.Eth.GetContractHandler(pool);
+                    var t0 = h.QueryAsync<FeeGrowthGlobal0X128Function, BigInteger>(new());
+                    var t1 = h.QueryAsync<FeeGrowthGlobal1X128Function, BigInteger>(new());
+                    await Task.WhenAll(t0, t1);
+                    return ((BigInteger, BigInteger)?)(await t0, await t1);
+                }
+                catch (Exception ex) when (IsTransientError(ex))
+                {
+                    _logger.LogDebug(ex, "Transient error in TryGetFeeGrowthAsync pool={Pool}, will retry", pool);
+                    throw;
+                }
+                catch (Exception ex) 
+                { 
+                    _logger.LogDebug(ex, "TryGetFeeGrowthAsync failed pool={Pool}", pool); 
+                    return null; 
+                }
+            }, $"TryGetFeeGrowthAsync(pool={pool})");
         }
 
         private static (decimal amount0, decimal amount1, string branch) ComputePositionAmountsPrecise(BigInteger L, int tickLower, int tickUpper, BigInteger sqrtPriceX96, int currentTick, int dec0, int dec1)
@@ -545,18 +649,26 @@ namespace DeFi10.API.Services.Protocols.Uniswap
 
         private async Task<TickInfoDTO?> GetTickInfoSafeAsync(ChainContext ctx, string pool, int tick)
         {
-            try
+            return await ExecuteWithRetryAsync(async () =>
             {
-                var result = await ctx.Web3.Eth.GetContractHandler(pool)
-                    .QueryDeserializingToObjectAsync<TicksFunction, TickInfoDTO>(new TicksFunction { Tick = tick }, null);
-                _logger.LogTrace("ticks() success pool={Pool} tick={Tick} liquidityGross={Gross} liquidityNet={Net} fg0Outside={FG0} fg1Outside={FG1}", pool, tick, result?.LiquidityGross, result?.LiquidityNet, result?.FeeGrowthOutside0X128, result?.FeeGrowthOutside1X128);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "ticks() call failed pool={Pool} tick={Tick}", pool, tick);
-                return null;
-            }
+                try
+                {
+                    var result = await ctx.Web3.Eth.GetContractHandler(pool)
+                        .QueryDeserializingToObjectAsync<TicksFunction, TickInfoDTO>(new TicksFunction { Tick = tick }, null);
+                    _logger.LogTrace("ticks() success pool={Pool} tick={Tick} liquidityGross={Gross} liquidityNet={Net} fg0Outside={FG0} fg1Outside={FG1}", pool, tick, result?.LiquidityGross, result?.LiquidityNet, result?.FeeGrowthOutside0X128, result?.FeeGrowthOutside1X128);
+                    return result;
+                }
+                catch (Exception ex) when (IsTransientError(ex))
+                {
+                    _logger.LogDebug(ex, "Transient error in GetTickInfoSafeAsync pool={Pool} tick={Tick}, will retry", pool, tick);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "ticks() call failed pool={Pool} tick={Tick}", pool, tick);
+                    return null;
+                }
+            }, $"GetTickInfoSafeAsync(pool={pool}, tick={tick})") ?? null;
         }
 
         private ChainContext BaseCtx => GetContext(ChainEnum.Base);
