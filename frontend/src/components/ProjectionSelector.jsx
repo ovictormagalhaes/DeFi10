@@ -11,18 +11,39 @@ import PeriodDropdown from './PeriodDropdown.jsx';
  * @param {string} defaultType - Default selected type ('apr', 'aprHistorical', etc.)
  * @param {string} defaultPeriod - Default selected period ('Day', 'Week', 'Month', 'Year')
  * @param {boolean} showTypeWhenSingle - Show type dropdown even when there's only 1 type (default: true)
+ * @param {Object} dropdownButtonStyle - Custom styles for dropdown buttons
+ * @param {boolean} disableDropdownHoverEffects - Disable hover effects on dropdowns
  */
 const ProjectionSelector = ({ 
   projections, 
   projection,
   defaultType = 'apr',
   defaultPeriod = 'Day',
-  showTypeWhenSingle = true
+  showTypeWhenSingle = true,
+  dropdownButtonStyle = {},
+  disableDropdownHoverEffects = false
 }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const [selectedType, setSelectedType] = useState(defaultType);
   const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
+
+  // Default button style for dropdowns if not provided
+  const defaultDropdownStyle = {
+    fontSize: 13,
+    fontWeight: 400,
+    fontFamily: 'inherit',
+    color: 'rgb(162, 169, 181)',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderRadius: 0,
+    padding: 0,
+    transition: 'none',
+  };
+
+  const finalButtonStyle = Object.keys(dropdownButtonStyle).length > 0 
+    ? dropdownButtonStyle 
+    : defaultDropdownStyle;
 
   // Normalize projections array (support both new and legacy format)
   const normalizedProjections = useMemo(() => {
@@ -115,6 +136,9 @@ const ProjectionSelector = ({
               (t === 'APR' && selectedType.toLowerCase() === 'apr')
             ) || typeOptions[0]}
             onPeriodChange={handleTypeChange}
+            compact={true}
+            disableHoverEffects={disableDropdownHoverEffects}
+            buttonStyle={finalButtonStyle}
           />
         )}
 
@@ -123,6 +147,9 @@ const ProjectionSelector = ({
           periods={['Day', 'Week', 'Month', 'Year']}
           selectedPeriod={selectedPeriod}
           onPeriodChange={setSelectedPeriod}
+          compact={true}
+          disableHoverEffects={disableDropdownHoverEffects}
+          buttonStyle={finalButtonStyle}
         />
       </div>
 

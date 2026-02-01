@@ -342,9 +342,21 @@ const LendingCards = ({ data = [] }) => {
                     }}>
                       <ProjectionSelector 
                         projections={projections} 
-                        defaultType="apr" 
+                        defaultType="apy" 
                         defaultPeriod="Day"
                         showTypeWhenSingle={false}
+                        disableDropdownHoverEffects={true}
+                        dropdownButtonStyle={{
+                          fontSize: 13,
+                          fontWeight: 400,
+                          fontFamily: 'inherit',
+                          color: 'rgb(162, 169, 181)',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          borderRadius: 0,
+                          padding: 0,
+                          transition: 'none',
+                        }}
                       />
                     </div>
                   );
@@ -366,6 +378,18 @@ const LendingCards = ({ data = [] }) => {
                         projection={projection} 
                         defaultPeriod="Day"
                         showTypeWhenSingle={false}
+                        disableDropdownHoverEffects={true}
+                        dropdownButtonStyle={{
+                          fontSize: 13,
+                          fontWeight: 400,
+                          fontFamily: 'inherit',
+                          color: 'rgb(162, 169, 181)',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          borderRadius: 0,
+                          padding: 0,
+                          transition: 'none',
+                        }}
                       />
                     </div>
                   );

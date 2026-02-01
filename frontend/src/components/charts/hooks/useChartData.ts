@@ -493,11 +493,17 @@ export const useChartData = ({
       const additionalInfo = item.additionalInfo || position?.additionalInfo || {};
       const projections = additionalData.projections || additionalInfo.projections || position?.projections || [];
       
+      // Get the principal value for this position (use signed value)
+      const tokens = Array.isArray(position.tokens) 
+        ? filterLendingDefiTokens(position.tokens, showLendingDefiTokens)
+        : [];
+      const principalValue = tokens.reduce((sum: number, t: any) => sum + signedTokenValue(t, item), 0);
+      
       projections.forEach((proj: any) => {
         const type = proj.type?.toLowerCase() || 'apy';
         const projection = proj.projection || {};
         
-        // Get rate for this type (APY/APR percentage)
+        // Get rate from backend (APY/APR percentage)
         const rate = proj.metadata?.rate || position.apy || position.supplyRate || additionalData.apy || 0;
         
         if (!lendingByType.has(type)) {
@@ -507,8 +513,8 @@ export const useChartData = ({
             oneWeek: 0,
             oneMonth: 0,
             oneYear: 0,
-            rate: 0,
-            count: 0
+            totalRateWeighted: 0,
+            totalWeight: 0
           });
         }
         
@@ -517,17 +523,24 @@ export const useChartData = ({
         existing.oneWeek += parseFloat(projection.oneWeek) || 0;
         existing.oneMonth += parseFloat(projection.oneMonth) || 0;
         existing.oneYear += parseFloat(projection.oneYear) || 0;
-        existing.rate += parseFloat(rate) || 0;
-        existing.count += 1;
+        
+        // Weighted average by principal value
+        if (rate != null && !isNaN(rate) && principalValue !== 0) {
+          existing.totalRateWeighted += rate * Math.abs(principalValue);
+          existing.totalWeight += Math.abs(principalValue);
+        }
       });
     });
 
-    // Calculate average rate for lending
+    // Calculate weighted average rate for lending
     lendingByType.forEach((value) => {
-      if (value.count > 0) {
-        value.rate = value.rate / value.count;
+      if (value.totalWeight > 0) {
+        value.rate = value.totalRateWeighted / value.totalWeight;
+      } else {
+        value.rate = 0;
       }
-      delete value.count;
+      delete value.totalRateWeighted;
+      delete value.totalWeight;
     });
 
     // Process liquidity projections by type
@@ -538,15 +551,39 @@ export const useChartData = ({
       const additionalInfo = pos.additionalInfo || item.additionalInfo || {};
       const projections = additionalData.projections || additionalInfo.projections || pos.projections || [];
       
+      // Get the principal value for this position
+      let principalValue = 0;
+      const tokens = Array.isArray(pos.tokens) ? pos.tokens : [];
+      tokens.forEach((token: any) => {
+        const tokenValue = parseFloat(
+          token.totalPrice || 
+          token.financials?.totalPrice || 
+          token.balanceUSD ||
+          0
+        );
+        const tokenType = (token.type || '').toLowerCase();
+        
+        // Only liquidity tokens, not fees
+        if (tokenType.includes('supplied') || 
+            tokenType.includes('supply') || 
+            tokenType.includes('liquidity') ||
+            tokenType.includes('deposit') ||
+            !tokenType ||
+            tokenType === '') {
+          principalValue += tokenValue;
+        }
+      });
+      
       projections.forEach((proj: any) => {
-        const type = proj.type?.toLowerCase() || 'apr';
+        const rawType = proj.type?.toLowerCase() || 'apr';
+        const type = rawType === 'aprhistorical' ? 'aprHistorical' : rawType;
         const projection = proj.projection || {};
         
-        // Get rate for this type (APR/APR Historical percentage)
+        // Get rate from backend (APR/APR Historical percentage)
         let rate = 0;
         if (type === 'apr') {
           rate = proj.metadata?.rate || additionalData.apr || pos.apr || additionalInfo.apr || 0;
-        } else if (type === 'aprhistorical') {
+        } else if (type === 'aprHistorical') {
           rate = proj.metadata?.rate || additionalData.aprHistorical || pos.aprHistorical || additionalInfo.aprHistorical || 0;
         } else {
           rate = proj.metadata?.rate || 0;
@@ -554,13 +591,13 @@ export const useChartData = ({
         
         if (!liquidityByType.has(type)) {
           liquidityByType.set(type, {
-            type,
+            type: rawType, // Keep original type name
             oneDay: 0,
             oneWeek: 0,
             oneMonth: 0,
             oneYear: 0,
-            rate: 0,
-            count: 0
+            totalRateWeighted: 0,
+            totalWeight: 0
           });
         }
         
@@ -569,17 +606,24 @@ export const useChartData = ({
         existing.oneWeek += parseFloat(projection.oneWeek) || 0;
         existing.oneMonth += parseFloat(projection.oneMonth) || 0;
         existing.oneYear += parseFloat(projection.oneYear) || 0;
-        existing.rate += parseFloat(rate) || 0;
-        existing.count += 1;
+        
+        // Weighted average by principal value
+        if (rate != null && !isNaN(rate) && principalValue > 0) {
+          existing.totalRateWeighted += rate * principalValue;
+          existing.totalWeight += principalValue;
+        }
       });
     });
 
-    // Calculate average rate for liquidity
+    // Calculate weighted average rate for liquidity
     liquidityByType.forEach((value) => {
-      if (value.count > 0) {
-        value.rate = value.rate / value.count;
+      if (value.totalWeight > 0) {
+        value.rate = value.totalRateWeighted / value.totalWeight;
+      } else {
+        value.rate = 0;
       }
-      delete value.count;
+      delete value.totalRateWeighted;
+      delete value.totalWeight;
     });
 
     return {

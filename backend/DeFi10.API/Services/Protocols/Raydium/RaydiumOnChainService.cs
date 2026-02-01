@@ -447,26 +447,22 @@ namespace DeFi10.API.Services.Protocols.Raydium
                     }
                     
                     // Add uncollected fees (calculated from pool state and tick data)
-                    if (finalFeeToken0 > 0)
-                    {
-                        tokenList.Add(new SplToken 
-                        { 
-                            Mint = pool.TokenMintA, 
-                            Amount = finalFeeToken0, 
-                            Decimals = tokenADecimals, 
-                            Type = TokenType.LiquidityUncollectedFee 
-                        });
-                                }
-                    if (finalFeeToken1 > 0)
-                    {
-                        tokenList.Add(new SplToken 
-                        { 
-                            Mint = pool.TokenMintB, 
-                            Amount = finalFeeToken1, 
-                            Decimals = tokenBDecimals, 
-                            Type = TokenType.LiquidityUncollectedFee 
-                        });
-                                }
+                    // Always add them for consistency, even if zero
+                    tokenList.Add(new SplToken 
+                    { 
+                        Mint = pool.TokenMintA, 
+                        Amount = finalFeeToken0, 
+                        Decimals = tokenADecimals, 
+                        Type = TokenType.LiquidityUncollectedFee 
+                    });
+                    
+                    tokenList.Add(new SplToken 
+                    { 
+                        Mint = pool.TokenMintB, 
+                        Amount = finalFeeToken1, 
+                        Decimals = tokenBDecimals, 
+                        Type = TokenType.LiquidityUncollectedFee 
+                    });
                     
                     // Add reward tokens (these are separate from trading fees)
                     for (int i = 0; i < layout.RewardInfos.Length; i++)

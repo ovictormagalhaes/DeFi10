@@ -18,6 +18,15 @@ namespace DeFi10.API.Services.Protocols.Kamino
         private readonly IProtocolConfigurationService _protocolConfig;
         private readonly int _rateLimitDelayMs;
         private readonly string _kaminoApiUrl;
+        
+        // Known Kamino markets to query
+        private static readonly List<(string Pubkey, string Name)> KnownMarkets = new()
+        {
+            ("7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF", "Main Market"),
+            ("ByVuX9fRdEHsZomwLVryQQHRhQi3yMXZ6uz6DA4gutja", "JLP Market"),
+            ("DxXdAyU3kCjnyggvHmY5nAwg5cRbbmdyX3npfDMjjMek", "Altcoins Market"),
+        };
+        
         private const string MainMarketPubkey = "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF";
         
         // Cache for reserves data
@@ -51,8 +60,8 @@ namespace DeFi10.API.Services.Protocols.Kamino
             
             var protocolChain = _protocolConfig.GetProtocolOnChain("kamino", ChainEnum.Solana);
             _kaminoApiUrl = protocolChain?.Options?.TryGetValue("ApiUrl", out var apiUrl) == true 
-                ? apiUrl?.ToString() ?? "https://api.hubbleprotocol.io"
-                : "https://api.hubbleprotocol.io";
+                ? apiUrl?.ToString() ?? "https://api.kamino.finance"
+                : "https://api.kamino.finance";
             
             _httpClient.BaseAddress = new System.Uri(_kaminoApiUrl);
             _httpClient.Timeout = System.TimeSpan.FromSeconds(30);
@@ -77,19 +86,44 @@ namespace DeFi10.API.Services.Protocols.Kamino
                 return Enumerable.Empty<KaminoPosition>();
             }
 
-            if (_rateLimitDelayMs > 0)
+            _logger.LogInformation("KAMINO: Fetching positions for address {Address} across {MarketCount} markets", 
+                address, KnownMarkets.Count);
+
+            var allPositions = new List<KaminoPosition>();
+            
+            // Query all known markets
+            foreach (var (marketPubkey, marketName) in KnownMarkets)
             {
-                await Task.Delay(_rateLimitDelayMs);
+                if (_rateLimitDelayMs > 0 && allPositions.Count > 0) // Skip delay on first iteration
+                {
+                    await Task.Delay(_rateLimitDelayMs);
+                }
+
+                _logger.LogDebug("KAMINO: Querying market {MarketName} ({Pubkey})", marketName, marketPubkey);
+                
+                var positions = await GetPositionsForMarketAsync(address, marketPubkey, marketName);
+                if (positions.Any())
+                {
+                    _logger.LogInformation("KAMINO: Found {Count} positions in {MarketName}", positions.Count(), marketName);
+                    allPositions.AddRange(positions);
+                }
             }
 
-            _logger.LogDebug("KAMINO: Fetching positions for address {Address}", address);
+            _logger.LogInformation("KAMINO: Total positions found: {Count} across all markets", allPositions.Count);
+            return allPositions;
+        }
 
-            var endpoint = $"kamino-market/{MainMarketPubkey}/users/{address}/obligations";
+        private async Task<IEnumerable<KaminoPosition>> GetPositionsForMarketAsync(string address, string marketPubkey, string marketName)
+        {
+            var endpoint = $"kamino-market/{marketPubkey}/users/{address}/obligations";
             
             try
             {
+                // Add timeout to prevent individual market queries from hanging
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                
                 // Retry logic with exponential backoff for reliability
-                const int maxRetries = 3;
+                const int maxRetries = 2; // Reduced retries to save time
                 HttpResponseMessage? response = null;
                 Exception? lastException = null;
 
@@ -99,7 +133,7 @@ namespace DeFi10.API.Services.Protocols.Kamino
                     {
                         _logger.LogDebug("KAMINO: GET {Endpoint} (attempt {Attempt}/{MaxRetries})", endpoint, attempt, maxRetries);
                         
-                        response = await _httpClient.GetAsync(endpoint);
+                        response = await _httpClient.GetAsync(endpoint, cts.Token);
                         
                         _logger.LogDebug("KAMINO: Response status: {StatusCode}", response.StatusCode);
 
@@ -169,8 +203,8 @@ namespace DeFi10.API.Services.Protocols.Kamino
 
                 if (response == null || !response.IsSuccessStatusCode)
                 {
-                    _logger.LogError(lastException, "KAMINO: All {MaxRetries} attempts failed for address {Address}", 
-                        maxRetries, address);
+                    _logger.LogWarning(lastException, "KAMINO: All {MaxRetries} attempts failed for market {Market}", 
+                        maxRetries, marketName);
                     return Enumerable.Empty<KaminoPosition>();
                 }
 
@@ -292,29 +326,34 @@ namespace DeFi10.API.Services.Protocols.Kamino
                         skippedDeposits, skippedBorrows);
                 }
 
-                var positions = obligations.Select(MapObligationToPosition).ToList();
+                var positions = obligations.Select(o => MapObligationToPosition(o, marketName)).ToList();
 
                 _logger.LogDebug("KAMINO: Successfully mapped {Count} positions", positions.Count);
                 return positions;
             }
+            catch (OperationCanceledException ex)
+            {
+                _logger.LogWarning(ex, "KAMINO: Timeout querying market {Market} (15s exceeded)", marketName);
+                return Enumerable.Empty<KaminoPosition>();
+            }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "KAMINO: HTTP error for address {Address}", address);
+                _logger.LogWarning(ex, "KAMINO: HTTP error for market {Market}", marketName);
                 return Enumerable.Empty<KaminoPosition>();
             }
             catch (System.Text.Json.JsonException ex)
             {
-                _logger.LogError(ex, "KAMINO: JSON parsing error");
+                _logger.LogWarning(ex, "KAMINO: JSON parsing error in market {Market}", marketName);
                 return Enumerable.Empty<KaminoPosition>();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "KAMINO: Unexpected error for address {Address}", address);
+                _logger.LogWarning(ex, "KAMINO: Unexpected error in market {Market}", marketName);
                 return Enumerable.Empty<KaminoPosition>();
             }
         }
 
-        private KaminoPosition MapObligationToPosition(KaminoObligationDto obligation)
+        private KaminoPosition MapObligationToPosition(KaminoObligationDto obligation, string marketName)
         {
             var tokens = new List<SplToken>();
 
@@ -512,7 +551,7 @@ namespace DeFi10.API.Services.Protocols.Kamino
             var position = new KaminoPosition
             {
                 Id = obligation.ObligationAddress ?? "unknown",
-                Market = "Kamino Main Market",
+                Market = $"Kamino {marketName}",
                 SuppliedUsd = totalDepositUsd,
                 BorrowedUsd = totalBorrowUsd,
                 HealthFactor = healthFactor,

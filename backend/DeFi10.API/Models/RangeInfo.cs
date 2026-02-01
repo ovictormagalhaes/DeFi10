@@ -12,4 +12,6 @@ public class RangeInfo
     public decimal? Current { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? InRange { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? RangeSize { get; set; }
 }

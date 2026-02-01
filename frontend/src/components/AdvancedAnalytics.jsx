@@ -234,6 +234,8 @@ const AdvancedAnalytics = ({
               formatPrice={formatPrice}
               maskValue={maskValue}
               totalPortfolioValue={getTotalPortfolioValue()}
+              totalLiquidityValue={portfolioData.liquidityValue}
+              totalLendingValue={Math.abs(portfolioData.lendingValue)}
             />
           </div>
         )}

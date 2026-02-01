@@ -67,7 +67,7 @@ namespace DeFi10.API.Services.Protocols.Raydium.Models
                     pool.TickCurrent,
                     pool.FeeGrowthGlobal0X64, 
                     tickLowerData!.FeeGrowthOutside0X64,
-                    tickUpperData!.FeeGrowthOutside0X64,  // Fixed: was using FeeGrowthOutside1X64
+                    tickUpperData!.FeeGrowthOutside0X64,
                     logger);
 
                 feeGrowthInside1X64 = CalculateFeeGrowthInside(
@@ -217,16 +217,6 @@ namespace DeFi10.API.Services.Protocols.Raydium.Models
                 var result = (MAX_UINT128 - last) + current + 1;
                 
                 logger?.LogTrace("[Raydium Fees] Uint128 subtraction with overflow - {Current} - {Last} = {Result}", current, last, result);
-
-                // Important: Don't reject large values! They can be legitimate fee growth
-                // Only reject truly absurd values (> 2^120)
-                var maxReasonableResult = BigInteger.Pow(2, 120);
-                if (result > maxReasonableResult)
-                {
-                    logger?.LogWarning("[Raydium Fees] Uint128 subtraction result too large, likely data corruption - {Current} - {Last} = {Result}, returning 0", 
-                        current, last, result);
-                    return BigInteger.Zero;
-                }
                 
                 return result;
             }

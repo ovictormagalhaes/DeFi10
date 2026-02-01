@@ -198,6 +198,20 @@ const SubSectionItemWithDropdown = ({
             selectedPeriod={typeOptions.find(t => t.key === selectedType)?.label || typeOptions[0]?.label}
             onPeriodChange={handleTypeChange}
             compact={true}
+            disableHoverEffects={true}
+            buttonStyle={{
+              fontSize: 11,
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              color: 'rgb(162, 169, 181)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderRadius: 0,
+              padding: 0,
+              transition: 'none',
+            }}
           />
         )}
 
@@ -208,6 +222,20 @@ const SubSectionItemWithDropdown = ({
             selectedPeriod={periodOptions.find(p => p.key === selectedPeriod)?.label || 'Day'}
             onPeriodChange={handlePeriodChange}
             compact={true}
+            disableHoverEffects={true}
+            buttonStyle={{
+              fontSize: 11,
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              color: 'rgb(162, 169, 181)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderRadius: 0,
+              padding: 0,
+              transition: 'none',
+            }}
           />
         )}
       </div>
@@ -249,6 +277,7 @@ export const LendingSubSectionHeader = ({ data = [], groupByProtocol = false }) 
   // Projection sums by type
   const projectionSums = {
     apr: { day: 0, week: 0, month: 0, year: 0 },
+    apy: { day: 0, week: 0, month: 0, year: 0 },
     aprHistorical: { day: 0, week: 0, month: 0, year: 0 },
   };
 
@@ -285,17 +314,21 @@ export const LendingSubSectionHeader = ({ data = [], groupByProtocol = false }) 
     const projections = item.additionalData?.projections || 
                        item.additionalInfo?.projections || 
                        position?.projections ||
+                       position?.additionalData?.projections ||
+                       position?.additionalInfo?.projections ||
                        null;
     
     const legacyProjection = item.additionalInfo?.projection || 
                             item.additionalData?.projection || 
                             position.projection ||
+                            position?.additionalData?.projection ||
+                            position?.additionalInfo?.projection ||
                             null;
     
     // Process projections array (new format)
     if (projections && Array.isArray(projections)) {
       projections.forEach(proj => {
-        const rawType = proj.type?.toLowerCase() || 'apr';
+        const rawType = proj.type?.toLowerCase() || 'apy';
         // Map type to correct key in projectionSums
         const type = rawType === 'aprhistorical' ? 'aprHistorical' : rawType;
         const projection = proj.projection;
@@ -310,10 +343,11 @@ export const LendingSubSectionHeader = ({ data = [], groupByProtocol = false }) 
     } 
     // Process legacy projection (backward compatibility)
     else if (legacyProjection) {
-      projectionSums.apr.day += parseFloat(legacyProjection.oneDay || 0);
-      projectionSums.apr.week += parseFloat(legacyProjection.oneWeek || 0);
-      projectionSums.apr.month += parseFloat(legacyProjection.oneMonth || 0);
-      projectionSums.apr.year += parseFloat(legacyProjection.oneYear || 0);
+      // Default to apy for lending
+      projectionSums.apy.day += parseFloat(legacyProjection.oneDay || 0);
+      projectionSums.apy.week += parseFloat(legacyProjection.oneWeek || 0);
+      projectionSums.apy.month += parseFloat(legacyProjection.oneMonth || 0);
+      projectionSums.apy.year += parseFloat(legacyProjection.oneYear || 0);
     }
     
     // Processar tokens
@@ -360,11 +394,13 @@ export const LendingSubSectionHeader = ({ data = [], groupByProtocol = false }) 
   const avgApy = netPosition !== 0 ? (weightedApySum / netPosition) : null;
 
   // Check if any projection type has values
-  const hasAprProjections = projectionSums.apr.day !== 0 || projectionSums.apr.week !== 0 || 
-                           projectionSums.apr.month !== 0 || projectionSums.apr.year !== 0;
-  const hasAprHistoricalProjections = projectionSums.aprHistorical.day !== 0 || projectionSums.aprHistorical.week !== 0 || 
-                                 projectionSums.aprHistorical.month !== 0 || projectionSums.aprHistorical.year !== 0;
-  const hasProjections = hasAprProjections || hasAprHistoricalProjections;
+  const hasAprProjections = (projectionSums.apr?.day || 0) !== 0 || (projectionSums.apr?.week || 0) !== 0 || 
+                           (projectionSums.apr?.month || 0) !== 0 || (projectionSums.apr?.year || 0) !== 0;
+  const hasApyProjections = (projectionSums.apy?.day || 0) !== 0 || (projectionSums.apy?.week || 0) !== 0 || 
+                           (projectionSums.apy?.month || 0) !== 0 || (projectionSums.apy?.year || 0) !== 0;
+  const hasAprHistoricalProjections = (projectionSums.aprHistorical?.day || 0) !== 0 || (projectionSums.aprHistorical?.week || 0) !== 0 || 
+                                 (projectionSums.aprHistorical?.month || 0) !== 0 || (projectionSums.aprHistorical?.year || 0) !== 0;
+  const hasProjections = hasAprProjections || hasApyProjections || hasAprHistoricalProjections;
 
   const items = [
     avgHealthFactor !== null && {
@@ -390,14 +426,20 @@ export const LendingSubSectionHeader = ({ data = [], groupByProtocol = false }) 
   let projectionValues = {};
   const shouldShowTypeDropdown = false; // LendingCards uses showTypeWhenSingle: false
   
-  if (hasAprProjections && hasAprHistoricalProjections) {
+  if ((hasAprProjections && hasApyProjections) || (hasAprProjections && hasAprHistoricalProjections) || (hasApyProjections && hasAprHistoricalProjections)) {
     // Multiple types: create nested structure
-    projectionValues = {
-      apr: projectionSums.apr,
-      aprHistorical: projectionSums.aprHistorical,
-    };
-  } else if (hasAprProjections) {
+    projectionValues = {};
+    if (hasAprProjections) projectionValues.apr = projectionSums.apr;
+    if (hasApyProjections) projectionValues.apy = projectionSums.apy;
+    if (hasAprHistoricalProjections) projectionValues.aprHistorical = projectionSums.aprHistorical;
+  } else if (hasApyProjections) {
     // Single type: use nested structure if showTypeWhenSingle is true, otherwise flat
+    if (shouldShowTypeDropdown) {
+      projectionValues = { apy: projectionSums.apy };
+    } else {
+      projectionValues = projectionSums.apy;
+    }
+  } else if (hasAprProjections) {
     if (shouldShowTypeDropdown) {
       projectionValues = { apr: projectionSums.apr };
     } else {
@@ -414,7 +456,7 @@ export const LendingSubSectionHeader = ({ data = [], groupByProtocol = false }) 
   const projectionItem = hasProjections ? {
     label: 'Projection',
     values: projectionValues,
-    defaultType: 'apr',
+    defaultType: hasApyProjections ? 'apy' : 'apr',
     defaultPeriod: 'day',
     showTypeWhenSingle: false,
     color: (value) => value >= 0 ? '#10b981' : '#ef4444',

@@ -4,6 +4,7 @@ import {
   filterBorrowedTokens,
   filterRewardTokens,
   isRewardToken,
+  isCollectedFeeToken,
   normalizeTokenPrice,
 } from './tokenFilters';
 
@@ -213,11 +214,8 @@ function truncateAndFormat(value, maxDecimals) {
 // Group DeFi positions by protocol
 export function groupDefiByProtocol(defiData) {
   if (!defiData || !Array.isArray(defiData)) {
-    console.log('[groupDefiByProtocol] Invalid input:', defiData);
     return [];
   }
-  
-  console.log('[groupDefiByProtocol] Processing items:', defiData.length, defiData);
 
   const grouped = {};
 
@@ -315,7 +313,6 @@ export function groupDefiByProtocol(defiData) {
   });
 
   const result = Object.values(grouped);
-  console.log('[groupDefiByProtocol] Grouped result:', result);
   return result;
 }
 
@@ -634,7 +631,9 @@ export function computePortfolioBreakdown({
     return sum + (isFinite(v) ? v : 0);
   }, 0);
 
-  // Liquidity gross (supplied side only) – rewards not counted here (already inside tokens if priced)
+  // Liquidity gross (supplied side only) – rewards and collected fees not counted here
+  // Collected fees are excluded because they have already been collected (became wallet tokens)
+  // Uncollected fees are still included in the calculation
   const liquidityValue = liquidityGroups.reduce((total, group) => {
     return (
       total +
@@ -642,7 +641,11 @@ export function computePortfolioBreakdown({
         (sum, pos) =>
           sum +
           (pos.tokens?.reduce(
-            (tokenSum, t) => tokenSum + (parseFloat(t.financials?.totalPrice || t.totalPrice) || 0), 
+            (tokenSum, t) => {
+              // Exclude collected fees (already in wallet), but keep uncollected fees
+              if (isCollectedFeeToken(t)) return tokenSum;
+              return tokenSum + (parseFloat(t.financials?.totalPrice || t.totalPrice) || 0);
+            }, 
             0
           ) || 0),
         0
@@ -697,7 +700,11 @@ export function computePortfolioBreakdown({
           sum +
           (pos.tokens?.reduce(
             // Locking tokens have totalPrice inside financials (like liquidity tokens)
-            (tokenSum, t) => tokenSum + (parseFloat(t.financials?.totalPrice || t.totalPrice) || 0),
+            // Exclude collected fees (already in wallet), but keep uncollected fees
+            (tokenSum, t) => {
+              if (isCollectedFeeToken(t)) return tokenSum;
+              return tokenSum + (parseFloat(t.financials?.totalPrice || t.totalPrice) || 0);
+            },
             0
           ) || 0),
         0
