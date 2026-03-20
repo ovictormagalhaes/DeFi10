@@ -8,6 +8,7 @@ using DeFi10.API.Services.Domain.Mappers;
 using DeFi10.API.Services.Protocols.Aave.Models;
 using DeFi10.API.Services.Configuration;
 using DeFi10.API.Services.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace DeFi10.API.Services.Protocols.Aave.Mappers;
 
@@ -17,9 +18,10 @@ public class AaveBorrowsMapper : IWalletItemMapper<AaveGetUserBorrowsResponse>
     private readonly IProtocolConfigurationService _protocolConfig;
     private readonly IChainConfigurationService _chainConfig;
     private readonly IProjectionCalculator _projectionCalculator;
+    private readonly ILogger<AaveBorrowsMapper> _logger;
 
-    public AaveBorrowsMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig, IProjectionCalculator projectionCalculator)
-    { _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; _projectionCalculator = projectionCalculator; }
+    public AaveBorrowsMapper(ITokenFactory tokenFactory, IProtocolConfigurationService protocolConfig, IChainConfigurationService chainConfig, IProjectionCalculator projectionCalculator, ILogger<AaveBorrowsMapper> logger)
+    { _tokenFactory = tokenFactory; _protocolConfig = protocolConfig; _chainConfig = chainConfig; _projectionCalculator = projectionCalculator; _logger = logger; }
 
     public bool SupportsChain(ChainEnum chain) => 
         _protocolConfig.IsChainEnabledForProtocol(ProtocolNames.AaveV3, chain);

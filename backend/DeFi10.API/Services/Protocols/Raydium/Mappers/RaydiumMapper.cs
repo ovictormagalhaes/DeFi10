@@ -156,31 +156,11 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                     .Where(t => t.Type == TokenType.Supplied)
                     .Sum(t => t.Financials?.TotalPrice ?? 0m);
                 
-                // APR is only earned when position is in range
-                var effectiveApr = rangeInfo.InRange == true ? (p.Apr ?? 0m) : 0m;
-
-                // Build multiple projections
                 var projections = new List<ProjectionData>();
 
-                // 1. APR-based projection
-                if (effectiveApr > 0 && totalValueUsd > 0)
-                {
-                    var aprProjection = _projectionCalculator.CalculateAprProjection(totalValueUsd, effectiveApr);
-                    if (aprProjection != null)
-                    {
-                        projections.Add(_projectionCalculator.CreateProjectionData(
-                            ProjectionType.Apr,
-                            aprProjection,
-                            new ProjectionMetadata { Apr = effectiveApr }
-                        ));
-                    }
-                }
-
-                // 2. AprHistorical-based projection (historical fees)
                 decimal? calculatedAprHistorical = null;
                 if (p.CreatedAt.HasValue && p.CreatedAt.Value > 0 && totalValueUsd > 0)
                 {
-                    // Calculate total fees (collected + uncollected)
                     var totalFees = tokens
                         .Where(t => t.Type == TokenType.LiquidityCollectedFee || 
                                     t.Type == TokenType.LiquidityUncollectedFee)
@@ -202,17 +182,19 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                             var daysActive = (DateTimeOffset.UtcNow - 
                                 DateTimeOffset.FromUnixTimeSeconds(p.CreatedAt.Value)).TotalDays;
 
-                            projections.Add(_projectionCalculator.CreateProjectionData(
-                                ProjectionType.AprHistorical,
-                                aprHistoricalProjection,
-                                new ProjectionMetadata
+                            projections.Add(new ProjectionData
+                            {
+                                Type = ProjectionType.Apr,
+                                CalculationType = DeFi10.API.Models.CalculationType.Historical,
+                                Projection = aprHistoricalProjection,
+                                Metadata = new ProjectionMetadata
                                 {
-                                    AprHistorical = aprHistorical.Value,
+                                    Apr = aprHistorical.Value,
                                     CreatedAt = p.CreatedAt.Value,
                                     TotalFeesGenerated = totalFees,
                                     DaysActive = (decimal)daysActive
                                 }
-                            ));
+                            });
                         }
                     }
                 }
@@ -243,8 +225,7 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                     AdditionalData = new AdditionalData
                     {
                         TotalValueUsd = totalValueUsd,
-                        Apr = effectiveApr,
-                        AprHistorical = calculatedAprHistorical,
+                        Apr = calculatedAprHistorical,
                         Fees24h = p.Fees24h,
                         SqrtPriceX96 = p.SqrtPriceX96,
                         PoolId = p.Pool,

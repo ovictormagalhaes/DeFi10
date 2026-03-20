@@ -9,10 +9,12 @@ import LoadingScreen from './components/LoadingScreen';
 import PoolsView from './components/PoolsView.tsx';
 import ProtocolsSection from './components/ProtocolsSection';
 import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
+import { StrategiesPage } from './components/strategies';
 import SectionTable from './components/SectionTable';
 import SummaryView from './components/SummaryView';
 import ViewModeSelector from './components/ViewModeSelector';
 import { LendingGroupedView, LockingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
+import LendingDetailView from './components/LendingDetailView.jsx';
 import { WalletSectionHeader, LendingSectionHeader, PoolsSectionHeader, LockingSectionHeader } from './components/cards/SectionHeaders';
 import { LendingSubSectionHeader, LiquiditySubSectionHeader } from './components/cards/SubSectionHeaders';
 import { WalletTokensTable } from './components/tables';
@@ -282,6 +284,7 @@ function App() {
 
   const [showLendingDefiTokens, setShowLendingDefiTokens] = useState(false);
   const [showStakingDefiTokens, setShowStakingDefiTokens] = useState(false);
+  const [selectedLendingGroup, setSelectedLendingGroup] = useState(null);
   // Chain selection (null or Set of canonical keys). Default: all selected
   const [selectedChains, setSelectedChains] = useState(null);
   // View type selector (chart, table, cards)
@@ -1151,6 +1154,7 @@ function App() {
 
   // Map viewType to viewMode for backwards compatibility
   // chart -> summary, table -> overview, cards -> overview (card view), strategies -> strategies
+  // Note: additional full-screen views (like pools or lending) are driven by other UI state flags.
   const viewMode = viewType === 'chart' ? 'summary' 
     : viewType === 'strategies' ? 'strategies'
     : 'overview'; // both 'table' and 'cards' use overview data
@@ -1162,6 +1166,10 @@ function App() {
     }
   }, [viewMode, selectedWalletGroupId]);
 
+  // DEPRECATED: This useEffect is no longer needed
+  // Strategy data is now loaded via useSharedStrategyCache in AllocationStrategySection
+  // Keeping rebalanceInfo state for backward compatibility but not loading it
+  /*
   // Gated rebalances: only fetch when user opens strategies view
   useEffect(() => {
     let cancelled = false;
@@ -1194,6 +1202,8 @@ function App() {
       cancelled = true;
     };
   }, [viewMode, account, selectedWalletGroupId, aggCompleted]);
+  */
+
 
   // UI
   return (
@@ -1596,34 +1606,9 @@ function App() {
                       />
                     )}
                     {viewMode === 'strategies' && (
-                      <RebalancingView
-                        walletTokens={walletTokens}
-                        getLiquidityPoolsData={getLiquidityPoolsData}
-                        getLendingAndBorrowingData={getLendingAndBorrowingData}
-                        getStakingData={getStakingData}
-                        getDepositingData={getDepositingData}
-                        getLockingData={getLockingData}
-                        account={account}
-                        selectedWalletGroupId={selectedWalletGroupId}
-                        theme={theme}
-                        initialSavedKey={rebalanceInfo?.key}
-                        initialSavedCount={rebalanceInfo?.count}
-                        initialSavedItems={rebalanceInfo?.items}
-                        onRebalancesSaved={async () => {
-                          // Reload rebalances data after saving
-                          try {
-                            const url = selectedWalletGroupId 
-                              ? api.getRebalancesByGroup(selectedWalletGroupId)
-                              : api.getRebalances(account);
-                            const res = await fetch(url);
-                            if (res.ok) {
-                              const data = await res.json();
-                              setRebalanceInfo(data);
-                            }
-                          } catch (e) {
-                            console.error('Failed to reload rebalances:', e);
-                          }
-                        }}
+                      <StrategiesPage
+                        walletGroupId={selectedWalletGroupId || ''}
+                        portfolio={walletData?.items || []}
                       />
                     )}
                     {viewMode === 'pools' && (
@@ -1872,60 +1857,73 @@ function App() {
                         {viewType === 'cards' ? (
                           /* Card View */
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-                            {/* Wallet Tokens Cards */}
-                            {(() => {
-                              const filtered = walletTokens;
-                              return filtered.length > 0 && (
-                                <div>
-                                  <WalletSectionHeader data={filtered} />
-                                  <WalletCards data={filtered} />
-                                </div>
-                              );
-                            })()}
+                            {selectedLendingGroup ? (
+                              // Expanded Lending detail mode: show only the detailed lending view
+                              <LendingDetailView
+                                group={selectedLendingGroup}
+                                onBack={() => setSelectedLendingGroup(null)}
+                              />
+                            ) : (
+                              <>
+                                {/* Wallet Tokens Cards */}
+                                {(() => {
+                                  const filtered = walletTokens;
+                                  return filtered.length > 0 && (
+                                    <div>
+                                      <WalletSectionHeader data={filtered} />
+                                      <WalletCards data={filtered} />
+                                    </div>
+                                  );
+                                })()}
 
-                            {/* Lending Positions Cards */}
-                            {(() => {
-                              const filtered = getLendingAndBorrowingData().filter(defiItemMatchesSelection);
-                              return filtered.length > 0 && (
-                                <div>
-                                  <LendingSectionHeader data={filtered} />
-                                  <LendingSubSectionHeader data={filtered} groupByProtocol={true} />
-                                  <LendingGroupedView data={filtered} />
-                                </div>
-                              );
-                            })()}
+                                {/* Lending Positions Cards */}
+                                {(() => {
+                                  const filtered = getLendingAndBorrowingData().filter(defiItemMatchesSelection);
+                                  return filtered.length > 0 && (
+                                    <div>
+                                      <LendingSectionHeader data={filtered} />
+                                      <LendingSubSectionHeader data={filtered} groupByProtocol={true} />
+                                      <LendingGroupedView
+                                        data={filtered}
+                                        onOpenDetail={setSelectedLendingGroup}
+                                      />
+                                    </div>
+                                  );
+                                })()}
 
-                            {/* Liquidity Pool Cards */}
-                            {(() => {
-                              const filtered = getLiquidityPoolsData().filter(defiItemMatchesSelection);
-                              return filtered.length > 0 && (
-                                <div>
-                                  <PoolsSectionHeader data={filtered} />
-                                  <LiquiditySubSectionHeader data={filtered} />
-                                  <PoolCards data={filtered} />
-                                </div>
-                              );
-                            })()}
+                                {/* Liquidity Pool Cards */}
+                                {(() => {
+                                  const filtered = getLiquidityPoolsData().filter(defiItemMatchesSelection);
+                                  return filtered.length > 0 && (
+                                    <div>
+                                      <PoolsSectionHeader data={filtered} />
+                                      <LiquiditySubSectionHeader data={filtered} />
+                                      <PoolCards data={filtered} />
+                                    </div>
+                                  );
+                                })()}
 
-                            {/* Staking Cards */}
-                            {(() => {
-                              const filtered = getStakingData().filter(defiItemMatchesSelection);
-                              return filtered.length > 0 && (
-                                <div>
-                                  <h3 style={{ 
-                                    fontSize: 18, 
-                                    fontWeight: 600, 
-                                    color: theme.textPrimary,
-                                    marginBottom: 16,
-                                  }}>
-                                    Staking
-                                  </h3>
-                                  <StakingCards data={filtered} />
-                                </div>
-                              );
-                            })()}
+                                {/* Staking Cards */}
+                                {(() => {
+                                  const filtered = getStakingData().filter(defiItemMatchesSelection);
+                                  return filtered.length > 0 && (
+                                    <div>
+                                      <h3 style={{ 
+                                        fontSize: 18, 
+                                        fontWeight: 600, 
+                                        color: theme.textPrimary,
+                                        marginBottom: 16,
+                                      }}>
+                                        Staking
+                                      </h3>
+                                      <StakingCards data={filtered} />
+                                    </div>
+                                  );
+                                })()}
 
-                            {/* Locking Cards */}
+                                {/* Locking Cards */}
+                              </>
+                            )}
                             {(() => {
                               const filtered = getLockingData().filter(defiItemMatchesSelection);
                               return filtered.length > 0 && (

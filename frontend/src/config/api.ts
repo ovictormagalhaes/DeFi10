@@ -188,19 +188,22 @@ export const api = {
   getStrategies: (accountId: string) => 
     `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${accountId}`,
   getStrategiesByGroup: (walletGroupId: string) => 
-    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/group/${walletGroupId}`,
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${walletGroupId}`,
+  saveStrategy: () =>
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}`,
   
   // Legacy aliases (deprecated)
   getRebalances: (accountId: string) => 
     `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${accountId}`,
   getRebalancesByGroup: (walletGroupId: string) => 
-    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/group/${walletGroupId}`,
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${walletGroupId}`,
 
   // Wallet Groups CRUD
   getChallenge: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/challenge`,
   createWalletGroup: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}`,
-  checkWalletGroup: (id: string) =>
-    `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}/check`,
+  // REMOVED: checkWalletGroup - /check endpoint does not exist in backend
+  // checkWalletGroup: (id: string) =>
+  //   `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}/check`,
   connectWalletGroup: (id: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}/connect`,
   getWalletGroup: (id: string) =>

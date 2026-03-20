@@ -9,6 +9,7 @@ public enum IntegrationProvider
     AaveBorrows = 5,
     AlchemyNfts = 6,
     TokenLogos = 7,
+    AaveTransactionHistory = 8,
 
     UniswapV3PositionData = 10,
     UniswapV3PoolMetadata = 11,

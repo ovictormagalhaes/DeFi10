@@ -5,19 +5,34 @@ using DeFi10.API.Services.Interfaces;
 using DeFi10.API.Services.Configuration;
 using DeFi10.API.Services.Protocols.Kamino.Models;
 using DeFi10.API.Services.Protocols.Raydium.Models;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using ChainEnum = DeFi10.API.Models.Chain;
 using DeFi10.API.Services.Core.Solana;
+using DeFi10.API.Services.Cache;
+using DeFi10.API.Models.Cache;
 
 namespace DeFi10.API.Services.Protocols.Kamino
 {
+    /// <summary>
+    /// Representa um saldo de token (mint address + balance) para validação de cache
+    /// </summary>
+    public class TokenBalance
+    {
+        public string MintAddress { get; set; } = string.Empty;
+        public string Balance { get; set; } = string.Empty;
+    }
+
+
     public class KaminoService : IKaminioService
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<KaminoService> _logger;
         private readonly IProtocolConfigurationService _protocolConfig;
+        private readonly ProtocolCacheHelper? _cacheHelper;
         private readonly int _rateLimitDelayMs;
         private readonly string _kaminoApiUrl;
+        private readonly bool _fetchTransactionHistory;
         
         // Known Kamino markets to query
         private static readonly List<(string Pubkey, string Name)> KnownMarkets = new()
@@ -35,28 +50,18 @@ namespace DeFi10.API.Services.Protocols.Kamino
         private static readonly TimeSpan ReservesCacheDuration = TimeSpan.FromMinutes(5);
         private static readonly SemaphoreSlim _reservesLock = new(1, 1);
 
-        private static readonly Dictionary<string, (string Symbol, int Decimals, string? Name)> ReserveMapping = new()
-        {
-            ["d4A2prbA2whesmvHaL88BH6Ewn5N4bTSU2Ze8P6Bc4Q"] = ("SOL", 9, "Wrapped SOL"),
-            ["D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59"] = ("USDC", 6, "USD Coin"),
-            ["FzwZWRMc1FbZLYjRkMf5YjKyecdmzoo6GQeYRDwSaEtz"] = ("USDT", 6, "Tether USD"),
-            ["5guv5xt2we2FKHHaVR966mNvDVDHWJYd6bofbnsJTgmJ"] = ("USDS", 6, "USDS Stablecoin"),
-            ["Gqu3TFmJXfnfSX84kqbZ5u9JjSBVoesaHjfTsaPjRSnZ"] = ("JitoSOL", 9, "Jito Staked SOL"),
-            ["5sjkv6HD8wycocJ4tC4U36HHbvgcXYqcyiPRUkncnwWs"] = ("mSOL", 9, "Marinade Staked SOL"),
-            ["ERNbDCASbqnGSaaSDiZiHBzmsbgZZnRdJKTBYXNfRRZK"] = ("bSOL", 9, "BlazeStake SOL"),
-            ["Ez2coQZiHYJfS54vVjKFmq7YAp8TiNqs9EHy93JbZXDE"] = ("JLP", 6, "Jupiter LP Token"),
-        };
-
         public KaminoService(
             HttpClient httpClient,
             IOptions<SolanaOptions> solanaOptions,
             IOptions<KaminoOptions> kaminoOptions,
             IProtocolConfigurationService protocolConfig,
-            ILogger<KaminoService> logger)
+            ILogger<KaminoService> logger,
+            ProtocolCacheHelper? cacheHelper = null)
         {
             _httpClient = httpClient;
             _logger = logger;
             _protocolConfig = protocolConfig;
+            _cacheHelper = cacheHelper;
             
             var protocolChain = _protocolConfig.GetProtocolOnChain("kamino", ChainEnum.Solana);
             _kaminoApiUrl = protocolChain?.Options?.TryGetValue("ApiUrl", out var apiUrl) == true 
@@ -68,8 +73,12 @@ namespace DeFi10.API.Services.Protocols.Kamino
             
             _rateLimitDelayMs = solanaOptions.Value.RateLimitDelayMs / 2;
             
-            _logger.LogInformation("KaminoService initialized - API: {ApiUrl}, Market: {Market}, Reserves: {Count}", 
-                _kaminoApiUrl, MainMarketPubkey, ReserveMapping.Count);
+            // Opção para habilitar/desabilitar busca de histórico (pode ser lenta)
+            _fetchTransactionHistory = protocolChain?.Options?.TryGetValue("FetchTransactionHistory", out var fetchHistory) == true 
+                && bool.TryParse(fetchHistory?.ToString(), out var enabled) && enabled;
+            
+            _logger.LogInformation("KaminoService initialized - API: {ApiUrl}, Market: {Market}, FetchHistory: {FetchHistory}, using dynamic reserve mapping from API", 
+                _kaminoApiUrl, MainMarketPubkey, _fetchTransactionHistory);
         }
 
         public string GetProtocolName() => "Kamino Finance";
@@ -90,6 +99,8 @@ namespace DeFi10.API.Services.Protocols.Kamino
                 address, KnownMarkets.Count);
 
             var allPositions = new List<KaminoPosition>();
+            var failedMarkets = new List<string>();
+            var successfulMarkets = new List<string>();
             
             // Query all known markets
             foreach (var (marketPubkey, marketName) in KnownMarkets)
@@ -101,15 +112,40 @@ namespace DeFi10.API.Services.Protocols.Kamino
 
                 _logger.LogDebug("KAMINO: Querying market {MarketName} ({Pubkey})", marketName, marketPubkey);
                 
-                var positions = await GetPositionsForMarketAsync(address, marketPubkey, marketName);
-                if (positions.Any())
+                try
                 {
-                    _logger.LogInformation("KAMINO: Found {Count} positions in {MarketName}", positions.Count(), marketName);
-                    allPositions.AddRange(positions);
+                    var positions = await GetPositionsForMarketAsync(address, marketPubkey, marketName);
+                    if (positions.Any())
+                    {
+                        _logger.LogInformation("KAMINO: Found {Count} positions in {MarketName}", positions.Count(), marketName);
+                        allPositions.AddRange(positions);
+                    }
+                    successfulMarkets.Add(marketName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "KAMINO: Failed to query market {MarketName}", marketName);
+                    failedMarkets.Add(marketName);
                 }
             }
 
-            _logger.LogInformation("KAMINO: Total positions found: {Count} across all markets", allPositions.Count);
+            // Se TODOS os markets falharam, lançar exceção
+            if (failedMarkets.Count == KnownMarkets.Count)
+            {
+                var errorMessage = $"All {KnownMarkets.Count} Kamino markets failed: {string.Join(", ", failedMarkets)}";
+                _logger.LogError("KAMINO: {ErrorMessage}", errorMessage);
+                throw new HttpRequestException(errorMessage);
+            }
+
+            // Se alguns markets falharam, log warning mas continue com os dados que temos
+            if (failedMarkets.Any())
+            {
+                _logger.LogWarning("KAMINO: Partial failure - {SuccessCount}/{TotalCount} markets succeeded. Failed markets: {FailedMarkets}", 
+                    successfulMarkets.Count, KnownMarkets.Count, string.Join(", ", failedMarkets));
+            }
+
+            _logger.LogInformation("KAMINO: Total positions found: {Count} across {SuccessCount} successful markets", 
+                allPositions.Count, successfulMarkets.Count);
             return allPositions;
         }
 
@@ -326,7 +362,14 @@ namespace DeFi10.API.Services.Protocols.Kamino
                         skippedDeposits, skippedBorrows);
                 }
 
-                var positions = obligations.Select(o => MapObligationToPosition(o, marketName)).ToList();
+                var positions = obligations.Select(o => MapObligationToPosition(o, marketName, reservesByAddress)).ToList();
+
+                // Buscar histórico de transações se habilitado
+                if (_fetchTransactionHistory)
+                {
+                    _logger.LogInformation("KAMINO: Fetching transaction history for {Count} obligations", obligations.Count);
+                    await EnrichPositionsWithHistoryAsync(positions, obligations, marketPubkey, reservesByAddress);
+                }
 
                 _logger.LogDebug("KAMINO: Successfully mapped {Count} positions", positions.Count);
                 return positions;
@@ -334,26 +377,29 @@ namespace DeFi10.API.Services.Protocols.Kamino
             catch (OperationCanceledException ex)
             {
                 _logger.LogWarning(ex, "KAMINO: Timeout querying market {Market} (15s exceeded)", marketName);
-                return Enumerable.Empty<KaminoPosition>();
+                throw; // Re-lançar exceção para o caller rastrear falha
             }
             catch (HttpRequestException ex)
             {
                 _logger.LogWarning(ex, "KAMINO: HTTP error for market {Market}", marketName);
-                return Enumerable.Empty<KaminoPosition>();
+                throw;
             }
             catch (System.Text.Json.JsonException ex)
             {
                 _logger.LogWarning(ex, "KAMINO: JSON parsing error in market {Market}", marketName);
-                return Enumerable.Empty<KaminoPosition>();
+                throw;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "KAMINO: Unexpected error in market {Market}", marketName);
-                return Enumerable.Empty<KaminoPosition>();
+                throw;
             }
         }
 
-        private KaminoPosition MapObligationToPosition(KaminoObligationDto obligation, string marketName)
+        private KaminoPosition MapObligationToPosition(
+            KaminoObligationDto obligation, 
+            string marketName, 
+            Dictionary<string, KaminoReserveDto> reservesByAddress)
         {
             var tokens = new List<SplToken>();
 
@@ -392,19 +438,54 @@ namespace DeFi10.API.Services.Protocols.Kamino
                         continue;
                     }
 
-                    var (symbol, decimals, name) = ReserveMapping.TryGetValue(deposit.DepositReserve, out var info) 
-                        ? info 
-                        : ($"Token-{deposit.DepositReserve.Substring(0, 4)}", 9, null);
+                    // Get token info from reserves data (dynamic from API)
+                    var symbol = "UNKNOWN";
+                    var decimals = 9; // Default
+                    string? name = null;
+                    string mintAddress = deposit.DepositReserve; // Fallback to reserve address
+                    
+                    if (reservesByAddress.TryGetValue(deposit.DepositReserve, out var reserve))
+                    {
+                        symbol = reserve.Symbol ?? $"Token-{deposit.DepositReserve.Substring(0, 4)}";
+                        decimals = reserve.Decimals;
+                        name = reserve.Symbol; // Use symbol as name if no specific name is available
+                        mintAddress = reserve.MintAddress ?? deposit.DepositReserve; // Use actual mint address
+                        
+                        _logger.LogDebug("KAMINO Found reserve metadata: Symbol={Symbol}, Decimals={Decimals}, MintAddress={MintAddress}", symbol, decimals, mintAddress);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("KAMINO Reserve {Reserve} not found in API data, using defaults", deposit.DepositReserve);
+                        symbol = $"Token-{deposit.DepositReserve.Substring(0, 4)}";
+                    }
 
                     var humanAmount = ConvertRawToHuman(rawAmount, decimals);
                     
-                    _logger.LogDebug("KAMINO Deposit - humanAmount={Amount}, marketValueSf={MarketValueSf}",
-                        humanAmount, deposit.MarketValueSf);
+                    _logger.LogDebug("KAMINO Deposit - Symbol={Symbol}, humanAmount={Amount}, marketValueSf={MarketValueSf}, totalDepositUsd={TotalDepositUsd}",
+                        symbol, humanAmount, deposit.MarketValueSf, totalDepositUsd);
                     
                     decimal depositValueUsd = 0;
                     decimal unitPriceUsd = 0;
                     
-                    if (humanAmount > 0 && !string.IsNullOrEmpty(deposit.MarketValueSf) && totalDepositUsd > 0)
+                    // Try to calculate price from reserve market data first (more accurate)
+                    if (reserve != null && humanAmount > 0)
+                    {
+                        var totalSupply = reserve.TotalSupply;
+                        var totalSupplyUsd = reserve.TotalSupplyUsd;
+                        
+                        if (totalSupply > 0 && totalSupplyUsd > 0)
+                        {
+                            // Calculate real market price from reserves data
+                            unitPriceUsd = totalSupplyUsd / totalSupply;
+                            depositValueUsd = unitPriceUsd * humanAmount;
+                            
+                            _logger.LogDebug("KAMINO Deposit - Using reserve market price: ${Price:F2} (from totalSupplyUsd=${SupplyUsd} / totalSupply={Supply})",
+                                unitPriceUsd, totalSupplyUsd, totalSupply);
+                        }
+                    }
+                    
+                    // Fallback to proportional calculation if reserve data not available
+                    if (unitPriceUsd == 0 && humanAmount > 0 && !string.IsNullOrEmpty(deposit.MarketValueSf) && totalDepositUsd > 0)
                     {
                         if (decimal.TryParse(deposit.MarketValueSf, out var marketValueSf))
                         {
@@ -421,7 +502,7 @@ namespace DeFi10.API.Services.Protocols.Kamino
                                 depositValueUsd = totalDepositUsd * proportion;
                                 unitPriceUsd = SafeDivide(depositValueUsd, humanAmount);
                                 
-                                _logger.LogDebug("KAMINO Deposit - proportion={Prop:F4}, depositValue=${Value:F2}, unitPrice=${Price:F2}",
+                                _logger.LogDebug("KAMINO Deposit - Using proportional fallback: proportion={Prop:F4}, depositValue=${Value:F2}, unitPrice=${Price:F2}",
                                     proportion, depositValueUsd, unitPriceUsd);
                             }
                         }
@@ -429,7 +510,7 @@ namespace DeFi10.API.Services.Protocols.Kamino
 
                     tokens.Add(new SplToken
                     {
-                        Mint = deposit.DepositReserve,
+                        Mint = mintAddress, // Use actual token mint, not reserve address
                         Symbol = symbol,
                         Name = name ?? symbol,
                         Decimals = decimals,
@@ -440,8 +521,8 @@ namespace DeFi10.API.Services.Protocols.Kamino
                         Apy = deposit.Apy.HasValue ? deposit.Apy.Value * 100 : null // Convert decimal to percentage (0.04242 -> 4.242)
                     });
 
-                    _logger.LogInformation("KAMINO Deposit added: {Symbol} = {Amount}, PriceUsd=${Price:F2}, APY={Apy}% (raw: {Raw}, decimals: {Dec})",
-                        symbol, humanAmount, unitPriceUsd, deposit.Apy.HasValue ? deposit.Apy.Value * 100 : (decimal?)null, rawAmount, decimals);
+                    _logger.LogInformation("KAMINO Deposit added: {Symbol} = {Amount}, Mint={Mint}, PriceUsd=${Price:F2}, APY={Apy}% (raw: {Raw}, decimals: {Dec})",
+                        symbol, humanAmount, mintAddress, unitPriceUsd, deposit.Apy.HasValue ? deposit.Apy.Value * 100 : (decimal?)null, rawAmount, decimals);
                 }
             }
             else
@@ -475,9 +556,26 @@ namespace DeFi10.API.Services.Protocols.Kamino
                         continue;
                     }
 
-                    var (symbol, decimals, name) = ReserveMapping.TryGetValue(borrow.BorrowReserve, out var info) 
-                        ? info 
-                        : ($"Token-{borrow.BorrowReserve.Substring(0, 4)}", 9, null);
+                    // Get token info from reserves data (dynamic from API)
+                    var symbol = "UNKNOWN";
+                    var decimals = 9; // Default
+                    string? name = null;
+                    string mintAddress = borrow.BorrowReserve; // Fallback to reserve address
+                    
+                    if (reservesByAddress.TryGetValue(borrow.BorrowReserve, out var reserve))
+                    {
+                        symbol = reserve.Symbol ?? $"Token-{borrow.BorrowReserve.Substring(0, 4)}";
+                        decimals = reserve.Decimals;
+                        name = reserve.Symbol; // Use symbol as name if no specific name is available
+                        mintAddress = reserve.MintAddress ?? borrow.BorrowReserve; // Use actual mint address
+                        
+                        _logger.LogDebug("KAMINO Found reserve metadata: Symbol={Symbol}, Decimals={Decimals}, MintAddress={MintAddress}", symbol, decimals, mintAddress);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("KAMINO Reserve {Reserve} not found in API data, using defaults", borrow.BorrowReserve);
+                        symbol = $"Token-{borrow.BorrowReserve.Substring(0, 4)}";
+                    }
 
                     var humanAmount = ConvertRawToHuman(rawAmount, decimals);
                     
@@ -487,7 +585,25 @@ namespace DeFi10.API.Services.Protocols.Kamino
                     decimal borrowValueUsd = 0;
                     decimal unitPriceUsd = 0;
                     
-                    if (humanAmount > 0 && !string.IsNullOrEmpty(borrow.MarketValueSf) && totalBorrowUsd > 0)
+                    // Try to calculate price from reserve market data first (more accurate)
+                    if (reserve != null && humanAmount > 0)
+                    {
+                        var totalSupply = reserve.TotalSupply;
+                        var totalSupplyUsd = reserve.TotalSupplyUsd;
+                        
+                        if (totalSupply > 0 && totalSupplyUsd > 0)
+                        {
+                            // Calculate real market price from reserves data
+                            unitPriceUsd = totalSupplyUsd / totalSupply;
+                            borrowValueUsd = unitPriceUsd * humanAmount;
+                            
+                            _logger.LogDebug("KAMINO Borrow - Using reserve market price: ${Price:F2} (from totalSupplyUsd=${SupplyUsd} / totalSupply={Supply})",
+                                unitPriceUsd, totalSupplyUsd, totalSupply);
+                        }
+                    }
+                    
+                    // Fallback to proportional calculation if reserve data not available
+                    if (unitPriceUsd == 0 && humanAmount > 0 && !string.IsNullOrEmpty(borrow.MarketValueSf) && totalBorrowUsd > 0)
                     {
                         if (decimal.TryParse(borrow.MarketValueSf, out var marketValueSf))
                         {
@@ -504,7 +620,7 @@ namespace DeFi10.API.Services.Protocols.Kamino
                                 borrowValueUsd = totalBorrowUsd * proportion;
                                 unitPriceUsd = SafeDivide(borrowValueUsd, humanAmount);
                                 
-                                _logger.LogDebug("KAMINO Borrow - proportion={Prop:F4}, borrowValue=${Value:F2}, unitPrice=${Price:F2}",
+                                _logger.LogDebug("KAMINO Borrow - Using proportional fallback: proportion={Prop:F4}, borrowValue=${Value:F2}, unitPrice=${Price:F2}",
                                     proportion, borrowValueUsd, unitPriceUsd);
                             }
                         }
@@ -512,7 +628,7 @@ namespace DeFi10.API.Services.Protocols.Kamino
 
                     tokens.Add(new SplToken
                     {
-                        Mint = borrow.BorrowReserve,
+                        Mint = mintAddress, // Use actual token mint, not reserve address
                         Symbol = symbol,
                         Name = name ?? symbol,
                         Decimals = decimals,
@@ -594,6 +710,190 @@ namespace DeFi10.API.Services.Protocols.Kamino
                 return 0;
             }
         }
+        private (List<TokenBalance> supplies, List<TokenBalance> borrows) ExtractCurrentBalances(
+            KaminoObligationDto obligation,
+            Dictionary<string, KaminoReserveDto> reservesByAddress)
+        {
+            var supplies = new List<TokenBalance>();
+            var borrows = new List<TokenBalance>();
+
+            if (obligation.State?.Deposits != null)
+            {
+                foreach (var deposit in obligation.State.Deposits)
+                {
+                    if (string.IsNullOrEmpty(deposit.DepositReserve) ||
+                        deposit.DepositReserve == "11111111111111111111111111111111")
+                        continue;
+
+                    var amount = ParseDecimal(deposit.DepositedAmount);
+                    if (amount > 0)
+                    {
+                        // Mapear reserve address → mint address
+                        if (reservesByAddress.TryGetValue(deposit.DepositReserve, out var reserve) &&
+                            !string.IsNullOrEmpty(reserve.MintAddress))
+                        {
+                            supplies.Add(new TokenBalance 
+                            { 
+                                MintAddress = reserve.MintAddress, 
+                                Balance = amount.ToString() 
+                            });
+                        }
+                        else
+                        {
+                            _logger.LogWarning("KAMINO: Could not find mint address for reserve {Reserve}",
+                                deposit.DepositReserve);
+                        }
+                    }
+                }
+            }
+
+            if (obligation.State?.Borrows != null)
+            {
+                foreach (var borrow in obligation.State.Borrows)
+                {
+                    if (string.IsNullOrEmpty(borrow.BorrowReserve) ||
+                        borrow.BorrowReserve == "11111111111111111111111111111111")
+                        continue;
+
+                    var amount = ParseDecimal(borrow.BorrowedAmountSf);
+                    if (amount > 0)
+                    {
+                        // Mapear reserve address → mint address
+                        if (reservesByAddress.TryGetValue(borrow.BorrowReserve, out var reserve) &&
+                            !string.IsNullOrEmpty(reserve.MintAddress))
+                        {
+                            borrows.Add(new TokenBalance 
+                            { 
+                                MintAddress = reserve.MintAddress, 
+                                Balance = amount.ToString() 
+                            });
+                        }
+                        else
+                        {
+                            _logger.LogWarning("KAMINO: Could not find mint address for reserve {Reserve}",
+                                borrow.BorrowReserve);
+                        }
+                    }
+                }
+            }
+
+            return (supplies, borrows);
+        }
+
+        /// <summary>
+        /// Valida se os balances atuais batem com os do cache
+        /// </summary>
+        private bool ValidateBalances(
+            MongoDB.Bson.BsonDocument? cachedValidationHashDoc,
+            List<TokenBalance> currentSupplies,
+            List<TokenBalance> currentBorrows)
+        {
+            try
+            {
+                if (cachedValidationHashDoc == null)
+                {
+                    _logger.LogWarning("KAMINO: ValidationHash is null - cache invalid");
+                    return false;
+                }
+
+                // Deserializar BsonDocument para KaminoValidationHash
+                var cachedValidationHash = _cacheHelper?.DeserializeValidationHash<KaminoValidationHash>(cachedValidationHashDoc);
+                if (cachedValidationHash == null)
+                {
+                    _logger.LogWarning("KAMINO: Could not deserialize ValidationHash - cache invalid");
+                    return false;
+                }
+
+                var cachedSupplies = cachedValidationHash.Supplies
+                    .Select(x => new TokenBalance
+                    {
+                        MintAddress = x.MintAddress,
+                        Balance = x.Balance
+                    }).ToList();
+                    
+                var cachedBorrows = cachedValidationHash.Borrows
+                    .Select(x => new TokenBalance
+                    {
+                        MintAddress = x.MintAddress,
+                        Balance = x.Balance
+                    }).ToList();
+
+                // Comparar supplies
+                if (cachedSupplies.Count != currentSupplies.Count)
+                {
+                    _logger.LogInformation("KAMINO: Supply count changed - cached: {Cached}, current: {Current}",
+                        cachedSupplies.Count, currentSupplies.Count);
+                    return false;
+                }
+
+                // Criar dicionário para lookup rápido
+                var currentSuppliesDict = currentSupplies.ToDictionary(x => x.MintAddress, x => x.Balance);
+
+                foreach (var cached in cachedSupplies)
+                {
+                    if (!currentSuppliesDict.TryGetValue(cached.MintAddress, out var currentBalanceStr))
+                    {
+                        _logger.LogInformation("KAMINO: Supply token removed - {MintAddress}", cached.MintAddress);
+                        return false;
+                    }
+
+                    var cachedAmount = decimal.Parse(cached.Balance);
+                    var currentAmount = decimal.Parse(currentBalanceStr);
+
+                    // Tolerar pequenas diferenças por juros acumulados (0.01%)
+                    var diff = Math.Abs(currentAmount - cachedAmount);
+                    var tolerance = cachedAmount * 0.0001m;
+                    
+                    if (diff > tolerance)
+                    {
+                        _logger.LogInformation("KAMINO: Supply changed - {MintAddress}: cached={Cached}, current={Current}, diff={Diff}",
+                            cached.MintAddress.Substring(0, 8), cachedAmount, currentAmount, diff);
+                        return false;
+                    }
+                }
+
+                // Comparar borrows
+                if (cachedBorrows.Count != currentBorrows.Count)
+                {
+                    _logger.LogInformation("KAMINO: Borrow count changed - cached: {Cached}, current: {Current}",
+                        cachedBorrows.Count, currentBorrows.Count);
+                    return false;
+                }
+
+                var currentBorrowsDict = currentBorrows.ToDictionary(x => x.MintAddress, x => x.Balance);
+
+                foreach (var cached in cachedBorrows)
+                {
+                    if (!currentBorrowsDict.TryGetValue(cached.MintAddress, out var currentBalanceStr))
+                    {
+                        _logger.LogInformation("KAMINO: Borrow token removed - {MintAddress}", cached.MintAddress);
+                        return false;
+                    }
+
+                    var cachedAmount = decimal.Parse(cached.Balance);
+                    var currentAmount = decimal.Parse(currentBalanceStr);
+
+                    // Tolerar pequenas diferenças por juros acumulados (0.01%)
+                    var diff = Math.Abs(currentAmount - cachedAmount);
+                    var tolerance = cachedAmount * 0.0001m;
+                    
+                    if (diff > tolerance)
+                    {
+                        _logger.LogInformation("KAMINO: Borrow changed - {MintAddress}: cached={Cached}, current={Current}, diff={Diff}",
+                            cached.MintAddress.Substring(0, 8), cachedAmount, currentAmount, diff);
+                        return false;
+                    }
+                }
+
+                _logger.LogDebug("KAMINO: All balances match - cache valid");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "KAMINO: Error validating balances - treating cache as invalid");
+                return false;
+            }
+        }
 
         private static decimal ParseDecimal(string? value)
         {
@@ -615,6 +915,374 @@ namespace DeFi10.API.Services.Protocols.Kamino
             var healthFactor = (deposited * liquidationLtv) / borrowed;
             
             return Math.Min(healthFactor, 999.99m);
+        }
+
+        /// <summary>
+        /// Enriquece as posições com histórico de transações
+        /// </summary>
+        private async Task EnrichPositionsWithHistoryAsync(
+            List<KaminoPosition> positions,
+            List<KaminoObligationDto> obligations,
+            string marketPubkey, 
+            Dictionary<string, KaminoReserveDto> reservesByAddress)
+        {
+            for (int i = 0; i < positions.Count; i++)
+            {
+                var position = positions[i];
+                var obligation = obligations[i];
+                
+                try
+                {
+                    // Extrair balances atuais para validação de cache
+                    var (supplies, borrows) = ExtractCurrentBalances(obligation, reservesByAddress);
+                    
+                    var history = await GetObligationHistoryAsync(position.Id, marketPubkey, supplies, borrows);
+                    
+                    if (history.Any())
+                    {
+                        // Enriquecer eventos com símbolos de token
+                        foreach (var evt in history)
+                        {
+                            // Tentar encontrar o símbolo nos reserves
+                            var reserve = reservesByAddress.Values
+                                .FirstOrDefault(r => r.MintAddress == evt.MintAddress);
+                            
+                            if (reserve != null)
+                            {
+                                evt.TokenSymbol = reserve.Symbol ?? evt.MintAddress.Substring(0, 6);
+                            }
+                            else
+                            {
+                                evt.TokenSymbol = evt.MintAddress.Substring(0, 6);
+                            }
+                        }
+
+                        position.TransactionHistory = history
+                            .OrderByDescending(e => e.Timestamp)
+                            .ToList();
+
+                        _logger.LogInformation("KAMINO: Added {Count} transaction events to position {Id}", 
+                            history.Count, position.Id);
+                    }
+
+                    // Rate limiting entre requisições de histórico
+                    if (_rateLimitDelayMs > 0)
+                    {
+                        await Task.Delay(_rateLimitDelayMs);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "KAMINO: Failed to fetch history for position {Id}", position.Id);
+                    // Continue com outras posições mesmo se uma falhar
+                }
+            }
+        }
+
+        /// <summary>
+        /// Busca o histórico de métricas de uma obligation para inferir eventos de deposit/borrow
+        /// </summary>
+        public async Task<List<KaminoTransactionEvent>> GetObligationHistoryAsync(
+            string obligationPubkey, 
+            string marketPubkey,
+            List<TokenBalance> currentSupplies,
+            List<TokenBalance> currentBorrows)
+        {
+            var protocolId = $"{marketPubkey}_{obligationPubkey}";
+            
+            if (_cacheHelper != null)
+            {
+                var currentHash = new Dictionary<string, object>
+                {
+                    { "marketPubkey", marketPubkey },
+                    { "obligationPubkey", obligationPubkey }
+                };
+
+                // Buscar usando nosso formato de cache estável
+                var cachedDto = await _cacheHelper.GetFromCacheAsync<KaminoTransactionHistoryCacheDto>(
+                    protocol: "kamino",
+                    protocolId: protocolId,
+                    walletAddress: obligationPubkey,
+                    dataType: "transaction_history",
+                    currentValidationHash: currentHash
+                );
+
+                if (cachedDto != null && cachedDto.Events != null)
+                {
+                    // VALIDAR se os balances atuais ainda batem com o cache
+                    var cached = await _cacheHelper.GetCacheDocumentAsync(
+                        protocol: "kamino",
+                        protocolId: protocolId,
+                        walletAddress: obligationPubkey,
+                        dataType: "transaction_history"
+                    );
+                    
+                    if (cached != null && ValidateBalances(cached.ValidationHash, currentSupplies, currentBorrows))
+                    {
+                        var events = ConvertFromCacheDto(cachedDto);
+                        _logger.LogInformation("KAMINO: ✓ Using cached transaction history for {Obligation} ({Count} events) - balances match",
+                            obligationPubkey, events.Count);
+                        return events;
+                    }
+                    else
+                    {
+                        _logger.LogInformation("KAMINO: ✗ Cache invalidated for {Obligation} - balances changed, refetching history",
+                            obligationPubkey);
+                    }
+                }
+            }
+
+            var endpoint = $"v2/kamino-market/{marketPubkey}/obligations/{obligationPubkey}/metrics/history";
+            
+            try
+            {
+                _logger.LogInformation("KAMINO: Fetching obligation history for {Obligation} in market {Market}", 
+                    obligationPubkey, marketPubkey);
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var response = await _httpClient.GetAsync(endpoint);
+                sw.Stop();
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("KAMINO: Failed to fetch obligation history - Status: {Status}", response.StatusCode);
+                    return new List<KaminoTransactionEvent>();
+                }
+
+                var historyResponse = await response.Content.ReadFromJsonAsync<KaminoObligationHistoryResponseDto>();
+                
+                if (historyResponse?.History == null || !historyResponse.History.Any())
+                {
+                    _logger.LogDebug("KAMINO: No history found for obligation {Obligation}", obligationPubkey);
+                    return new List<KaminoTransactionEvent>();
+                }
+
+                _logger.LogInformation("KAMINO: Found {Count} historical snapshots for obligation {Obligation}", 
+                    historyResponse.History.Count, obligationPubkey);
+
+                var events = InferTransactionEvents(historyResponse.History);
+
+                if (_cacheHelper != null && events.Any())
+                {
+                    // Converter para nosso formato de cache antes de salvar
+                    var cacheDto = ConvertToCacheDto(events);
+                    
+                    // Usar classe tipada para evitar _t/_v no MongoDB
+                    var validationHash = new KaminoValidationHash
+                    {
+                        MarketPubkey = marketPubkey,
+                        ObligationPubkey = obligationPubkey,
+                        EventCount = events.Count,
+                        LastEventDate = events.Max(e => e.Timestamp),
+                        Supplies = currentSupplies.Select(s => new TokenBalanceHash
+                        {
+                            MintAddress = s.MintAddress,
+                            Balance = s.Balance
+                        }).ToList(),
+                        Borrows = currentBorrows.Select(b => new TokenBalanceHash
+                        {
+                            MintAddress = b.MintAddress,
+                            Balance = b.Balance
+                        }).ToList()
+                    };
+                    
+                    await _cacheHelper.SaveToCacheAsync(
+                        protocol: "kamino",
+                        protocolId: protocolId,
+                        walletAddress: obligationPubkey,
+                        dataType: "transaction_history",
+                        chain: "solana",
+                        body: cacheDto, // Salvamos nosso DTO, não a resposta bruta do Kamino
+                        validationHash: validationHash,
+                        apiCallDuration: (int)sw.ElapsedMilliseconds,
+                        ttlHours: 0, // Ignorado - cache eterno sempre
+                        relatedIds: new RelatedIds
+                        {
+                            MarketId = marketPubkey,
+                            PositionId = obligationPubkey
+                        }
+                    );
+
+                    _logger.LogInformation("KAMINO: Cached {Count} transaction events for {Obligation}",
+                        events.Count, obligationPubkey);
+                }
+
+                return events;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "KAMINO: Error fetching obligation history for {Obligation}", obligationPubkey);
+                return new List<KaminoTransactionEvent>();
+            }
+        }
+
+        /// <summary>
+        /// Converte eventos internos para formato estável de cache (dados crus apenas)
+        /// </summary>
+        private KaminoTransactionHistoryCacheDto ConvertToCacheDto(List<KaminoTransactionEvent> events)
+        {
+            return new KaminoTransactionHistoryCacheDto
+            {
+                Version = "1.0",
+                Events = events.Select(e => new KaminoTransactionEventCache
+                {
+                    Type = e.Type,
+                    MintAddress = e.MintAddress,
+                    AmountChange = e.AmountChange,
+                    Timestamp = e.Timestamp
+                }).ToList()
+            };
+        }
+
+        /// <summary>
+        /// Converte formato de cache de volta para eventos internos
+        /// </summary>
+        private List<KaminoTransactionEvent> ConvertFromCacheDto(KaminoTransactionHistoryCacheDto dto)
+        {
+            return dto.Events.Select(e => new KaminoTransactionEvent
+            {
+                Type = e.Type,
+                MintAddress = e.MintAddress,
+                TokenSymbol = "UNKNOWN", // Será hidratado no mapper
+                Amount = 0, // Não salvamos no cache - não precisamos
+                AmountChange = e.AmountChange,
+                Timestamp = e.Timestamp,
+                ValueUsd = null // Será calculado na hidratação via metadata MongoDB
+            }).ToList();
+        }
+
+        /// <summary>
+        /// Compara snapshots consecutivos para inferir quando deposits e borrows ocorreram
+        /// </summary>
+        private List<KaminoTransactionEvent> InferTransactionEvents(List<KaminoHistorySnapshotDto> snapshots)
+        {
+            var events = new List<KaminoTransactionEvent>();
+
+            // Ordenar por timestamp (mais antigo primeiro)
+            var orderedSnapshots = snapshots
+                .Where(s => !string.IsNullOrEmpty(s.Timestamp))
+                .OrderBy(s => DateTime.Parse(s.Timestamp!))
+                .ToList();
+
+            if (orderedSnapshots.Count < 2)
+            {
+                _logger.LogDebug("KAMINO: Not enough snapshots to infer events (need at least 2)");
+                return events;
+            }
+
+            // Comparar cada snapshot com o anterior
+            for (int i = 1; i < orderedSnapshots.Count; i++)
+            {
+                var previous = orderedSnapshots[i - 1];
+                var current = orderedSnapshots[i];
+                var timestamp = DateTime.Parse(current.Timestamp!);
+
+                // Verificar mudanças em deposits
+                var depositEvents = CompareDeposits(previous.Deposits, current.Deposits, timestamp);
+                events.AddRange(depositEvents);
+
+                // Verificar mudanças em borrows
+                var borrowEvents = CompareBorrows(previous.Borrows, current.Borrows, timestamp);
+                events.AddRange(borrowEvents);
+            }
+
+            _logger.LogInformation("KAMINO: Inferred {Count} transaction events from snapshots", events.Count);
+            return events;
+        }
+
+        private List<KaminoTransactionEvent> CompareDeposits(
+            List<KaminoHistoryDepositDto>? previousDeposits, 
+            List<KaminoHistoryDepositDto>? currentDeposits,
+            DateTime timestamp)
+        {
+            var events = new List<KaminoTransactionEvent>();
+
+            if (currentDeposits == null || !currentDeposits.Any())
+                return events;
+
+            var previousDict = previousDeposits?
+                .Where(d => !string.IsNullOrEmpty(d.MintAddress))
+                .ToDictionary(d => d.MintAddress!, d => ParseDecimal(d.Amount)) 
+                ?? new Dictionary<string, decimal>();
+
+            foreach (var deposit in currentDeposits)
+            {
+                if (string.IsNullOrEmpty(deposit.MintAddress))
+                    continue;
+
+                var currentAmount = ParseDecimal(deposit.Amount);
+                var previousAmount = previousDict.GetValueOrDefault(deposit.MintAddress, 0);
+
+                // Se houve aumento no amount, foi um novo deposit
+                if (currentAmount > previousAmount)
+                {
+                    var amountChange = currentAmount - previousAmount;
+                    events.Add(new KaminoTransactionEvent
+                    {
+                        Type = "deposit",
+                        MintAddress = deposit.MintAddress,
+                        TokenSymbol = "UNKNOWN", // Será enriquecido depois
+                        Amount = currentAmount,
+                        AmountChange = amountChange,
+                        Timestamp = timestamp,
+                        ValueUsd = ParseDecimalNullable(deposit.MarketValueRefreshed)
+                    });
+                }
+            }
+
+            return events;
+        }
+
+        private List<KaminoTransactionEvent> CompareBorrows(
+            List<KaminoHistoryBorrowDto>? previousBorrows, 
+            List<KaminoHistoryBorrowDto>? currentBorrows,
+            DateTime timestamp)
+        {
+            var events = new List<KaminoTransactionEvent>();
+
+            if (currentBorrows == null || !currentBorrows.Any())
+                return events;
+
+            var previousDict = previousBorrows?
+                .Where(b => !string.IsNullOrEmpty(b.MintAddress))
+                .ToDictionary(b => b.MintAddress!, b => ParseDecimal(b.Amount)) 
+                ?? new Dictionary<string, decimal>();
+
+            foreach (var borrow in currentBorrows)
+            {
+                if (string.IsNullOrEmpty(borrow.MintAddress))
+                    continue;
+
+                var currentAmount = ParseDecimal(borrow.Amount);
+                var previousAmount = previousDict.GetValueOrDefault(borrow.MintAddress, 0);
+
+                // Se houve aumento no amount, foi um novo borrow
+                if (currentAmount > previousAmount)
+                {
+                    var amountChange = currentAmount - previousAmount;
+                    events.Add(new KaminoTransactionEvent
+                    {
+                        Type = "borrow",
+                        MintAddress = borrow.MintAddress,
+                        TokenSymbol = "UNKNOWN", // Será enriquecido depois
+                        Amount = currentAmount,
+                        AmountChange = amountChange,
+                        Timestamp = timestamp,
+                        ValueUsd = ParseDecimalNullable(borrow.MarketValueRefreshed)
+                    });
+                }
+            }
+
+            return events;
+        }
+
+        private static decimal? ParseDecimalNullable(string? value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return null;
+
+            return decimal.TryParse(value, System.Globalization.NumberStyles.Float, 
+                System.Globalization.CultureInfo.InvariantCulture, out var result) ? result : null;
         }
 
         public async Task<KaminoReservesResponseDto?> GetReservesDataAsync()

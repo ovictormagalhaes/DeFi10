@@ -57,28 +57,57 @@ const ProjectionSelector = ({
     return [];
   }, [projections, projection]);
 
-  // Get available types
+  // Get available types (deduped by display label)
   const typeOptions = useMemo(() => {
-    const types = normalizedProjections.map(p => p.type);
-    // Map type names for display
-    return types.map(type => {
-      switch (type.toLowerCase()) {
-        case 'apr': return 'APR';
-        case 'aprhistorical': return 'APR Historical';
-        default: return type.charAt(0).toUpperCase() + type.slice(1);
+    const labels = [];
+    const seen = new Set();
+
+    normalizedProjections.forEach((p) => {
+      const rawType = (p.type || '').toString();
+      let label;
+      switch (rawType.toLowerCase()) {
+        case 'apr':
+          label = 'APR';
+          break;
+        case 'aprhistorical':
+          label = 'APR Historical';
+          break;
+        case 'apy':
+          label = 'APY';
+          break;
+        default:
+          label = rawType
+            ? rawType.charAt(0).toUpperCase() + rawType.slice(1)
+            : 'APR';
+      }
+
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
       }
     });
+
+    return labels;
   }, [normalizedProjections]);
 
   // Get current projection based on selected type
   const currentProjection = useMemo(() => {
-    const typeIndex = typeOptions.findIndex(t => 
-      t.toLowerCase() === selectedType.toLowerCase() || 
-      (t === 'APR Historical' && selectedType.toLowerCase() === 'aprhistorical') ||
-      (t === 'APR' && selectedType.toLowerCase() === 'apr')
-    );
-    return normalizedProjections[typeIndex >= 0 ? typeIndex : 0];
-  }, [normalizedProjections, selectedType, typeOptions]);
+    if (!normalizedProjections.length) return null;
+
+    const target = selectedType.toLowerCase();
+    const directMatch = normalizedProjections.find((p) => {
+      const t = (p.type || '').toString().toLowerCase();
+      if (!t) return false;
+      if (t === target) return true;
+      if (t === 'apr' && target === 'apr') return true;
+      if (t === 'aprhistorical' && (target === 'aprhistorical' || target === 'historical'))
+        return true;
+      if (t === 'apy' && target === 'apy') return true;
+      return false;
+    });
+
+    return directMatch || normalizedProjections[0];
+  }, [normalizedProjections, selectedType]);
 
   // Map periods to projection values
   const periodMap = {
@@ -104,6 +133,8 @@ const ProjectionSelector = ({
     const typeMapping = {
       'APR': 'apr',
       'Historical': 'aprHistorical',
+      'APR Historical': 'aprHistorical',
+      'APY': 'apy',
     };
     setSelectedType(typeMapping[displayType] || displayType.toLowerCase());
   };

@@ -8,6 +8,7 @@ using DeFi10.API.Models;
 using DeFi10.API.Configuration;
 using DeFi10.API.Services.Interfaces;
 using DeFi10.API.Services.Configuration;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 using DeFi10.API.Services.Infrastructure.Moralis.Models;
@@ -18,15 +19,17 @@ public class MoralisDeFiMapperTests
 {
     private readonly Mock<IChainConfigurationService> _chainConfig;
     private readonly Mock<IProtocolConfigurationService> _protocolConfig;
+    private readonly Mock<ILogger<MoralisDeFiMapper>> _logger;
     private readonly MoralisDeFiMapper _mapper;
 
     public MoralisDeFiMapperTests()
     {
         _chainConfig = new Mock<IChainConfigurationService>();
         _protocolConfig = new Mock<IProtocolConfigurationService>();
+        _logger = new Mock<ILogger<MoralisDeFiMapper>>();
 
         SetupDefaultMocks();
-        _mapper = new MoralisDeFiMapper(_chainConfig.Object, _protocolConfig.Object);
+        _mapper = new MoralisDeFiMapper(_chainConfig.Object, _protocolConfig.Object, _logger.Object);
     }
 
     private void SetupDefaultMocks()

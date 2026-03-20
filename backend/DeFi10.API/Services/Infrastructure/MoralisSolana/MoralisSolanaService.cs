@@ -136,6 +136,65 @@ namespace DeFi10.API.Services.Infrastructure.MoralisSolana
             }
         }
 
+        public async Task<decimal?> GetTokenPriceAsync(string tokenMint)
+        {
+            if (string.IsNullOrWhiteSpace(tokenMint))
+            {
+                _logger.LogWarning("Token mint address is null or empty");
+                return null;
+            }
+
+            try
+            {
+                var url = $"{_baseUrl}/token/mainnet/{tokenMint}/price";
+                
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+                _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
+
+                _logger.LogDebug("Fetching Solana token price for mint {Mint}", tokenMint);
+                
+                var response = await _httpClient.GetAsync(url);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogWarning("Moralis Solana Price API error - Status: {Status}, Content: {Content}, Mint: {Mint}", 
+                        response.StatusCode, errorContent, tokenMint);
+                    return null;
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug("Moralis Solana Price API response for {Mint}: {Response}", tokenMint, responseJson);
+                
+                var priceResponse = JsonSerializer.Deserialize<MoralisSolanaTokenPriceResponse>(responseJson);
+
+                if (priceResponse?.UsdPrice != null)
+                {
+                    _logger.LogDebug("Successfully fetched price for token {Mint}: ${Price}", tokenMint, priceResponse.UsdPrice);
+                    return priceResponse.UsdPrice;
+                }
+
+                _logger.LogWarning("Price response for token {Mint} did not contain usdPrice", tokenMint);
+                return null;
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogWarning(ex, "HTTP error fetching Solana token price for mint {Mint}", tokenMint);
+                return null;
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "JSON parsing error for Solana token price response for mint {Mint}", tokenMint);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unexpected error fetching Solana token price for mint {Mint}", tokenMint);
+                return null;
+            }
+        }
+
         public async Task<SolanaNFTResponse> GetNFTsAsync(string address, ChainEnum chain)
         {
             if (chain != ChainEnum.Solana)

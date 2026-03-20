@@ -8,6 +8,8 @@ export interface ColorPalette {
   bgAppAlt: string;
   bgPanel: string;
   bgPanelAlt: string;
+  bgSecondary: string;
+  bgHover: string;
   bgInteractive: string;
   bgInteractiveHover: string;
   bgAccentSoft: string;
@@ -47,6 +49,8 @@ export const darkTokens: ColorPalette = {
   bgAppAlt: '#191b24',
   bgPanel: '#22242b',
   bgPanelAlt: '#272a33',
+  bgSecondary: '#272a33',
+  bgHover: '#2b2e37',
   bgInteractive: 'rgba(255,255,255,0.06)',
   bgInteractiveHover: 'rgba(255,255,255,0.1)',
   bgAccentSoft: 'rgba(69,183,115,0.18)',
@@ -86,6 +90,8 @@ export const lightTokens: ColorPalette = {
   bgAppAlt: '#e8ebee',
   bgPanel: '#ffffff',
   bgPanelAlt: '#f7f9fb',
+  bgSecondary: '#f7f9fb',
+  bgHover: '#ecf0f3',
   bgInteractive: 'rgba(0,0,0,0.04)',
   bgInteractiveHover: 'rgba(0,0,0,0.07)',
   bgAccentSoft: 'rgba(45,152,115,0.15)',

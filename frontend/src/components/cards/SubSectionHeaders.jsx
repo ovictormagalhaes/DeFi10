@@ -511,33 +511,24 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
   let totalAprWeighted = 0;
   let totalWeightForApr = 0;
   
-  // Historical APR tracking
-  let totalAprHistoricalWeighted = 0;
-  let totalWeightForAprHistorical = 0;
-  
-  // Projection sums by type
   const projectionSums = {
     apr: { day: 0, week: 0, month: 0, year: 0 },
-    aprHistorical: { day: 0, week: 0, month: 0, year: 0 },
   };
 
   data.forEach(item => {
     const position = item.position || item;
     const tokens = Array.isArray(position.tokens) ? position.tokens : [];
     
-    // APR do backend
-    const positionApr = position.additionalData?.apr || 
+    const positionApr = position.additionalData?.aprHistorical || 
+                        position.aprHistorical || 
+                        item.aprHistorical ||
+                        item.additionalData?.aprHistorical ||
+                        position.additionalData?.apr || 
                         position.apr || 
                         item.apr ||
                         item.additionalData?.apr ||
                         position.additionalData?.apy ||
                         position.apy;
-    
-    // APR Historical do backend
-    const positionAprHistorical = position.additionalData?.aprHistorical || 
-                                  position.aprHistorical || 
-                                  item.aprHistorical ||
-                                  item.additionalData?.aprHistorical;
     
     // Support both new projections array and legacy single projection
     const projections = item.additionalData?.projections || 
@@ -550,24 +541,17 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
                             position.projection ||
                             null;
     
-    // Process projections array (new format)
     if (projections && Array.isArray(projections)) {
       projections.forEach(proj => {
-        const rawType = proj.type?.toLowerCase() || 'apr';
-        // Map type to correct key in projectionSums
-        const type = rawType === 'aprhistorical' ? 'aprHistorical' : rawType;
         const projection = proj.projection;
-        
-        if (projection && projectionSums[type]) {
-          projectionSums[type].day += parseFloat(projection.oneDay || 0);
-          projectionSums[type].week += parseFloat(projection.oneWeek || 0);
-          projectionSums[type].month += parseFloat(projection.oneMonth || 0);
-          projectionSums[type].year += parseFloat(projection.oneYear || 0);
+        if (projection) {
+          projectionSums.apr.day += parseFloat(projection.oneDay || 0);
+          projectionSums.apr.week += parseFloat(projection.oneWeek || 0);
+          projectionSums.apr.month += parseFloat(projection.oneMonth || 0);
+          projectionSums.apr.year += parseFloat(projection.oneYear || 0);
         }
       });
-    } 
-    // Process legacy projection (backward compatibility)
-    else if (legacyProjection) {
+    } else if (legacyProjection) {
       projectionSums.apr.day += parseFloat(legacyProjection.oneDay || 0);
       projectionSums.apr.week += parseFloat(legacyProjection.oneWeek || 0);
       projectionSums.apr.month += parseFloat(legacyProjection.oneMonth || 0);
@@ -621,18 +605,11 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
     totalLiquidity += positionLiquidityValue;
     totalUncollectedFees += positionFeesValue;
     
-    // APR weighted by position liquidity value
     if (positionApr != null && !isNaN(positionApr) && positionLiquidityValue > 0) {
       totalAprWeighted += positionApr * positionLiquidityValue;
       totalWeightForApr += positionLiquidityValue;
       aprSum += positionApr;
       aprCount++;
-    }
-    
-    // APR Historical weighted by position liquidity value
-    if (positionAprHistorical != null && !isNaN(positionAprHistorical) && positionLiquidityValue > 0) {
-      totalAprHistoricalWeighted += positionAprHistorical * positionLiquidityValue;
-      totalWeightForAprHistorical += positionLiquidityValue;
     }
 
     // Count in range vs out of range baseado em rangeData.inRange
@@ -646,14 +623,9 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
   });
 
   const avgAPR = totalWeightForApr > 0 ? totalAprWeighted / totalWeightForApr : null;
-  const avgAprHistorical = totalWeightForAprHistorical > 0 ? totalAprHistoricalWeighted / totalWeightForAprHistorical : null;
   
-  // Check if any projection type has values
-  const hasAprProjections = projectionSums.apr.day !== 0 || projectionSums.apr.week !== 0 || 
-                           projectionSums.apr.month !== 0 || projectionSums.apr.year !== 0;
-  const hasAprHistoricalProjections = projectionSums.aprHistorical.day !== 0 || projectionSums.aprHistorical.week !== 0 || 
-                                 projectionSums.aprHistorical.month !== 0 || projectionSums.aprHistorical.year !== 0;
-  const hasProjections = hasAprProjections || hasAprHistoricalProjections;
+  const hasProjections = projectionSums.apr.day !== 0 || projectionSums.apr.week !== 0 || 
+                         projectionSums.apr.month !== 0 || projectionSums.apr.year !== 0;
 
   const items = [
     {
@@ -682,12 +654,10 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
     },
   ];
   
-  // AVG APR item with dropdown to choose between APR and APR Historical
-  const avgAprItem = (avgAPR !== null || avgAprHistorical !== null) ? {
-    label: 'AVG',
+  const avgAprItem = avgAPR !== null ? {
+    label: 'NET',
     values: {
-      apr: avgAPR !== null ? avgAPR.toFixed(2) : '0.00',
-      aprHistorical: avgAprHistorical !== null ? avgAprHistorical.toFixed(2) : '0.00',
+      apr: avgAPR.toFixed(2),
     },
     defaultType: 'apr',
     showTypeWhenSingle: true,
@@ -699,37 +669,12 @@ export const LiquiditySubSectionHeader = ({ data = [] }) => {
     withDropdown: true,
   } : null;
 
-  // Build projection values object
-  let projectionValues = {};
-  const shouldShowTypeDropdown = true; // From prop showTypeWhenSingle in projectionItem
-  
-  if (hasAprProjections && hasAprHistoricalProjections) {
-    // Multiple types: create nested structure
-    projectionValues = {
-      apr: projectionSums.apr,
-      aprHistorical: projectionSums.aprHistorical,
-    };
-  } else if (hasAprProjections) {
-    // Single type: use nested structure if showTypeWhenSingle is true, otherwise flat
-    if (shouldShowTypeDropdown) {
-      projectionValues = { apr: projectionSums.apr };
-    } else {
-      projectionValues = projectionSums.apr;
-    }
-  } else if (hasAprHistoricalProjections) {
-    if (shouldShowTypeDropdown) {
-      projectionValues = { aprHistorical: projectionSums.aprHistorical };
-    } else {
-      projectionValues = projectionSums.aprHistorical;
-    }
-  }
-
   const projectionItem = hasProjections ? {
     label: 'Projection',
-    values: projectionValues,
+    values: projectionSums.apr,
     defaultType: 'apr',
     defaultPeriod: 'day',
-    showTypeWhenSingle: true, // PoolCards shows type dropdown even with single type
+    showTypeWhenSingle: false,
     color: (value) => value >= 0 ? '#10b981' : '#ef4444',
     flex: 1,
     withDropdown: true,

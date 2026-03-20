@@ -30,6 +30,9 @@ public class WalletItemMapperFactory : IWalletItemMapperFactory
     public IWalletItemMapper<AaveGetUserBorrowsResponse> CreateAaveBorrowsMapper()
         => _serviceProvider.GetRequiredService<IWalletItemMapper<AaveGetUserBorrowsResponse>>();
 
+    public IWalletItemMapper<AaveTransactionHistoryResponse> CreateAaveTransactionHistoryMapper()
+        => _serviceProvider.GetRequiredService<IWalletItemMapper<AaveTransactionHistoryResponse>>();
+
     public IWalletItemMapper<UniswapV3GetActivePoolsResponse> CreateUniswapV3Mapper()
         => _serviceProvider.GetRequiredService<IWalletItemMapper<UniswapV3GetActivePoolsResponse>>();
 
@@ -61,6 +64,7 @@ public class WalletItemMapperFactory : IWalletItemMapperFactory
             CreateMoralisTokenMapper(),
             CreateAaveSuppliesMapper(),
             CreateAaveBorrowsMapper(),
+            CreateAaveTransactionHistoryMapper(),
             CreateUniswapV3Mapper(),
             CreatePendleVeMapper(),
             CreatePendleDepositsMapper(),

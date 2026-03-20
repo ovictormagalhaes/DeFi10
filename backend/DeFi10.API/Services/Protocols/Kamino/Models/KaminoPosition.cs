@@ -22,4 +22,7 @@ public sealed class KaminoPosition
     
     [JsonPropertyName("tokens")]
     public List<SplToken> Tokens { get; set; } = new();
+
+    [JsonPropertyName("transactionHistory")]
+    public List<KaminoTransactionEvent>? TransactionHistory { get; set; }
 }

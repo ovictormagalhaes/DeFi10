@@ -11,6 +11,8 @@ export enum RebalanceAssetType {
   LendingAndBorrowing = 2,
   Staking = 3,
   Group = 4,
+  LendingSupply = 10,
+  LendingBorrow = 11,
 }
 
 // Enum de tipos de referência (espelhado do backend)
@@ -222,9 +224,14 @@ export const ASSET_TYPE_OPTIONS: AssetTypeOption[] = [
     description: 'LP positions and pools',
   },
   {
-    value: RebalanceAssetType.LendingAndBorrowing,
-    label: 'Lending Position',
-    description: 'Lending and borrowing positions',
+    value: RebalanceAssetType.LendingSupply,
+    label: 'Lending Supply',
+    description: 'Lending collateral/supply positions only',
+  },
+  {
+    value: RebalanceAssetType.LendingBorrow,
+    label: 'Lending Borrow',
+    description: 'Lending debt/borrow positions only',
   },
   {
     value: RebalanceAssetType.Staking,
@@ -263,5 +270,4 @@ export default {
   ASSET_TYPE_OPTIONS,
   GROUP_OPTIONS,
   REBALANCE_REFERENCE_TYPES,
-  CHAIN_MAPPINGS,
 };

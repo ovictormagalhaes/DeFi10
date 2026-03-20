@@ -9,6 +9,14 @@ import type {
   ConnectWalletGroupResponse,
   ConnectWalletGroupRequest,
 } from '../types/wallet-groups';
+import type { 
+  Strategy, 
+  SaveStrategyRequest, 
+  SaveStrategyResponse,
+  SaveStrategiesRequest,
+  SaveStrategiesResponse,
+  StrategyData
+} from '../types/strategy';
 import type { Challenge } from './proofOfWork';
 
 const TOKEN_STORAGE_KEY = 'defi10_wallet_group_tokens';
@@ -82,13 +90,40 @@ function notifyTokenExpired(walletGroupId: string): void {
 export { getToken, storeToken, removeToken, notifyTokenExpired };
 
 axios.interceptors.request.use((config) => {
-  const match = config.url?.match(/\/wallet-groups\/([^\/]+)/);
+  // Match wallet-groups routes: /wallet-groups/{id}
+  let match = config.url?.match(/\/wallet-groups\/([^\/]+)/);
   if (match && match[1] && match[1] !== 'challenge') {
     const walletGroupId = decodeURIComponent(match[1]);
     const token = getToken(walletGroupId);
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  
+  // Match strategies routes: /strategies/{walletGroupId} or /strategies (with walletGroupId in body)
+  if (!match) {
+    match = config.url?.match(/\/strategies\/([^\/]+)/);
+    if (match && match[1] && match[1] !== 'save') {
+      const walletGroupId = decodeURIComponent(match[1]);
+      const token = getToken(walletGroupId);
+      
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } else if (config.url?.includes('/strategies') && config.method === 'post' && config.data) {
+      // For POST /strategies with walletGroupId in body
+      try {
+        const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+        if (body.walletGroupId) {
+          const token = getToken(body.walletGroupId);
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        }
+      } catch {
+        // Ignore parse errors
+      }
     }
   }
   
@@ -99,13 +134,25 @@ axios.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      const match = error.config?.url?.match(/\/wallet-groups\/([^\/]+)/);
+      // Check wallet-groups routes
+      let match = error.config?.url?.match(/\/wallet-groups\/([^\/]+)/);
       if (match && match[1] && match[1] !== 'challenge' && match[1] !== 'connect') {
         const walletGroupId = decodeURIComponent(match[1]);
         removeToken(walletGroupId);
         notifyTokenExpired(walletGroupId);
       }
       
+      // Check strategies routes
+      if (!match) {
+        match = error.config?.url?.match(/\/strategies\/([^\/]+)/);
+        if (match && match[1] && match[1] !== 'save') {
+          const walletGroupId = decodeURIComponent(match[1]);
+          removeToken(walletGroupId);
+          notifyTokenExpired(walletGroupId);
+        }
+      }
+      
+      // Check POST body for walletGroupId
       if (error.config?.data && error.config.method === 'post') {
         try {
           const body = JSON.parse(error.config.data);
@@ -114,6 +161,7 @@ axios.interceptors.response.use(
             notifyTokenExpired(body.walletGroupId);
           }
         } catch {
+          // Ignore parse errors
         }
       }
     }
@@ -162,12 +210,13 @@ export async function createWalletGroup(data: CreateWalletGroupRequest): Promise
   return walletGroup;
 }
 
-export async function checkWalletGroup(
-  id: string
-): Promise<{ requiresPassword: boolean }> {
-  const res = await axios.get(api.checkWalletGroup(id));
-  return res.data;
-}
+// REMOVED: checkWalletGroup - endpoint /check does not exist in backend
+// export async function checkWalletGroup(
+//   id: string
+// ): Promise<{ requiresPassword: boolean }> {
+//   const res = await axios.get(api.checkWalletGroup(id));
+//   return res.data;
+// }
 
 export async function connectWalletGroup(
   id: string,
@@ -197,4 +246,35 @@ export async function updateWalletGroup(
 export async function deleteWalletGroup(id: string): Promise<void> {
   await axios.delete(api.deleteWalletGroup(id));
   removeToken(id);
+}
+
+/**
+ * Create or update a strategy for a wallet group (legacy format)
+ */
+export async function saveStrategy(data: SaveStrategyRequest): Promise<SaveStrategyResponse> {
+  const res = await axios.post(api.saveStrategy(), data);
+  return res.data;
+}
+
+/**
+ * Create or update multiple strategies for a wallet group (new format)
+ */
+export async function saveStrategies(data: SaveStrategiesRequest): Promise<SaveStrategiesResponse> {
+  const res = await axios.post(api.saveStrategy(), data);
+  return res.data;
+}
+
+/**
+ * Get strategy for a wallet group (returns new format with array of strategies)
+ */
+export async function getStrategyByGroup(walletGroupId: string): Promise<SaveStrategiesResponse | null> {
+  try {
+    const res = await axios.get(api.getStrategiesByGroup(walletGroupId));
+    return res.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
 }

@@ -73,7 +73,7 @@ namespace DeFi10.API.IntegrationTests
                 Chain.Solana,
                 new Dictionary<string, string>
                 {
-                    { "ApiUrl", "https://api.hubbleprotocol.io" },
+                    { "ApiUrl", "https://api.kamino.finance" },
                     { "Enabled", "true" }
                 }
             );
@@ -241,6 +241,71 @@ namespace DeFi10.API.IntegrationTests
                 {
                     _output.WriteLine($"✗ {tokenSymbol} not found in reserves");
                 }
+            }
+        }
+
+        [Fact]
+        public async Task Should_Check_All_Markets_For_Positions()
+        {
+            // Arrange
+            _output.WriteLine("=== Testing Multi-Market Position Discovery ===");
+            var testWallet = "884XrhgNyJFM88AtRpBe1JwycCiWv6PXXhY2bZHWHXQk";
+            _output.WriteLine($"Test Wallet: {testWallet}\n");
+
+            // Act
+            _output.WriteLine("Querying all configured Kamino markets...\n");
+            var positions = await _service.GetPositionsAsync(testWallet, Chain.Solana);
+
+            // Assert
+            _output.WriteLine("\n=== RESULTS ===");
+            _output.WriteLine($"Total positions found across all markets: {positions.Count()}\n");
+
+            if (!positions.Any())
+            {
+                _output.WriteLine("❌ No positions found in any market!");
+                _output.WriteLine("This could mean:");
+                _output.WriteLine("  1. The wallet has no Kamino positions");
+                _output.WriteLine("  2. The positions are in a market not being queried");
+                _output.WriteLine("  3. There's an API error");
+            }
+            else
+            {
+                _output.WriteLine("✅ Positions found!\n");
+                
+                // Group by market
+                var byMarket = positions.GroupBy(p => p.Market);
+                
+                foreach (var marketGroup in byMarket)
+                {
+                    _output.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    _output.WriteLine($"MARKET: {marketGroup.Key}");
+                    _output.WriteLine($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    _output.WriteLine($"Positions in this market: {marketGroup.Count()}\n");
+                    
+                    foreach (var position in marketGroup)
+                    {
+                        _output.WriteLine($"  Position ID: {position.Id}");
+                        _output.WriteLine($"  Health Factor: {position.HealthFactor:F2}");
+                        _output.WriteLine($"  Supplied USD: ${position.SuppliedUsd:N2}");
+                        _output.WriteLine($"  Borrowed USD: ${position.BorrowedUsd:N2}");
+                        _output.WriteLine($"  Net Value: ${(position.SuppliedUsd - position.BorrowedUsd):N2}");
+                        _output.WriteLine($"  Tokens: {position.Tokens.Count}");
+                        
+                        foreach (var token in position.Tokens)
+                        {
+                            var typeLabel = token.Type == TokenType.Supplied ? "SUPPLIED" : "BORROWED";
+                            var totalValue = token.Amount * (token.PriceUsd ?? 0);
+                            _output.WriteLine($"    [{typeLabel}] {token.Symbol}: {token.Amount:N6} @ ${token.PriceUsd:N2} = ${totalValue:N2}");
+                            if (token.Apy.HasValue)
+                            {
+                                _output.WriteLine($"      APY: {token.Apy.Value:F2}%");
+                            }
+                        }
+                        _output.WriteLine("");
+                    }
+                }
+                
+                Assert.True(positions.Any(), "Should have found at least one position");
             }
         }
     }

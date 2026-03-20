@@ -117,15 +117,17 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       setIsCheckingGroup(true);
       setGroupError(null);
       
-      const response = await apiClient.checkWalletGroup(groupId.trim());
+      // REMOVED: checkWalletGroup endpoint does not exist in backend
+      // Assuming all groups require password for now
+      // const response = await apiClient.checkWalletGroup(groupId.trim());
       
-      setPasswordRequired(response.requiresPassword);
-      setGroupIsPublic(!response.requiresPassword);
+      setPasswordRequired(true);
+      setGroupIsPublic(false);
       
-      console.log('[WalletGroup] Group check:', { 
+      console.log('[WalletGroup] Group check (default):', { 
         groupId: groupId.trim(), 
-        requiresPassword: response.requiresPassword,
-        isPublic: !response.requiresPassword
+        requiresPassword: true,
+        isPublic: false
       });
     } catch (err: any) {
       console.error('[WalletGroup] Error checking group:', err);

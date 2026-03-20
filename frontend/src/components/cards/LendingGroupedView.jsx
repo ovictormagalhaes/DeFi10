@@ -6,7 +6,7 @@ import ProtocolGroupCard from './ProtocolGroupCard.jsx';
  * LendingGroupedView - Visualização agrupada de lending positions por Protocol + Chain
  * Agrupa positions que compartilham o mesmo Health Factor
  */
-const LendingGroupedView = ({ data = [] }) => {
+const LendingGroupedView = ({ data = [], onOpenDetail }) => {
   const { theme } = useTheme();
 
   if (!data || data.length === 0) {
@@ -31,8 +31,8 @@ const LendingGroupedView = ({ data = [] }) => {
     const protocol = position.protocol || item.protocol || {};
     const tokens = position.tokens || [];
     
-    // Get chain from first token
-    const chain = tokens[0]?.chain || 'unknown';
+    // Get chain from protocol first, fallback to first token chain
+    const chain = protocol.chain || tokens[0]?.chain || 'unknown';
     const protocolName = protocol.name || 'Unknown Protocol';
     
     // Create unique key for protocol + chain
@@ -83,6 +83,7 @@ const LendingGroupedView = ({ data = [] }) => {
           chainName={group.chainName}
           positions={group.positions}
           healthFactor={group.healthFactor}
+          onOpenDetail={onOpenDetail}
         />
       ))}
     </div>

@@ -45,15 +45,38 @@ namespace DeFi10.API.Services.Protocols.Raydium
                 
                 if (response?.Data != null && response.Success)
                 {
-                    // API returns array of pool stats in Data property
                     foreach (var pool in response.Data)
                     {
-                        if (!string.IsNullOrEmpty(pool.Id) && pool.Day != null)
+                        if (!string.IsNullOrEmpty(pool.Id))
                         {
-                            // Use day APR as the primary metric
-                            result[pool.Id] = pool.Day.Apr;
-                            _logger.LogDebug("[Raydium API] Pool {PoolId}: APR={Apr}%, TVL=${Tvl}", 
-                                pool.Id, pool.Day.Apr, pool.Tvl);
+                            decimal apr = 0;
+                            
+                            if (pool.Month?.Apr > 0)
+                            {
+                                apr = pool.Month.Apr;
+                            }
+                            else if (pool.Week?.Apr > 0)
+                            {
+                                apr = pool.Week.Apr;
+                            }
+                            else if (pool.Day?.Apr > 0)
+                            {
+                                apr = pool.Day.Apr;
+                            }
+                            
+                            if (apr > 0)
+                            {
+                                if (apr > 1000)
+                                {
+                                    _logger.LogWarning("[Raydium API] Pool {PoolId}: APR {Apr}% exceeds 1000%, capping at 1000%", 
+                                        pool.Id, apr);
+                                    apr = 1000;
+                                }
+                                
+                                result[pool.Id] = apr;
+                                _logger.LogDebug("[Raydium API] Pool {PoolId}: APR={Apr}%, TVL=${Tvl}", 
+                                    pool.Id, apr, pool.Tvl);
+                            }
                         }
                     }
                     

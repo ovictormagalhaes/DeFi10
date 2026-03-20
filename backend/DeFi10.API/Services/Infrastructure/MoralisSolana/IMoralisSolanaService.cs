@@ -9,5 +9,6 @@ namespace DeFi10.API.Services.Infrastructure.MoralisSolana
     {
         Task<SolanaTokenResponse> GetTokensAsync(string address, ChainEnum chain);
         Task<SolanaNFTResponse> GetNFTsAsync(string address, ChainEnum chain);
+        Task<decimal?> GetTokenPriceAsync(string tokenMint);
     }
 }

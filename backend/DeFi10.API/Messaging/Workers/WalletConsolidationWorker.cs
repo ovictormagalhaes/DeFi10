@@ -12,6 +12,7 @@ using DeFi10.API.Services.Helpers;
 using DeFi10.API.Aggregation;
 using DeFi10.API.Configuration;
 using DeFi10.API.Messaging.Constants;
+using DeFi10.API.Services.Infrastructure.MoralisSolana;
 
 namespace DeFi10.API.Messaging.Workers;
 
@@ -167,6 +168,9 @@ public class WalletConsolidationWorker : BaseConsumer
         // HYDRATION: Prices
         await HydratePricesAsync(consolidatedWallet, jobId, ct);
 
+        // COMPUTE: Health Factors for AAVE positions (defensive recomputation)
+        ComputeAaveHealthFactors(consolidatedWallet, jobId);
+
         // Save consolidated wallet
         await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(consolidatedWallet, _jsonOptions), ttl);
         
@@ -201,6 +205,9 @@ public class WalletConsolidationWorker : BaseConsumer
         // HYDRATION: Prices
         await HydratePricesAsync(wallet, jobId, ct);
 
+        // COMPUTE: Health Factors for AAVE positions (defensive recomputation)
+        ComputeAaveHealthFactors(wallet, jobId);
+
         // Save updated wallet
         await db.StringSetAsync(consolidatedKey, JsonSerializer.Serialize(wallet, _jsonOptions), ttl);
         
@@ -215,7 +222,8 @@ public class WalletConsolidationWorker : BaseConsumer
             using var scope = _rootProvider.CreateScope();
             var metadataService = scope.ServiceProvider.GetRequiredService<ITokenMetadataService>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<TokenHydrationHelper>>();
-            var hydrationHelper = new TokenHydrationHelper(metadataService, logger);
+            var moralisSolanaService = scope.ServiceProvider.GetService<IMoralisSolanaService>(); // Optional
+            var hydrationHelper = new TokenHydrationHelper(metadataService, logger, moralisSolanaService);
 
             _logger.LogDebug("[Consolidation] Starting metadata hydration for {Count} items, jobId={JobId}", 
                 wallet.Items.Count, jobId);
@@ -486,6 +494,79 @@ public class WalletConsolidationWorker : BaseConsumer
             item.Type, item.Protocol?.Name, totalValueUsd, apy);
         
         return 1;
+    }
+
+    private void ComputeAaveHealthFactors(ConsolidatedWallet wallet, Guid jobId)
+    {
+        try
+        {
+            var aaveItems = wallet.Items
+                .Where(i => i.Protocol?.Id == "aave-v3" && i.Type == WalletItemType.LendingAndBorrowing)
+                .ToList();
+
+            if (aaveItems.Count == 0)
+            {
+                _logger.LogDebug("[Consolidation] No AAVE items found for jobId={JobId}", jobId);
+                return;
+            }
+
+            bool hasSupplies = aaveItems.Any(i => i.Position?.Label?.Equals("Supplied", StringComparison.OrdinalIgnoreCase) == true);
+            bool hasBorrows = aaveItems.Any(i => i.Position?.Label?.Equals("Borrowed", StringComparison.OrdinalIgnoreCase) == true);
+
+            if (!hasSupplies || !hasBorrows)
+            {
+                _logger.LogDebug("[Consolidation] AAVE: hasSupplies={HasSupplies}, hasBorrows={HasBorrows} - skipping HF computation for jobId={JobId}",
+                    hasSupplies, hasBorrows, jobId);
+                return;
+            }
+
+            decimal collateralUsd = 0m;
+            decimal debtUsd = 0m;
+
+            foreach (var wi in aaveItems)
+            {
+                var label = wi.Position?.Label?.ToLowerInvariant();
+                if (label == "supplied")
+                {
+                    var isCollateral = wi.AdditionalData?.IsCollateral ?? true;
+                    if (isCollateral && wi.Position?.Tokens != null)
+                    {
+                        foreach (var t in wi.Position.Tokens)
+                        {
+                            var tp = t.Financials?.TotalPrice ?? 0m;
+                            if (tp > 0) collateralUsd += tp;
+                        }
+                    }
+                }
+                else if (label == "borrowed")
+                {
+                    if (wi.Position?.Tokens != null)
+                    {
+                        foreach (var t in wi.Position.Tokens)
+                        {
+                            var tp = t.Financials?.TotalPrice ?? 0m;
+                            if (tp > 0) debtUsd += tp;
+                        }
+                    }
+                }
+            }
+
+            const decimal assumedLT = 0.8m;
+            decimal healthFactor = debtUsd == 0m ? decimal.MaxValue : (collateralUsd * assumedLT) / debtUsd;
+
+            foreach (var wi in aaveItems)
+            {
+                wi.AdditionalData ??= new AdditionalData();
+                wi.AdditionalData.HealthFactor = healthFactor;
+            }
+
+            _logger.LogInformation("[Consolidation] AAVE healthFactor computed: HF={HF:F2}, collateral={Collateral:F2}, debt={Debt:F2}, items={Count} for jobId={JobId}",
+                healthFactor, collateralUsd, debtUsd, aaveItems.Count, jobId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[Consolidation] Failed to compute AAVE healthFactor for jobId={JobId}", jobId);
+        }
     }
 
     private async Task FinalizeJobAsync(Guid jobId, string metaKey, WalletConsolidationRequested request, CancellationToken ct)

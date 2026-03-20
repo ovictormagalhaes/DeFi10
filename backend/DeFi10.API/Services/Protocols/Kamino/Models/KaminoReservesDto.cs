@@ -18,6 +18,19 @@ public class KaminoReserveDto
 
     [JsonPropertyName("liquidityTokenMint")]
     public string? MintAddress { get; set; }
+    
+    // Decimals are determined based on the token symbol (standard Solana token decimals)
+    [JsonIgnore]
+    public int Decimals => Symbol?.ToUpperInvariant() switch
+    {
+        "USDC" => 6,
+        "USDT" => 6,
+        "USDS" => 6,
+        "JLP" => 6,
+        "CBBTC" => 8,
+        "WBTC" => 8,
+        _ => 9 // Default for SOL and most Solana tokens
+    };
 
     [JsonPropertyName("supplyApy")]
     public string? SupplyApyString { get; set; }

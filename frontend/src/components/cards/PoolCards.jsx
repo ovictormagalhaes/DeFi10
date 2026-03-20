@@ -5,7 +5,6 @@ import { useChainIcons } from '../../context/ChainIconsProvider.jsx';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
 import RangeChip from '../RangeChip.jsx';
 import ProjectionSelector from '../ProjectionSelector.jsx';
-import PeriodDropdown from '../PeriodDropdown.jsx';
 
 /**
  * PoolCards - Card view for liquidity pool positions
@@ -22,7 +21,6 @@ const PoolCards = ({ data = [] }) => {
   const [expandedValues, setExpandedValues] = React.useState({});
   const [expandedProjections, setExpandedProjections] = React.useState({});
   const [expandedAmounts, setExpandedAmounts] = React.useState({});
-  const [selectedAprTypes, setSelectedAprTypes] = React.useState({});
 
   if (!data || data.length === 0) {
     return (
@@ -178,18 +176,7 @@ const PoolCards = ({ data = [] }) => {
         const displayToken0 = isFlipped ? token1 : token0;
         const displayToken1 = isFlipped ? token0 : token1;
         
-        // Pool metrics - get APR from additionalData
-        const apr = additionalInfo.apr || item.additionalData?.apr || position.apr || position.apy || 0;
-        const aprHistorical = additionalInfo.aprHistorical || item.additionalData?.aprHistorical || position.aprHistorical || null;
-        
-        // Check if we have both APR types
-        const hasMultipleAprTypes = apr != null && aprHistorical != null && aprHistorical > 0;
-        
-        // Get selected APR type for this card, default to 'APR'
-        const selectedAprType = selectedAprTypes[index] || 'APR';
-        
-        // Get the displayed APR value based on selection
-        const displayedApr = selectedAprType === 'APR Historical' ? aprHistorical : apr;
+        const apr = additionalInfo.aprHistorical || item.additionalData?.aprHistorical || additionalInfo.apr || item.additionalData?.apr || position.aprHistorical || position.apr || position.apy || 0;
         
         // Range data from additionalData or additionalInfo
         const rangeData = additionalInfo.range || item.additionalData?.range || position.range || null;
@@ -664,51 +651,10 @@ const PoolCards = ({ data = [] }) => {
                 alignItems: 'center',
                 marginBottom: 10,
               }}>
-                {hasMultipleAprTypes ? (
-                  <>
-                    <div 
-                      style={{ 
-                        display: 'flex', 
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      <PeriodDropdown
-                        periods={['APR', 'APR Historical']}
-                        selectedPeriod={selectedAprType}
-                        onPeriodChange={(type) => {
-                          setSelectedAprTypes(prev => ({ ...prev, [index]: type }));
-                        }}
-                        compact={true}
-                        disableHoverEffects={true}
-                        buttonStyle={{
-                          fontSize: 13,
-                          fontWeight: 400,
-                          fontFamily: 'inherit',
-                          color: 'rgb(162, 169, 181)',
-                          backgroundColor: 'transparent',
-                          border: 'none',
-                          borderRadius: 0,
-                          padding: 0,
-                          transition: 'none',
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                        }}
-                      />
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
-                      {displayedApr ? `${displayedApr.toFixed(2)}%` : '0.00%'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span style={{ fontSize: 13, color: theme.textSecondary }}>APR</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
-                      {apr ? `${apr.toFixed(2)}%` : '0.00%'}
-                    </span>
-                  </>
-                )}
+                <span style={{ fontSize: 13, color: theme.textSecondary }}>APR</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+                  {apr ? `${apr.toFixed(2)}%` : '0.00%'}
+                </span>
               </div>
 
               {/* Age */}
