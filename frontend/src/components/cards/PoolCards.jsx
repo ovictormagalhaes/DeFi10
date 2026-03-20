@@ -5,6 +5,7 @@ import { useChainIcons } from '../../context/ChainIconsProvider.jsx';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
 import RangeChip from '../RangeChip.jsx';
 import ProjectionSelector from '../ProjectionSelector.jsx';
+import PeriodDropdown from '../PeriodDropdown.jsx';
 
 /**
  * PoolCards - Card view for liquidity pool positions
@@ -21,6 +22,7 @@ const PoolCards = ({ data = [] }) => {
   const [expandedValues, setExpandedValues] = React.useState({});
   const [expandedProjections, setExpandedProjections] = React.useState({});
   const [expandedAmounts, setExpandedAmounts] = React.useState({});
+  const [selectedAprTypes, setSelectedAprTypes] = React.useState({});
 
   if (!data || data.length === 0) {
     return (
@@ -651,10 +653,51 @@ const PoolCards = ({ data = [] }) => {
                 alignItems: 'center',
                 marginBottom: 10,
               }}>
-                <span style={{ fontSize: 13, color: theme.textSecondary }}>APR</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
-                  {apr ? `${apr.toFixed(2)}%` : '0.00%'}
-                </span>
+                {hasMultipleAprTypes ? (
+                  <>
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
+                    >
+                      <PeriodDropdown
+                        periods={['APR', 'APR Historical']}
+                        selectedPeriod={selectedAprType}
+                        onPeriodChange={(type) => {
+                          setSelectedAprTypes(prev => ({ ...prev, [index]: type }));
+                        }}
+                        compact={true}
+                        disableHoverEffects={true}
+                        buttonStyle={{
+                          fontSize: 13,
+                          fontWeight: 400,
+                          fontFamily: 'inherit',
+                          color: 'rgb(162, 169, 181)',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          borderRadius: 0,
+                          padding: 0,
+                          transition: 'none',
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+                      {displayedApr ? `${displayedApr.toFixed(2)}%` : '0.00%'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 13, color: theme.textSecondary }}>APR</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+                      {apr ? `${apr.toFixed(2)}%` : '0.00%'}
+                    </span>
+                  </>
+                )}
               </div>
 
               {/* Age */}
