@@ -180,13 +180,13 @@ public class WalletItemMapperFactoryTests
     }
 
     [Fact]
-    public void GetAllMappers_ReturnsAllNineMappers()
+    public void GetAllMappers_ReturnsAllTenMappers()
     {
         SetupAllMappers();
 
         var result = _factory.GetAllMappers();
 
-        Assert.Equal(9, result.Count());
+        Assert.Equal(10, result.Count());
     }
 
     private void SetupAllMappers()
@@ -197,6 +197,8 @@ public class WalletItemMapperFactoryTests
             .Returns(new Mock<IWalletItemMapper<AaveGetUserSuppliesResponse>>().Object);
         _serviceProvider.Setup(x => x.GetService(typeof(IWalletItemMapper<AaveGetUserBorrowsResponse>)))
             .Returns(new Mock<IWalletItemMapper<AaveGetUserBorrowsResponse>>().Object);
+        _serviceProvider.Setup(x => x.GetService(typeof(IWalletItemMapper<AaveTransactionHistoryResponse>)))
+            .Returns(new Mock<IWalletItemMapper<AaveTransactionHistoryResponse>>().Object);
         _serviceProvider.Setup(x => x.GetService(typeof(IWalletItemMapper<UniswapV3GetActivePoolsResponse>)))
             .Returns(new Mock<IWalletItemMapper<UniswapV3GetActivePoolsResponse>>().Object);
         _serviceProvider.Setup(x => x.GetService(typeof(IWalletItemMapper<PendleVePositionsResponse>)))

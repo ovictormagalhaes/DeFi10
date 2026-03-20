@@ -169,6 +169,12 @@ public class IntegrationRequestWorker : BaseConsumer
                     payload = await svc.GetUserBorrows(request.Account, chainEnum.ToChainId());
                     status = IntegrationStatus.Success; break;
                 }
+                case IntegrationProvider.AaveTransactionHistory:
+                {
+                    var svc = scope.ServiceProvider.GetRequiredService<IAaveeService>();
+                    payload = await svc.GetUserTransactionHistoryAsync(request.Account, chainEnum.ToChainId());
+                    status = IntegrationStatus.Success; break;
+                }
                 case IntegrationProvider.UniswapV3Positions:
                 {
                     try

@@ -1,23 +1,20 @@
 services:
-  # Frontend React App
-  - type: web
+  # Frontend React App - Static Site (Free Tier)
+  - type: static
     name: defi10-frontend
-    runtime: node
-    plan: starter
     buildCommand: |
       npm install
       npm run build
-    startCommand: |
-      npm start
+    staticPublishPath: dist
     envVars:
       - key: NODE_ENV
         value: production
-      - key: REACT_APP_API_URL
-        value: https://defi10-1.onrender.com
       - key: VITE_API_URL
         value: https://defi10-1.onrender.com
       - key: REACT_APP_APP_NAME
         value: Defi10
-      - key: PORT
-        value: 3000
-    healthCheckPath: /
+    # SPA routing handled by _redirects file
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

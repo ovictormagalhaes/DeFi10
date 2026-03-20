@@ -28,6 +28,10 @@ using DeFi10.API.Services.Protocols.Aave.Models;
 using DeFi10.API.Services.Protocols.Aave.Models.Supplies;
 using DeFi10.API.Services.Protocols.Pendle.Models;
 using DeFi10.API.Services.Protocols.Uniswap.Models;
+using DeFi10.API.Repositories.Interfaces;
+using DeFi10.API.Services.Cache;
+using DeFi10.API.BackgroundServices;
+using MongoDB.Driver;
 using DeFi10.API.Services.Protocols.Kamino.Models;
 using DeFi10.API.Services.Protocols.Raydium.Models;
 using Microsoft.Extensions.Options;
@@ -128,6 +132,39 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddCacheServices(this IServiceCollection services, IConfiguration configuration)
+    {
+        // MongoDB client e database
+        services.AddSingleton<IMongoClient>(sp =>
+        {
+            var connectionString = configuration.GetValue<string>("MongoDB:ConnectionString");
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                throw new InvalidOperationException("MongoDB:ConnectionString is not configured");
+            }
+            return new MongoClient(connectionString);
+        });
+
+        services.AddSingleton<IMongoDatabase>(sp =>
+        {
+            var client = sp.GetRequiredService<IMongoClient>();
+            var databaseName = configuration.GetValue<string>("MongoDB:DatabaseName");
+            if (string.IsNullOrEmpty(databaseName))
+            {
+                throw new InvalidOperationException("MongoDB:DatabaseName is not configured");
+            }
+            return client.GetDatabase(databaseName);
+        });
+
+        // Protocol cache repository
+        services.AddScoped<IProtocolCacheRepository, ProtocolCacheRepository>();
+        
+        // Protocol cache helper
+        services.AddScoped<ProtocolCacheHelper>();
+
+        return services;
+    }
+
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddSingleton<IChainConfigurationService, ChainConfigurationService>();
@@ -138,6 +175,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWalletAggregationService, WalletAggregationService>();
         services.AddScoped<IStrategyService, StrategyService>();
         services.AddScoped<IProtocolStatusService, ProtocolStatusService>();
+        services.AddScoped<ITokenLogoService, TokenLogoService>();
 
         return services;
     }
@@ -185,6 +223,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWalletItemMapper<IEnumerable<TokenDetail>>, MoralisTokenMapper>();
         services.AddScoped<IWalletItemMapper<AaveGetUserSuppliesResponse>, AaveSuppliesMapper>();
         services.AddScoped<IWalletItemMapper<AaveGetUserBorrowsResponse>, AaveBorrowsMapper>();
+        services.AddScoped<IWalletItemMapper<AaveTransactionHistoryResponse>, AaveTransactionHistoryMapper>();
         services.AddScoped<IWalletItemMapper<UniswapV3GetActivePoolsResponse>, UniswapV3Mapper>();
         services.AddScoped<IWalletItemMapper<PendleVePositionsResponse>, PendleVeMapper>();
         services.AddScoped<IWalletItemMapper<PendleDepositsResponse>, PendleDepositsMapper>();
@@ -226,6 +265,9 @@ public static class ServiceCollectionExtensions
 
         // Token Metadata Cache Warmup Service (loads token metadata on startup)
         services.AddHostedService<TokenMetadataCacheWarmupService>();
+        
+        // Protocol Cache Cleanup Service (cleanup expired/stale caches)
+        // services.AddHostedService<CacheCleanupService>();
 
         return services;
     }

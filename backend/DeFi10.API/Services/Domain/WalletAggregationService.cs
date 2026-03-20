@@ -146,6 +146,7 @@ public class WalletAggregationService : IWalletAggregationService
             IntegrationProvider.MoralisNfts,        // EVM NFTs (triggers Uniswap V3 if found)
             IntegrationProvider.AaveSupplies,       // Aave lending (independent)
             IntegrationProvider.AaveBorrows,        // Aave borrowing (independent)
+            IntegrationProvider.AaveTransactionHistory, // Aave transaction history (independent)
             IntegrationProvider.PendleVePositions,  // Pendle vePENDLE (independent)
             IntegrationProvider.PendleDeposits,     // Pendle PT deposits (independent)
             IntegrationProvider.SolanaTokens,       // Solana wallet tokens
@@ -344,6 +345,7 @@ public class WalletAggregationService : IWalletAggregationService
                 IntegrationProvider.MoralisTokens => chain != ChainEnum.Solana && _mapperFactory.CreateMoralisTokenMapper().SupportsChain(chain),
                 IntegrationProvider.AaveSupplies => _mapperFactory.CreateAaveSuppliesMapper().SupportsChain(chain),
                 IntegrationProvider.AaveBorrows => _mapperFactory.CreateAaveBorrowsMapper().SupportsChain(chain),
+                IntegrationProvider.AaveTransactionHistory => _mapperFactory.CreateAaveTransactionHistoryMapper().SupportsChain(chain),
                 IntegrationProvider.UniswapV3Positions => _mapperFactory.CreateUniswapV3Mapper().SupportsChain(chain),
                 IntegrationProvider.PendleVePositions => _mapperFactory.CreatePendleVeMapper().SupportsChain(chain),
                 IntegrationProvider.PendleDeposits => _mapperFactory.CreatePendleDepositsMapper().SupportsChain(chain),
@@ -372,6 +374,7 @@ public class WalletAggregationService : IWalletAggregationService
             IntegrationProvider.MoralisNfts,
             IntegrationProvider.AaveSupplies,
             IntegrationProvider.AaveBorrows,
+            IntegrationProvider.AaveTransactionHistory,
             IntegrationProvider.PendleVePositions,
             IntegrationProvider.PendleDeposits,
             IntegrationProvider.SolanaTokens,
@@ -400,6 +403,7 @@ public class WalletAggregationService : IWalletAggregationService
             IntegrationProvider.MoralisTokens,
             IntegrationProvider.AaveSupplies,
             IntegrationProvider.AaveBorrows,
+            IntegrationProvider.AaveTransactionHistory,
             IntegrationProvider.UniswapV3Positions,
             IntegrationProvider.PendleVePositions,
             IntegrationProvider.PendleDeposits,

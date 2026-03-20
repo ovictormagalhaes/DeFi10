@@ -5,6 +5,7 @@ using DeFi10.API.Configuration;
 using DeFi10.API.Services.Configuration;
 using DeFi10.API.Services.Helpers;
 using DeFi10.API.Services.Protocols.Kamino;
+using DeFi10.API.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 using Moq;
 using DeFi10.API.Services.Core.Solana;
@@ -19,6 +20,7 @@ public class SolanaKaminoMapperTests
     private readonly Mock<IProtocolConfigurationService> _protocolConfig;
     private readonly Mock<IChainConfigurationService> _chainConfig;
     private readonly Mock<IProjectionCalculator> _projectionCalculator;
+    private readonly Mock<ITokenMetadataService> _tokenMetadataService;
     private readonly KaminoMapper _mapper;
 
     public SolanaKaminoMapperTests()
@@ -28,9 +30,10 @@ public class SolanaKaminoMapperTests
         _protocolConfig = new Mock<IProtocolConfigurationService>();
         _chainConfig = new Mock<IChainConfigurationService>();
         _projectionCalculator = new Mock<IProjectionCalculator>();
+        _tokenMetadataService = new Mock<ITokenMetadataService>();
 
         SetupDefaultMocks();
-        _mapper = new KaminoMapper(_tokenFactory.Object, _logger.Object, _protocolConfig.Object, _chainConfig.Object, _projectionCalculator.Object);
+        _mapper = new KaminoMapper(_tokenFactory.Object, _logger.Object, _protocolConfig.Object, _chainConfig.Object, _projectionCalculator.Object, _tokenMetadataService.Object);
     }
 
     private void SetupDefaultMocks()

@@ -13,6 +13,8 @@ export const RebalanceAssetType = Object.freeze({
   Protocol: 7,
   Depositing: 8,
   Locking: 9,
+  LendingSupply: 10,
+  LendingBorrow: 11,
   Other: 50,
 });
 
@@ -31,6 +33,8 @@ export const RebalanceAssetTypeLabel = {
   [RebalanceAssetType.Staking]: 'Staking Position',
   [RebalanceAssetType.Depositing]: 'Depositing Position',
   [RebalanceAssetType.Locking]: 'Locking Position',
+  [RebalanceAssetType.LendingSupply]: 'Lending Supply',
+  [RebalanceAssetType.LendingBorrow]: 'Lending Borrow',
   [RebalanceAssetType.Group]: 'Group',
   [RebalanceAssetType.Protocol]: 'Protocol',
   [RebalanceAssetType.Token]: 'Token',

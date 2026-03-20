@@ -1,0 +1,624 @@
+/* =============================================================================
+   STRATEGIES UNIFIED STYLES
+   Standardized CSS for all strategy components (Type 1, Type 2, future types)
+   Uses project tokens from global.css and theme variables
+   ============================================================================= */
+
+/* Strategy Card Container */
+.strategy-card {
+  background: var(--mw-surface-1, var(--app-bg-panel));
+  border: 2px solid var(--app-border);
+  border-radius: 12px;
+  padding: 24px;
+  transition: all 0.2s ease;
+}
+
+.strategy-card:hover {
+  border-color: var(--app-accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.strategy-card.critical {
+  border-color: #f97316;
+}
+
+/* Card Header */
+.strategy-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.strategy-card__title-section {
+  flex: 1;
+}
+
+.strategy-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.strategy-card__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--app-text-primary);
+}
+
+.strategy-card__description {
+  margin: 0;
+  font-size: 14px;
+  color: var(--app-text-secondary);
+}
+
+.strategy-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Card Stats Grid */
+.strategy-card__stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+  margin-bottom: 20px;
+}
+
+.strategy-card__stat {
+  flex: 1;
+  text-align: center;
+  padding: 0 16px;
+}
+
+.strategy-card__stat:not(:last-child) {
+  border-right: 1px solid var(--app-border);
+}
+
+.strategy-card__stat:first-child {
+  text-align: left;
+  padding-left: 0;
+}
+
+.strategy-card__stat:last-child {
+  text-align: right;
+  padding-right: 0;
+}
+
+.strategy-card__stat-label {
+  font-size: 11px;
+  color: var(--app-text-secondary);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.strategy-card__stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--app-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.strategy-card__stat:first-child .strategy-card__stat-value {
+  justify-content: flex-start;
+}
+
+.strategy-card__stat:last-child .strategy-card__stat-value {
+  justify-content: flex-end;
+}
+
+.strategy-card__stat:not(:first-child):not(:last-child) .strategy-card__stat-value {
+  justify-content: center;
+}
+
+.strategy-card__stat-value--accent {
+  color: #10b981;
+}
+
+.strategy-card__stat-value--warning {
+  color: #f59e0b;
+}
+
+.strategy-card__stat-value--critical {
+  color: #ef4444;
+}
+
+/* Strategy Table Container */
+.strategy-table-container {
+  margin-top: 20px;
+  overflow-x: auto;
+  background: var(--mw-table-bg);
+  border-radius: 8px;
+  border: 1px solid var(--app-border);
+}
+
+.strategy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.strategy-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--app-text-secondary);
+  border-bottom: 1px solid var(--app-border);
+  background: var(--mw-table-header-bg);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.strategy-table th.text-center,
+.strategy-table td.text-center {
+  text-align: center;
+}
+
+.strategy-table th.text-right,
+.strategy-table td.text-right {
+  text-align: right;
+}
+
+.strategy-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text-primary);
+  background: var(--mw-table-bg);
+}
+
+.strategy-table tbody tr:hover {
+  background: var(--mw-table-row-hover-bg);
+}
+
+.strategy-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Asset/Protocol Cell with Logo */
+.strategy-cell-with-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.strategy-cell-with-logo img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.strategy-cell-with-logo--left {
+  justify-content: flex-start;
+}
+
+.strategy-cell__text {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--app-text-primary);
+}
+
+/* Group/Chain Badge */
+.strategy-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--mw-surface-2);
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--app-text-secondary);
+}
+
+.strategy-badge--success {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #6ee7b7;
+}
+
+.strategy-badge--warning {
+  background: var(--mw-surface-2);
+  color: var(--app-text-secondary);
+  border-color: var(--app-border);
+}
+
+/* Delta Values */
+.strategy-delta--positive {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.strategy-delta--negative {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.strategy-delta--neutral {
+  color: var(--app-text-secondary);
+  font-weight: 500;
+}
+
+/* Action Buttons in Table */
+.strategy-action-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.strategy-action-btn--buy {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid #10b981;
+}
+
+.strategy-action-btn--buy:hover {
+  background: #10b981;
+  color: white;
+}
+
+.strategy-action-btn--sell {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid #ef4444;
+}
+
+.strategy-action-btn--sell:hover {
+  background: #ef4444;
+  color: white;
+}
+
+.strategy-action-btn--hold {
+  color: var(--app-text-secondary);
+  background: transparent;
+  border: none;
+}
+
+/* Health Factor Specific */
+.strategy-hf-value {
+  font-weight: 600;
+}
+
+.strategy-hf-value--safe {
+  color: #10b981;
+}
+
+.strategy-hf-value--warning {
+  color: #f59e0b;
+}
+
+.strategy-hf-value--critical {
+  color: #f97316;
+}
+
+.strategy-hf-value--danger {
+  color: #dc2626;
+}
+
+/* Strategy Form Container */
+.strategy-form {
+  background: var(--mw-surface-1);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.strategy-form__section {
+  margin-bottom: 24px;
+}
+
+.strategy-form__section:last-child {
+  margin-bottom: 0;
+}
+
+.strategy-form__section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--app-text-primary);
+  margin-bottom: 12px;
+}
+
+/* Form Group */
+.strategy-form-group {
+  margin-bottom: 20px;
+}
+
+.strategy-form-group__label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-text-primary);
+  margin-bottom: 8px;
+}
+
+.strategy-form-group__hint {
+  display: block;
+  font-size: 12px;
+  color: var(--app-text-secondary);
+  margin-top: 4px;
+}
+
+/* Input Fields */
+.strategy-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--mw-surface-2);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--app-text-primary);
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.strategy-input:focus {
+  outline: none;
+  border-color: var(--app-accent);
+}
+
+.strategy-input::placeholder {
+  color: var(--app-text-secondary);
+  opacity: 0.6;
+}
+
+/* Range Slider (Standardized) */
+.strategy-slider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--mw-surface-2);
+  border-radius: 3px;
+  outline: none;
+  margin: 8px 0;
+}
+
+.strategy-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--app-accent);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid var(--mw-surface-1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s;
+}
+
+.strategy-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.strategy-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--app-accent);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid var(--mw-surface-1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s;
+}
+
+.strategy-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+/* Slider Value Display */
+.strategy-slider-value {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--app-text-secondary);
+}
+
+.strategy-slider-value__current {
+  font-weight: 600;
+  color: var(--app-accent);
+  font-size: 14px;
+}
+
+/* Token List in Form */
+.strategy-token-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.strategy-token-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--mw-surface-2);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+}
+
+.strategy-token-item__logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.strategy-token-item__info {
+  flex: 1;
+}
+
+.strategy-token-item__name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-text-primary);
+}
+
+.strategy-token-item__value {
+  font-size: 12px;
+  color: var(--app-text-secondary);
+}
+
+/* Remove Button (Standardized) */
+.strategy-btn-remove {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #ef4444;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.strategy-btn-remove:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+/* Form Actions */
+.strategy-form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 20px;
+  border-top: 1px solid var(--app-border);
+  margin-top: 24px;
+}
+
+/* Empty State */
+.strategy-empty-state {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.strategy-empty-state__icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.strategy-empty-state__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--app-text-primary);
+  margin-bottom: 8px;
+}
+
+.strategy-empty-state__description {
+  font-size: 14px;
+  color: var(--app-text-secondary);
+  margin-bottom: 20px;
+}
+
+/* Section Header (for list view) */
+.strategy-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.strategy-section-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--app-text-primary);
+  margin: 0;
+}
+
+/* Strategies List Grid */
+.strategy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .strategy-form {
+    padding: 20px 16px;
+  }
+
+  .strategy-card {
+    padding: 20px 16px;
+  }
+
+  .strategy-card__stats {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .strategy-card__stat {
+    width: 100%;
+    text-align: left !important;
+    padding: 12px 0 !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--app-border);
+  }
+
+  .strategy-card__stat:last-child {
+    border-bottom: none;
+  }
+
+  .strategy-card__stat-value {
+    justify-content: space-between !important;
+  }
+
+  .strategy-table th,
+  .strategy-table td {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .strategy-cell-with-logo img {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .strategy-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .strategy-card__actions {
+    width: 100%;
+  }
+
+  .strategy-form-actions {
+    flex-direction: column;
+  }
+
+  .strategy-form-actions .btn-base {
+    width: 100%;
+  }
+}

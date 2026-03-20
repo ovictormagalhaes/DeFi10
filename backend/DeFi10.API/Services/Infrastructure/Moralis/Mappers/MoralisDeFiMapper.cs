@@ -5,6 +5,7 @@ using ChainEnum = DeFi10.API.Models.Chain;
 using DeFi10.API.Services.Domain.Mappers;
 using DeFi10.API.Services.Infrastructure.Moralis.Models;
 using DeFi10.API.Services.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace DeFi10.API.Services.Infrastructure.Moralis.Mappers;
 
@@ -12,9 +13,14 @@ public class MoralisDeFiMapper : IWalletItemMapper<IEnumerable<GetDeFiPositionsM
 {
     private readonly IChainConfigurationService _chainConfig;
     private readonly IProtocolConfigurationService _protocolConfig;
+    private readonly ILogger<MoralisDeFiMapper> _logger;
 
-    public MoralisDeFiMapper(IChainConfigurationService chainConfig, IProtocolConfigurationService protocolConfig)
-    { _chainConfig = chainConfig; _protocolConfig = protocolConfig; }
+    public MoralisDeFiMapper(IChainConfigurationService chainConfig, IProtocolConfigurationService protocolConfig, ILogger<MoralisDeFiMapper> logger)
+    { 
+        _chainConfig = chainConfig; 
+        _protocolConfig = protocolConfig;
+        _logger = logger;
+    }
 
     public bool SupportsChain(ChainEnum chain) => GetSupportedChains().Contains(chain);
     

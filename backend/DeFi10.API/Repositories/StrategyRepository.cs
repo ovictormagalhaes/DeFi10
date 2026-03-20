@@ -9,7 +9,7 @@ namespace DeFi10.API.Repositories;
 
 public sealed class StrategyRepository : IStrategyRepository
 {
-    private readonly IMongoCollection<Strategy> _collection;
+    private readonly IMongoCollection<WalletGroupStrategies> _collection;
     private readonly ILogger<StrategyRepository> _logger;
 
     public StrategyRepository(
@@ -19,7 +19,7 @@ public sealed class StrategyRepository : IStrategyRepository
     {
         _logger = logger;
         var collectionName = options.Value.Collections.Strategies;
-        _collection = context.GetCollection<Strategy>(collectionName);
+        _collection = context.GetCollection<WalletGroupStrategies>(collectionName);
 
         // Ensure indexes exist
         CreateIndexesAsync().GetAwaiter().GetResult();
@@ -29,163 +29,69 @@ public sealed class StrategyRepository : IStrategyRepository
     {
         try
         {
-            // Unique index on walletGroupId
-            var walletGroupIdIndexModel = new CreateIndexModel<Strategy>(
-                Builders<Strategy>.IndexKeys.Ascending(x => x.WalletGroupId),
-                new CreateIndexOptions { Name = "idx_wallet_group_id_unique", Unique = true }
+            // Index on updatedAt for sorting
+            var updatedAtIndexModel = new CreateIndexModel<WalletGroupStrategies>(
+                Builders<WalletGroupStrategies>.IndexKeys.Descending(x => x.UpdatedAt),
+                new CreateIndexOptions { Name = "idx_updated_at" }
             );
 
-            // Index on createdAt for sorting
-            var createdAtIndexModel = new CreateIndexModel<Strategy>(
-                Builders<Strategy>.IndexKeys.Descending(x => x.CreatedAt),
-                new CreateIndexOptions { Name = "idx_created_at" }
-            );
-
-            // Index on isDeleted for filtering soft-deleted records
-            var isDeletedIndexModel = new CreateIndexModel<Strategy>(
-                Builders<Strategy>.IndexKeys.Ascending(x => x.IsDeleted),
-                new CreateIndexOptions { Name = "idx_is_deleted" }
-            );
-
-            await _collection.Indexes.CreateManyAsync(new[]
-            {
-                walletGroupIdIndexModel,
-                createdAtIndexModel,
-                isDeletedIndexModel
-            });
-
-            _logger.LogDebug("MongoDB indexes created successfully for Strategies collection");
+            await _collection.Indexes.CreateOneAsync(updatedAtIndexModel);
+            _logger.LogInformation("Strategy repository indexes created successfully");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to create MongoDB indexes (they may already exist)");
+            _logger.LogError(ex, "Error creating indexes for Strategy repository");
         }
     }
 
-    public async Task<Strategy?> GetByWalletGroupIdAsync(Guid walletGroupId, CancellationToken ct = default)
+    public async Task<WalletGroupStrategies?> GetByWalletGroupIdAsync(Guid walletGroupId, CancellationToken ct = default)
     {
         try
         {
-            var filter = Builders<Strategy>.Filter.And(
-                Builders<Strategy>.Filter.Eq(x => x.WalletGroupId, walletGroupId),
-                Builders<Strategy>.Filter.Eq(x => x.IsDeleted, false)
-            );
-
+            var filter = Builders<WalletGroupStrategies>.Filter.Eq(x => x.WalletGroupId, walletGroupId);
             return await _collection.Find(filter).FirstOrDefaultAsync(ct);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get Strategy by WalletGroupId={WalletGroupId}", walletGroupId);
+            _logger.LogError(ex, "Failed to get Strategies by WalletGroupId={WalletGroupId}", walletGroupId);
             throw;
         }
     }
 
-    public async Task<List<Strategy>> GetByWalletGroupIdsAsync(IEnumerable<Guid> walletGroupIds, CancellationToken ct = default)
+    public async Task<WalletGroupStrategies> UpsertAsync(WalletGroupStrategies walletGroupStrategies, CancellationToken ct = default)
     {
         try
         {
-            var filter = Builders<Strategy>.Filter.And(
-                Builders<Strategy>.Filter.In(x => x.WalletGroupId, walletGroupIds),
-                Builders<Strategy>.Filter.Eq(x => x.IsDeleted, false)
-            );
+            var filter = Builders<WalletGroupStrategies>.Filter.Eq(x => x.WalletGroupId, walletGroupStrategies.WalletGroupId);
+            var options = new ReplaceOptions { IsUpsert = true };
 
-            return await _collection.Find(filter).ToListAsync(ct);
+            await _collection.ReplaceOneAsync(filter, walletGroupStrategies, options, ct);
+            
+            _logger.LogDebug("Upserted strategies for WalletGroupId={WalletGroupId}, Count={Count}", 
+                walletGroupStrategies.WalletGroupId, walletGroupStrategies.Count);
+            
+            return walletGroupStrategies;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get Strategies by WalletGroupIds");
+            _logger.LogError(ex, "Failed to upsert strategies for WalletGroupId={WalletGroupId}", walletGroupStrategies.WalletGroupId);
             throw;
         }
     }
 
-    public async Task<Strategy> CreateAsync(Strategy strategy, CancellationToken ct = default)
+    public async Task<bool> DeleteByWalletGroupIdAsync(Guid walletGroupId, CancellationToken ct = default)
     {
         try
         {
-            await _collection.InsertOneAsync(strategy, cancellationToken: ct);
-            _logger.LogDebug("Created Strategy Id={Id} for WalletGroupId={WalletGroupId}", strategy.Id, strategy.WalletGroupId);
-            return strategy;
+            var filter = Builders<WalletGroupStrategies>.Filter.Eq(x => x.WalletGroupId, walletGroupId);
+            var result = await _collection.DeleteOneAsync(filter, ct);
+            
+            _logger.LogDebug("Deleted strategies document for WalletGroupId={WalletGroupId}", walletGroupId);
+            return result.DeletedCount > 0;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create Strategy for WalletGroupId={WalletGroupId}", strategy.WalletGroupId);
-            throw;
-        }
-    }
-
-    public async Task<Strategy> UpdateAsync(Strategy strategy, CancellationToken ct = default)
-    {
-        try
-        {
-            var filter = Builders<Strategy>.Filter.And(
-                Builders<Strategy>.Filter.Eq(x => x.Id, strategy.Id),
-                Builders<Strategy>.Filter.Eq(x => x.IsDeleted, false)
-            );
-
-            var result = await _collection.ReplaceOneAsync(filter, strategy, cancellationToken: ct);
-
-            if (result.MatchedCount == 0)
-            {
-                throw new InvalidOperationException($"Strategy with Id={strategy.Id} not found or already deleted");
-            }
-
-            _logger.LogDebug("Updated Strategy Id={Id} for WalletGroupId={WalletGroupId}", strategy.Id, strategy.WalletGroupId);
-            return strategy;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update Strategy Id={Id}", strategy.Id);
-            throw;
-        }
-    }
-
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
-    {
-        try
-        {
-            // Soft delete
-            var filter = Builders<Strategy>.Filter.And(
-                Builders<Strategy>.Filter.Eq(x => x.Id, id),
-                Builders<Strategy>.Filter.Eq(x => x.IsDeleted, false)
-            );
-
-            var update = Builders<Strategy>.Update
-                .Set(x => x.IsDeleted, true)
-                .Set(x => x.UpdatedAt, DateTime.UtcNow);
-
-            var result = await _collection.UpdateOneAsync(filter, update, cancellationToken: ct);
-
-            if (result.MatchedCount > 0)
-            {
-                _logger.LogDebug("Deleted (soft) Strategy Id={Id}", id);
-                return true;
-            }
-
-            _logger.LogWarning("Strategy Id={Id} not found for deletion", id);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to delete Strategy Id={Id}", id);
-            throw;
-        }
-    }
-
-    public async Task<bool> ExistsAsync(Guid walletGroupId, CancellationToken ct = default)
-    {
-        try
-        {
-            var filter = Builders<Strategy>.Filter.And(
-                Builders<Strategy>.Filter.Eq(x => x.WalletGroupId, walletGroupId),
-                Builders<Strategy>.Filter.Eq(x => x.IsDeleted, false)
-            );
-
-            var count = await _collection.CountDocumentsAsync(filter, cancellationToken: ct);
-            return count > 0;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to check existence of Strategy for WalletGroupId={WalletGroupId}", walletGroupId);
+            _logger.LogError(ex, "Failed to delete strategies for WalletGroupId={WalletGroupId}", walletGroupId);
             throw;
         }
     }

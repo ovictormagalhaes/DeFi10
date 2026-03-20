@@ -1,0 +1,415 @@
+/**
+ * Strategy Utilities - Test Examples
+ * Example test cases for strategy functionality
+ */
+
+import { describe, it, expect } from 'vitest'; // or jest
+import type { WalletItem } from '../types/wallet';
+import {
+  extractMetadata,
+  findAssetInPortfolio,
+  validateGroupAllocation,
+  validateAssetsExist,
+} from '../utils/strategyMetadata';
+import {
+  calculateAllocationDeltas,
+  getAllocationSummary,
+  suggestRebalanceActions,
+} from '../utils/allocationCalculations';
+import type { Strategy } from '../types/strategy';
+
+// ============================================================================
+// TEST DATA FIXTURES
+// ============================================================================
+
+const mockWalletItem: WalletItem = {
+  type: 'LendingAndBorrowing',
+  protocol: {
+    name: 'Aave V3',
+    chain: 'Base',
+    id: 'aave-v3-base',
+    url: 'https://aave.com',
+    logo: 'https://example.com/aave.png',
+  },
+  position: {
+    label: 'Lending',
+    tokens: [
+      {
+        type: 'Supplied',
+        name: 'Coinbase Wrapped BTC',
+        chain: 'Base',
+        symbol: 'cbBTC',
+        contractAddress: '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf',
+        logo: 'https://example.com/cbbtc.png',
+        thumbnail: null,
+        financials: {
+          amount: 1.5,
+          decimalPlaces: 8,
+          amountFormatted: 1.5,
+          balanceFormatted: 1.5,
+          price: 95000,
+          totalPrice: 142500,
+        },
+        native: false,
+        possibleSpam: false,
+      },
+    ],
+  },
+  additionalData: {
+    healthFactor: 2.5,
+    isCollateral: true,
+    canBeCollateral: true,
+    apy: 3.5,
+  },
+};
+
+const mockPortfolio: WalletItem[] = [mockWalletItem];
+
+const mockStrategy: Strategy = {
+  walletGroupId: 'test-wallet-group',
+  strategyType: 1,
+  name: 'Test Strategy',
+  description: 'Test allocation strategy',
+  items: [],
+  targetAllocations: [
+    {
+      assetKey: 'cbBTC',
+      group: 'Lending',
+      targetWeight: 50,
+      symbol: 'cbBTC',
+      name: 'Coinbase Wrapped BTC',
+    },
+    {
+      assetKey: 'WETH',
+      group: 'Lending',
+      targetWeight: 50,
+      symbol: 'WETH',
+      name: 'Wrapped Ether',
+    },
+  ],
+  count: 2,
+  key: 'test-key',
+  accounts: ['0x123'],
+};
+
+// ============================================================================
+// METADATA EXTRACTION TESTS
+// ============================================================================
+
+describe('extractMetadata', () => {
+  it('should extract complete metadata from WalletItem', () => {
+    const metadata = extractMetadata(mockWalletItem);
+
+    expect(metadata.symbol).toBe('cbBTC');
+    expect(metadata.name).toBe('Coinbase Wrapped BTC');
+    expect(metadata.address).toBe('0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf');
+    expect(metadata.chain).toBe('Base');
+    expect(metadata.chainId).toBe('8453');
+    expect(metadata.positionLabel).toBe('Lending');
+    expect(metadata.positionType).toBe(3); // LendingAndBorrowing
+    expect(metadata.protocol).toMatchObject({
+      id: 'aave-v3-base',
+      name: 'Aave V3',
+      chain: 'Base',
+    });
+    expect(metadata.tokens).toHaveLength(1);
+    expect(metadata.tokens[0].symbol).toBe('cbBTC');
+  });
+
+  it('should handle item with no tokens', () => {
+    const itemWithNoTokens: WalletItem = {
+      ...mockWalletItem,
+      position: { ...mockWalletItem.position, tokens: [] },
+    };
+
+    const metadata = extractMetadata(itemWithNoTokens);
+
+    expect(metadata.symbol).toBeNull();
+    expect(metadata.tokens).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// PORTFOLIO SEARCH TESTS
+// ============================================================================
+
+describe('findAssetInPortfolio', () => {
+  it('should find asset by symbol', () => {
+    const found = findAssetInPortfolio(mockPortfolio, 'cbBTC', 'Lending');
+
+    expect(found).toBeDefined();
+    expect(found?.position.tokens[0].symbol).toBe('cbBTC');
+  });
+
+  it('should find asset by address', () => {
+    const found = findAssetInPortfolio(
+      mockPortfolio,
+      '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf',
+      'Lending',
+    );
+
+    expect(found).toBeDefined();
+  });
+
+  it('should return undefined for non-existent asset', () => {
+    const found = findAssetInPortfolio(mockPortfolio, 'NONEXISTENT', 'Lending');
+
+    expect(found).toBeUndefined();
+  });
+
+  it('should filter by group correctly', () => {
+    const found = findAssetInPortfolio(mockPortfolio, 'cbBTC', 'Liquidity');
+
+    expect(found).toBeUndefined(); // cbBTC is in Lending, not Liquidity
+  });
+});
+
+// ============================================================================
+// VALIDATION TESTS
+// ============================================================================
+
+describe('validateGroupAllocation', () => {
+  it('should validate allocations that sum to 100%', () => {
+    const allocations = [
+      { group: 'Lending', weight: 50 },
+      { group: 'Lending', weight: 50 },
+    ];
+
+    const result = validateGroupAllocation(allocations);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('should fail when allocations do not sum to 100%', () => {
+    const allocations = [
+      { group: 'Lending', weight: 50 },
+      { group: 'Lending', weight: 40 },
+    ];
+
+    const result = validateGroupAllocation(allocations);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('Group "Lending" allocations sum to 90%, expected 100%');
+  });
+
+  it('should validate multiple groups independently', () => {
+    const allocations = [
+      { group: 'Lending', weight: 100 },
+      { group: 'Liquidity', weight: 60 },
+      { group: 'Liquidity', weight: 40 },
+    ];
+
+    const result = validateGroupAllocation(allocations);
+
+    expect(result.valid).toBe(true);
+  });
+});
+
+describe('validateAssetsExist', () => {
+  it('should validate all assets exist', () => {
+    const allocations = [{ assetKey: 'cbBTC', group: 'Lending' }];
+
+    const result = validateAssetsExist(allocations, mockPortfolio);
+
+    expect(result.valid).toBe(true);
+    expect(result.missingAssets).toHaveLength(0);
+  });
+
+  it('should detect missing assets', () => {
+    const allocations = [
+      { assetKey: 'cbBTC', group: 'Lending' },
+      { assetKey: 'NONEXISTENT', group: 'Lending' },
+    ];
+
+    const result = validateAssetsExist(allocations, mockPortfolio);
+
+    expect(result.valid).toBe(false);
+    expect(result.missingAssets).toContain('NONEXISTENT in Lending');
+  });
+});
+
+// ============================================================================
+// ALLOCATION CALCULATIONS TESTS
+// ============================================================================
+
+describe('calculateAllocationDeltas', () => {
+  it('should calculate deltas correctly', () => {
+    const deltas = calculateAllocationDeltas(mockStrategy, mockPortfolio);
+
+    expect(deltas).toHaveLength(2);
+
+    const cbBTCDelta = deltas.find((d) => d.assetKey === 'cbBTC');
+    expect(cbBTCDelta).toBeDefined();
+    expect(cbBTCDelta?.targetWeight).toBe(50);
+    // currentWeight should be 100% since it's the only asset in Lending
+    expect(cbBTCDelta?.currentWeight).toBe(100);
+    expect(cbBTCDelta?.deltaWeight).toBe(50); // over-allocated by 50%
+    expect(cbBTCDelta?.needsRebalance).toBe(true);
+  });
+
+  it('should return empty array when no target allocations', () => {
+    const strategyWithoutTargets = {
+      ...mockStrategy,
+      targetAllocations: null,
+    };
+
+    const deltas = calculateAllocationDeltas(strategyWithoutTargets, mockPortfolio);
+
+    expect(deltas).toHaveLength(0);
+  });
+
+  it('should respect rebalance threshold', () => {
+    const deltas = calculateAllocationDeltas(mockStrategy, mockPortfolio, 100);
+
+    // With threshold = 100%, no assets should need rebalance
+    deltas.forEach((delta) => {
+      expect(delta.needsRebalance).toBe(false);
+    });
+  });
+});
+
+describe('getAllocationSummary', () => {
+  it('should calculate summary statistics', () => {
+    const deltas = calculateAllocationDeltas(mockStrategy, mockPortfolio);
+    const summary = getAllocationSummary(deltas);
+
+    expect(summary.totalAssets).toBe(2);
+    expect(summary.assetsNeedingRebalance).toBeGreaterThan(0);
+    expect(summary.maxDeltaWeight).toBeGreaterThan(0);
+  });
+});
+
+describe('suggestRebalanceActions', () => {
+  it('should suggest buy for under-allocated assets', () => {
+    const deltas = [
+      {
+        assetKey: 'cbBTC',
+        group: 'Lending',
+        targetWeight: 50,
+        currentWeight: 30,
+        deltaWeight: -20,
+        targetValueUsd: 10000,
+        currentValueUsd: 6000,
+        deltaValueUsd: -4000,
+        needsRebalance: true,
+      },
+    ];
+
+    const actions = suggestRebalanceActions(deltas);
+
+    expect(actions[0].action).toBe('buy');
+    expect(actions[0].amountUsd).toBe(4000);
+  });
+
+  it('should suggest sell for over-allocated assets', () => {
+    const deltas = [
+      {
+        assetKey: 'cbBTC',
+        group: 'Lending',
+        targetWeight: 50,
+        currentWeight: 70,
+        deltaWeight: 20,
+        targetValueUsd: 10000,
+        currentValueUsd: 14000,
+        deltaValueUsd: 4000,
+        needsRebalance: true,
+      },
+    ];
+
+    const actions = suggestRebalanceActions(deltas);
+
+    expect(actions[0].action).toBe('sell');
+    expect(actions[0].amountUsd).toBe(4000);
+  });
+
+  it('should suggest hold for balanced assets', () => {
+    const deltas = [
+      {
+        assetKey: 'cbBTC',
+        group: 'Lending',
+        targetWeight: 50,
+        currentWeight: 50.5,
+        deltaWeight: 0.5,
+        targetValueUsd: 10000,
+        currentValueUsd: 10100,
+        deltaValueUsd: 100,
+        needsRebalance: false,
+      },
+    ];
+
+    const actions = suggestRebalanceActions(deltas);
+
+    expect(actions[0].action).toBe('hold');
+  });
+});
+
+// ============================================================================
+// INTEGRATION TESTS (Example)
+// ============================================================================
+
+describe('Full Strategy Flow', () => {
+  it('should complete full workflow: validate -> extract -> calculate', () => {
+    // 1. Define allocations
+    const allocations = [
+      { assetKey: 'cbBTC', group: 'Lending', weight: 100 },
+    ];
+
+    // 2. Validate
+    const validation = validateGroupAllocation(
+      allocations.map((a) => ({ group: a.group, weight: a.weight })),
+    );
+    expect(validation.valid).toBe(true);
+
+    const assetsValidation = validateAssetsExist(allocations, mockPortfolio);
+    expect(assetsValidation.valid).toBe(true);
+
+    // 3. Extract metadata
+    const item = findAssetInPortfolio(mockPortfolio, 'cbBTC', 'Lending');
+    expect(item).toBeDefined();
+
+    const metadata = extractMetadata(item!);
+    expect(metadata.symbol).toBe('cbBTC');
+
+    // 4. Calculate deltas
+    const strategy: Strategy = {
+      ...mockStrategy,
+      targetAllocations: allocations.map((a) => ({
+        ...a,
+        symbol: 'cbBTC',
+        name: 'Coinbase Wrapped BTC',
+      })),
+    };
+
+    const deltas = calculateAllocationDeltas(strategy, mockPortfolio);
+    expect(deltas).toHaveLength(1);
+
+    // 5. Get suggestions
+    const actions = suggestRebalanceActions(deltas);
+    expect(actions[0].assetKey).toBe('cbBTC');
+  });
+});
+
+// ============================================================================
+// NOTES
+// ============================================================================
+
+/**
+ * To run these tests:
+ *
+ * 1. Install testing dependencies:
+ *    npm install -D vitest @vitest/ui
+ *    OR
+ *    npm install -D jest @types/jest ts-jest
+ *
+ * 2. Add test script to package.json:
+ *    "test": "vitest"
+ *    OR
+ *    "test": "jest"
+ *
+ * 3. Run tests:
+ *    npm test
+ *
+ * 4. Optional - Add coverage:
+ *    npm test -- --coverage
+ */

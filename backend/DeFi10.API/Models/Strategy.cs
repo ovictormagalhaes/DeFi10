@@ -17,11 +17,26 @@ public sealed class Strategy
     public Guid WalletGroupId { get; set; }
 
     [BsonElement("version")]
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
 
-    [BsonElement("items")]
-    [Required]
-    public List<StrategyItem> Items { get; set; } = new();
+    [BsonElement("strategyType")]
+    public StrategyType StrategyType { get; set; } = StrategyType.AllocationByWeight;
+
+    [BsonElement("name")]
+    [MaxLength(200)]
+    public string? Name { get; set; }
+
+    [BsonElement("description")]
+    [MaxLength(1000)]
+    public string? Description { get; set; }
+
+    // === Type 1: Allocation by Weight ===
+    [BsonElement("allocations")]
+    public List<StrategyAllocation>? Allocations { get; set; }
+
+    // === Type 2: Health Factor Rebalance ===
+    [BsonElement("targets")]
+    public List<HealthFactorTarget>? Targets { get; set; }
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; }

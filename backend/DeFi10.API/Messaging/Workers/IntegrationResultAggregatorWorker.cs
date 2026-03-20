@@ -224,7 +224,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     catch { consolidated = new ConsolidatedWallet(); }
                 }
 
-                bool isAaveProvider = result.Provider is IntegrationProvider.AaveSupplies or IntegrationProvider.AaveBorrows;
+                bool isAaveProvider = result.Provider is IntegrationProvider.AaveSupplies or IntegrationProvider.AaveBorrows or IntegrationProvider.AaveTransactionHistory;
 
                 if (result.Status == IntegrationStatus.Success && result.Payload != null)
                 {
@@ -406,7 +406,7 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                     try { consolidated = JsonSerializer.Deserialize<ConsolidatedWallet>(existingWalletJson!, _jsonOptions) ?? new ConsolidatedWallet(); } catch { consolidated = new ConsolidatedWallet(); }
                 }
 
-                bool isAaveProvider = result.Provider is IntegrationProvider.AaveSupplies or IntegrationProvider.AaveBorrows;
+                bool isAaveProvider = result.Provider is IntegrationProvider.AaveSupplies or IntegrationProvider.AaveBorrows or IntegrationProvider.AaveTransactionHistory;
 
                 if (result.Status == IntegrationStatus.Success && result.Payload != null)
                 {
@@ -778,6 +778,13 @@ public class IntegrationResultAggregatorWorker : BaseConsumer
                 {
                     var dto = JsonSerializer.Deserialize<AaveGetUserBorrowsResponse>(borEl.GetRawText());
                     if (dto != null) list.AddRange(await factory.CreateAaveBorrowsMapper().MapAsync(dto, chain));
+                }
+                break;
+            case IntegrationProvider.AaveTransactionHistory:
+                if (result.Payload is JsonElement txHistEl)
+                {
+                    var dto = JsonSerializer.Deserialize<AaveTransactionHistoryResponse>(txHistEl.GetRawText());
+                    if (dto != null) list.AddRange(await factory.CreateAaveTransactionHistoryMapper().MapAsync(dto, chain));
                 }
                 break;
             case IntegrationProvider.UniswapV3Positions:

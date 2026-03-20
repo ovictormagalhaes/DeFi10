@@ -178,18 +178,7 @@ const PoolCards = ({ data = [] }) => {
         const displayToken0 = isFlipped ? token1 : token0;
         const displayToken1 = isFlipped ? token0 : token1;
         
-        // Pool metrics - get APR from additionalData
-        const apr = additionalInfo.apr || item.additionalData?.apr || position.apr || position.apy || 0;
-        const aprHistorical = additionalInfo.aprHistorical || item.additionalData?.aprHistorical || position.aprHistorical || null;
-        
-        // Check if we have both APR types
-        const hasMultipleAprTypes = apr != null && aprHistorical != null && aprHistorical > 0;
-        
-        // Get selected APR type for this card, default to 'APR'
-        const selectedAprType = selectedAprTypes[index] || 'APR';
-        
-        // Get the displayed APR value based on selection
-        const displayedApr = selectedAprType === 'APR Historical' ? aprHistorical : apr;
+        const apr = additionalInfo.aprHistorical || item.additionalData?.aprHistorical || additionalInfo.apr || item.additionalData?.apr || position.aprHistorical || position.apr || position.apy || 0;
         
         // Range data from additionalData or additionalInfo
         const rangeData = additionalInfo.range || item.additionalData?.range || position.range || null;

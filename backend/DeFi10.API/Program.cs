@@ -1,5 +1,6 @@
 using DeFi10.API.Extensions;
 using DeFi10.API.Services.Helpers;
+using DeFi10.API.Migration;
 
 #if DEBUG
 // Load .env file BEFORE creating builder (for local development)
@@ -32,6 +33,7 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 builder.Services.AddApplicationOptions(builder.Configuration);
 builder.Services.AddOptionsValidation();
 builder.Services.AddInfrastructureServices();
+builder.Services.AddCacheServices(builder.Configuration);
 builder.Services.AddApplicationServices();
 builder.Services.AddProtocolServices();
 builder.Services.AddMappers();
@@ -52,6 +54,14 @@ var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Sta
 app.UseMiddlewarePipeline();
 await app.ValidateStartupAsync();
 app.ConfigureEndpoints();
+
+// Seed data
+using (var scope = app.Services.CreateScope())
+{
+    // Seed known token metadata
+    var seeder = ActivatorUtilities.CreateInstance<KnownTokensSeeder>(scope.ServiceProvider);
+    await seeder.SeedKnownTokensAsync();
+}
 
 logger.LogInformation("DeFi10 API starting env={Env} port={Port} cors={Cors}", 
     app.Environment.EnvironmentName, 

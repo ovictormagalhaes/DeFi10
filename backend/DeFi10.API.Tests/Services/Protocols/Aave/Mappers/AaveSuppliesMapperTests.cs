@@ -12,6 +12,7 @@ using DeFi10.API.Services.Interfaces;
 using DeFi10.API.Services.Configuration;
 using DeFi10.API.Services.Protocols.Aave;
 using DeFi10.API.Services.Helpers;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
@@ -23,6 +24,7 @@ public class AaveSuppliesMapperTests
     private readonly Mock<IProtocolConfigurationService> _protocolConfig;
     private readonly Mock<IChainConfigurationService> _chainConfig;
     private readonly Mock<IProjectionCalculator> _projectionCalculator;
+    private readonly Mock<ILogger<AaveSuppliesMapper>> _logger;
     private readonly AaveSuppliesMapper _mapper;
 
     public AaveSuppliesMapperTests()
@@ -31,7 +33,8 @@ public class AaveSuppliesMapperTests
         _protocolConfig = new Mock<IProtocolConfigurationService>();
         _chainConfig = new Mock<IChainConfigurationService>();
         _projectionCalculator = new Mock<IProjectionCalculator>();
-        _mapper = new AaveSuppliesMapper(_tokenFactory.Object, _protocolConfig.Object, _chainConfig.Object, _projectionCalculator.Object);
+        _logger = new Mock<ILogger<AaveSuppliesMapper>>();
+        _mapper = new AaveSuppliesMapper(_tokenFactory.Object, _protocolConfig.Object, _chainConfig.Object, _projectionCalculator.Object, _logger.Object);
 
         SetupDefaultMocks();
     }

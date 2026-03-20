@@ -312,7 +312,7 @@ const RebalancingCards = ({
                           }}
                         >
                           <span style={{ fontSize: 10 }}>▼</span>
-                          <span>Show more</span>
+                          <span>Load More</span>
                         </button>
                       </div>
                     )}

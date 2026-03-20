@@ -17,6 +17,7 @@ public interface IWalletItemMapperFactory
     IWalletItemMapper<IEnumerable<TokenDetail>> CreateMoralisTokenMapper();
     IWalletItemMapper<AaveGetUserSuppliesResponse> CreateAaveSuppliesMapper();
     IWalletItemMapper<AaveGetUserBorrowsResponse> CreateAaveBorrowsMapper();
+    IWalletItemMapper<AaveTransactionHistoryResponse> CreateAaveTransactionHistoryMapper();
     IWalletItemMapper<UniswapV3GetActivePoolsResponse> CreateUniswapV3Mapper();
     IWalletItemMapper<PendleVePositionsResponse> CreatePendleVeMapper();
     IWalletItemMapper<PendleDepositsResponse> CreatePendleDepositsMapper();

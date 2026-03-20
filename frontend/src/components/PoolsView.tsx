@@ -361,7 +361,14 @@ function getUserValue(raw: any): number {
 
 function getAPR(raw: any): number | null {
   const pos = raw?.position || raw;
+  const ad = pos?.additionalData || raw?.additionalData || {};
+  const ai = pos?.additionalInfo || raw?.additionalInfo || {};
   const cand =
+    ai.aprHistorical ??
+    ad.aprHistorical ??
+    pos.aprHistorical ??
+    ai.apr ??
+    ad.apr ??
     pos.apr ??
     pos.APR ??
     pos.apy ??

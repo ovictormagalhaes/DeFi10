@@ -9,13 +9,24 @@ import ProjectionSelector from '../ProjectionSelector.jsx';
  * ProtocolGroupCard - Agrupa lending/borrowing positions por Protocol + Chain
  * Exibe Health Factor compartilhado e mantém individualidade dos tokens
  */
-const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFactor = null }) => {
+const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFactor = null, onOpenDetail }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const { getIcon: getChainIcon } = useChainIcons();
   const [isExpanded, setIsExpanded] = useState(true);
 
   if (!positions || positions.length === 0) return null;
+
+  // Filter out transaction history items (they have no tokens and are for data storage only)
+  const visiblePositions = positions.filter(item => {
+    const position = item.position || item;
+    const tokens = position.tokens || [];
+    const label = (position.label || '').toLowerCase();
+    return tokens.length > 0 && !label.includes('transaction history') && !label.includes('hidden');
+  });
+
+  // If no visible positions after filtering, don't render
+  if (visiblePositions.length === 0) return null;
 
   // Get protocol info from first position
   const firstPosition = positions[0]?.position || positions[0];
@@ -63,8 +74,9 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
     totalSupplied += supplyValue;
     totalBorrowed += borrowValue;
 
-    const supplyRate = position.supplyRate || position.apy || 0;
-    const borrowRate = position.borrowRate || position.borrowApy || 0;
+    const itemApy = item.additionalData?.apy || item.additionalInfo?.apy || 0;
+    const supplyRate = position.supplyRate || position.apy || (supplyValue > borrowValue ? itemApy : 0);
+    const borrowRate = position.borrowRate || position.borrowApy || (borrowValue > supplyValue ? Math.abs(itemApy) : 0);
 
     if (supplyValue > 0 && supplyRate) {
       weightedSupplyRate += supplyRate * supplyValue;
@@ -103,7 +115,7 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
       <div 
         style={{
           padding: '16px 20px',
-          backgroundColor: theme.bgSecondary,
+          backgroundColor: theme.bgPanel,
           borderBottom: `1px solid ${theme.border}`,
           cursor: 'pointer',
           display: 'flex',
@@ -112,8 +124,8 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
           transition: 'background-color 0.2s ease',
         }}
         onClick={() => setIsExpanded(!isExpanded)}
-        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.bgHover || theme.bgSecondary}
-        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.bgSecondary}
+        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.bgHover || theme.bgPanel}
+        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = theme.bgPanel}
       >
         {/* Left: Protocol + Chain */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -182,13 +194,13 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
               color: theme.textSecondary,
               marginTop: 2,
             }}>
-              {positions.length} position{positions.length > 1 ? 's' : ''}
+              {visiblePositions.length} position{visiblePositions.length > 1 ? 's' : ''}
             </div>
           </div>
         </div>
 
-        {/* Right: Health Factor + Expand Icon */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        {/* Right: Health Factor + Detail Button + Expand Icon */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {healthFactor !== null && (
             <div style={{
               display: 'flex',
@@ -202,6 +214,71 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
                 {healthFactor.toFixed(2)}
               </span>
             </div>
+          )}
+          
+          {/* Detail View Button */}
+          {typeof onOpenDetail === 'function' && (
+            <button
+              type="button"
+              title="Expand lending view"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenDetail({
+                  protocolName,
+                  chainName,
+                  positions,
+                  healthFactor,
+                  protocolLogo,
+                  totals: {
+                    totalSupplied,
+                    totalBorrowed,
+                    netPosition,
+                    avgSupplyRate,
+                    avgBorrowRate,
+                    avgApy,
+                  },
+                });
+              }}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 999,
+                border: `1px solid ${theme.border}`,
+                backgroundColor: theme.bgPanel,
+                color: theme.textSecondary,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = theme.bgHover || theme.bgSecondary;
+                e.currentTarget.style.color = theme.textPrimary;
+                e.currentTarget.style.borderColor = theme.accent;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = theme.bgPanel;
+                e.currentTarget.style.color = theme.textSecondary;
+                e.currentTarget.style.borderColor = theme.border;
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <polyline points="10 8 16 8 16 14" />
+                <line x1="8" y1="16" x2="16" y2="8" />
+              </svg>
+            </button>
           )}
           
           {/* Expand/Collapse Icon */}
@@ -233,7 +310,7 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: '16px 24px',
-            backgroundColor: theme.bgSecondary,
+            backgroundColor: theme.bgPanel,
             borderBottom: `1px solid ${theme.border}`,
             gap: 20,
           }}>
@@ -284,46 +361,21 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
             </div>
           </div>
 
-          {/* Individual Position Cards */}
+          {/* Individual Token Cards - flatten tokens from positions */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
             gap: 16,
             padding: 20,
           }}>
-            {positions.map((item, index) => {
+            {visiblePositions.flatMap((item, posIndex) => {
               const position = item.position || item;
               const tokens = position.tokens || [];
 
-              const positionLabel = position.label?.toLowerCase() || position.key?.toLowerCase() || '';
-              const isBorrowPosition = positionLabel.includes('borrow') || 
-                                       tokens.some(t => t.type?.toLowerCase() === 'borrowed');
-
-              const suppliedTokens = tokens.filter(t => 
-                t.type?.toLowerCase() === 'supplied' || 
-                (!t.type && (t.balance || 0) > 0 && !t.debt)
-              );
-              const borrowedTokens = tokens.filter(t => 
-                t.type?.toLowerCase() === 'borrowed' || 
-                t.debt || 
-                (t.balance || 0) < 0
-              );
-
-              const totalSupplied = suppliedTokens.reduce((sum, token) => {
-                return sum + (token.financials?.totalPrice || token.totalPrice || 0);
-              }, 0);
-              const totalBorrowed = Math.abs(borrowedTokens.reduce((sum, token) => {
-                return sum + (token.financials?.totalPrice || token.totalPrice || 0);
-              }, 0));
-
-              const supplyRate = position.supplyRate || position.apy || item.additionalData?.apy || 0;
-              const borrowRate = position.borrowRate || position.borrowApy || item.additionalData?.apy || 0;
-
-              const mainToken = isBorrowPosition ? (borrowedTokens[0] || tokens[0]) : (suppliedTokens[0] || tokens[0]);
-              const positionType = isBorrowPosition ? 'Borrow' : 'Supply';
-
               const projections = item.additionalData?.projections || item.additionalInfo?.projections || position?.projections || null;
               const projection = item.additionalInfo?.projection || item.additionalData?.projection || position.projection || null;
+              const supplyRate = position.supplyRate || position.apy || item.additionalData?.apy || 0;
+              const borrowRate = position.borrowRate || position.borrowApy || item.additionalData?.apy || 0;
 
               const isCollateral = [
                 position?.isCollateral,
@@ -332,9 +384,15 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
                 item?.additionalData?.isCollateral,
               ].some((v) => v === true);
 
-              return (
+              return tokens.map((token, tokenIndex) => {
+                const tokenType = (token.type || '').toLowerCase();
+                const isBorrowToken = tokenType.includes('borrowed') || tokenType.includes('borrow');
+                const positionType = isBorrowToken ? 'Borrow' : 'Supply';
+                const tokenValue = token.financials?.totalPrice || token.totalPrice || 0;
+
+                return (
                 <div
-                  key={index}
+                  key={`${posIndex}-${tokenIndex}`}
                   style={{
                     backgroundColor: theme.bgSecondary,
                     border: `1px solid ${theme.border}`,
@@ -356,10 +414,10 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
                 >
                   {/* Token Header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    {mainToken?.logo && (
+                    {token?.logo && (
                       <img
-                        src={mainToken.logo}
-                        alt={mainToken.symbol}
+                        src={token.logo}
+                        alt={token.symbol}
                         style={{ width: 32, height: 32, borderRadius: '50%' }}
                         onError={(e) => e.currentTarget.style.display = 'none'}
                       />
@@ -373,14 +431,14 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
                         alignItems: 'center',
                         gap: 6,
                       }}>
-                        {mainToken?.symbol || 'Unknown'}
+                        {token?.symbol || 'Unknown'}
                         <span style={{
                           fontSize: 10,
                           fontWeight: 600,
                           padding: '2px 6px',
                           borderRadius: 4,
-                          backgroundColor: isBorrowPosition ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                          color: isBorrowPosition ? '#ef4444' : '#10b981',
+                          backgroundColor: isBorrowToken ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: isBorrowToken ? '#ef4444' : '#10b981',
                         }}>
                           {positionType}
                         </span>
@@ -393,7 +451,7 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 12, color: theme.textSecondary }}>Value</span>
                       <span style={{ fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
-                        {maskValue(formatPrice(isBorrowPosition ? totalBorrowed : totalSupplied))}
+                        {maskValue(formatPrice(tokenValue))}
                       </span>
                     </div>
 
@@ -401,19 +459,19 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
                       <span style={{ fontSize: 12, color: theme.textSecondary }}>Amount</span>
                       <span style={{ fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
                         {maskValue(
-                          (mainToken?.financials?.amountFormatted ?? mainToken?.financials?.balanceFormatted ?? mainToken?.balance ?? 0).toLocaleString('en-US', {
+                          (token?.financials?.amountFormatted ?? token?.financials?.balanceFormatted ?? token?.balance ?? 0).toLocaleString('en-US', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 6
                           })
-                        )} {mainToken?.symbol || ''}
+                        )} {token?.symbol || ''}
                       </span>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 12, color: theme.textSecondary }}>APY</span>
                       <span style={{ fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
-                        {isBorrowPosition 
-                          ? (borrowRate ? `${borrowRate.toFixed(2)}%` : '0.00%')
+                        {isBorrowToken 
+                          ? (borrowRate ? `${Math.abs(borrowRate).toFixed(2)}%` : '0.00%')
                           : (supplyRate ? `${supplyRate.toFixed(2)}%` : '0.00%')
                         }
                       </span>
@@ -424,7 +482,7 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
                       display: 'flex', 
                       justifyContent: 'space-between', 
                       alignItems: 'center',
-                      visibility: isBorrowPosition ? 'hidden' : 'visible',
+                      visibility: isBorrowToken ? 'hidden' : 'visible',
                     }}>
                       <span style={{ fontSize: 12, color: theme.textSecondary }}>Collateral</span>
                       <div style={{
@@ -483,7 +541,8 @@ const ProtocolGroupCard = ({ protocolName, chainName, positions = [], healthFact
                     })()}
                   </div>
                 </div>
-              );
+                );
+              });
             })}
           </div>
         </>

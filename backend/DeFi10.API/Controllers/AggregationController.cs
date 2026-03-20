@@ -230,68 +230,6 @@ public class AggregationController : ControllerBase
         return false;
     }
 
-    [HttpGet("account/{account}")]
-    public async Task<IActionResult> GetByAccount(string account, [FromQuery] ChainEnum chain = ChainEnum.Base)
-    {
-        if (string.IsNullOrWhiteSpace(account)) return BadRequest("account required");
-        var db = _redis.GetDatabase();
-        var acctLower = account.ToLowerInvariant();
-        
-        // Search for active job in unified active job keys
-        var server = _redis.GetServer(_redis.GetEndPoints().First());
-        var activePattern = "wallet:agg:active:*";
-        foreach (var activeKey in server.Keys(pattern: activePattern))
-        {
-            var jobIdVal = await db.StringGetAsync(activeKey);
-            if (jobIdVal.HasValue && Guid.TryParse(jobIdVal.ToString(), out var candidateJobId))
-            {
-                var metaKey = RedisKeys.Meta(candidateJobId);
-                var accountsJson = await db.HashGetAsync(metaKey, RedisKeys.MetaFields.Accounts);
-                if (accountsJson.HasValue)
-                {
-                    var accounts = RedisKeys.DeserializeAccounts(accountsJson.ToString());
-                    if (accounts.Any(a => a.Equals(acctLower, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        return await BuildSnapshotAsync(candidateJobId);
-                    }
-                }
-            }
-        }
-        
-        // Fallback: scan all meta keys for latest job with this account
-        var db2 = _redis.GetDatabase();
-        Guid? latestJob = null; 
-        DateTime latestCreated = DateTime.MinValue;
-        foreach (var key in server.Keys(pattern: MetaPattern))
-        {
-            try
-            {
-                var parts = key.ToString().Split(':');
-                if (parts.Length < 4) continue;
-                if (!Guid.TryParse(parts[2], out var candidateJob)) continue;
-                var accountsJson = await db2.HashGetAsync(key, RedisKeys.MetaFields.Accounts);
-                if (accountsJson.HasValue)
-                {
-                    var accounts = RedisKeys.DeserializeAccounts(accountsJson.ToString());
-                    if (!accounts.Any(a => a.Equals(acctLower, StringComparison.OrdinalIgnoreCase))) continue;
-                }
-                else
-                {
-                    // Legacy fallback: check "account" field
-                    var acctVal = await db2.HashGetAsync(key, "account");
-                    if (!acctVal.HasValue || !acctVal.ToString().Equals(acctLower, StringComparison.OrdinalIgnoreCase)) continue;
-                }
-                var createdVal = await db2.HashGetAsync(key, RedisKeys.MetaFields.CreatedAt);
-                if (!createdVal.HasValue || !DateTime.TryParse(createdVal.ToString(), out var createdAt)) continue;
-                if (createdAt > latestCreated) { latestCreated = createdAt; latestJob = candidateJob; }
-            }
-            catch { }
-        }
-        if (latestJob.HasValue)
-            return await BuildSnapshotAsync(latestJob.Value);
-        return NotFound(new { error = "no active job" });
-    }
-
     [HttpGet("{jobId:guid}")]
     public async Task<IActionResult> GetAggregation(Guid jobId)
     {
@@ -315,57 +253,6 @@ public class AggregationController : ControllerBase
         }
         
         return await BuildSnapshotAsync(jobId);
-    }
-
-    [HttpGet]
-    public async Task<IActionResult> ListByAccount([FromQuery] string? account, [FromQuery] int limit = 20)
-    {
-        if (string.IsNullOrWhiteSpace(account)) return BadRequest(new { error = "account required" });
-        var acctLower = account.ToLowerInvariant();
-        var db = _redis.GetDatabase();
-        var server = _redis.GetServer(_redis.GetEndPoints().First());
-        var jobs = new List<object>();
-        foreach (var key in server.Keys(pattern: MetaPattern))
-        {
-            if (jobs.Count >= limit) break;
-            try
-            {
-                var parts = key.ToString().Split(':');
-                if (parts.Length < 4) continue;
-                if (!Guid.TryParse(parts[2], out var jobId)) continue;
-                var acctVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Accounts);
-                if (!acctVal.HasValue || !acctVal.ToString().Equals(acctLower, StringComparison.OrdinalIgnoreCase)) continue;
-                var createdVal = await db.HashGetAsync(key, RedisKeys.MetaFields.CreatedAt);
-                DateTime createdAt;
-                if (!createdVal.HasValue || !DateTime.TryParse(createdVal.ToString(), out createdAt)) createdAt = DateTime.MinValue;
-                var statusVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Status);
-                var chainsVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Chains);
-                var expectedVal = await db.HashGetAsync(key, RedisKeys.MetaFields.ExpectedTotal);
-                var succVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Succeeded);
-                var failVal = await db.HashGetAsync(key, RedisKeys.MetaFields.Failed);
-                var toVal = await db.HashGetAsync(key, RedisKeys.MetaFields.TimedOut);
-                var finalEmitted = await db.HashGetAsync(key, RedisKeys.MetaFields.FinalEmitted);
-                var processedCount = await db.HashGetAsync(key, RedisKeys.MetaFields.ProcessedCount);
-                var ttl = await db.KeyTimeToLiveAsync(key);
-                jobs.Add(new {
-                    jobId,
-                    chains = chainsVal.ToString(),
-                    status = statusVal.ToString(),
-                    expected = (int)(long)(expectedVal.HasValue ? expectedVal : 0),
-                    succeeded = (int)(long)(succVal.HasValue ? succVal : 0),
-                    failed = (int)(long)(failVal.HasValue ? failVal : 0),
-                    timedOut = (int)(long)(toVal.HasValue ? toVal : 0),
-                    processed = (int)(long)(processedCount.HasValue ? processedCount : 0),
-                    isFinal = finalEmitted == "1",
-                    createdAt,
-                    expiresInSeconds = ttl?.TotalSeconds,
-                    active = finalEmitted != "1" && ttl.HasValue
-                });
-            }
-            catch { }
-        }
-        jobs = jobs.OrderByDescending(j => (DateTime)j.GetType().GetProperty("createdAt")!.GetValue(j)!).Take(limit).ToList();
-        return Ok(new { account = acctLower, count = jobs.Count, jobs });
     }
 
     private async Task<IActionResult> BuildSnapshotAsync(Guid jobId)
