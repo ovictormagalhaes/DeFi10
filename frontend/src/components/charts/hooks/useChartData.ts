@@ -84,44 +84,25 @@ export const useChartData = ({
     }, 0);
 
     const lockingGroups = groupDefiByProtocol(lockingData);
-    console.log('[useChartData] Locking groups:', lockingGroups);
-    console.log('[useChartData] Locking groups length:', lockingGroups.length);
-    
+
     const lockingValue = lockingGroups.reduce((total, group) => {
-      console.log('[useChartData] Processing locking group:', group);
       const groupValue = group.positions.reduce(
         (sum: number, pos: any) => {
-          console.log('[useChartData] Processing locking position:', pos);
           const tokensValue = pos.tokens?.reduce(
             (tokenSum: number, token: any) => {
-              // Locking tokens have totalPrice inside financials (like liquidity tokens)
               const price = parseFloat(token.financials?.totalPrice || token.totalPrice) || 0;
-              console.log('[useChartData] Token price:', token.symbol, price);
               return tokenSum + price;
             },
             0
           ) || 0;
-          console.log('[useChartData] Position tokens value:', tokensValue);
           return sum + tokensValue;
         },
         0
       );
-      console.log('[useChartData] Group value:', groupValue);
       return total + groupValue;
     }, 0);
-    
-    console.log('[useChartData] Locking value:', lockingValue);
 
     const totalValue = walletValue + liquidityValue + lendingValue + stakingValue + lockingValue;
-
-    console.log('[useChartData] Portfolio composition values:', {
-      wallet: walletValue,
-      liquidity: liquidityValue,
-      lending: lendingValue,
-      staking: stakingValue,
-      locking: lockingValue,
-      total: totalValue
-    });
 
     return {
       walletValue,

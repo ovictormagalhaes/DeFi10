@@ -111,12 +111,6 @@ export function calculateAllocationDeltas(
     return [];
   }
 
-  console.log('[calculateAllocationDeltas] Processing:', {
-    strategyType: strategy.strategyType,
-    targetsCount: targets.length,
-    portfolioItems: currentPortfolio.length
-  });
-
   // Group portfolio by type (Lending, Liquidity, Staking, Wallet)
   const groupedByType = groupByType(currentPortfolio);
 

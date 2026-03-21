@@ -77,11 +77,6 @@ export function buildAllocationRequest(
   portfolio: WalletItem[],
   strategyId?: string
 ): SaveAllocationStrategyRequest {
-  console.log('[buildAllocationRequest] Building with NEW structure:', {
-    strategyId,
-    allocationsCount: config.allocations.length
-  });
-
   // Build allocations array with protocol/chain nested objects
   const allocations = config.allocations.map(allocation => {
     // Find matching portfolio item to extract metadata
@@ -175,8 +170,6 @@ export function buildAllocationRequest(
     request.id = strategyId;
   }
 
-  console.log('[buildAllocationRequest] Final request:', request);
-
   return request;
 }
 
@@ -188,13 +181,6 @@ export function calculateAllocationResult(
   strategy: AllocationStrategy,
   portfolio: WalletItem[]
 ): AllocationByWeightResult {
-  console.log('[calculateAllocationResult] Processing strategy:', {
-    id: strategy.id,
-    name: strategy.name,
-    allocationsCount: strategy.allocations.length,
-    portfolioItems: portfolio.length
-  });
-
   // Calculate deltas (combines static targets with dynamic current values)
   const deltas = calculateAllocationDeltas(strategy, portfolio);
   

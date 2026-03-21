@@ -264,11 +264,7 @@ export function useAggregationJob() {
       if (/^(Completed|CompletedWithErrors)$/i.test(data.status)) {
         setIsCompleted(true);
       } else if (data.status === 'TimedOut') {
-        // TimedOut: continua polling com intervalo progressivo (mesmo que isCompleted=true do backend)
-        console.log(
-          `Job TimedOut (attempt ${attemptRef.current}), continuing with progressive polling...`
-        );
-        setIsCompleted(false); // Força continuar polling para TimedOut
+        setIsCompleted(false);
       } else if (data.isCompleted) {
         // Outros casos onde isCompleted=true do backend
         setIsCompleted(true);
@@ -309,12 +305,7 @@ export function useAggregationJob() {
       await fetchSnapshot(jobId);
 
       if (!cancelled.current && !isCompleted) {
-        // Calcular intervalo progressivo baseado no número de tentativas
         currentInterval.current = getProgressiveInterval();
-        console.log(
-          `Scheduling next poll in ${currentInterval.current}ms (attempt ${attemptRef.current}/${maxAttempts.current})`
-        );
-
         pollTimer.current = setTimeout(run, currentInterval.current);
       } else {
         setLoading(false);

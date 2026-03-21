@@ -25,19 +25,16 @@ export async function loadStrategyWithCache(walletGroupId: string): Promise<Save
 
   // Return cached data if still valid
   if (cached && (now - cached.timestamp) < CACHE_TTL && cached.data !== null) {
-    console.log('[StrategyCache] Using cached data for:', walletGroupId);
     return cached.data;
   }
 
   // CRITICAL: Check if already loading (this prevents duplicate calls)
   const existingPromise = loadingPromises.get(walletGroupId);
   if (existingPromise) {
-    console.log('[StrategyCache] Reusing existing promise for:', walletGroupId);
     return existingPromise;
   }
 
   // Create new API call
-  console.log('[StrategyCache] Fetching from API for:', walletGroupId);
   const promise = getStrategyByGroup(walletGroupId)
     .then(data => {
       strategyCache.set(walletGroupId, {

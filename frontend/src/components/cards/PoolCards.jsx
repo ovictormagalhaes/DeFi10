@@ -178,8 +178,13 @@ const PoolCards = ({ data = [] }) => {
         const displayToken0 = isFlipped ? token1 : token0;
         const displayToken1 = isFlipped ? token0 : token1;
         
-        const apr = additionalInfo.aprHistorical || item.additionalData?.aprHistorical || additionalInfo.apr || item.additionalData?.apr || position.aprHistorical || position.apr || position.apy || 0;
-        
+        const aprValue = additionalInfo.apr || item.additionalData?.apr || position.apr || position.apy || 0;
+        const aprHistorical = additionalInfo.aprHistorical || item.additionalData?.aprHistorical || position.aprHistorical || 0;
+        const apr = aprHistorical || aprValue;
+        const hasMultipleAprTypes = aprValue > 0 && aprHistorical > 0;
+        const selectedAprType = selectedAprTypes[index] || 'APR';
+        const displayedApr = selectedAprType === 'APR Historical' ? aprHistorical : aprValue;
+
         // Range data from additionalData or additionalInfo
         const rangeData = additionalInfo.range || item.additionalData?.range || position.range || null;
         const inRange = rangeData?.inRange ?? true; // Default to true if no range data

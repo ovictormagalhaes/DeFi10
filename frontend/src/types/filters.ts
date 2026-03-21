@@ -31,16 +31,7 @@ export function getStakingItems(items: WalletItem[]): WalletItem[] {
  * Filter WalletItems to get only locking positions (vePENDLE, etc.)
  */
 export function getLockingItems(items: WalletItem[]): WalletItem[] {
-  console.log('[getLockingItems] Filtering items:', items.length);
-  const lockingItems = items.filter((item) => {
-    const isLocking = item.type === WalletItemType.LOCKING;
-    if (isLocking) {
-      console.log('[getLockingItems] Found locking item:', item);
-    }
-    return isLocking;
-  });
-  console.log('[getLockingItems] Filtered locking items:', lockingItems.length);
-  return lockingItems;
+  return items.filter((item) => item.type === WalletItemType.LOCKING);
 }
 
 export function getDepositingItems(items: WalletItem[]): WalletItem[] {

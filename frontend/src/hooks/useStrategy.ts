@@ -51,14 +51,12 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
    * Load strategy for a wallet group
    */
   const loadStrategy = useCallback(async (walletGroupId: string) => {
-    console.log('[useStrategy] Loading strategy for:', walletGroupId);
     setLoading(true);
     setError(null);
     
     try {
       const data = await loadStrategyWithCache(walletGroupId);
       const type1Strategy = getStrategyByType(data, 1);
-      console.log('[useStrategy] Loaded strategy:', type1Strategy?.strategyType);
       setStrategy(type1Strategy);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load strategy';
@@ -83,7 +81,6 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
     portfolio: WalletItem[],
     strategyId?: string
   ): Promise<SaveStrategyResponse> => {
-    console.log('[useStrategy.saveStrategy] Called with strategyId:', strategyId);
     setSaving(true);
     setError(null);
 
@@ -102,8 +99,6 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
       // Build request for current strategy type
       const request = buildStrategyRequest(strategyType, walletGroupId, config, portfolio, strategyId);
 
-      console.log('[useStrategy] Request built:', JSON.stringify(request, null, 2));
-
       // Get all existing strategies to preserve them
       const existingData = await loadStrategyWithCache(walletGroupId);
       const strategies: any[] = [];
@@ -114,7 +109,6 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
       existingStrategies.forEach((s: any, index: number) => {
         // Replace the strategy being updated at the same position
         if (strategyId && s.id === strategyId) {
-          console.log('[useStrategy] Replacing strategy with id:', s.id, 'at index:', index);
           strategies.push(request);
           return;
         }
@@ -125,8 +119,6 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
       if (!strategyId) {
         strategies.push(request);
       }
-
-      console.log('[useStrategy] Final payload:', JSON.stringify({ walletGroupId, strategies }, null, 2));
 
       // Save all strategies in single request
       const response = await saveStrategies({

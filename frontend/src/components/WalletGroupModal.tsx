@@ -100,7 +100,6 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   // Handle initialGroupId - auto-open connect mode with pre-filled ID
   useEffect(() => {
     if (isOpen && initialGroupId) {
-      console.log('[WalletGroupModal] Opening in connect mode with ID:', initialGroupId);
       setMode('connect');
       setConnectGroupId(initialGroupId);
     }
@@ -123,12 +122,6 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       
       setPasswordRequired(true);
       setGroupIsPublic(false);
-      
-      console.log('[WalletGroup] Group check (default):', { 
-        groupId: groupId.trim(), 
-        requiresPassword: true,
-        isPublic: false
-      });
     } catch (err: any) {
       console.error('[WalletGroup] Error checking group:', err);
       setGroupError(err.message || 'Group not found');
@@ -242,7 +235,6 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
       // If no password, create group directly without PoW
       if (noPassword) {
-        console.log('[WalletGroup] Creating group without password...');
         result = await createGroup({
           wallets,
           displayName: displayName.trim() || undefined,
@@ -252,13 +244,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         setPowStatus('solving');
         setPowProgress('Initializing secure connection...');
         
-        console.log('[WalletGroup] Requesting challenge from server...');
         const challengeData = await apiClient.getChallenge();
-        console.log('[WalletGroup] Challenge received:', {
-          challenge: challengeData.challenge.substring(0, 16) + '...',
-          difficulty: challengeData.difficulty,
-          expiresAt: challengeData.expiresAt
-        });
         
         setPowProgress('Creating wallet group securely...');
 
@@ -272,7 +258,6 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
           }
         );
         
-        console.log('[WalletGroup] Challenge solved, creating group...');
         setPowStatus('solved');
         setPowProgress('Finalizing wallet group...');
 
@@ -287,7 +272,6 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       }
 
       if (result) {
-        console.log('[WalletGroup] Group created successfully:', result.id);
         // Success - reset form and notify parent
         resetForm();
         setPowStatus('idle');
@@ -405,8 +389,6 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
   const handleCopyGroupId = (groupId: string) => {
     navigator.clipboard.writeText(groupId).then(() => {
-      // Could add a toast notification here in the future
-      console.log('[WalletGroup] Group ID copied to clipboard:', groupId);
     }).catch(err => {
       console.error('[WalletGroup] Failed to copy group ID:', err);
     });
@@ -424,8 +406,6 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       // Remove from local storage
       const updatedGroups = groups.filter(g => g.id !== groupId);
       localStorage.setItem('defi10_wallet_groups', JSON.stringify(updatedGroups));
-      
-      console.log('[WalletGroup] Disconnected from group:', groupId);
       
       // Force refresh by triggering a re-render
       window.location.reload();
@@ -482,12 +462,9 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     try {
       setIsConnecting(true);
       setGroupError(null);
-      console.log('[WalletGroup] Connecting to group:', trimmedId);
-
       // Authenticate with the wallet group - response includes all group data
       const authData = connectPassword ? { password: connectPassword } : {};
       const response = await apiClient.connectWalletGroup(trimmedId, authData);
-      console.log('[WalletGroup] Authentication successful, group data received');
 
       // Convert response to WalletGroup format
       const group: WalletGroup = {
@@ -504,7 +481,6 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       if (existingGroup) {
         // If reconnecting (initialGroupId present), update existing group data
         if (initialGroupId) {
-          console.log('[WalletGroup] Reconnected - updating existing group');
           updatedGroups = groups.map(g => g.id === group.id ? group : g);
         } else {
           // If not reconnecting, show error (group already exists)
@@ -519,8 +495,6 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       // Save to local storage
       localStorage.setItem('defi10_wallet_groups', JSON.stringify(updatedGroups));
       
-      console.log('[WalletGroup] Group connected and saved to local storage');
-
       // Trigger selection if callback provided
       if (onGroupSelected) {
         // Pass isReconnect flag if it's a reconnection
