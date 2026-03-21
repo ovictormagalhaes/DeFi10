@@ -1,0 +1,49 @@
+[server]
+host = "0.0.0.0"
+port = 10000
+
+[mongodb]
+uri = "mongodb://localhost:27017"
+database = "defi10"
+
+[redis]
+url = "redis://localhost:6379"
+pool_size = 10
+default_ttl_seconds = 300
+
+[rabbitmq]
+url = "amqp://guest:guest@localhost:5672"
+prefetch_count = 10
+
+[jwt]
+secret = "dev_secret_change_in_production"
+expiration_hours = 24
+
+[cors]
+allowed_origins = ["http://localhost:3000", "http://localhost:8080", "http://localhost:10002"]
+
+[rate_limiting]
+enabled = true
+max_requests = 100
+window_seconds = 60
+
+[blockchain]
+# Public RPCs (free tier, pode ter rate limits)
+ethereum_rpc = "https://eth.llamarpc.com"
+base_rpc = "https://mainnet.base.org"
+arbitrum_rpc = "https://arb1.arbitrum.io/rpc"
+bnb_rpc = "https://bsc-dataseed.binance.org"
+solana_rpc = "https://api.mainnet-beta.solana.com"
+alchemy_api_key = ""
+
+[graph]
+api_key = ""
+url_template = "https://gateway.thegraph.com/api/{API_KEY}/subgraphs/id/{ID}"
+
+[graph.subgraphs]
+aave_v3_base = "GQFbb95cE6d8mV989mL5figjaGaKCQB3xqYrr1bRyXqF"
+aave_v3_ethereum = ""
+aave_v3_arbitrum = ""
+uniswap_v3_ethereum = "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+uniswap_v3_base = "HMuAwufqZ1YCRmzL2SfHTVkzZovC9VL2UAKhjvRqKiR1"
+uniswap_v3_arbitrum = "FbCGRftH4a3yZugY7TnbYgPJVEv2LvMT6oF1fxPe9aJM"

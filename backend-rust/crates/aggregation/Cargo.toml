@@ -1,0 +1,24 @@
+[package]
+name = "defi10-aggregation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+defi10-core = { path = "../core", features = ["http"] }
+defi10-blockchain = { path = "../blockchain" }
+defi10-infrastructure = { path = "../infrastructure" }
+defi10-protocols = { path = "../protocols" }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+reqwest = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

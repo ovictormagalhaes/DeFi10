@@ -1,0 +1,64 @@
+[package]
+name = "defi10-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+default-run = "defi10-api"
+
+[lib]
+name = "defi10_api"
+path = "src/lib.rs"
+
+[[bin]]
+name = "defi10-api"
+path = "src/main.rs"
+
+[dependencies]
+defi10-core = { path = "../core", features = ["axum", "http"] }
+defi10-infrastructure = { path = "../infrastructure" }
+defi10-aggregation = { path = "../aggregation" }
+defi10-protocols = { path = "../protocols" }
+defi10-blockchain = { path = "../blockchain" }
+
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+futures-util = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Web framework
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Messaging
+lapin = { workspace = true }
+
+# HTTP
+reqwest = { workspace = true }
+
+# Tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# JWT
+jsonwebtoken = { workspace = true }
+
+# Password hashing
+bcrypt = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tower = { workspace = true, features = ["util"] }
+openssl-sys = { workspace = true }
+testcontainers = { workspace = true }

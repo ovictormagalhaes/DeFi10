@@ -1,0 +1,28 @@
+[package]
+name = "defi10-blockchain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+defi10-core = { path = "../core" }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+async-trait = "0.1"
+tracing = { workspace = true }
+
+# EVM
+ethers = { workspace = true }
+
+# Solana
+solana-client = { workspace = true }
+solana-sdk = { workspace = true }
+solana-account-decoder = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+mockito = { workspace = true }

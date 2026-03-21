@@ -1,0 +1,140 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "10000:10000"
+    environment:
+      # Use local Docker services for development
+      - DEFI10__MONGODB__URI=mongodb://mongo:27017
+      - DEFI10__MONGODB__DATABASE=defi10
+      - DEFI10__REDIS__URL=redis://redis:6379
+      - DEFI10__RABBITMQ__URL=amqp://guest:guest@rabbitmq:5672
+      # Inject secrets from .env
+      - DEFI10__JWT__SECRET=${DEFI10__JWT__SECRET}
+      - DEFI10__BLOCKCHAIN__ETHEREUM_RPC=${DEFI10__BLOCKCHAIN__ETHEREUM_RPC}
+      - DEFI10__BLOCKCHAIN__BASE_RPC=${DEFI10__BLOCKCHAIN__BASE_RPC}
+      - DEFI10__BLOCKCHAIN__ARBITRUM_RPC=${DEFI10__BLOCKCHAIN__ARBITRUM_RPC}
+      - DEFI10__BLOCKCHAIN__SOLANA_RPC=${DEFI10__BLOCKCHAIN__SOLANA_RPC}
+      - DEFI10__BLOCKCHAIN__ALCHEMY_API_KEY=${DEFI10__BLOCKCHAIN__ALCHEMY_API_KEY}
+      - DEFI10__MORALIS__API_KEY=${DEFI10__MORALIS__API_KEY}
+      - DEFI10__GRAPH__API_KEY=${DEFI10__GRAPH__API_KEY}
+      - DEFI10__GRAPH__URL_TEMPLATE=${DEFI10__GRAPH__URL_TEMPLATE}
+      - DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_BASE=${DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_BASE}
+      - DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_ETHEREUM=${DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_ETHEREUM}
+      - DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_ARBITRUM=${DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_ARBITRUM}
+      - DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_ETHEREUM=${DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_ETHEREUM}
+      - DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_BASE=${DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_BASE}
+      - DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_ARBITRUM=${DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_ARBITRUM}
+      - COINMARKETCAP_API_KEY=${COINMARKETCAP_API_KEY}
+      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+      - RUST_LOG=info,defi10=debug
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - defi10-network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker.dev  # DEV: debug mode (2-3x mais rápido)
+    environment:
+      # Use local Docker services for development
+      - DEFI10__MONGODB__URI=mongodb://mongo:27017
+      - DEFI10__MONGODB__DATABASE=defi10
+      - DEFI10__REDIS__URL=redis://redis:6379
+      - DEFI10__RABBITMQ__URL=amqp://guest:guest@rabbitmq:5672
+      # Inject secrets from .env
+      - DEFI10__JWT__SECRET=${DEFI10__JWT__SECRET}
+      - DEFI10__BLOCKCHAIN__ETHEREUM_RPC=${DEFI10__BLOCKCHAIN__ETHEREUM_RPC}
+      - DEFI10__BLOCKCHAIN__BASE_RPC=${DEFI10__BLOCKCHAIN__BASE_RPC}
+      - DEFI10__BLOCKCHAIN__ARBITRUM_RPC=${DEFI10__BLOCKCHAIN__ARBITRUM_RPC}
+      - DEFI10__BLOCKCHAIN__SOLANA_RPC=${DEFI10__BLOCKCHAIN__SOLANA_RPC}
+      - DEFI10__BLOCKCHAIN__ALCHEMY_API_KEY=${DEFI10__BLOCKCHAIN__ALCHEMY_API_KEY}
+      - DEFI10__MORALIS__API_KEY=${DEFI10__MORALIS__API_KEY}
+      - DEFI10__GRAPH__API_KEY=${DEFI10__GRAPH__API_KEY}
+      - DEFI10__GRAPH__URL_TEMPLATE=${DEFI10__GRAPH__URL_TEMPLATE}
+      - DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_BASE=${DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_BASE}
+      - DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_ETHEREUM=${DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_ETHEREUM}
+      - DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_ARBITRUM=${DEFI10__GRAPH__SUBGRAPHS__AAVE_V3_ARBITRUM}
+      - DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_ETHEREUM=${DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_ETHEREUM}
+      - DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_BASE=${DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_BASE}
+      - DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_ARBITRUM=${DEFI10__GRAPH__SUBGRAPHS__UNISWAP_V3_ARBITRUM}
+      - ALCHEMY_API_KEY=${ALCHEMY_API_KEY}
+      - RUST_LOG=info,defi10=debug
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - defi10-network
+    deploy:
+      replicas: 1
+
+  mongo:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - defi10-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - defi10-network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - defi10-network
+
+volumes:
+  mongo-data:
+  redis-data:
+  rabbitmq-data:
+
+networks:
+  defi10-network:
+    driver: bridge
