@@ -1,0 +1,57 @@
+[package]
+name = "defi10-infrastructure"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+defi10-core = { path = "../core", features = ["http"] }
+
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+
+# Configuration
+config = { workspace = true }
+dotenvy = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Database & Cache
+mongodb = { workspace = true }
+redis = { workspace = true }
+
+# Messaging
+lapin = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# HTTP Client
+reqwest = { workspace = true }
+
+# Crypto & PoW
+sha2 = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
+
+futures-util = { workspace = true }
+tokio-stream = { workspace = true }
+clap = { version = "4.5", features = ["derive"] }
+
+[[bin]]
+name = "migrate-strategies"
+path = "src/bin/migrate_strategies.rs"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }
+
+

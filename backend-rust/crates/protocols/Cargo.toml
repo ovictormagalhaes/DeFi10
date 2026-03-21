@@ -1,0 +1,30 @@
+[package]
+name = "defi10-protocols"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+defi10-core = { path = "../core", features = ["http"] }
+defi10-blockchain = { path = "../blockchain" }
+
+anyhow = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+reqwest = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+solana-sdk = { workspace = true }
+chrono = { workspace = true }
+bs58 = "0.5"
+base64 = "0.21"
+num-bigint = "0.4"
+num-traits = "0.2"
+hex = "0.4"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+wiremock = { workspace = true }
+openssl-sys = { workspace = true }

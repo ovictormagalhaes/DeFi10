@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: defi10-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: RUST_LOG
+        value: info
+      - key: Server__Host
+        value: "0.0.0.0"
+      - key: Server__Port
+        value: "10000"
+      - key: MongoDB__Uri
+        sync: false
+      - key: MongoDB__Database
+        value: defi10
+      - key: Redis__Url
+        fromService:
+          type: redis
+          name: defi10-redis
+          property: connectionString
+      - key: Redis__PoolSize
+        value: "10"
+      - key: Redis__DefaultTtlSeconds
+        value: "1800"
+      - key: RabbitMQ__Url
+        sync: false
+      - key: RabbitMQ__PrefetchCount
+        value: "10"
+      - key: Jwt__Secret
+        sync: false
+      - key: Jwt__ExpirationHours
+        value: "24"
+      - key: Cors__AllowedOrigins__0
+        value: https://defi10.onrender.com
+      - key: Cors__AllowedOrigins__1
+        value: http://localhost:10002
+      - key: Blockchain__AlchemyApiKey
+        sync: false
+      - key: Graph__ApiKey
+        sync: false
+    healthCheckPath: /health
+
+  - type: redis
+    name: defi10-redis
+    plan: starter
+    ipAllowList: []
