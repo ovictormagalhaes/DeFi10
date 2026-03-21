@@ -103,17 +103,11 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
   const initializeFromStrategy = () => {
     if (!initialStrategy) return { assetType: null, assetTypeLabel: '', name: '', description: '', allocations: [] };
     
-    console.log('[initializeFromStrategy] initialStrategy:', initialStrategy);
-    console.log('[initializeFromStrategy] initialStrategy.id:', initialStrategy.id);
-    
     // Check for new structure (allocations) or old structure (items/targetAllocations)
     const hasNewStructure = !!(initialStrategy as any).allocations;
     const allocationsData = hasNewStructure 
       ? (initialStrategy as any).allocations 
       : initialStrategy.targetAllocations || [];
-    
-    console.log('[initializeFromStrategy] Using', hasNewStructure ? 'NEW' : 'OLD', 'structure');
-    console.log('[initializeFromStrategy] allocationsData:', allocationsData);
     
     // Determine asset type from first allocation
     let detectedType: RebalanceAssetType | null = null;
@@ -133,9 +127,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         }
       }
       
-      console.log('[initializeFromStrategy] detectedType:', detectedType);
       const typeOption = ASSET_TYPE_OPTIONS.find(opt => opt.value === detectedType);
-      console.log('[initializeFromStrategy] typeOption:', typeOption);
       if (typeOption) {
         detectedLabel = typeOption.label;
       }
@@ -143,8 +135,6 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
     
     // Map allocations to form items
     const existingAllocations: AllocationItem[] = allocationsData.map((alloc: any, idx: number) => {
-      console.log('[initializeFromStrategy] Processing allocation:', alloc);
-      
       if (hasNewStructure) {
         // NEW structure: data is already in the allocation object
         const protocol = alloc.protocol?.id || alloc.protocol;
@@ -220,8 +210,6 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
             return true;
           });
         }
-        
-        console.log('[initializeFromStrategy] Found item:', item);
         
         if (item?.metadata) {
           const protocol = item.metadata.protocol;
@@ -529,8 +517,6 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
     }
 
     try {
-      console.log('[AllocationStrategyForm] Current allocations state:', allocations);
-      
       const config: AllocationByWeightConfig = {
         allocations: allocations.map((a, index) => ({
           assetKey: a.symbol,
@@ -545,16 +531,6 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         description: description.trim() || undefined
       };
 
-      console.log('[AllocationStrategyForm] Mapped config to send:', config);
-      console.log('[AllocationStrategyForm] Tokens being sent:', config.allocations.map(a => ({
-        symbol: a.assetKey,
-        protocol: a.protocol,
-        protocolName: a.protocolName,
-        chain: a.chain,
-        weight: a.weight
-      })));
-      console.log('[AllocationStrategyForm] Saving with strategyId:', initialStrategy?.id);
-      
       await onSave(walletGroupId, config, portfolio, initialStrategy?.id);
       onSuccess();
     } catch (err) {

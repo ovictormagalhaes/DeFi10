@@ -126,7 +126,6 @@ export const config = {
   ENVIRONMENT: _env,
 };
 
-// Debug log (only first time) so you can see which base got resolved in production
 (() => {
   const flag = '__DEF10_API_LOG__';
   try {
@@ -135,32 +134,9 @@ export const config = {
       if (!w[flag]) {
         w[flag] = true;
         w.__DEF10_API_BASE__ = _normalizedApiBase;
-        // eslint-disable-next-line no-console
-        console.log(
-          `%c[Defi10] API Base: ${_normalizedApiBase} (env=${_env}) source=${__source} explicit=${explicit || 'none'}`,
-          'color:#35f7a5;font-weight:600'
-        );
-        // Additional one-time debug of visible env keys (sanitized to strings/primitives)
-        try {
-          const meta: any = import.meta as any;
-          if (meta && meta.env) {
-            const printable: Record<string, unknown> = {};
-            Object.keys(meta.env).forEach((k) => {
-              const v = (meta.env as any)[k];
-              if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-                printable[k] = v;
-              }
-            });
-            // eslint-disable-next-line no-console
-            console.log('[Defi10] import.meta.env keys:', printable);
-          }
-        } catch {
-          // ignore
-        }
       }
     }
   } catch (err) {
-    // Non-critical logging failure; ignore.
     // eslint-disable-next-line no-empty
   }
 })();

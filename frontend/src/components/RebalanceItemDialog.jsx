@@ -241,21 +241,10 @@ export default function RebalanceItemDialog({
                     if (Array.isArray(pos.tokens) && pos.tokens.length > 0) {
                       tokens = pos.tokens.slice(0, 2).map(t => t?.token || t).filter(Boolean);
                       
-                      // 🔍 DEBUG: Log position data
-                      console.log('🔍 [DIALOG LENDING DETECTION] Position:', {
-                        label: pos.label,
-                        key: pos.key,
-                        name: pos.name,
-                        tokensCount: pos.tokens?.length,
-                        allTokens: pos.tokens
-                      });
-                      
                       // Check position label/key first
                       const positionLabel = pos.label?.toLowerCase() || pos.key?.toLowerCase() || pos.name?.toLowerCase() || '';
                       const isBorrowPosition = positionLabel.includes('borrow') || positionLabel.includes('debt');
-                      
-                      console.log('📊 Dialog position label check:', { positionLabel, isBorrowPosition });
-                      
+
                       // Check all tokens to find if any is borrowed
                       const hasBorrowedToken = pos.tokens.some(t => {
                         const tokenType = t?.type?.toLowerCase();
@@ -264,29 +253,17 @@ export default function RebalanceItemDialog({
                         const negativeBalance = t?.balance && t.balance < 0;
                         const negativePrice = (t?.totalPrice || t?.financials?.totalPrice || 0) < 0;
                         
-                        const isBorrowed = tokenType === 'borrowed' || 
-                               tokenType === 'borrow' || 
+                        const isBorrowed = tokenType === 'borrowed' ||
+                               tokenType === 'borrow' ||
                                tokenType === 'debt' ||
                                tokenLabel.includes('borrow') ||
                                tokenLabel.includes('debt') ||
-                               hasDebt || 
+                               hasDebt ||
                                negativeBalance ||
                                negativePrice;
-                        
-                        console.log('🪙 Dialog token check:', t.symbol, {
-                          type: t?.type,
-                          tokenType,
-                          tokenLabel,
-                          hasDebt,
-                          negativeBalance,
-                          negativePrice,
-                          isBorrowed
-                        });
-                        
+
                         return isBorrowed;
                       });
-                      
-                      console.log('✅ Dialog token check result:', { hasBorrowedToken });
                       
                       if (isBorrowPosition || hasBorrowedToken) {
                         lendingType = 'borrow';
@@ -294,8 +271,6 @@ export default function RebalanceItemDialog({
                         lendingType = 'supply';
                       }
                       
-                      console.log('🎯 DIALOG FINAL RESULT:', { lendingType, label: pos.label });
-                      console.log('---');
                     }
                   } else if (assetTypeNum === 2 || assetTypeNum === 4) { // LP, Staking
                     // For LP/Staking, extract tokens

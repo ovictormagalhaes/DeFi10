@@ -30,13 +30,6 @@ const AdvancedAnalytics = ({
   const lendingData = getLendingAndBorrowingData();
   const stakingData = getStakingData();
   const lockingData = getLockingData ? getLockingData() : [];
-  
-  console.log('[AdvancedAnalytics] Data lengths:', {
-    liquidity: liquidityData.length,
-    lending: lendingData.length,
-    staking: stakingData.length,
-    locking: lockingData.length
-  });
 
   // Use the chart data hook to process all data
   const chartData = useChartData({

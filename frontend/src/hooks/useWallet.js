@@ -101,8 +101,6 @@ export function useWalletConnection() {
       return;
     }
 
-    console.log(`[Connect] Starting connection to ${wallet.name}`);
-    
     // Show pending connection screen
     const startTime = Date.now();
     setPendingConnection({
@@ -113,17 +111,13 @@ export function useWalletConnection() {
 
     try {
       if (wallet.type === 'solana') {
-        console.log('[Connect] Requesting Solana connection...');
         const response = await window.solana.connect({ onlyIfTrusted: false });
         const publicKey = response.publicKey.toString();
-        console.log('[Connect] Solana connected:', publicKey);
         saveAccount(publicKey);
       } else if (wallet.type === 'evm') {
         const provider = walletType === 'rabby' && window.rabby ? window.rabby : window.ethereum;
-        console.log(`[Connect] Requesting EVM accounts from ${walletType}...`);
         const accounts = await provider.request({ method: 'eth_requestAccounts' });
         const acc = accounts[0];
-        console.log('[Connect] EVM connected:', acc);
         saveAccount(acc);
       }
       
@@ -131,11 +125,9 @@ export function useWalletConnection() {
       const elapsed = Date.now() - startTime;
       const minDelay = Math.max(0, 500 - elapsed);
       if (minDelay > 0) {
-        console.log(`[Connect] Waiting ${minDelay}ms before closing...`);
         await new Promise(resolve => setTimeout(resolve, minDelay));
       }
-      
-      console.log('[Connect] Success - closing pending screen');
+
       setPendingConnection(null);
     } catch (error) {
       console.error(`[Connect] Error connecting ${wallet.name}:`, error);
@@ -144,8 +136,6 @@ export function useWalletConnection() {
       const isUserRejection = error.code === 4001 || error.message?.includes('User rejected');
       if (!isUserRejection) {
         alert(`Failed to connect ${wallet.name}. Please try again.`);
-      } else {
-        console.log('[Connect] User rejected the connection');
       }
     }
   }

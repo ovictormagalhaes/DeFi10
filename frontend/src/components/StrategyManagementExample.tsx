@@ -70,7 +70,6 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
         portfolio
       );
 
-      console.log('Strategy saved:', response);
       alert(`Strategy saved successfully! Items: ${response.itemsCount}`);
     } catch (err) {
       console.error('Failed to create strategy:', err);
@@ -80,8 +79,6 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
 
   // Handle rebalance action
   const handleRebalance = (delta: AllocationDelta) => {
-    console.log('Rebalance requested for:', delta);
-    
     // In a real app, this would:
     // 1. Calculate exact swap amounts
     // 2. Find best routes across DEXs

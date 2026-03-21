@@ -23,8 +23,6 @@ export const AllocationStrategyCard: React.FC<AllocationStrategyCardProps> = ({
   onEdit,
   onDelete
 }) => {
-  console.log('[AllocationStrategyCard] Received strategy prop:', strategy);
-  
   const [collapsed, setCollapsed] = useState(false);
   const { maskValue } = useMaskValues();
 
@@ -64,14 +62,6 @@ export const AllocationStrategyCard: React.FC<AllocationStrategyCardProps> = ({
     });
     
     const assetsCount = allocations.length;
-    
-    console.log('[AllocationStrategyCard] Starting calculation:', {
-      hasAllocations: !!(strategy as any).allocations,
-      hasTargetAllocations: !!strategy.targetAllocations,
-      allocationsCount: allocations.length,
-      portfolioCount: portfolio.length,
-      firstAllocation: allocations[0]
-    });
     
     // Calculate deltas manually without needing hook
     let maxDeviation = 0;
@@ -296,15 +286,6 @@ export const AllocationStrategyCard: React.FC<AllocationStrategyCardProps> = ({
         }
       });
     }
-    
-    console.log('[AllocationStrategyCard] Calculated stats:', {
-      assetsCount,
-      maxDeviation,
-      totalValue,
-      totalDelta,
-      needsRebalance,
-      deltasCount: calculatedDeltas.length
-    });
     
     return {
       status: {

@@ -116,8 +116,6 @@ export const AllocationStrategySection: React.FC<
       loadedWalletGroupRef.current = walletGroupId;
       setIsInitialLoading(true);
       
-      console.log('[AllocationStrategySection] Loading strategies for:', walletGroupId);
-      
       // Clear cache first to ensure fresh data with IDs
       clearStrategyCache(walletGroupId);
       
@@ -164,8 +162,6 @@ export const AllocationStrategySection: React.FC<
   };
 
   const handleEdit = (strategyToEdit: Strategy) => {
-    console.log('[handleEdit] strategyToEdit:', strategyToEdit);
-    console.log('[handleEdit] strategyToEdit.id:', strategyToEdit.id);
     if (strategyToEdit) {
       setEditingStrategy(strategyToEdit);
       setSelectedStrategyType(strategyToEdit.strategyType);
@@ -223,17 +219,11 @@ export const AllocationStrategySection: React.FC<
     const targetStrategy = strategyToDelete || strategy;
     
     if (!targetStrategy) return;
-    
-    console.log('[handleDelete] strategy to delete:', targetStrategy);
-    console.log('[handleDelete] strategy.id:', targetStrategy.id);
-    console.log('[handleDelete] strategy.name:', targetStrategy.name);
-    
+
     if (confirm('Are you sure you want to delete this strategy?')) {
       try {
         // Get all existing strategies
         const existingData = await getStrategyByGroup(walletGroupId);
-        
-        console.log('[handleDelete] existingData.strategies:', existingData?.strategies);
         
         if (!existingData || !existingData.strategies || existingData.strategies.length === 0) {
           // No data to delete
@@ -248,11 +238,6 @@ export const AllocationStrategySection: React.FC<
         const remainingStrategies = existingData.strategies.filter(
           (s: Strategy) => s.id !== targetStrategy.id
         );
-        
-        console.log('[handleDelete] Filtering strategies...');
-        console.log('[handleDelete] Total before:', existingData.strategies.length);
-        console.log('[handleDelete] Total after:', remainingStrategies.length);
-        console.log('[handleDelete] Removed strategy with id:', targetStrategy.id);
         
         // Save remaining strategies (backend format with allocations/targets, not items)
         const savePayload = {
@@ -275,8 +260,6 @@ export const AllocationStrategySection: React.FC<
             return strategyPayload;
           })
         };
-        
-        console.log('[handleDelete] Save payload:', savePayload);
         
         await saveStrategies(savePayload);
         
@@ -498,8 +481,8 @@ export const AllocationStrategySection: React.FC<
               config={config}
               onEdit={() => onEdit(strategy)}
               onDelete={() => onDelete(strategy)}
-              onAddCollateral={(action) => console.log('Add collateral:', action)}
-              onRepayDebt={(action) => console.log('Repay debt:', action)}
+              onAddCollateral={() => {}}
+              onRepayDebt={() => {}}
             />
           )}
         </div>
@@ -943,10 +926,7 @@ export const AllocationStrategySection: React.FC<
           <StrategyAllocationView
             strategy={selectedStrategy}
             portfolio={portfolio}
-            onRebalance={(delta) => {
-              console.log('Rebalance action:', delta);
-              // TODO: Implement rebalance flow
-            }}
+            onRebalance={() => {}}
           />
         </>
       )}
