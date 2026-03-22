@@ -112,46 +112,8 @@ pub struct JwtConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CorsConfig {
-    #[serde(
-        alias = "allowedorigins",
-        deserialize_with = "deserialize_string_or_vec"
-    )]
+    #[serde(default)]
     pub allowed_origins: Vec<String>,
-}
-
-fn deserialize_string_or_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::de;
-
-    struct StringOrVec;
-
-    impl<'de> de::Visitor<'de> for StringOrVec {
-        type Value = Vec<String>;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("a string or array of strings")
-        }
-
-        fn visit_str<E: de::Error>(self, value: &str) -> Result<Vec<String>, E> {
-            Ok(value
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect())
-        }
-
-        fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Vec<String>, A::Error> {
-            let mut vec = Vec::new();
-            while let Some(val) = seq.next_element::<String>()? {
-                vec.push(val);
-            }
-            Ok(vec)
-        }
-    }
-
-    deserializer.deserialize_any(StringOrVec)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -305,7 +267,19 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
         .add_source(Environment::default().separator("__"))
         .build()?;
 
-    config.try_deserialize()
+    let mut app_config: AppConfig = config.try_deserialize()?;
+
+    if app_config.cors.allowed_origins.is_empty() {
+        if let Ok(origins) = env::var("Cors__AllowedOrigins") {
+            app_config.cors.allowed_origins = origins
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+    }
+
+    Ok(app_config)
 }
 
 #[cfg(test)]
