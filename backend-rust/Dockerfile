@@ -45,6 +45,10 @@ RUN apt-get update && \
 # Copy binary from builder
 COPY --from=builder /app/target/release/defi10-api /app/defi10-api
 
+# Create config directory and copy config files
+RUN mkdir -p /app/config
+COPY config/ /app/config/
+
 # Expose port
 EXPOSE 10000
 

@@ -269,14 +269,12 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
 
     let mut app_config: AppConfig = config.try_deserialize()?;
 
-    if app_config.cors.allowed_origins.is_empty() {
-        if let Ok(origins) = env::var("Cors__AllowedOrigins") {
-            app_config.cors.allowed_origins = origins
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-        }
+    if let Ok(origins) = env::var("Cors__AllowedOrigins") {
+        app_config.cors.allowed_origins = origins
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
     }
 
     Ok(app_config)
