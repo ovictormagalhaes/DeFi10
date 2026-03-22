@@ -45,6 +45,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend-rust
+          shared-key: ci-debug
 
       - name: Check formatting
         run: cargo fmt --all -- --check
