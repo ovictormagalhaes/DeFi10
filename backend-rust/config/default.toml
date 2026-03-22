@@ -34,16 +34,12 @@ base_rpc = "https://mainnet.base.org"
 arbitrum_rpc = "https://arb1.arbitrum.io/rpc"
 bnb_rpc = "https://bsc-dataseed.binance.org"
 solana_rpc = "https://api.mainnet-beta.solana.com"
-alchemy_api_key = ""
 
 [graph]
-api_key = ""
 url_template = "https://gateway.thegraph.com/api/{API_KEY}/subgraphs/id/{ID}"
 
 [graph.subgraphs]
 aave_v3_base = "GQFbb95cE6d8mV989mL5figjaGaKCQB3xqYrr1bRyXqF"
-aave_v3_ethereum = ""
-aave_v3_arbitrum = ""
 uniswap_v3_ethereum = "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
 uniswap_v3_base = "HMuAwufqZ1YCRmzL2SfHTVkzZovC9VL2UAKhjvRqKiR1"
 uniswap_v3_arbitrum = "FbCGRftH4a3yZugY7TnbYgPJVEv2LvMT6oF1fxPe9aJM"
