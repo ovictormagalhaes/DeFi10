@@ -30,6 +30,7 @@ const POSITION_MANAGER_ADDRESSES: &[(&str, &str)] = &[
 pub struct UniswapV3Service {
     client: Arc<Client>,
     pub subgraph_urls: HashMap<Chain, String>,
+    #[allow(dead_code)]
     position_managers: HashMap<Chain, String>,
     rpc_urls: HashMap<Chain, String>,
 }
@@ -140,7 +141,7 @@ impl UniswapV3Service {
     ) -> Option<(BigUint, BigUint)> {
         let rpc_url = self.rpc_urls.get(&chain)?;
 
-        let tick_bytes = (tick as i32).to_be_bytes();
+        let tick_bytes = tick.to_be_bytes();
         let pad_byte = if tick < 0 { "ff" } else { "00" };
         let tick_hex = format!("{}{}", pad_byte.repeat(28), hex::encode(tick_bytes));
         let calldata = format!("0xf30dba93{}", tick_hex);
@@ -183,7 +184,7 @@ impl UniswapV3Service {
         let subgraph_url = self
             .subgraph_urls
             .get(&chain)
-            .ok_or_else(|| DeFi10Error::ChainNotSupported(chain))?;
+            .ok_or(DeFi10Error::ChainNotSupported(chain))?;
 
         let positions = self
             .fetch_user_positions(subgraph_url, user_address)
@@ -484,7 +485,7 @@ impl UniswapV3Service {
         })
     }
 
-    /// Check if position is in range
+    #[allow(dead_code)]
     fn is_in_range(current_tick: Option<&str>, tick_lower: i32, tick_upper: i32) -> bool {
         if let Some(tick_str) = current_tick {
             if let Ok(tick) = tick_str.parse::<i32>() {
@@ -507,7 +508,7 @@ impl UniswapV3Service {
         let subgraph_url = self
             .subgraph_urls
             .get(&chain)
-            .ok_or_else(|| DeFi10Error::ChainNotSupported(chain))?;
+            .ok_or(DeFi10Error::ChainNotSupported(chain))?;
 
         let query = format!(
             r#"{{
@@ -632,6 +633,7 @@ fn calculate_fee_growth_inside(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn calculate_uncollected_fees(
     liquidity_str: &str,
     current_tick: i32,

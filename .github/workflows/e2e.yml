@@ -76,6 +76,13 @@ jobs:
         working-directory: backend-rust
         run: cargo build --release --bin defi10-api
 
+      - name: Create test config
+        run: |
+          cat > backend-rust/config/testing.toml << 'TOML'
+          [cors]
+          allowed_origins = ["http://localhost:3000"]
+          TOML
+
       - name: Start API
         working-directory: backend-rust
         run: |
@@ -90,6 +97,7 @@ jobs:
           done
         env:
           RUST_LOG: info
+          ENVIRONMENT: testing
           Server__Host: "0.0.0.0"
           Server__Port: "10000"
           MongoDB__Uri: mongodb://localhost:27017
@@ -97,7 +105,6 @@ jobs:
           Redis__Url: redis://localhost:6379
           RabbitMQ__Url: amqp://admin:admin123@localhost:5672
           Jwt__Secret: test-secret-key-super-secure-for-testing-only-12345678
-          Cors__AllowedOrigins__0: http://localhost:3000
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

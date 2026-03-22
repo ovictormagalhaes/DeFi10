@@ -11,7 +11,7 @@ pub fn get_decimals_for_symbol_pub(symbol: &str) -> u8 {
 }
 
 pub fn attach_transaction_history(
-    results: &mut Vec<defi10_core::aggregation::AggregationResult>,
+    results: &mut [defi10_core::aggregation::AggregationResult],
     events: &[KaminoTransactionEvent],
 ) {
     if events.is_empty() {
