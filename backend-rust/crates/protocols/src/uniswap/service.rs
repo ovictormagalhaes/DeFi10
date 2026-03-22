@@ -722,6 +722,9 @@ mod tests {
             ethereum_subgraph_id: Some("eth_id".to_string()),
             base_subgraph_id: None,
             arbitrum_subgraph_id: None,
+            ethereum_rpc: None,
+            base_rpc: None,
+            arbitrum_rpc: None,
         };
         let service = UniswapV3Service::with_config(config);
         assert!(service.subgraph_urls.contains_key(&Chain::Ethereum));
