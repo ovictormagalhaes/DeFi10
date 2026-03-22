@@ -50,7 +50,6 @@ impl SolanaProvider {
         })
     }
 
-    #[allow(clippy::result_large_err)]
     fn retry_rpc<T, F>(&self, operation: F, operation_name: &str, max_attempts: u32) -> Result<T>
     where
         F: Fn(&RpcClient) -> std::result::Result<T, solana_client::client_error::ClientError>,
