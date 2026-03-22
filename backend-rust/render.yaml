@@ -35,10 +35,8 @@ services:
         sync: false
       - key: Jwt__ExpirationHours
         value: "24"
-      - key: Cors__AllowedOrigins__0
-        value: https://defi10.onrender.com
-      - key: Cors__AllowedOrigins__1
-        value: http://localhost:10002
+      - key: Cors__AllowedOrigins
+        value: "https://defi10.onrender.com,http://localhost:10002"
       - key: Blockchain__AlchemyApiKey
         sync: false
       - key: Graph__ApiKey
