@@ -249,6 +249,7 @@ pub struct TokenFinancials {
     pub total_price: Option<f64>,
 }
 
+#[allow(dead_code)]
 impl TokenFinancials {
     pub fn new(raw_amount: f64, decimals: u8, price: Option<f64>) -> Self {
         let divisor = 10f64.powi(decimals as i32);
@@ -382,6 +383,7 @@ pub struct Projection {
     pub one_year: f64,
 }
 
+#[allow(dead_code)]
 impl Projection {
     pub fn from_apy(apy_percent: f64, value_usd: f64) -> Self {
         let daily_rate = apy_percent / 100.0 / 365.0;

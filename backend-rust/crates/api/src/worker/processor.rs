@@ -688,10 +688,9 @@ impl AggregationProcessor {
         Ok(results)
     }
 
-    /// Fetch Pendle yield trading positions
     async fn fetch_pendle_positions(
         &self,
-        provider: &EvmProvider,
+        _provider: &EvmProvider,
         account: &str,
         chain: &Chain,
     ) -> Result<Vec<AggregationResult>> {
@@ -1210,8 +1209,7 @@ impl AggregationProcessor {
         has_nft
     }
 
-    /// Check if account has Pendle NFT
-    fn has_pendle_nft(&self, nft_contracts: &[String], chain: &Chain) -> bool {
+    fn has_pendle_nft(&self, _nft_contracts: &[String], _chain: &Chain) -> bool {
         // Pendle doesn't use NFTs for position tracking in the same way
         // This is a placeholder for future implementation
         false
