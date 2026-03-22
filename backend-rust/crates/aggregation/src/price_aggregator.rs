@@ -138,9 +138,10 @@ impl PriceAggregator {
         }
 
         if prices.is_empty() {
-            return Err(
-                DeFi10Error::NotFound(format!("No price data available for {}", symbol)),
-            );
+            return Err(DeFi10Error::NotFound(format!(
+                "No price data available for {}",
+                symbol
+            )));
         }
 
         let average_price = prices.iter().map(|p| p.price_usd).sum::<f64>() / prices.len() as f64;

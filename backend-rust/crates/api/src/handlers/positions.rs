@@ -253,10 +253,7 @@ pub async fn get_positions_by_protocol(
                 })
                 .collect(),
         };
-        grouped
-            .entry(pos.protocol)
-            .or_default()
-            .push(detail);
+        grouped.entry(pos.protocol).or_default().push(detail);
     }
 
     info!("Successfully grouped positions for wallet: {}", wallet);
@@ -326,10 +323,7 @@ pub async fn get_positions_by_chain(
                 })
                 .collect(),
         };
-        grouped
-            .entry(pos.chain)
-            .or_default()
-            .push(detail);
+        grouped.entry(pos.chain).or_default().push(detail);
     }
 
     info!("Successfully grouped positions for wallet: {}", wallet);
