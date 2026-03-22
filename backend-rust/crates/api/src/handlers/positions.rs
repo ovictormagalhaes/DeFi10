@@ -255,7 +255,7 @@ pub async fn get_positions_by_protocol(
         };
         grouped
             .entry(pos.protocol)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(detail);
     }
 
@@ -328,7 +328,7 @@ pub async fn get_positions_by_chain(
         };
         grouped
             .entry(pos.chain)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(detail);
     }
 

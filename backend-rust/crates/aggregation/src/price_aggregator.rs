@@ -88,6 +88,7 @@ impl PriceAggregator {
         #[derive(Deserialize)]
         struct CmcQuote {
             price: f64,
+            #[allow(dead_code)]
             last_updated: String,
         }
 
@@ -138,7 +139,7 @@ impl PriceAggregator {
 
         if prices.is_empty() {
             return Err(
-                DeFi10Error::NotFound(format!("No price data available for {}", symbol)).into(),
+                DeFi10Error::NotFound(format!("No price data available for {}", symbol)),
             );
         }
 
