@@ -20,7 +20,7 @@ pub struct AppConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct GraphConfig {
-    #[serde(alias = "apikey")]
+    #[serde(default, alias = "apikey")]
     pub api_key: String,
     #[serde(default = "default_graph_url_template", alias = "urltemplate")]
     pub url_template: String,
