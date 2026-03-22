@@ -17,7 +17,7 @@ services:
       - key: MongoDB__Uri
         sync: false
       - key: MongoDB__Database
-        value: defi10
+        value: DeFi10
       - key: Redis__Url
         fromService:
           type: redis
