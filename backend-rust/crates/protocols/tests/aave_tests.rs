@@ -1,5 +1,5 @@
 use defi10_core::Chain;
-use defi10_protocols::{AaveV3Service, PositionType};
+use defi10_protocols::AaveV3Service;
 use wiremock::{
     matchers::{method, path},
     Mock, MockServer, ResponseTemplate,

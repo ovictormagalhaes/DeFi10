@@ -61,16 +61,10 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo registry and build
-        uses: actions/cache@v4
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend-rust/target
-          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('backend-rust/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-e2e-
+          workspaces: backend-rust
 
       - name: Build API
         working-directory: backend-rust
