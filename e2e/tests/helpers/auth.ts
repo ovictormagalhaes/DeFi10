@@ -3,8 +3,8 @@ import { APIRequestContext } from '@playwright/test';
 const API_V1 = '/api/v1';
 
 const TEST_WALLETS = [
-  '0xF6998ed7484b4aDB3B5aD636D24CB1c576C12b27',
-  '884XrhgNyJFM88AtRpBe1JwycCiWv6PXXhY2bZHWHXQk',
+  '0x0000000000000000000000000000000000000001',
+  '11111111111111111111111111111111',
 ];
 
 export interface WalletGroup {
