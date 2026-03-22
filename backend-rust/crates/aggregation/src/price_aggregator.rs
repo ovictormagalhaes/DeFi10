@@ -88,6 +88,7 @@ impl PriceAggregator {
         #[derive(Deserialize)]
         struct CmcQuote {
             price: f64,
+            #[allow(dead_code)]
             last_updated: String,
         }
 
@@ -137,9 +138,10 @@ impl PriceAggregator {
         }
 
         if prices.is_empty() {
-            return Err(
-                DeFi10Error::NotFound(format!("No price data available for {}", symbol)).into(),
-            );
+            return Err(DeFi10Error::NotFound(format!(
+                "No price data available for {}",
+                symbol
+            )));
         }
 
         let average_price = prices.iter().map(|p| p.price_usd).sum::<f64>() / prices.len() as f64;
@@ -191,8 +193,6 @@ impl PriceAggregator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use defi10_infrastructure::cache::RedisCache;
-    use std::time::Duration;
 
     #[tokio::test]
     async fn test_token_price_creation() {

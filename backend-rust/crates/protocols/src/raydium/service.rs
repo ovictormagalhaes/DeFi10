@@ -1,4 +1,3 @@
-use super::models::*;
 use crate::types::{PositionToken, PositionType, ProtocolPosition};
 use defi10_core::{Chain, DeFi10Error, Protocol, Result};
 use reqwest::Client;
@@ -44,7 +43,7 @@ impl RaydiumService {
             wallet_address
         );
 
-        let pubkey = Pubkey::from_str(wallet_address)
+        let _pubkey = Pubkey::from_str(wallet_address)
             .map_err(|e| DeFi10Error::Validation(format!("Invalid Solana address: {}", e)))?;
 
         let nft_mints = provider.get_nft_positions(wallet_address)?;
@@ -76,9 +75,9 @@ impl RaydiumService {
         }
 
         let mut positions = Vec::new();
-        for (nft_mint, pda) in &position_pdas {
+        for (_nft_mint, pda) in &position_pdas {
             match self
-                .fetch_and_parse_position(&pda, wallet_address, &provider)
+                .fetch_and_parse_position(pda, wallet_address, &provider)
                 .await
             {
                 Ok(Some(pos)) => {
@@ -122,7 +121,7 @@ impl RaydiumService {
         &self,
         position_pda: &str,
         wallet_address: &str,
-        provider: &Arc<defi10_blockchain::SolanaProvider>,
+        _provider: &Arc<defi10_blockchain::SolanaProvider>,
     ) -> Result<Option<ProtocolPosition>> {
         let position_data = self.fetch_account_data(position_pda).await?;
 
@@ -382,8 +381,8 @@ impl RaydiumService {
 
         const Q64: u128 = 1u128 << 64;
 
-        let fees_earned_0 = (position.liquidity as u128 * fee_growth_delta_0) / Q64;
-        let fees_earned_1 = (position.liquidity as u128 * fee_growth_delta_1) / Q64;
+        let fees_earned_0 = (position.liquidity * fee_growth_delta_0) / Q64;
+        let fees_earned_1 = (position.liquidity * fee_growth_delta_1) / Q64;
 
         let total_fees_0 = position.fees_owed_token_a as u128 + fees_earned_0;
         let total_fees_1 = position.fees_owed_token_b as u128 + fees_earned_1;
@@ -519,7 +518,7 @@ impl RaydiumService {
         }
 
         let start_tick_index = i32::from_le_bytes(data[40..44].try_into().ok()?);
-        let ticks_per_array = tick_spacing * TICK_ARRAY_SIZE as i32;
+        let _ticks_per_array = tick_spacing * TICK_ARRAY_SIZE as i32;
 
         let tick_offset_in_array = ((target_tick_index - start_tick_index) / tick_spacing) as usize;
 
@@ -788,6 +787,7 @@ impl RaydiumService {
         }
     }
 
+    #[allow(dead_code)]
     async fn fetch_pool_apr(&self, pool_id: &str) -> Option<f64> {
         let url = format!("{}/pools/info/ids?ids={}", RAYDIUM_API_V3, pool_id);
 
@@ -935,6 +935,7 @@ impl ClmmPool {
 
 #[derive(Debug)]
 struct ClmmTick {
+    #[allow(dead_code)]
     tick_index: i32,
     fee_growth_outside_0_x64: u128,
     fee_growth_outside_1_x64: u128,

@@ -2,7 +2,7 @@ use mongodb::{
     bson::{doc, Document},
     Collection, Database,
 };
-use serde_json::Value;
+
 use std::error::Error;
 
 /// MongoDB field migration utility for Rust backend
@@ -118,12 +118,10 @@ impl StrategyMigrator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mongodb::bson::bson;
 
     #[tokio::test]
     async fn test_field_migration() {
-        // Mock test - would need actual MongoDB connection in integration tests
-        let mut doc = doc! {
+        let doc = doc! {
             "_id": "test_id",
             "items": [
                 {

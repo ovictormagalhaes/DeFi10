@@ -150,8 +150,5 @@ impl WalletGroupRepositoryTrait for WalletGroupRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // Note: Integration tests would require a real MongoDB instance
-    // Unit tests are limited here since we're testing against a real database
 }

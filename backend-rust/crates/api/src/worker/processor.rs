@@ -447,10 +447,9 @@ impl AggregationProcessor {
         Ok(all_results)
     }
 
-    /// Fetch Aave V3 lending/borrowing positions
     async fn fetch_aave_positions(
         &self,
-        provider: &EvmProvider,
+        _provider: &EvmProvider,
         account: &str,
         chain: &Chain,
     ) -> Result<Vec<AggregationResult>> {
@@ -481,7 +480,7 @@ impl AggregationProcessor {
 
         let mut results = Vec::new();
 
-        let health_factor_value = positions
+        let _health_factor_value = positions
             .first()
             .and_then(|p| p.metadata.get("healthFactor"))
             .and_then(|v| v.as_f64());
@@ -689,10 +688,9 @@ impl AggregationProcessor {
         Ok(results)
     }
 
-    /// Fetch Pendle yield trading positions
     async fn fetch_pendle_positions(
         &self,
-        provider: &EvmProvider,
+        _provider: &EvmProvider,
         account: &str,
         chain: &Chain,
     ) -> Result<Vec<AggregationResult>> {
@@ -837,7 +835,7 @@ impl AggregationProcessor {
             account
         );
 
-        let health_factor_value = positions
+        let _health_factor_value = positions
             .first()
             .and_then(|p| p.metadata.get("healthFactor"))
             .and_then(|v| v.as_f64());
@@ -1211,8 +1209,7 @@ impl AggregationProcessor {
         has_nft
     }
 
-    /// Check if account has Pendle NFT
-    fn has_pendle_nft(&self, nft_contracts: &[String], chain: &Chain) -> bool {
+    fn has_pendle_nft(&self, _nft_contracts: &[String], _chain: &Chain) -> bool {
         // Pendle doesn't use NFTs for position tracking in the same way
         // This is a placeholder for future implementation
         false

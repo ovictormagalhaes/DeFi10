@@ -53,13 +53,13 @@ impl DataAggregator {
             // Group by protocol
             positions_by_protocol
                 .entry(position.protocol)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(position.clone());
 
             // Group by chain
             positions_by_chain
                 .entry(position.chain)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(position);
         }
 

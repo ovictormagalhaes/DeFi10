@@ -10,7 +10,6 @@ use axum::{
 };
 use defi10_infrastructure::config::AppConfig;
 use std::sync::Arc;
-use std::time::Duration;
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -40,10 +39,6 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
 
     // Protected routes (require JWT authentication)
     let protected_routes = Router::new()
-        .route(
-            "/wallet-groups",
-            post(handlers::wallet_groups::create_wallet_group),
-        )
         .route(
             "/wallet-groups",
             get(handlers::wallet_groups::list_wallet_groups),
@@ -93,7 +88,11 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
         // PoW routes (public)
         .route("/pow/challenge", post(handlers::pow::generate_challenge))
         .route("/pow/validate", post(handlers::pow::validate_proof))
-        // Wallet Group Connect (public - generates auth token)
+        // Wallet Group public routes
+        .route(
+            "/wallet-groups",
+            post(handlers::wallet_groups::create_wallet_group),
+        )
         .route(
             "/wallet-groups/:id/connect",
             post(handlers::wallet_groups::connect_wallet_group),
@@ -146,10 +145,7 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::body::Body;
-    use axum::http::{Request, StatusCode};
     use defi10_infrastructure::config::*;
-    use tower::ServiceExt;
 
     fn create_test_config() -> AppConfig {
         AppConfig {
@@ -197,9 +193,7 @@ mod tests {
 
     #[test]
     fn test_create_router() {
-        let config = create_test_config();
-        // This test just ensures the router can be created without panicking
-        // Actual integration tests would need infrastructure running
+        let _config = create_test_config();
     }
 
     #[test]

@@ -18,26 +18,23 @@ pub async fn create_wallet_group(
     extensions: Extensions,
     Json(req): Json<CreateWalletGroupRequest>,
 ) -> Result<(StatusCode, Json<WalletGroupResponse>), DeFi10Error> {
-    let auth_user = extensions
-        .get::<AuthUser>()
-        .ok_or_else(|| DeFi10Error::Unauthorized("Authentication required".to_string()))?;
+    let auth_user = extensions.get::<AuthUser>();
 
     tracing::info!(
-        "Creating wallet group: {:?} for user: {}",
+        "Creating wallet group: {:?} for user: {:?}",
         req.display_name,
-        auth_user.user_id
+        auth_user.map(|u| &u.user_id)
     );
 
-    // Validate accounts
-    if req.accounts.is_empty() {
+    if req.wallets.is_empty() {
         return Err(DeFi10Error::Validation(
-            "At least one account is required".to_string(),
+            "At least one wallet is required".to_string(),
         ));
     }
 
-    let user_id = Some(auth_user.user_id.clone());
+    let user_id = auth_user.map(|u| u.user_id.clone());
 
-    let group = WalletGroup::new(req.display_name, req.accounts, user_id);
+    let group = WalletGroup::new(req.display_name, req.wallets, user_id);
 
     state.wallet_group_repo.create(&group).await?;
 
@@ -212,7 +209,7 @@ pub async fn connect_wallet_group(
 
     let group = state.wallet_group_repo.get(&id).await?.ok_or_else(|| {
         tracing::warn!("Connection attempt to non-existent wallet group {}", id);
-        DeFi10Error::Unauthorized("Invalid credentials".to_string())
+        DeFi10Error::NotFound(format!("Wallet group {} not found", id))
     })?;
 
     if let Some(ref password_hash) = group.password_hash {
@@ -238,7 +235,7 @@ pub async fn connect_wallet_group(
         group.id,
         group.display_name.clone(),
         &state.config.jwt.secret,
-        (state.config.jwt.expiration_hours * 60) as i64,
+        state.config.jwt.expiration_hours * 60,
     );
 
     tracing::info!("Generated JWT token for wallet group {}", id);

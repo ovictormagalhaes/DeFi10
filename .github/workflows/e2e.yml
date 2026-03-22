@@ -1,0 +1,126 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  e2e:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ping:1})'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        ports:
+          - 5672:5672
+        env:
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin123
+        options: >-
+          --health-cmd "rabbitmq-diagnostics ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend-rust
+
+      - name: Build API
+        working-directory: backend-rust
+        run: cargo build --release --bin defi10-api
+
+      - name: Create test config
+        run: |
+          cat > backend-rust/config/testing.toml << 'TOML'
+          [cors]
+          allowed_origins = ["http://localhost:3000"]
+          TOML
+
+      - name: Start API
+        working-directory: backend-rust
+        run: |
+          ./target/release/defi10-api &
+          echo "Waiting for API to start..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:10000/health > /dev/null 2>&1; then
+              echo "API is ready!"
+              break
+            fi
+            sleep 2
+          done
+        env:
+          RUST_LOG: info
+          ENVIRONMENT: testing
+          Server__Host: "0.0.0.0"
+          Server__Port: "10000"
+          MongoDB__Uri: mongodb://localhost:27017
+          MongoDB__Database: defi10_e2e_test
+          Redis__Url: redis://localhost:6379
+          RabbitMQ__Url: amqp://admin:admin123@localhost:5672
+          Jwt__Secret: test-secret-key-super-secure-for-testing-only-12345678
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: e2e
+        run: npx playwright test
+        env:
+          API_BASE_URL: http://localhost:10000
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: e2e/playwright-report/
+          retention-days: 14

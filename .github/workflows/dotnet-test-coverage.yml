@@ -3,8 +3,14 @@ name: .NET Test and Coverage
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/dotnet-test-coverage.yml'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/dotnet-test-coverage.yml'
 
 permissions:
   contents: read

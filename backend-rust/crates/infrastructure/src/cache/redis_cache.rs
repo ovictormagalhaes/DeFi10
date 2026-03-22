@@ -10,7 +10,7 @@ pub const PROTOCOL_PREFIX: &str = "protocol";
 
 #[derive(Clone)]
 pub struct RedisCache {
-    client: Client,
+    _client: Client,
     connection: MultiplexedConnection,
     default_ttl: Duration,
 }
@@ -26,7 +26,7 @@ impl RedisCache {
             .map_err(|e| DeFi10Error::Cache(format!("Failed to connect to Redis: {}", e)))?;
 
         Ok(Self {
-            client,
+            _client: client,
             connection,
             default_ttl: Duration::from_secs(default_ttl_seconds),
         })
@@ -45,6 +45,7 @@ impl RedisCache {
     }
 }
 
+#[allow(async_fn_in_trait)]
 pub trait CacheService {
     async fn get<T: DeserializeOwned>(&mut self, prefix: &str, key: &str) -> Result<Option<T>>;
 
@@ -153,7 +154,7 @@ impl CacheService for RedisCache {
 mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
-    use testcontainers::{runners::AsyncRunner, ImageExt};
+    use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::redis::Redis;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

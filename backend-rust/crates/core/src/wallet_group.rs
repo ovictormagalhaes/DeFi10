@@ -128,7 +128,8 @@ impl WalletGroup {
 #[serde(rename_all = "camelCase")]
 pub struct CreateWalletGroupRequest {
     pub display_name: Option<String>,
-    pub accounts: Vec<String>,
+    #[serde(alias = "accounts")]
+    pub wallets: Vec<String>,
 }
 
 /// Request to update a wallet group
@@ -145,8 +146,8 @@ pub struct UpdateWalletGroupRequest {
 pub struct WalletGroupResponse {
     pub id: Uuid,
     pub display_name: Option<String>,
-    pub accounts: Vec<String>,
-    pub user_id: Option<String>,
+    pub wallets: Vec<String>,
+    pub has_password: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -156,8 +157,8 @@ impl From<WalletGroup> for WalletGroupResponse {
         Self {
             id: group.id,
             display_name: group.display_name,
-            accounts: group.accounts,
-            user_id: group.user_id,
+            wallets: group.accounts,
+            has_password: group.password_hash.is_some(),
             created_at: group.created_at,
             updated_at: group.updated_at,
         }

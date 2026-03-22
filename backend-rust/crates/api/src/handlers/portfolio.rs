@@ -3,17 +3,17 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Json},
 };
-use defi10_aggregation::{AggregatedPortfolio, DataAggregator, PortfolioSummary};
+use defi10_aggregation::DataAggregator;
 use defi10_core::{Chain, Protocol};
 use defi10_protocols::ProtocolPosition;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{error, info};
 
 use crate::state::AppState;
 
-/// Helper to convert AggregationResult to ProtocolPosition
+#[allow(dead_code)]
 fn to_protocol_position(r: defi10_core::aggregation::AggregationResult) -> ProtocolPosition {
     // Parse protocol, default to Moralis (wallet) if cannot parse
     let protocol = r.protocol.parse().unwrap_or(Protocol::Moralis);

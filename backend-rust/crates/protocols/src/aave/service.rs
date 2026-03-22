@@ -96,7 +96,7 @@ impl AaveV3Service {
         let chain_config = self
             .chain_configs
             .get(&chain)
-            .ok_or_else(|| DeFi10Error::ChainNotSupported(chain))?;
+            .ok_or(DeFi10Error::ChainNotSupported(chain))?;
 
         let mut positions = Vec::new();
 

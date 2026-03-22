@@ -3,12 +3,7 @@ use crate::{
     middleware::{ApiResult, AuthUser},
     state::AppState,
 };
-use axum::{
-    extract::Path,
-    extract::State,
-    http::{Extensions, StatusCode},
-    Json,
-};
+use axum::{extract::Path, extract::State, http::Extensions, Json};
 use defi10_core::aggregation::{AggregationJob, AggregationResult, JobStatus};
 use defi10_core::DeFi10Error;
 use defi10_infrastructure::aggregation::{AggregationPublisher, JobManager};
@@ -808,6 +803,7 @@ fn compute_apy_projection(
     }])
 }
 
+#[allow(dead_code)]
 fn extract_transaction_history(result: &AggregationResult) -> Option<AdditionalData> {
     let metadata = result.metadata.as_ref()?;
     let health_factor = metadata.get("healthFactor").and_then(|v| v.as_f64());
@@ -843,6 +839,7 @@ fn extract_transaction_history(result: &AggregationResult) -> Option<AdditionalD
     })
 }
 
+#[allow(dead_code)]
 fn token_symbol_to_name(symbol: &str) -> String {
     match symbol.to_uppercase().as_str() {
         "ETH" => "Ether".to_string(),

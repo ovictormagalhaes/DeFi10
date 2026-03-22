@@ -218,7 +218,7 @@ impl MessageConsumer {
 mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
-    use testcontainers::{runners::AsyncRunner, ImageExt};
+    use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::rabbitmq::RabbitMq;
     use tokio_stream::StreamExt;
 

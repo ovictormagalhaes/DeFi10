@@ -21,7 +21,6 @@ pub async fn health_check(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::state::{HealthStatus, ServiceStatus};
 
     #[test]
