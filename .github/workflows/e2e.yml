@@ -65,11 +65,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend-rust
-          shared-key: e2e-release
+          shared-key: ci-debug
 
       - name: Build API
         working-directory: backend-rust
-        run: cargo build --release --bin defi10-api
+        run: cargo build --bin defi10-api
 
       - name: Create test config
         run: |
@@ -81,7 +81,7 @@ jobs:
       - name: Start API
         working-directory: backend-rust
         run: |
-          ./target/release/defi10-api &
+          ./target/debug/defi10-api &
           echo "Waiting for API to start..."
           for i in $(seq 1 30); do
             if curl -sf http://localhost:10000/health > /dev/null 2>&1; then

@@ -17,7 +17,6 @@ import type {
   SaveStrategiesResponse,
   StrategyData
 } from '../types/strategy';
-import type { Challenge } from './proofOfWork';
 
 const TOKEN_STORAGE_KEY = 'defi10_wallet_group_tokens';
 
@@ -92,7 +91,7 @@ export { getToken, storeToken, removeToken, notifyTokenExpired };
 axios.interceptors.request.use((config) => {
   // Match wallet-groups routes: /wallet-groups/{id}
   let match = config.url?.match(/\/wallet-groups\/([^\/]+)/);
-  if (match && match[1] && match[1] !== 'challenge') {
+  if (match && match[1]) {
     const walletGroupId = decodeURIComponent(match[1]);
     const token = getToken(walletGroupId);
     
@@ -136,7 +135,7 @@ axios.interceptors.response.use(
     if (error.response?.status === 401) {
       // Check wallet-groups routes
       let match = error.config?.url?.match(/\/wallet-groups\/([^\/]+)/);
-      if (match && match[1] && match[1] !== 'challenge' && match[1] !== 'connect') {
+      if (match && match[1] && match[1] !== 'connect') {
         const walletGroupId = decodeURIComponent(match[1]);
         removeToken(walletGroupId);
         notifyTokenExpired(walletGroupId);
@@ -182,11 +181,6 @@ export async function getHealth(): Promise<HealthStatus> {
 export async function getSupportedChains(): Promise<SupportedChain[]> {
   const data = await getJSON<{ chains?: SupportedChain[] }>(api.getSupportedChains());
   return data.chains || [];
-}
-
-export async function getChallenge(): Promise<Challenge> {
-  const res = await axios.get(api.getChallenge());
-  return res.data;
 }
 
 export async function createWalletGroup(data: CreateWalletGroupRequest): Promise<WalletGroup> {

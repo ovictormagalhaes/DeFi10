@@ -17,6 +17,7 @@ async fn main() -> Result<()> {
     // Load configuration
     let config = load_config()?;
     info!("Configuration loaded successfully");
+    info!("CORS allowed origins: {:?}", config.cors.allowed_origins);
 
     // Start worker in background
     let worker_config = config.clone();
