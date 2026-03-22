@@ -193,8 +193,6 @@ impl PriceAggregator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use defi10_infrastructure::cache::RedisCache;
-    use std::time::Duration;
 
     #[tokio::test]
     async fn test_token_price_creation() {

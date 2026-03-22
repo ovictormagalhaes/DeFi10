@@ -154,7 +154,7 @@ impl CacheService for RedisCache {
 mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
-    use testcontainers::{runners::AsyncRunner, ImageExt};
+    use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::redis::Redis;
 
     #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
