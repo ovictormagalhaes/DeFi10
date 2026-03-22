@@ -186,7 +186,7 @@ impl PriceHydrationService {
         );
     }
 
-    async fn try_fetch_price(&self, symbol: &str, chain: &str) -> Option<f64> {
+    async fn try_fetch_price(&self, symbol: &str, _chain: &str) -> Option<f64> {
         if let Some(coingecko_id) = symbol_to_coingecko_id(symbol) {
             match self.coingecko.get_prices(&[coingecko_id]).await {
                 Ok(prices) => {

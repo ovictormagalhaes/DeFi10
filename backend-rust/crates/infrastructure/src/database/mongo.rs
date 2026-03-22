@@ -5,7 +5,6 @@ use mongodb::{
     Client, Collection, Database,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct MongoDatabase {

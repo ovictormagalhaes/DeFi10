@@ -2,9 +2,7 @@ use crate::traits::{BlockchainProvider, TokenBalance, TransactionStatus};
 use async_trait::async_trait;
 use defi10_core::{Chain, DeFi10Error, Result};
 use serde::{Deserialize, Serialize};
-use solana_account_decoder::UiAccountEncoding;
 use solana_client::rpc_client::RpcClient;
-use solana_client::rpc_config::RpcAccountInfoConfig;
 use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signature};
 use std::str::FromStr;
@@ -52,6 +50,7 @@ impl SolanaProvider {
         })
     }
 
+    #[allow(clippy::result_large_err)]
     fn retry_rpc<T, F>(&self, operation: F, operation_name: &str, max_attempts: u32) -> Result<T>
     where
         F: Fn(&RpcClient) -> std::result::Result<T, solana_client::client_error::ClientError>,
@@ -253,6 +252,7 @@ impl SolanaProvider {
         Ok(token_accounts)
     }
 
+    #[allow(dead_code)]
     fn get_mint_info(&self, mint_address: &str) -> Option<(u64, u8)> {
         let mint_pubkey = Pubkey::from_str(mint_address).ok()?;
         let account = self.client.get_account(&mint_pubkey).ok()?;
