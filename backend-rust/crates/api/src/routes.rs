@@ -41,10 +41,6 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
     let protected_routes = Router::new()
         .route(
             "/wallet-groups",
-            post(handlers::wallet_groups::create_wallet_group),
-        )
-        .route(
-            "/wallet-groups",
             get(handlers::wallet_groups::list_wallet_groups),
         )
         .route(
@@ -92,7 +88,11 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
         // PoW routes (public)
         .route("/pow/challenge", post(handlers::pow::generate_challenge))
         .route("/pow/validate", post(handlers::pow::validate_proof))
-        // Wallet Group Connect (public - generates auth token)
+        // Wallet Group public routes
+        .route(
+            "/wallet-groups",
+            post(handlers::wallet_groups::create_wallet_group),
+        )
         .route(
             "/wallet-groups/:id/connect",
             post(handlers::wallet_groups::connect_wallet_group),
