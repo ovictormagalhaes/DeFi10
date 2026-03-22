@@ -1,0 +1,65 @@
+name: Rust Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'backend-rust/**'
+      - '.github/workflows/rust-tests.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'backend-rust/**'
+      - '.github/workflows/rust-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+
+defaults:
+  run:
+    working-directory: backend-rust
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend-rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('backend-rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build
+        run: cargo build --all-targets
+
+      - name: Run tests
+        run: cargo test --all --verbose
