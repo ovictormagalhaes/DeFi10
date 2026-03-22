@@ -246,8 +246,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
 
     let env = env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string());
 
-    let config = Config::builder()
-        // Start with default values
+    let mut builder = Config::builder()
         .set_default("server.host", "0.0.0.0")?
         .set_default("server.port", 10000)?
         .set_default("redis.pool_size", 10)?
@@ -256,11 +255,15 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
         .set_default("rate_limiting.max_requests", 100)?
         .set_default("rate_limiting.window_seconds", 60)?
         .set_default("rabbitmq.prefetch_count", 10)?
-        .set_default("jwt.expiration_hours", 24)?
-        // Load config file (if exists)
-        .add_source(File::with_name("config/default").required(false))
-        .add_source(File::with_name(&format!("config/{}", env)).required(false))
-        // Override with environment variables
+        .set_default("jwt.expiration_hours", 24)?;
+
+    if env != "production" {
+        builder = builder
+            .add_source(File::with_name("config/default").required(false))
+            .add_source(File::with_name(&format!("config/{}", env)).required(false));
+    }
+
+    let config = builder
         .add_source(Environment::default().separator("__"))
         .build()?;
 

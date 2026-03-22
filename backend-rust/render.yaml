@@ -6,6 +6,8 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     envVars:
+      - key: ENVIRONMENT
+        value: production
       - key: RUST_LOG
         value: info
       - key: Server__Host
