@@ -447,10 +447,9 @@ impl AggregationProcessor {
         Ok(all_results)
     }
 
-    /// Fetch Aave V3 lending/borrowing positions
     async fn fetch_aave_positions(
         &self,
-        provider: &EvmProvider,
+        _provider: &EvmProvider,
         account: &str,
         chain: &Chain,
     ) -> Result<Vec<AggregationResult>> {
@@ -481,7 +480,7 @@ impl AggregationProcessor {
 
         let mut results = Vec::new();
 
-        let health_factor_value = positions
+        let _health_factor_value = positions
             .first()
             .and_then(|p| p.metadata.get("healthFactor"))
             .and_then(|v| v.as_f64());
@@ -837,7 +836,7 @@ impl AggregationProcessor {
             account
         );
 
-        let health_factor_value = positions
+        let _health_factor_value = positions
             .first()
             .and_then(|p| p.metadata.get("healthFactor"))
             .and_then(|v| v.as_f64());

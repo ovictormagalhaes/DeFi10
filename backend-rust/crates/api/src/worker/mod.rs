@@ -192,10 +192,8 @@ async fn check_job_completion(job_id: &Uuid, job_manager: &JobManager) -> Result
         // Check if all tasks are processed
         if total_processed >= snapshot.expected_total {
             // Determine final status
-            let final_status = if snapshot.succeeded == snapshot.expected_total {
+            let final_status = if snapshot.succeeded > 0 {
                 JobStatus::Completed
-            } else if snapshot.succeeded > 0 {
-                JobStatus::Completed // Partial success
             } else {
                 JobStatus::Failed
             };
