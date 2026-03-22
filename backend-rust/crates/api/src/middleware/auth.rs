@@ -81,17 +81,13 @@ pub async fn optional_auth_middleware(
         .and_then(|h| h.to_str().ok())
     {
         // Check for Bearer token
-        if auth_header.starts_with("Bearer ") {
-            let token = &auth_header[7..]; // Remove "Bearer " prefix
-
-            // Validate JWT
+        if let Some(token) = auth_header.strip_prefix("Bearer ") {
             let secret = &state.config.jwt.secret;
             if let Ok(token_data) = decode::<Claims>(
                 token,
                 &DecodingKey::from_secret(secret.as_ref()),
                 &Validation::new(Algorithm::HS256),
             ) {
-                // Add user info to request extensions
                 let auth_user = AuthUser {
                     user_id: token_data.claims.sub.clone(),
                     email: token_data.claims.email.clone(),

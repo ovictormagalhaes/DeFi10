@@ -1,4 +1,4 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, Json};
 use defi10_core::pow::{Challenge, ProofRequest, ProofResponse};
 use std::sync::Arc;
 

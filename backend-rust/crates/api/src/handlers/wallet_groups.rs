@@ -238,7 +238,7 @@ pub async fn connect_wallet_group(
         group.id,
         group.display_name.clone(),
         &state.config.jwt.secret,
-        (state.config.jwt.expiration_hours * 60) as i64,
+        state.config.jwt.expiration_hours * 60,
     );
 
     tracing::info!("Generated JWT token for wallet group {}", id);

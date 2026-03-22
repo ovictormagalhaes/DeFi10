@@ -39,7 +39,7 @@ pub struct ErrorResponse {
 /// Returns aggregated price for a token symbol
 pub async fn get_price(
     Path(symbol): Path<String>,
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     info!("Fetching price for symbol: {}", symbol);
 
@@ -98,7 +98,7 @@ pub async fn get_price(
 /// Returns prices for multiple tokens
 pub async fn get_batch_prices(
     Query(params): Query<BatchPricesQuery>,
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let symbols: Vec<&str> = params.symbols.split(',').collect();
     info!("Fetching batch prices for {} symbols", symbols.len());

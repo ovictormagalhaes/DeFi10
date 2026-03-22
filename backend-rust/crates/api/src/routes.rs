@@ -10,7 +10,6 @@ use axum::{
 };
 use defi10_infrastructure::config::AppConfig;
 use std::sync::Arc;
-use std::time::Duration;
 use tower::ServiceBuilder;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -146,10 +145,7 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::body::Body;
-    use axum::http::{Request, StatusCode};
     use defi10_infrastructure::config::*;
-    use tower::ServiceExt;
 
     fn create_test_config() -> AppConfig {
         AppConfig {
@@ -197,9 +193,7 @@ mod tests {
 
     #[test]
     fn test_create_router() {
-        let config = create_test_config();
-        // This test just ensures the router can be created without panicking
-        // Actual integration tests would need infrastructure running
+        let _config = create_test_config();
     }
 
     #[test]
