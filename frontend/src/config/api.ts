@@ -175,7 +175,6 @@ export const api = {
     `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${walletGroupId}`,
 
   // Wallet Groups CRUD
-  getChallenge: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/challenge`,
   createWalletGroup: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}`,
   // REMOVED: checkWalletGroup - /check endpoint does not exist in backend
   // checkWalletGroup: (id: string) =>
@@ -190,10 +189,10 @@ export const api = {
     `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}`,
 
   // Aggregation jobs (pluralized backend: /api/v1/aggregations)
-  // Contrato atual: POST /api/v1/aggregations  body: { account, chains? }
+  // Contrato atual: POST /api/v1/aggregations  body: { accounts, chains? }
   startAggregation: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.AGGREGATIONS}`,
   buildStartAggregationBody: (account: string, chains?: string[] | string) => {
-    const body: any = { account };
+    const body: any = { accounts: [account] };
     if (chains) body.chains = Array.isArray(chains) ? chains : [chains];
     return JSON.stringify(body);
   },
@@ -204,7 +203,7 @@ export const api = {
     chains?: string[] | string;
   }) => {
     const body: any = {};
-    if (options.account) body.account = options.account;
+    if (options.account) body.accounts = [options.account];
     if (options.walletGroupId) body.walletGroupId = options.walletGroupId;
     if (options.chains) {
       body.chains = Array.isArray(options.chains) ? options.chains : [options.chains];

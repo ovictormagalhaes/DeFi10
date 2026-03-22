@@ -14,8 +14,6 @@ export interface CreateWalletGroupRequest {
   wallets: string[];
   displayName?: string;
   password?: string;
-  challenge?: string;
-  nonce?: string; // Backend expects string, not number
 }
 
 export interface UpdateWalletGroupRequest {
