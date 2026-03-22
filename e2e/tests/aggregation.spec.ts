@@ -21,9 +21,9 @@ test.describe('Aggregation', () => {
   });
 
   test.describe('POST /aggregations - Start Job', () => {
-    test('should start aggregation with a single wallet address', async ({ request }) => {
+    test('should start aggregation with accounts array', async ({ request }) => {
       const res = await request.post(`${API_V1}/aggregations`, {
-        data: { account: TEST_WALLETS[0] },
+        data: { accounts: [TEST_WALLETS[0]] },
       });
 
       expect(res.status()).toBe(200);
@@ -41,20 +41,21 @@ test.describe('Aggregation', () => {
       expect(res.status()).toBe(200);
       const body = await res.json();
       expect(body.jobId).toBeDefined();
-      expect(body.accounts).toBeDefined();
+      expect(body.status).toBeDefined();
     });
 
-    test('should return 401 when using walletGroupId without token', async ({ request }) => {
+    test('should return 400 when no accounts or walletGroupId provided', async ({ request }) => {
       const res = await request.post(`${API_V1}/aggregations`, {
-        data: { walletGroupId },
+        data: {},
       });
 
-      expect([401, 400]).toContain(res.status());
+      expect(res.status()).toBeGreaterThanOrEqual(400);
+      expect(res.status()).toBeLessThan(500);
     });
 
-    test('should reject invalid wallet address', async ({ request }) => {
+    test('should reject empty accounts array', async ({ request }) => {
       const res = await request.post(`${API_V1}/aggregations`, {
-        data: { account: 'not-a-valid-address' },
+        data: { accounts: [] },
       });
 
       expect(res.status()).toBeGreaterThanOrEqual(400);
@@ -65,7 +66,7 @@ test.describe('Aggregation', () => {
   test.describe('GET /aggregations/:jobId - Get Results', () => {
     test('should return job status for a valid jobId', async ({ request }) => {
       const startRes = await request.post(`${API_V1}/aggregations`, {
-        data: { account: TEST_WALLETS[0] },
+        data: { accounts: [TEST_WALLETS[0]] },
       });
       const { jobId } = await startRes.json();
 
