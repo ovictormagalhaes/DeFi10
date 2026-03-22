@@ -2,7 +2,7 @@
 /target
 **/*.rs.bk
 *.pdb
-Cargo.lock
+# Cargo.lock is committed for binaries (api, worker)
 
 # IDE
 .idea/
