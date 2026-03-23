@@ -45,6 +45,23 @@ REST API → RabbitMQ → Workers → External APIs (Alchemy, Moralis)
 - .NET 9 SDK
 - Redis, MongoDB, RabbitMQ
 
+### Run API Tests (E2E)
+
+Complete automated API testing with Docker:
+
+```powershell
+cd backend\api-e2e-tests-csharp
+.\run-tests.ps1
+```
+
+**What it does:**
+- ✅ Spins up API + MongoDB + Redis in Docker
+- ✅ Runs 100+ test cases covering all endpoints
+- ✅ Validates authentication, validation, and business logic
+- ✅ Generates coverage reports
+
+See [backend/api-e2e-tests-csharp/README.md](backend/api-e2e-tests-csharp/README.md) for details.
+
 ### Run Locally
 
 ```bash
