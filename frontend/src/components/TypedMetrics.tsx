@@ -1,12 +1,12 @@
 import React from 'react';
 
-import { useMaskValues } from '../context/MaskValuesContext.tsx';
+import { useMaskValues } from '../context/MaskValuesContext';
 import { useTheme } from '../context/ThemeProvider';
 import type { WalletItem, Range } from '../types/wallet';
 import { extractHealthFactor, extractPoolFees24h, extractPoolRange } from '../types/wallet';
 import { formatPrice } from '../utils/walletUtils.js';
 
-import MiniMetric from './MiniMetric.jsx';
+import MiniMetric from './MiniMetric';
 
 interface TypedMetricsProps {
   items: WalletItem[];
