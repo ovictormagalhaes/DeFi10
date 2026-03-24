@@ -117,61 +117,59 @@ async fn main() -> Result<()> {
 
     while let Some(delivery) = consumer.next().await {
         match delivery {
-            Ok(delivery) => {
-                match serde_json::from_slice::<AggregationMessage>(&delivery.data) {
-                    Ok(message) => {
-                        info!(
-                            "Processing job {} for account {} on chain {}",
-                            message.job_id, message.account, message.chain
-                        );
+            Ok(delivery) => match serde_json::from_slice::<AggregationMessage>(&delivery.data) {
+                Ok(message) => {
+                    info!(
+                        "Processing job {} for account {} on chain {}",
+                        message.job_id, message.account, message.chain
+                    );
 
-                        let job_manager = Arc::clone(&job_manager);
-                        let processor = Arc::clone(&processor);
-                        let mut cache_clone = cache.clone();
+                    let job_manager = Arc::clone(&job_manager);
+                    let processor = Arc::clone(&processor);
+                    let mut cache_clone = cache.clone();
 
-                        match process_message(
-                            message,
-                            job_manager,
-                            processor,
-                            &mut cache_clone,
-                            account_cache_ttl,
-                        )
-                        .await
-                        {
-                            Ok(_) => {
-                                info!("Message processed successfully");
-                                if let Err(e) = delivery
-                                    .ack(lapin::options::BasicAckOptions::default())
-                                    .await
-                                {
-                                    error!("Failed to ack message: {}", e);
-                                }
-                            }
-                            Err(e) => {
-                                error!("Failed to process message: {}", e);
-                                if let Err(e) = delivery
-                                    .nack(lapin::options::BasicNackOptions {
-                                        requeue: true,
-                                        ..Default::default()
-                                    })
-                                    .await
-                                {
-                                    error!("Failed to nack message: {}", e);
-                                }
+                    match process_message(
+                        message,
+                        job_manager,
+                        processor,
+                        &mut cache_clone,
+                        account_cache_ttl,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            info!("Message processed successfully");
+                            if let Err(e) = delivery
+                                .ack(lapin::options::BasicAckOptions::default())
+                                .await
+                            {
+                                error!("Failed to ack message: {}", e);
                             }
                         }
-                    }
-                    Err(e) => {
-                        error!("Failed to parse message: {}", e);
-                        if let Err(e) = delivery
-                            .ack(lapin::options::BasicAckOptions::default())
-                            .await
-                        {
-                            error!("Failed to ack invalid message: {}", e);
+                        Err(e) => {
+                            error!("Failed to process message: {}", e);
+                            if let Err(e) = delivery
+                                .nack(lapin::options::BasicNackOptions {
+                                    requeue: true,
+                                    ..Default::default()
+                                })
+                                .await
+                            {
+                                error!("Failed to nack message: {}", e);
+                            }
                         }
                     }
                 }
-            }
+                Err(e) => {
+                    error!("Failed to parse message: {}", e);
+                    if let Err(e) = delivery
+                        .ack(lapin::options::BasicAckOptions::default())
+                        .await
+                    {
+                        error!("Failed to ack invalid message: {}", e);
+                    }
+                }
+            },
             Err(e) => {
                 error!("Consumer error: {}", e);
                 break;
@@ -221,7 +219,12 @@ async fn process_message(
 
         if let Ok(ref r) = results {
             if let Err(e) = cache
-                .set(AGGREGATION_CACHE_PREFIX, &cache_key, r, Some(account_cache_ttl))
+                .set(
+                    AGGREGATION_CACHE_PREFIX,
+                    &cache_key,
+                    r,
+                    Some(account_cache_ttl),
+                )
                 .await
             {
                 warn!(

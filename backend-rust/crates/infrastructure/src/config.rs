@@ -94,7 +94,10 @@ pub struct RedisConfig {
     pub pool_size: u32,
     #[serde(alias = "defaultttlseconds")]
     pub default_ttl_seconds: u64,
-    #[serde(default = "default_account_cache_ttl", alias = "accountcachettlseconds")]
+    #[serde(
+        default = "default_account_cache_ttl",
+        alias = "accountcachettlseconds"
+    )]
     pub account_cache_ttl_seconds: u64,
 }
 
