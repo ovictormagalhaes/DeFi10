@@ -161,6 +161,7 @@ mod tests {
                 url: "redis://localhost:6379".to_string(),
                 pool_size: 10,
                 default_ttl_seconds: 300,
+                account_cache_ttl_seconds: 120,
             },
             rabbitmq: RabbitMqConfig {
                 url: "amqp://localhost:5672".to_string(),
