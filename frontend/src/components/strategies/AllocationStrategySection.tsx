@@ -25,7 +25,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useTheme } from '../../context/ThemeProvider';
 import { useAllocationStrategy } from '../../hooks/strategies/useAllocationStrategy';
 import { useHealthFactorStrategy } from '../../hooks/useHealthFactorStrategy';
-import { clearStrategyCache } from '../../hooks/useSharedStrategyCache';
+import { clearStrategyCache, loadStrategyWithCache } from '../../hooks/useSharedStrategyCache';
 import { getStrategyByGroup, saveStrategies } from '../../services/apiClient';
 
 import type { WalletItem } from '../../types/wallet';
@@ -122,8 +122,7 @@ export const AllocationStrategySection: React.FC<
       // Single API call for both strategy types
       (async () => {
         try {
-          const { loadStrategyWithCache } = await import('../../hooks/useSharedStrategyCache');
-          const cachedData = await loadStrategyWithCache(walletGroupId);
+                    const cachedData = await loadStrategyWithCache(walletGroupId);
           
           // Keep ALL strategies in the order returned by backend
           const allStrategiesFromBackend = cachedData?.strategies || [];
@@ -180,8 +179,7 @@ export const AllocationStrategySection: React.FC<
     
     // Reload all strategies to update the list
     (async () => {
-      const { loadStrategyWithCache } = await import('../../hooks/useSharedStrategyCache');
-      clearStrategyCache(walletGroupId);
+            clearStrategyCache(walletGroupId);
       const data = await loadStrategyWithCache(walletGroupId);
       setAllStrategies((data?.strategies || []) as Strategy[]);
     })();
@@ -276,8 +274,7 @@ export const AllocationStrategySection: React.FC<
         
         // Reload all strategies to update the list in backend order
         (async () => {
-          const { loadStrategyWithCache } = await import('../../hooks/useSharedStrategyCache');
-          const data = await loadStrategyWithCache(walletGroupId);
+                    const data = await loadStrategyWithCache(walletGroupId);
           setAllStrategies((data?.strategies || []) as Strategy[]);
         })();
         
