@@ -4,6 +4,10 @@ namespace DeFi10.API.Models;
 
 public class ProjectionMetadata
 {
+    [JsonPropertyName("value")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? Value { get; set; }
+
     [JsonPropertyName("apr")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public decimal? Apr { get; set; }

@@ -23,7 +23,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -Dwarnings
 
 defaults:
   run:
@@ -52,6 +51,8 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run clippy
+        env:
+          RUSTFLAGS: -Dwarnings
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run tests
@@ -60,8 +61,19 @@ jobs:
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
 
+      - name: Install llvm-tools
+        run: rustup component add llvm-tools-preview
+
       - name: Run coverage
-        run: cargo tarpaulin --workspace --out xml --output-dir ./coverage --timeout 600
+        run: |
+          cargo tarpaulin \
+            --workspace \
+            --engine llvm \
+            --out xml \
+            --output-dir ./coverage \
+            --timeout 600 \
+            --exclude defi10-worker defi10-infrastructure defi10-blockchain \
+            --exclude-files "crates/worker/*" "crates/infrastructure/*" "crates/blockchain/*" "**/main.rs"
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
