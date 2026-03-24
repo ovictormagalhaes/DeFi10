@@ -5,7 +5,7 @@
  */
 import React from 'react';
 
-import { useMaskValues } from '../context/MaskValuesContext.tsx';
+import { useMaskValues } from '../context/MaskValuesContext';
 import { useTheme } from '../context/ThemeProvider';
 import type { WalletItem, Token, Range } from '../types/wallet';
 import {
@@ -25,7 +25,7 @@ import {
 
 import MiniMetric from './MiniMetric';
 import RangeChip from './RangeChip';
-import TokenDisplay from './TokenDisplay.tsx';
+import TokenDisplay from './TokenDisplay';
 
 // MetricCard Component
 const MetricCard: React.FC<{

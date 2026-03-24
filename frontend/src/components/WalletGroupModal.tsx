@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { useTheme } from '../context/ThemeProvider.tsx';
+import { useTheme } from '../context/ThemeProvider';
 import { useWalletGroups } from '../hooks/useWalletGroups';
 import {
   validateSingleAddress,

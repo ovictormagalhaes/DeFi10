@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 
-import { useMaskValues } from '../../context/MaskValuesContext.tsx';
+import { useMaskValues } from '../../context/MaskValuesContext';
 import type { WalletItem } from '../../types/wallet';
 import { filterSuppliedTokens } from '../../utils/tokenFilters';
 import {
@@ -13,7 +13,7 @@ import {
 import MiniMetric from '../MiniMetric';
 import StandardHeader from '../table/StandardHeader';
 import TableFooter from '../table/TableFooter';
-import TokenDisplay from '../TokenDisplay.tsx';
+import TokenDisplay from '../TokenDisplay';
 
 // Interface para props do componente
 interface DepositTablesProps {
