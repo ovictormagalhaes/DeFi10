@@ -6,7 +6,8 @@ export default defineConfig({
   base: '/', // Ensure base path is root for static deployment
   build: {
     outDir: 'dist',
-    sourcemap: false, // Disable sourcemaps in production for smaller bundle
+    sourcemap: false,
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks: {
