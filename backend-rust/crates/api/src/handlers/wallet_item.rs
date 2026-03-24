@@ -43,22 +43,97 @@ impl WalletItemType {
 pub struct ProtocolInfo {
     pub name: String,
     pub chain: String,
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
+    pub key: String,
 }
 
 impl ProtocolInfo {
-    pub fn new(name: &str, chain: &str) -> Self {
+    pub fn new(name: &str, chain: &str, id: &str) -> Self {
+        let key = format!(
+            "{}-{}-{}",
+            name.to_lowercase(),
+            chain.to_lowercase(),
+            id.to_lowercase()
+        );
         Self {
             name: name.to_string(),
             chain: chain.to_string(),
+            id: id.to_string(),
+            url: None,
+            logo: None,
+            key,
         }
     }
 
-    pub fn wallet(chain: &str) -> Self { Self::new("Wallet", chain) }
-    pub fn aave_v3(chain: &str) -> Self { Self::new("Aave V3", chain) }
-    pub fn uniswap_v3(chain: &str) -> Self { Self::new("Uniswap V3", chain) }
-    pub fn raydium(chain: &str) -> Self { Self::new("Raydium", chain) }
-    pub fn kamino(chain: &str) -> Self { Self::new("Kamino", chain) }
-    pub fn pendle(chain: &str) -> Self { Self::new("Pendle V2", chain) }
+    pub fn wallet(chain: &str) -> Self {
+        Self {
+            name: "Wallet".to_string(),
+            chain: chain.to_string(),
+            id: "moralis".to_string(),
+            url: Some("https://moralis.io".to_string()),
+            logo: Some("https://moralis.com/wp-content/uploads/web3wiki/840-moralis/637b68b19fa9435d888c9cf0_aY-cSH39nYSEEvIN-9hCed-2B5ISs9a4epw2oiGlKMI.jpeg".to_string()),
+            key: format!("wallet-{}-moralis", chain.to_lowercase()),
+        }
+    }
+
+    pub fn aave_v3(chain: &str) -> Self {
+        Self {
+            name: "Aave V3".to_string(),
+            chain: chain.to_string(),
+            id: "aave-v3".to_string(),
+            url: Some("https://app.aave.com".to_string()),
+            logo: Some("https://cdn.moralis.io/defi/aave.png".to_string()),
+            key: format!("aave v3-{}-aave-v3", chain.to_lowercase()),
+        }
+    }
+
+    pub fn uniswap_v3(chain: &str) -> Self {
+        Self {
+            name: "Uniswap V3".to_string(),
+            chain: chain.to_string(),
+            id: "uniswap-v3".to_string(),
+            url: Some("https://app.uniswap.org".to_string()),
+            logo: Some("https://cdn.moralis.io/defi/uniswap.png".to_string()),
+            key: format!("uniswap v3-{}-uniswap-v3", chain.to_lowercase()),
+        }
+    }
+
+    pub fn raydium(chain: &str) -> Self {
+        Self {
+            name: "Raydium".to_string(),
+            chain: chain.to_string(),
+            id: "raydium".to_string(),
+            url: Some("https://raydium.io".to_string()),
+            logo: Some("https://raydium.io/logo.png".to_string()),
+            key: format!("raydium-{}-raydium", chain.to_lowercase()),
+        }
+    }
+
+    pub fn kamino(chain: &str) -> Self {
+        Self {
+            name: "Kamino".to_string(),
+            chain: chain.to_string(),
+            id: "kamino".to_string(),
+            url: Some("https://app.kamino.finance".to_string()),
+            logo: Some("https://app.kamino.finance/favicon.ico".to_string()),
+            key: format!("kamino-{}-kamino", chain.to_lowercase()),
+        }
+    }
+
+    pub fn pendle(chain: &str) -> Self {
+        Self {
+            name: "Pendle V2".to_string(),
+            chain: chain.to_string(),
+            id: "pendle-v2".to_string(),
+            url: Some("https://app.pendle.finance".to_string()),
+            logo: Some("https://logo.moralis.io/0xa4b1_0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8_0270cab3e068234013aa17f290e4b6cb.png".to_string()),
+            key: format!("pendle v2-{}-pendle-v2", chain.to_lowercase()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -246,6 +321,12 @@ pub struct AdditionalData {
     pub fees_24h: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_value_usd: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apr: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apr_historical: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apy: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub projections: Option<Vec<ProjectionData>>,
     #[serde(skip_serializing_if = "Option::is_none")]
