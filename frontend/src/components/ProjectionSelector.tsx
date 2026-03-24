@@ -25,6 +25,7 @@ interface ProjectionSelectorProps {
   showTypeWhenSingle?: boolean;
   dropdownButtonStyle?: React.CSSProperties;
   disableDropdownHoverEffects?: boolean;
+  invertSign?: boolean;
 }
 
 /**
@@ -45,6 +46,7 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
   showTypeWhenSingle = true,
   dropdownButtonStyle = {},
   disableDropdownHoverEffects = false,
+  invertSign = false,
 }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
@@ -88,12 +90,11 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
     normalizedProjections.forEach((p) => {
       const rawType = (p.type || '').toString();
       let label;
+      if (rawType.toLowerCase() === 'aprhistorical') return;
+
       switch (rawType.toLowerCase()) {
         case 'apr':
           label = 'APR';
-          break;
-        case 'aprhistorical':
-          label = 'APR Historical';
           break;
         case 'apy':
           label = 'APY';
@@ -123,8 +124,6 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
       if (!t) return false;
       if (t === target) return true;
       if (t === 'apr' && target === 'apr') return true;
-      if (t === 'aprhistorical' && (target === 'aprhistorical' || target === 'historical'))
-        return true;
       if (t === 'apy' && target === 'apy') return true;
       return false;
     });
@@ -141,6 +140,7 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
   };
 
   const currentValue = periodMap[selectedPeriod];
+  const displayValue = currentValue != null && invertSign ? -currentValue : currentValue;
 
   // Determine color based on value
   const getValueColor = (value: number | undefined): string => {
@@ -155,7 +155,6 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
     const typeMapping: Record<string, string> = {
       'APR': 'apr',
       'Historical': 'aprHistorical',
-      'APR Historical': 'aprHistorical',
       'APY': 'apy',
     };
     setSelectedType(typeMapping[displayType] || displayType.toLowerCase());
@@ -207,8 +206,8 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
       </div>
 
       {/* Value Display */}
-      <span style={{ fontSize: 14, fontWeight: 600, color: getValueColor(currentValue) }}>
-        {currentValue != null ? maskValue(formatPrice(currentValue)) : '-'}
+      <span style={{ fontSize: 14, fontWeight: 600, color: getValueColor(displayValue) }}>
+        {displayValue != null ? maskValue(formatPrice(displayValue)) : '-'}
       </span>
     </div>
   );

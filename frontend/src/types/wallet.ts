@@ -10,6 +10,7 @@ export interface Financials {
   balanceFormatted: number;
   price: number;
   totalPrice: number;
+  [key: string]: number | undefined;
 }
 
 export interface Token {
@@ -23,18 +24,48 @@ export interface Token {
   financials: Financials;
   native: boolean | null;
   possibleSpam: boolean | null;
-  // Note: APY is stored at position level (additionalData.apy), not per token
+  totalPrice?: number;
+  balanceUSD?: number;
+  balance?: number;
+  debt?: boolean;
+  apy?: number;
+  apr?: number;
+  [key: string]: unknown;
 }
 
 export interface Position {
   label: string;
   tokens: Token[];
-  // Propriedades adicionais para pools
   name?: string;
   id?: string;
   poolId?: string;
   address?: string;
   contractAddress?: string;
+  key?: string;
+  protocol?: Protocol;
+  protocolIcon?: string;
+  protocolLogo?: string;
+  additionalData?: AdditionalData | null;
+  additionalInfo?: Record<string, any>;
+  AdditionalData?: Record<string, any>;
+  additional_info?: Record<string, any>;
+  healthFactor?: number;
+  supplyRate?: number;
+  borrowRate?: number;
+  apy?: number;
+  borrowApy?: number;
+  apr?: number;
+  aprHistorical?: number;
+  isCollateral?: boolean;
+  IsCollateral?: boolean;
+  projection?: AdditionalData['projection'];
+  projections?: any[];
+  rewards?: any[];
+  uncollectedFees?: Record<string, any>;
+  collectedFees?: Record<string, any>;
+  range?: Range;
+  rangeData?: Range;
+  [key: string]: unknown;
 }
 
 import type { WalletItemType } from '../constants/walletItemTypes';
@@ -45,6 +76,7 @@ export interface Protocol {
   id: string;
   url: string;
   logo: string;
+  [key: string]: unknown;
 }
 
 export interface Range {
@@ -55,7 +87,6 @@ export interface Range {
 }
 
 export interface AdditionalData {
-  // Liquidity Pool fields
   sqrtPriceX96?: string;
   range?: Range;
   priceUnavailable?: boolean;
@@ -63,17 +94,29 @@ export interface AdditionalData {
   tickSpacing?: number;
   createdAt?: number;
 
-  // Lending fields
   healthFactor?: number;
   isCollateral?: boolean;
+  IsCollateral?: boolean;
   canBeCollateral?: boolean;
-  apy?: number; // NET APY percentage for lending positions
+  unlockAt?: number;
+  tierPercent?: number;
   projection?: {
     oneDay?: number;
     oneWeek?: number;
     oneMonth?: number;
     oneYear?: number;
   };
+  projections?: any[];
+  uncollectedFees?: Record<string, any>;
+  collectedFees?: Record<string, any>;
+
+  supplies?: any[];
+  borrows?: any[];
+  repays?: any[];
+  suppliesTokens?: any[];
+  borrowsTokens?: any[];
+  repaysTokens?: any[];
+  [key: string]: unknown;
 }
 
 export interface WalletItem {
@@ -81,10 +124,34 @@ export interface WalletItem {
   protocol: Protocol;
   position: Position;
   additionalData: AdditionalData | null;
-  // Propriedades adicionais para compatibilidade
+  additionalInfo?: Record<string, any>;
+  additional_info?: Record<string, any>;
   tokens?: Token[];
+  token?: Token;
   totalPrice?: number;
   totalValueUsd?: number;
+  label?: string;
+  key?: string;
+  healthFactor?: number;
+  supplyRate?: number;
+  borrowRate?: number;
+  apy?: number;
+  borrowApy?: number;
+  apr?: number;
+  aprHistorical?: number;
+  isCollateral?: boolean;
+  IsCollateral?: boolean;
+  AdditionalData?: Record<string, any>;
+  projection?: AdditionalData['projection'];
+  projections?: any[];
+  rewards?: any[];
+  uncollectedFees?: Record<string, any>;
+  collectedFees?: Record<string, any>;
+  range?: Range;
+  rangeData?: Range;
+  protocolIcon?: string;
+  protocolLogo?: string;
+  [key: string]: unknown;
 }
 
 export interface ProcessedProvider {

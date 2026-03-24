@@ -7,9 +7,9 @@ import { useChartTheme } from './hooks/useChartTheme';
 interface Props {
   healthFactor: number | null;
   diversificationScore: number;
-  numProtocols: number;
-  numChains: number;
-  numPositions: number;
+  numProtocols?: number;
+  numChains?: number;
+  numPositions?: number;
 }
 
 export const RiskMetricsChart: React.FC<Props> = ({

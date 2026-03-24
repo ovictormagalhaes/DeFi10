@@ -79,10 +79,10 @@ export const useWalletMenus = (walletData: WalletData): UseWalletMenusReturn => 
 
   const getWalletTokensData = (): WalletItem[] => {
     if (walletData.items && Array.isArray(walletData.items)) {
-      return filterItemsByType(walletData.items, ITEM_TYPES.WALLET);
+      return filterItemsByType(walletData.items, ITEM_TYPES.WALLET) as unknown as WalletItem[];
     }
     if (walletData.data && Array.isArray(walletData.data)) {
-      return getWalletTokens(walletData.data);
+      return getWalletTokens(walletData.data) as unknown as WalletItem[];
     }
     return walletData.tokens || [];
   };
@@ -92,7 +92,7 @@ export const useWalletMenus = (walletData: WalletData): UseWalletMenusReturn => 
       return getLiquidityPoolItems(walletData.items);
     }
     if (walletData.data && Array.isArray(walletData.data)) {
-      return filterItemsByType(walletData.data, ITEM_TYPES.LIQUIDITY_POOL);
+      return filterItemsByType(walletData.data, ITEM_TYPES.LIQUIDITY_POOL) as unknown as WalletItem[];
     }
     return walletData.liquidityPools || [];
   };
@@ -102,7 +102,7 @@ export const useWalletMenus = (walletData: WalletData): UseWalletMenusReturn => 
       return getLendingItems(walletData.items);
     }
     if (walletData.data && Array.isArray(walletData.data)) {
-      return filterItemsByType(walletData.data, ITEM_TYPES.LENDING_AND_BORROWING);
+      return filterItemsByType(walletData.data, ITEM_TYPES.LENDING_AND_BORROWING) as unknown as WalletItem[];
     }
     return walletData.lendingAndBorrowing || [];
   };
@@ -112,7 +112,7 @@ export const useWalletMenus = (walletData: WalletData): UseWalletMenusReturn => 
       return getStakingItems(walletData.items);
     }
     if (walletData.data && Array.isArray(walletData.data)) {
-      return filterItemsByType(walletData.data, ITEM_TYPES.STAKING);
+      return filterItemsByType(walletData.data, ITEM_TYPES.STAKING) as unknown as WalletItem[];
     }
     return walletData.staking || [];
   };

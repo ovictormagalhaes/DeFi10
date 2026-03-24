@@ -74,17 +74,16 @@ public class AaveSuppliesMapper : IWalletItemMapper<AaveGetUserSuppliesResponse>
                     Type = WalletItemType.LendingAndBorrowing,
                     Protocol = protocol,
                     Position = new Position { Label = "Supplied", Tokens = new List<Token> { suppliedToken } },
-                    AdditionalData = new AdditionalData 
-                    { 
-                        IsCollateral = supply.IsCollateral, 
+                    AdditionalData = new AdditionalData
+                    {
+                        IsCollateral = supply.IsCollateral,
                         CanBeCollateral = supply.CanBeCollateral,
-                        Apy = apy,
-                        Projections = projection != null ? new List<ProjectionData> 
+                        Projections = projection != null ? new List<ProjectionData>
                         {
                             _projectionCalculator.CreateProjectionData(
                                 ProjectionType.Apy,
                                 projection,
-                                new ProjectionMetadata { Apy = apy }
+                                new ProjectionMetadata { Value = apy }
                             )
                         } : null
                     }

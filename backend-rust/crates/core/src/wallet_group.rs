@@ -12,8 +12,8 @@ pub struct WalletGroup {
         deserialize_with = "deserialize_uuid"
     )]
     pub id: Uuid,
-    #[serde(rename = "wallets")]
-    pub accounts: Vec<String>,
+    #[serde(alias = "accounts")]
+    pub wallets: Vec<String>,
     pub display_name: Option<String>,
     pub user_id: Option<String>,
     pub version: Option<i32>,
@@ -95,13 +95,13 @@ where
 impl WalletGroup {
     pub fn new(
         display_name: Option<String>,
-        accounts: Vec<String>,
+        wallets: Vec<String>,
         user_id: Option<String>,
     ) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4(),
-            accounts,
+            wallets,
             display_name,
             user_id,
             version: Some(1),
@@ -112,12 +112,12 @@ impl WalletGroup {
         }
     }
 
-    pub fn update(&mut self, display_name: Option<String>, accounts: Option<Vec<String>>) {
+    pub fn update(&mut self, display_name: Option<String>, wallets: Option<Vec<String>>) {
         if let Some(n) = display_name {
             self.display_name = Some(n);
         }
-        if let Some(a) = accounts {
-            self.accounts = a;
+        if let Some(w) = wallets {
+            self.wallets = w;
         }
         self.updated_at = Utc::now();
     }
@@ -128,7 +128,6 @@ impl WalletGroup {
 #[serde(rename_all = "camelCase")]
 pub struct CreateWalletGroupRequest {
     pub display_name: Option<String>,
-    #[serde(alias = "accounts")]
     pub wallets: Vec<String>,
 }
 
@@ -137,7 +136,7 @@ pub struct CreateWalletGroupRequest {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateWalletGroupRequest {
     pub display_name: Option<String>,
-    pub accounts: Option<Vec<String>>,
+    pub wallets: Option<Vec<String>>,
 }
 
 /// Response for wallet group operations
@@ -157,7 +156,7 @@ impl From<WalletGroup> for WalletGroupResponse {
         Self {
             id: group.id,
             display_name: group.display_name,
-            wallets: group.accounts,
+            wallets: group.wallets,
             has_password: group.password_hash.is_some(),
             created_at: group.created_at,
             updated_at: group.updated_at,
@@ -190,15 +189,15 @@ mod tests {
 
     #[test]
     fn test_create_wallet_group() {
-        let accounts = vec!["0x123".to_string(), "0x456".to_string()];
+        let wallets = vec!["0x123".to_string(), "0x456".to_string()];
         let group = WalletGroup::new(
             Some("My Wallets".to_string()),
-            accounts.clone(),
+            wallets.clone(),
             Some("user123".to_string()),
         );
 
         assert_eq!(group.display_name, Some("My Wallets".to_string()));
-        assert_eq!(group.accounts, accounts);
+        assert_eq!(group.wallets, wallets);
         assert_eq!(group.user_id, Some("user123".to_string()));
     }
 
@@ -219,7 +218,7 @@ mod tests {
         );
 
         assert_eq!(group.display_name, Some("Updated Name".to_string()));
-        assert_eq!(group.accounts.len(), 2);
+        assert_eq!(group.wallets.len(), 2);
         assert!(group.updated_at > old_updated_at);
     }
 }

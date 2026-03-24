@@ -105,9 +105,17 @@ impl axum::response::IntoResponse for DeFi10Error {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
+        let error_type = format!("{:?}", self).split('(').next().unwrap_or("Unknown").to_string();
+
+        let message = if status == StatusCode::INTERNAL_SERVER_ERROR {
+            format!("Internal server error ({})", error_type)
+        } else {
+            self.to_string()
+        };
+
         let body = Json(serde_json::json!({
-            "error": self.to_string(),
-            "type": format!("{:?}", self).split('(').next().unwrap_or("Unknown")
+            "error": message,
+            "type": error_type
         }));
 
         (status, body).into_response()

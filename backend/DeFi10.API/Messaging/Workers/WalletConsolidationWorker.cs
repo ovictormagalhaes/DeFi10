@@ -460,20 +460,26 @@ public class WalletConsolidationWorker : BaseConsumer
 
     private int RecalculateLendingProjection(WalletItem item, IProjectionCalculator projectionCalculator)
     {
-        if (item.Position?.Tokens == null || item.AdditionalData == null) 
+        if (item.Position?.Tokens == null || item.AdditionalData == null)
             return 0;
-        
-        // For lending positions, sum all token values
+
         var totalValueUsd = item.Position.Tokens
             .Where(t => t.Financials != null)
             .Sum(t => t.Financials.TotalPrice);
-        
-        if (totalValueUsd <= 0) 
+
+        if (totalValueUsd <= 0)
             return 0;
-        
+
         var apy = item.AdditionalData.Apy ?? 0m;
 
-        // For lending, we typically only have APY-based projections
+        var isBorrow = item.Position.Label?.Equals("Borrowed", StringComparison.OrdinalIgnoreCase) == true
+                    || item.Position.Tokens.Any(t => t.Type == TokenType.Borrowed);
+
+        if (isBorrow && apy > 0)
+            apy = -apy;
+
+        item.AdditionalData.Apy = apy;
+
         var apyProjection = projectionCalculator.CalculateApyProjection(totalValueUsd, apy);
         
         if (apyProjection != null)

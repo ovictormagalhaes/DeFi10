@@ -37,7 +37,7 @@ const StakingCards: React.FC<StakingCardsProps> = ({ data = [] }) => {
     }}>
       {data.map((item, index) => {
         const position = item.position || item;
-        const protocol = position.protocol || {};
+        const protocol = (position.protocol || {}) as { name?: string; icon?: string; [key: string]: unknown };
         const tokens = position.tokens || [];
         const rewards = position.rewards || [];
         

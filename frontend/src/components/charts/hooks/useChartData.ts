@@ -1,15 +1,16 @@
 // src/components/charts/hooks/useChartData.ts
 import { useMemo } from 'react';
 import { WalletItemType, WalletItemTypeLabels, WalletItemTypeColors } from '../../../constants/walletItemTypes';
+import type { WalletItemLike, ProtocolGroup, TokenLike } from '../../../utils/walletUtils';
 
 interface UseChartDataParams {
-  walletTokens: unknown[];
-  liquidityData: unknown[];
-  lendingData: unknown[];
-  stakingData: unknown[];
-  lockingData: unknown[];
-  groupDefiByProtocol: (data: unknown[]) => unknown[];
-  filterLendingDefiTokens: (tokens: unknown[], show: boolean) => unknown[];
+  walletTokens: WalletItemLike[];
+  liquidityData: WalletItemLike[];
+  lendingData: WalletItemLike[];
+  stakingData: WalletItemLike[];
+  lockingData: WalletItemLike[];
+  groupDefiByProtocol: (data: WalletItemLike[]) => ProtocolGroup[];
+  filterLendingDefiTokens: (tokens: TokenLike[], show: boolean) => TokenLike[];
   showLendingDefiTokens: boolean;
 }
 
@@ -24,17 +25,15 @@ export const useChartData = ({
   showLendingDefiTokens,
 }: UseChartDataParams) => {
   // Helper function to calculate signed token value (negative for debt)
-  const signedTokenValue = (t: unknown, pos?: unknown): number => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const token = t as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const position = pos as any;
-    
-    const ty = (token.type || '').toLowerCase();
-    const val = Math.abs(parseFloat(token.totalPrice) || 0);
+  const signedTokenValue = (t: TokenLike, pos?: Record<string, unknown>): number => {
+    const ty = (String(t.type || '')).toLowerCase();
+    const price = t.financials?.totalPrice ?? t.totalPrice;
+    const val = Math.abs(parseFloat(String(price)) || 0);
     if (ty === 'borrowed' || ty === 'borrow' || ty === 'debt') return -val;
-    if (!ty && position) {
-      const lbl = (position?.position?.label || position?.label || '').toLowerCase();
+    if (!ty && pos) {
+      const posObj = pos as Record<string, unknown>;
+      const innerPos = posObj.position as Record<string, unknown> | undefined;
+      const lbl = (String(innerPos?.label || posObj.label || '')).toLowerCase();
       if (lbl.includes('borrow') || lbl.includes('debt')) return -val;
     }
     return val;
@@ -42,21 +41,21 @@ export const useChartData = ({
 
   // Calculate portfolio values
   const portfolioData = useMemo(() => {
-    const walletValue = walletTokens.reduce((sum, tokenData) => {
+    const walletValue = walletTokens.reduce((sum: number, tokenData) => {
       const token = tokenData.token || tokenData;
-      return sum + (parseFloat(token.totalPrice) || 0);
+      const price = (token as Record<string, unknown>).totalPrice ?? (token as Record<string, unknown>).financials;
+      return sum + (parseFloat(String((token as TokenLike).financials?.totalPrice ?? (token as TokenLike).totalPrice)) || 0);
     }, 0);
 
     const liquidityValue = groupDefiByProtocol(liquidityData).reduce(
-      (total, group) => {
+      (total: number, group) => {
         return total +
         group.positions.reduce(
-          (sum: number, pos: any) =>
+          (sum: number, pos) =>
             sum +
             (pos.tokens?.reduce(
-              (tokenSum: number, token: any) => {
-                // Liquidity tokens have totalPrice inside financials object
-                const price = parseFloat(token.financials?.totalPrice || token.totalPrice) || 0;
+              (tokenSum: number, token) => {
+                const price = parseFloat(String(token.financials?.totalPrice ?? token.totalPrice)) || 0;
                 return tokenSum + price;
               },
               0
@@ -67,30 +66,30 @@ export const useChartData = ({
       0
     );
 
-    const lendingValue = groupDefiByProtocol(lendingData).reduce((grand, group) => {
-      const groupSum = group.positions.reduce((sum: number, pos: any) => {
+    const lendingValue = groupDefiByProtocol(lendingData).reduce((grand: number, group) => {
+      const groupSum = group.positions.reduce((sum: number, pos) => {
         const tokens = Array.isArray(pos.tokens)
           ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens)
           : [];
-        const net = tokens.reduce((s: number, t: any) => s + signedTokenValue(t, pos), 0);
+        const net = tokens.reduce((s: number, t) => s + signedTokenValue(t, pos as Record<string, unknown>), 0);
         return sum + net;
       }, 0);
       return grand + groupSum;
     }, 0);
 
-    const stakingValue = stakingData.reduce((total, position) => {
-      const balance = parseFloat(position.balance) || 0;
+    const stakingValue = stakingData.reduce((total: number, position) => {
+      const balance = parseFloat(String(position.additionalData?.balance ?? (position as Record<string, unknown>).balance)) || 0;
       return total + (isNaN(balance) ? 0 : balance);
     }, 0);
 
     const lockingGroups = groupDefiByProtocol(lockingData);
 
-    const lockingValue = lockingGroups.reduce((total, group) => {
+    const lockingValue = lockingGroups.reduce((total: number, group) => {
       const groupValue = group.positions.reduce(
-        (sum: number, pos: any) => {
+        (sum: number, pos) => {
           const tokensValue = pos.tokens?.reduce(
-            (tokenSum: number, token: any) => {
-              const price = parseFloat(token.financials?.totalPrice || token.totalPrice) || 0;
+            (tokenSum: number, token) => {
+              const price = parseFloat(String(token.financials?.totalPrice ?? token.totalPrice)) || 0;
               return tokenSum + price;
             },
             0
@@ -125,43 +124,30 @@ export const useChartData = ({
   const topTokens = useMemo(() => {
     const tokenMap = new Map<string, { symbol: string; name: string; value: number; logo?: string }>();
 
-    // Add wallet tokens
-    walletTokens.forEach((tokenData) => {
-      const token = tokenData.token || tokenData;
-      const symbol = token.symbol;
-      const value = parseFloat(token.totalPrice) || 0;
-
+    const addToken = (symbol: string, name: string, value: number, logo?: string) => {
       if (tokenMap.has(symbol)) {
         tokenMap.get(symbol)!.value += value;
       } else {
-        tokenMap.set(symbol, {
-          symbol: token.symbol,
-          name: token.name,
-          value: value,
-          logo: token.logo,
-        });
+        tokenMap.set(symbol, { symbol, name, value, logo });
       }
+    };
+
+    // Add wallet tokens
+    walletTokens.forEach((tokenData) => {
+      const token = (tokenData.token || tokenData) as TokenLike;
+      const symbol = token.symbol || '';
+      const value = parseFloat(String(token.financials?.totalPrice ?? token.totalPrice)) || 0;
+      addToken(symbol, token.name || '', value, token[('logo' as string)] as string | undefined);
     });
 
     // Add liquidity tokens
     groupDefiByProtocol(liquidityData).forEach((group) => {
-      group.positions.forEach((pos: any) => {
+      group.positions.forEach((pos) => {
         if (pos.tokens && Array.isArray(pos.tokens)) {
-          pos.tokens.forEach((token: any) => {
-            const symbol = token.symbol;
-            // Liquidity tokens have totalPrice inside financials
-            const value = parseFloat(token.financials?.totalPrice || token.totalPrice) || 0;
-            
-            if (tokenMap.has(symbol)) {
-              tokenMap.get(symbol)!.value += value;
-            } else {
-              tokenMap.set(symbol, {
-                symbol: token.symbol,
-                name: token.name,
-                value: value,
-                logo: token.logo,
-              });
-            }
+          pos.tokens.forEach((token) => {
+            const symbol = token.symbol || '';
+            const value = parseFloat(String(token.financials?.totalPrice ?? token.totalPrice)) || 0;
+            addToken(symbol, token.name || '', value, token[('logo' as string)] as string | undefined);
           });
         }
       });
@@ -169,47 +155,26 @@ export const useChartData = ({
 
     // Add lending tokens
     groupDefiByProtocol(lendingData).forEach((group) => {
-      group.positions.forEach((pos: any) => {
+      group.positions.forEach((pos) => {
         const tokens = Array.isArray(pos.tokens)
           ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens)
           : [];
-        tokens.forEach((token: any) => {
-          const symbol = token.symbol;
-          const signedValue = signedTokenValue(token, pos);
-
-          if (tokenMap.has(symbol)) {
-            tokenMap.get(symbol)!.value += signedValue;
-          } else {
-            tokenMap.set(symbol, {
-              symbol: token.symbol,
-              name: token.name,
-              value: signedValue,
-              logo: token.logo,
-            });
-          }
+        tokens.forEach((token) => {
+          const symbol = token.symbol || '';
+          const signedValue = signedTokenValue(token, pos as Record<string, unknown>);
+          addToken(symbol, token.name || '', signedValue, token[('logo' as string)] as string | undefined);
         });
       });
     });
 
     // Add locking tokens
     groupDefiByProtocol(lockingData).forEach((group) => {
-      group.positions.forEach((pos: any) => {
+      group.positions.forEach((pos) => {
         if (pos.tokens && Array.isArray(pos.tokens)) {
-          pos.tokens.forEach((token: any) => {
-            const symbol = token.symbol;
-            // Locking tokens have totalPrice inside financials
-            const value = parseFloat(token.financials?.totalPrice || token.totalPrice) || 0;
-            
-            if (tokenMap.has(symbol)) {
-              tokenMap.get(symbol)!.value += value;
-            } else {
-              tokenMap.set(symbol, {
-                symbol: token.symbol,
-                name: token.name,
-                value: value,
-                logo: token.logo,
-              });
-            }
+          pos.tokens.forEach((token) => {
+            const symbol = token.symbol || '';
+            const value = parseFloat(String(token.financials?.totalPrice ?? token.totalPrice)) || 0;
+            addToken(symbol, token.name || '', value, token[('logo' as string)] as string | undefined);
           });
         }
       });
@@ -223,12 +188,10 @@ export const useChartData = ({
 
   // Get protocol distribution
   const protocolDistribution = useMemo(() => {
-    const protocolMap = new Map();
+    const protocolMap = new Map<string, { name: string; value: number; logo?: string; color: string; positionsCount: number }>();
     const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#14b8a6'];
 
-    // Helper to normalize protocol name (remove chain suffix)
     const normalizeProtocolName = (name: string): string => {
-      // Remove chain suffix like " (Base)", " (Ethereum)", etc.
       return name.replace(/\s*\([^)]+\)\s*$/i, '').trim();
     };
 
@@ -236,28 +199,28 @@ export const useChartData = ({
     groupDefiByProtocol(liquidityData).forEach((group) => {
       let protocolValue = 0;
 
-      group.positions.forEach((pos: any) => {
+      group.positions.forEach((pos) => {
         if (pos.tokens && Array.isArray(pos.tokens)) {
-          pos.tokens.forEach((token: any) => {
-            // Liquidity tokens have totalPrice inside financials
-            protocolValue += parseFloat(token.financials?.totalPrice || token.totalPrice) || 0;
+          pos.tokens.forEach((token) => {
+            protocolValue += parseFloat(String(token.financials?.totalPrice ?? token.totalPrice)) || 0;
           });
-        } else if (pos.balance) {
-          protocolValue += parseFloat(pos.balance) || 0;
+        } else if ((pos as Record<string, unknown>).balance) {
+          protocolValue += parseFloat(String((pos as Record<string, unknown>).balance)) || 0;
         }
       });
 
-      const normalizedName = normalizeProtocolName(group.protocol.name);
-      
+      const normalizedName = normalizeProtocolName(group.protocol.name || '');
+
       if (protocolValue > 0) {
         if (protocolMap.has(normalizedName)) {
-          protocolMap.get(normalizedName).value += protocolValue;
-          protocolMap.get(normalizedName).positionsCount += group.positions.length;
+          const existing = protocolMap.get(normalizedName)!;
+          existing.value += protocolValue;
+          existing.positionsCount += group.positions.length;
         } else {
           protocolMap.set(normalizedName, {
             name: normalizedName,
             value: protocolValue,
-            logo: group.protocol.logoURI || group.protocol.logo,
+            logo: (group.protocol as Record<string, unknown>).logoURI as string || (group.protocol as Record<string, unknown>).logo as string,
             color: colors[protocolMap.size % colors.length],
             positionsCount: group.positions.length
           });
@@ -269,28 +232,28 @@ export const useChartData = ({
     groupDefiByProtocol(lendingData).forEach((group) => {
       let protocolValue = 0;
 
-      group.positions.forEach((pos: any) => {
+      group.positions.forEach((pos) => {
         if (pos.tokens && Array.isArray(pos.tokens)) {
           const tokens = filterLendingDefiTokens
             ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens)
             : pos.tokens;
-          tokens.forEach((token: any) => {
-            // Use signed value - borrows will be negative and reduce total
-            protocolValue += signedTokenValue(token, pos);
+          tokens.forEach((token) => {
+            protocolValue += signedTokenValue(token, pos as Record<string, unknown>);
           });
         }
       });
 
-      const normalizedName = normalizeProtocolName(group.protocol.name);
+      const normalizedName = normalizeProtocolName(group.protocol.name || '');
 
       if (protocolMap.has(normalizedName)) {
-        protocolMap.get(normalizedName).value += protocolValue;
-        protocolMap.get(normalizedName).positionsCount += group.positions.length;
+        const existing = protocolMap.get(normalizedName)!;
+        existing.value += protocolValue;
+        existing.positionsCount += group.positions.length;
       } else if (protocolValue > 0) {
         protocolMap.set(normalizedName, {
           name: normalizedName,
           value: protocolValue,
-          logo: group.protocol.logoURI || group.protocol.logo,
+          logo: (group.protocol as Record<string, unknown>).logoURI as string || (group.protocol as Record<string, unknown>).logo as string,
           color: colors[protocolMap.size % colors.length],
           positionsCount: group.positions.length
         });
@@ -300,16 +263,17 @@ export const useChartData = ({
     // Process staking data
     stakingData.forEach((position) => {
       const protocolName = normalizeProtocolName(position.protocol?.name || 'Staking');
-      const value = parseFloat(position.balance) || 0;
+      const value = parseFloat(String((position as Record<string, unknown>).balance)) || 0;
 
       if (protocolMap.has(protocolName)) {
-        protocolMap.get(protocolName).value += value;
-        protocolMap.get(protocolName).positionsCount += 1;
+        const existing = protocolMap.get(protocolName)!;
+        existing.value += value;
+        existing.positionsCount += 1;
       } else if (value > 0) {
         protocolMap.set(protocolName, {
           name: protocolName,
           value: value,
-          logo: position.protocol?.logoURI || position.protocol?.logo,
+          logo: (position.protocol as Record<string, unknown>)?.logoURI as string || (position.protocol as Record<string, unknown>)?.logo as string,
           color: colors[protocolMap.size % colors.length],
           positionsCount: 1
         });
@@ -320,26 +284,26 @@ export const useChartData = ({
     groupDefiByProtocol(lockingData).forEach((group) => {
       let protocolValue = 0;
 
-      group.positions.forEach((pos: any) => {
+      group.positions.forEach((pos) => {
         if (pos.tokens && Array.isArray(pos.tokens)) {
-          pos.tokens.forEach((token: any) => {
-            // Locking tokens have totalPrice inside financials
-            protocolValue += parseFloat(token.financials?.totalPrice || token.totalPrice) || 0;
+          pos.tokens.forEach((token) => {
+            protocolValue += parseFloat(String(token.financials?.totalPrice ?? token.totalPrice)) || 0;
           });
         }
       });
 
-      const normalizedName = normalizeProtocolName(group.protocol.name);
-      
+      const normalizedName = normalizeProtocolName(group.protocol.name || '');
+
       if (protocolValue > 0) {
         if (protocolMap.has(normalizedName)) {
-          protocolMap.get(normalizedName).value += protocolValue;
-          protocolMap.get(normalizedName).positionsCount += group.positions.length;
+          const existing = protocolMap.get(normalizedName)!;
+          existing.value += protocolValue;
+          existing.positionsCount += group.positions.length;
         } else {
           protocolMap.set(normalizedName, {
             name: normalizedName,
             value: protocolValue,
-            logo: group.protocol.logoURI || group.protocol.logo,
+            logo: (group.protocol as Record<string, unknown>).logoURI as string || (group.protocol as Record<string, unknown>).logo as string,
             color: colors[protocolMap.size % colors.length],
             positionsCount: group.positions.length
           });
@@ -348,100 +312,77 @@ export const useChartData = ({
     });
 
     return Array.from(protocolMap.values())
-      .filter((protocol: any) => protocol.value > 0)
-      .sort((a: any, b: any) => b.value - a.value);
+      .filter((protocol) => protocol.value > 0)
+      .sort((a, b) => b.value - a.value);
   }, [liquidityData, lendingData, stakingData, lockingData, groupDefiByProtocol, filterLendingDefiTokens, showLendingDefiTokens]);
 
   // Get chain distribution
   const chainDistribution = useMemo(() => {
-    const chainMap = new Map();
+    const chainMap = new Map<string, { chain: string; value: number; color: string }>();
     const colors = ['#627eea', '#8247e5', '#28a0f0', '#ff0420', '#0052ff', '#f3ba2f'];
 
-    const allItems = [
-      ...walletTokens.map(t => ({ chain: t.token?.chain || t.chain, value: parseFloat(t.token?.totalPrice || t.totalPrice) || 0 })),
-      ...liquidityData.map(l => ({ chain: l.protocol?.chain, value: 0 })),
-      ...lendingData.map(l => ({ chain: l.protocol?.chain, value: 0 })),
-      ...stakingData.map(s => ({ chain: s.protocol?.chain, value: parseFloat(s.balance) || 0 })),
-      ...lockingData.map(l => ({ chain: l.protocol?.chain, value: 0 }))
-    ];
+    const addToChain = (chain: string, value: number) => {
+      if (chainMap.has(chain)) {
+        chainMap.get(chain)!.value += value;
+      } else {
+        chainMap.set(chain, { chain, value, color: colors[chainMap.size % colors.length] });
+      }
+    };
 
     // Calculate values per chain
     liquidityData.forEach(item => {
-      const chain = item.protocol?.chain || item.position?.protocol?.chain || 'Unknown';
+      const chain = item.protocol?.chain || item.position?.position?.chain as string || 'Unknown';
       const pos = item.position || item;
-      const tokens = pos.tokens || [];
-      // Liquidity tokens have totalPrice inside financials
-      const value = tokens.reduce((sum: number, t: any) => sum + (parseFloat(t.financials?.totalPrice || t.totalPrice) || 0), 0);
-      
-      if (chainMap.has(chain)) {
-        chainMap.get(chain).value += value;
-      } else {
-        chainMap.set(chain, { chain, value, color: colors[chainMap.size % colors.length] });
-      }
+      const tokens = (pos as Record<string, unknown>).tokens as TokenLike[] || [];
+      const value = (Array.isArray(tokens) ? tokens : []).reduce((sum: number, t: TokenLike) => sum + (parseFloat(String(t.financials?.totalPrice ?? t.totalPrice)) || 0), 0);
+      addToChain(chain as string, value);
     });
 
     lendingData.forEach(item => {
-      const chain = item.protocol?.chain || item.position?.protocol?.chain || 'Unknown';
+      const chain = item.protocol?.chain || item.position?.position?.chain as string || 'Unknown';
       const pos = item.position || item;
-      const tokens = Array.isArray(pos.tokens) 
-        ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens)
+      const tokens = Array.isArray((pos as Record<string, unknown>).tokens)
+        ? filterLendingDefiTokens((pos as Record<string, unknown>).tokens as TokenLike[], showLendingDefiTokens)
         : [];
-      // Use signed value - borrow will be negative
-      const value = tokens.reduce((sum: number, t: any) => sum + signedTokenValue(t, item), 0);
-      
-      if (chainMap.has(chain)) {
-        chainMap.get(chain).value += value;
-      } else {
-        chainMap.set(chain, { chain, value, color: colors[chainMap.size % colors.length] });
-      }
+      const value = tokens.reduce((sum: number, t) => sum + signedTokenValue(t, item as Record<string, unknown>), 0);
+      addToChain(chain as string, value);
     });
 
     walletTokens.forEach(tokenData => {
-      const token = tokenData.token || tokenData;
-      const chain = token.chain || 'Unknown';
-      const value = parseFloat(token.totalPrice) || 0;
-      
-      if (chainMap.has(chain)) {
-        chainMap.get(chain).value += value;
-      } else {
-        chainMap.set(chain, { chain, value, color: colors[chainMap.size % colors.length] });
-      }
+      const token = (tokenData.token || tokenData) as TokenLike;
+      const chain = (token as Record<string, unknown>).chain as string || 'Unknown';
+      const value = parseFloat(String(token.financials?.totalPrice ?? token.totalPrice)) || 0;
+      addToChain(chain, value);
     });
 
     lockingData.forEach(item => {
-      const chain = item.protocol?.chain || item.position?.protocol?.chain || 'Unknown';
+      const chain = item.protocol?.chain || item.position?.position?.chain as string || 'Unknown';
       const pos = item.position || item;
-      const tokens = pos.tokens || [];
-      // Locking tokens have totalPrice inside financials
-      const value = tokens.reduce((sum: number, t: any) => sum + (parseFloat(t.financials?.totalPrice || t.totalPrice) || 0), 0);
-      
-      if (chainMap.has(chain)) {
-        chainMap.get(chain).value += value;
-      } else {
-        chainMap.set(chain, { chain, value, color: colors[chainMap.size % colors.length] });
-      }
+      const tokens = (pos as Record<string, unknown>).tokens as TokenLike[] || [];
+      const value = (Array.isArray(tokens) ? tokens : []).reduce((sum: number, t: TokenLike) => sum + (parseFloat(String(t.financials?.totalPrice ?? t.totalPrice)) || 0), 0);
+      addToChain(chain as string, value);
     });
 
     return Array.from(chainMap.values())
-      .filter((c: any) => c.value > 0)
-      .sort((a: any, b: any) => b.value - a.value);
+      .filter((c) => c.value > 0)
+      .sort((a, b) => b.value - a.value);
   }, [walletTokens, liquidityData, lendingData, stakingData, lockingData, filterLendingDefiTokens, showLendingDefiTokens]);
 
   // Get lending positions breakdown
   const lendingPositions = useMemo(() => {
-    const positions: any[] = [];
+    const positions: { protocol: string; supplied: number; borrowed: number; net: number; logo?: string }[] = [];
 
     groupDefiByProtocol(lendingData).forEach(group => {
       let totalSupplied = 0;
       let totalBorrowed = 0;
 
-      group.positions.forEach((pos: any) => {
+      group.positions.forEach((pos) => {
         const tokens = Array.isArray(pos.tokens)
           ? filterLendingDefiTokens(pos.tokens, showLendingDefiTokens)
           : [];
-        
-        tokens.forEach((token: any) => {
-          const value = signedTokenValue(token, pos);
+
+        tokens.forEach((token) => {
+          const value = signedTokenValue(token, pos as Record<string, unknown>);
           if (value > 0) {
             totalSupplied += value;
           } else {
@@ -452,11 +393,11 @@ export const useChartData = ({
 
       if (totalSupplied > 0 || totalBorrowed > 0) {
         positions.push({
-          protocol: group.protocol.name,
+          protocol: group.protocol.name || '',
           supplied: totalSupplied,
           borrowed: totalBorrowed,
           net: totalSupplied - totalBorrowed,
-          logo: group.protocol.logoURI || group.protocol.logo
+          logo: (group.protocol as Record<string, unknown>).logoURI as string || (group.protocol as Record<string, unknown>).logo as string
         });
       }
     });
@@ -467,26 +408,25 @@ export const useChartData = ({
   // Get projection data separated by category (lending and liquidity)
   const projectionData = useMemo(() => {
     // Process lending projections by type
-    const lendingByType = new Map();
+    const lendingByType = new Map<string, Record<string, unknown>>();
     lendingData.forEach(item => {
       const position = item.position || item;
-      const additionalData = item.additionalData || position?.additionalData || {};
-      const additionalInfo = item.additionalInfo || position?.additionalInfo || {};
-      const projections = additionalData.projections || additionalInfo.projections || position?.projections || [];
-      
-      // Get the principal value for this position (use signed value)
-      const tokens = Array.isArray(position.tokens) 
-        ? filterLendingDefiTokens(position.tokens, showLendingDefiTokens)
+      const posRecord = position as Record<string, unknown>;
+      const additionalData = (item.additionalData || posRecord.additionalData || {}) as Record<string, unknown>;
+      const additionalInfo = ((item as Record<string, unknown>).additionalInfo || posRecord.additionalInfo || {}) as Record<string, unknown>;
+      const projections = (additionalData.projections || additionalInfo.projections || posRecord.projections || []) as Array<Record<string, unknown>>;
+
+      const tokens = Array.isArray(posRecord.tokens)
+        ? filterLendingDefiTokens(posRecord.tokens as TokenLike[], showLendingDefiTokens)
         : [];
-      const principalValue = tokens.reduce((sum: number, t: any) => sum + signedTokenValue(t, item), 0);
-      
-      projections.forEach((proj: any) => {
-        const type = proj.type?.toLowerCase() || 'apy';
-        const projection = proj.projection || {};
-        
-        // Get rate from backend (APY/APR percentage)
-        const rate = proj.metadata?.rate || position.apy || position.supplyRate || additionalData.apy || 0;
-        
+      const principalValue = tokens.reduce((sum: number, t) => sum + signedTokenValue(t, item as Record<string, unknown>), 0);
+
+      projections.forEach((proj) => {
+        const type = (String(proj.type || 'apy')).toLowerCase();
+        const projection = (proj.projection || {}) as Record<string, unknown>;
+
+        const rate = (proj.metadata as Record<string, unknown>)?.value as number || posRecord.apy as number || posRecord.supplyRate as number || 0;
+
         if (!lendingByType.has(type)) {
           lendingByType.set(type, {
             type,
@@ -498,25 +438,23 @@ export const useChartData = ({
             totalWeight: 0
           });
         }
-        
-        const existing = lendingByType.get(type);
-        existing.oneDay += parseFloat(projection.oneDay) || 0;
-        existing.oneWeek += parseFloat(projection.oneWeek) || 0;
-        existing.oneMonth += parseFloat(projection.oneMonth) || 0;
-        existing.oneYear += parseFloat(projection.oneYear) || 0;
-        
-        // Weighted average by principal value
+
+        const existing = lendingByType.get(type)!;
+        existing.oneDay = (existing.oneDay as number) + (parseFloat(String(projection.oneDay)) || 0);
+        existing.oneWeek = (existing.oneWeek as number) + (parseFloat(String(projection.oneWeek)) || 0);
+        existing.oneMonth = (existing.oneMonth as number) + (parseFloat(String(projection.oneMonth)) || 0);
+        existing.oneYear = (existing.oneYear as number) + (parseFloat(String(projection.oneYear)) || 0);
+
         if (rate != null && !isNaN(rate) && principalValue !== 0) {
-          existing.totalRateWeighted += rate * Math.abs(principalValue);
-          existing.totalWeight += Math.abs(principalValue);
+          existing.totalRateWeighted = (existing.totalRateWeighted as number) + rate * Math.abs(principalValue);
+          existing.totalWeight = (existing.totalWeight as number) + Math.abs(principalValue);
         }
       });
     });
 
-    // Calculate weighted average rate for lending
     lendingByType.forEach((value) => {
-      if (value.totalWeight > 0) {
-        value.rate = value.totalRateWeighted / value.totalWeight;
+      if ((value.totalWeight as number) > 0) {
+        value.rate = (value.totalRateWeighted as number) / (value.totalWeight as number);
       } else {
         value.rate = 0;
       }
@@ -525,28 +463,27 @@ export const useChartData = ({
     });
 
     // Process liquidity projections by type
-    const liquidityByType = new Map();
+    const liquidityByType = new Map<string, Record<string, unknown>>();
     liquidityData.forEach(item => {
       const pos = item.position || item;
-      const additionalData = pos.additionalData || item.additionalData || {};
-      const additionalInfo = pos.additionalInfo || item.additionalInfo || {};
-      const projections = additionalData.projections || additionalInfo.projections || pos.projections || [];
-      
-      // Get the principal value for this position
+      const posRecord = pos as Record<string, unknown>;
+      const additionalData = (posRecord.additionalData || item.additionalData || {}) as Record<string, unknown>;
+      const additionalInfo = (posRecord.additionalInfo || (item as Record<string, unknown>).additionalInfo || {}) as Record<string, unknown>;
+      const projections = (additionalData.projections || additionalInfo.projections || posRecord.projections || []) as Array<Record<string, unknown>>;
+
       let principalValue = 0;
-      const tokens = Array.isArray(pos.tokens) ? pos.tokens : [];
-      tokens.forEach((token: any) => {
+      const tokens = Array.isArray(posRecord.tokens) ? posRecord.tokens as TokenLike[] : [];
+      tokens.forEach((token) => {
         const tokenValue = parseFloat(
-          token.totalPrice || 
-          token.financials?.totalPrice || 
-          token.balanceUSD ||
-          0
+          String(token.totalPrice ||
+          token.financials?.totalPrice ||
+          token.balanceFormatted ||
+          0)
         );
-        const tokenType = (token.type || '').toLowerCase();
-        
-        // Only liquidity tokens, not fees
-        if (tokenType.includes('supplied') || 
-            tokenType.includes('supply') || 
+        const tokenType = (String(token.type || '')).toLowerCase();
+
+        if (tokenType.includes('supplied') ||
+            tokenType.includes('supply') ||
             tokenType.includes('liquidity') ||
             tokenType.includes('deposit') ||
             !tokenType ||
@@ -554,25 +491,18 @@ export const useChartData = ({
           principalValue += tokenValue;
         }
       });
-      
-      projections.forEach((proj: any) => {
-        const rawType = proj.type?.toLowerCase() || 'apr';
+
+      projections.forEach((proj) => {
+        const rawType = (String(proj.type || 'apr')).toLowerCase();
         const type = rawType === 'aprhistorical' ? 'aprHistorical' : rawType;
-        const projection = proj.projection || {};
-        
-        // Get rate from backend (APR/APR Historical percentage)
+        const projection = (proj.projection || {}) as Record<string, unknown>;
+
         let rate = 0;
-        if (type === 'apr') {
-          rate = proj.metadata?.rate || additionalData.apr || pos.apr || additionalInfo.apr || 0;
-        } else if (type === 'aprHistorical') {
-          rate = proj.metadata?.rate || additionalData.aprHistorical || pos.aprHistorical || additionalInfo.aprHistorical || 0;
-        } else {
-          rate = proj.metadata?.rate || 0;
-        }
-        
+        rate = (proj.metadata as Record<string, unknown>)?.value as number || 0;
+
         if (!liquidityByType.has(type)) {
           liquidityByType.set(type, {
-            type: rawType, // Keep original type name
+            type: rawType,
             oneDay: 0,
             oneWeek: 0,
             oneMonth: 0,
@@ -581,25 +511,23 @@ export const useChartData = ({
             totalWeight: 0
           });
         }
-        
-        const existing = liquidityByType.get(type);
-        existing.oneDay += parseFloat(projection.oneDay) || 0;
-        existing.oneWeek += parseFloat(projection.oneWeek) || 0;
-        existing.oneMonth += parseFloat(projection.oneMonth) || 0;
-        existing.oneYear += parseFloat(projection.oneYear) || 0;
-        
-        // Weighted average by principal value
+
+        const existing = liquidityByType.get(type)!;
+        existing.oneDay = (existing.oneDay as number) + (parseFloat(String(projection.oneDay)) || 0);
+        existing.oneWeek = (existing.oneWeek as number) + (parseFloat(String(projection.oneWeek)) || 0);
+        existing.oneMonth = (existing.oneMonth as number) + (parseFloat(String(projection.oneMonth)) || 0);
+        existing.oneYear = (existing.oneYear as number) + (parseFloat(String(projection.oneYear)) || 0);
+
         if (rate != null && !isNaN(rate) && principalValue > 0) {
-          existing.totalRateWeighted += rate * principalValue;
-          existing.totalWeight += principalValue;
+          existing.totalRateWeighted = (existing.totalRateWeighted as number) + rate * principalValue;
+          existing.totalWeight = (existing.totalWeight as number) + principalValue;
         }
       });
     });
 
-    // Calculate weighted average rate for liquidity
     liquidityByType.forEach((value) => {
-      if (value.totalWeight > 0) {
-        value.rate = value.totalRateWeighted / value.totalWeight;
+      if ((value.totalWeight as number) > 0) {
+        value.rate = (value.totalRateWeighted as number) / (value.totalWeight as number);
       } else {
         value.rate = 0;
       }

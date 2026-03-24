@@ -23,7 +23,7 @@ import TokenDisplay from '../TokenDisplay';
 
 // Interface CORRETA - APENAS WalletItem[]
 interface WalletTokensTableProps {
-  items: WalletItem[]; // SEMPRE usar esta estrutura
+  items?: WalletItem[];
   showBalanceColumn?: boolean;
   showUnitPriceColumn?: boolean;
   showMetrics?: boolean;
@@ -138,7 +138,7 @@ const WalletTokensTable: React.FC<WalletTokensTableProps> = ({
 
       <div className="table-wrapper">
         <table className="table-unified text-primary">
-          <StandardHeader columns={['token', 'price', 'amount', 'value']} columnDefs={columnDefs} />
+          <StandardHeader columns={['price', 'amount', 'value']} columnDefs={columnDefs} />
           <tbody>
             {tokens.map((tokenData, index) => {
               const token = tokenData.token || tokenData;

@@ -1,20 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <defs>
-    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#45b773;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#6fd299;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#9fe8c0;stop-opacity:1" />
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2ecc71"/>
+      <stop offset="50%" stop-color="#6fd299"/>
+      <stop offset="100%" stop-color="#a8f0c6"/>
     </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  
-  <!-- Background square -->
-  <rect x="5" y="5" width="190" height="190" rx="15" ry="15" fill="transparent"/>
-  
-  <!-- D shape (hollow/outline only) -->
-  <path d="M 45 35 L 45 165 L 110 165 Q 160 165 160 100 Q 160 35 110 35 Z" 
-        fill="none" stroke="url(#logoGradient)" stroke-width="12"/>
-    <!-- Number 10 -->
-  <text x="100" y="128" font-family="Arial, sans-serif" font-weight="bold" 
-        font-size="70" fill="url(#logoGradient)" text-anchor="middle">10</text>
 
-</svg> 
+<path d="M 65 30 A 70 70 0 0 1 65 170" fill="none" stroke="url(#grad)" stroke-width="12" stroke-linecap="round" filter="url(#glow)"/>
+  <path d="M 65 58 A 42 42 0 0 1 65 142" fill="none" stroke="url(#grad)" stroke-width="12" stroke-linecap="round" filter="url(#glow)"/>
+</svg>

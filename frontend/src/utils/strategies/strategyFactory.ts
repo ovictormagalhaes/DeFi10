@@ -4,7 +4,7 @@
  */
 
 import type { WalletItem } from '../../types/wallet';
-import type { Strategy, SaveStrategyRequest, StrategyType } from '../../types/strategy';
+import type { Strategy, AllocationStrategy, SaveStrategyRequest, StrategyType } from '../../types/strategy';
 import type { AllocationByWeightConfig, AllocationByWeightResult } from '../../types/strategies/allocationByWeight';
 import {
   validateAllocationConfig,
@@ -51,8 +51,9 @@ const allocationByWeightConfig: StrategyTypeConfig<AllocationByWeightConfig, All
   icon: '💰',
   available: true,
   validate: validateAllocationConfig,
-  calculate: calculateAllocationResult,
-  buildRequest: buildAllocationRequest
+  calculate: (strategy, portfolio) => calculateAllocationResult(strategy as AllocationStrategy, portfolio),
+  buildRequest: (walletGroupId, config, portfolio, strategyId) =>
+    buildAllocationRequest(walletGroupId, config, portfolio, strategyId) as unknown as SaveStrategyRequest
 };
 
 /**
@@ -154,5 +155,5 @@ export function calculateStrategyResult<TResult>(
     throw new Error(`Strategy type ${strategy.strategyType} not found or not implemented`);
   }
   
-  return strategyConfig.calculate(strategy, portfolio);
+  return strategyConfig.calculate(strategy, portfolio) as TResult;
 }

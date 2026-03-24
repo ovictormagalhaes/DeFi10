@@ -30,7 +30,7 @@ pub enum StrategyType {
 pub struct AllocationProtocol {
     pub id: String,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing, default, skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
 }
 
@@ -39,7 +39,7 @@ pub struct AllocationProtocol {
 pub struct AllocationChain {
     pub id: String,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing, default, skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
 }
 
@@ -106,7 +106,8 @@ pub struct WalletGroupStrategies {
         deserialize_with = "deserialize_uuid"
     )]
     pub wallet_group_id: Uuid,
-    pub accounts: Vec<String>,
+    #[serde(alias = "accounts")]
+    pub wallets: Vec<String>,
     pub strategies: Vec<StrategyDocument>,
     pub count: usize,
     pub key: String,
@@ -117,7 +118,7 @@ pub struct WalletGroupStrategies {
 impl WalletGroupStrategies {
     pub fn new(
         wallet_group_id: Uuid,
-        accounts: Vec<String>,
+        wallets: Vec<String>,
         strategies: Vec<StrategyDocument>,
     ) -> Self {
         let now = Utc::now();
@@ -126,7 +127,7 @@ impl WalletGroupStrategies {
 
         Self {
             wallet_group_id,
-            accounts,
+            wallets,
             strategies,
             count,
             key,
@@ -140,7 +141,7 @@ impl WalletGroupStrategies {
 #[serde(rename_all = "camelCase")]
 pub struct WalletGroupStrategiesResponse {
     pub wallet_group_id: Uuid,
-    pub accounts: Vec<String>,
+    pub wallets: Vec<String>,
     pub strategies: Vec<StrategyDocument>,
     pub count: usize,
     pub key: String,
@@ -152,7 +153,7 @@ impl From<WalletGroupStrategies> for WalletGroupStrategiesResponse {
     fn from(wgs: WalletGroupStrategies) -> Self {
         Self {
             wallet_group_id: wgs.wallet_group_id,
-            accounts: wgs.accounts,
+            wallets: wgs.wallets,
             strategies: wgs.strategies,
             count: wgs.count,
             key: wgs.key,
@@ -203,6 +204,6 @@ pub struct SaveStrategiesResponse {
     pub key: String,
     pub strategies_count: usize,
     pub strategies: Vec<StrategySummary>,
-    pub accounts: Vec<String>,
+    pub wallets: Vec<String>,
     pub saved_at: DateTime<Utc>,
 }

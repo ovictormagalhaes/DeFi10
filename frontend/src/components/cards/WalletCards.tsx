@@ -40,7 +40,7 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [] }) => {
     }}>
       {data.map((item, index) => {
         // Extract token from data structure
-        const token = item.token || item;
+        const token = (item.token || item) as { symbol?: string; name?: string; logo?: string; thumbnail?: string; chain?: string; network?: string; chainName?: string; financials?: Record<string, number | undefined>; priceUsd?: number; price?: number; priceUSD?: number; balance?: number; totalPrice?: number; [key: string]: unknown };
         const position = item.position || {};
         
         // Get token data

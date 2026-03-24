@@ -44,6 +44,66 @@ test.describe('Wallet Groups', () => {
     });
   });
 
+  test.describe('PUT /wallet-groups/:id - Update wallets', () => {
+    test('should create with one wallet, then update to two wallets', async ({ request }) => {
+      const singleWallet = [TEST_WALLETS[0]];
+      const group = await createWalletGroup(request, singleWallet, 'E2E Update Test');
+      const conn = await connectWalletGroup(request, group.id);
+      createdIds.push({ id: group.id, token: conn.token });
+
+      expect(group.wallets).toHaveLength(1);
+      expect(group.wallets).toEqual(singleWallet);
+
+      const getBefore = await request.get(`${API_V1}/wallet-groups/${group.id}`, {
+        headers: { Authorization: `Bearer ${conn.token}` },
+      });
+      expect(getBefore.status()).toBe(200);
+      const before = await getBefore.json();
+      expect(before.wallets).toEqual(singleWallet);
+
+      const updateRes = await request.put(`${API_V1}/wallet-groups/${group.id}`, {
+        data: { wallets: TEST_WALLETS, displayName: 'E2E Updated' },
+        headers: { Authorization: `Bearer ${conn.token}` },
+      });
+      expect(updateRes.status()).toBe(200);
+      const updated = await updateRes.json();
+      expect(updated.wallets).toHaveLength(2);
+      expect(updated.wallets).toEqual(expect.arrayContaining(TEST_WALLETS));
+      expect(updated.displayName).toBe('E2E Updated');
+
+      const getAfter = await request.get(`${API_V1}/wallet-groups/${group.id}`, {
+        headers: { Authorization: `Bearer ${conn.token}` },
+      });
+      expect(getAfter.status()).toBe(200);
+      const after = await getAfter.json();
+      expect(after.wallets).toHaveLength(2);
+      expect(after.wallets).toEqual(expect.arrayContaining(TEST_WALLETS));
+      expect(after.displayName).toBe('E2E Updated');
+    });
+
+    test('should return 401 without token', async ({ request }) => {
+      const { walletGroup, token } = await createAuthenticatedWalletGroup(request);
+      createdIds.push({ id: walletGroup.id, token });
+
+      const res = await request.put(`${API_V1}/wallet-groups/${walletGroup.id}`, {
+        data: { wallets: TEST_WALLETS },
+      });
+      expect(res.status()).toBe(401);
+    });
+
+    test('should reject update with empty wallets', async ({ request }) => {
+      const { walletGroup, token } = await createAuthenticatedWalletGroup(request);
+      createdIds.push({ id: walletGroup.id, token });
+
+      const res = await request.put(`${API_V1}/wallet-groups/${walletGroup.id}`, {
+        data: { wallets: [] },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(res.status()).toBeGreaterThanOrEqual(400);
+      expect(res.status()).toBeLessThan(500);
+    });
+  });
+
   test.describe('POST /wallet-groups/:id/connect - Authentication', () => {
     test('should return JWT token on connect', async ({ request }) => {
       const group = await createWalletGroup(request);

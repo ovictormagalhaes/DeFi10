@@ -54,7 +54,7 @@ const LendingGroupedView: React.FC<LendingGroupedViewProps> = ({ data = [], onOp
 
   data.forEach(item => {
     const position = item.position || item;
-    const protocol = position.protocol || item.protocol || {};
+    const protocol = (position.protocol || item.protocol || {}) as { chain?: string; name?: string; [key: string]: unknown };
     const tokens = position.tokens || [];
     
     // Get chain from protocol first, fallback to first token chain

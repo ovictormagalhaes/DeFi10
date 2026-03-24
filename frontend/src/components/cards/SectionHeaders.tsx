@@ -42,23 +42,14 @@ export const WalletSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] })
   const isMobile = useIsMobile();
   
   const totalValue = data.reduce((sum, item) => {
-    const token = item.token || item;
+    const token = (item.token || item) as { financials?: { totalPrice?: number }; totalPrice?: number };
     return sum + (token.financials?.totalPrice || token.totalPrice || 0);
   }, 0);
   
   const tokenCount = data.length;
   
   return (
-    <div style={{ marginBottom: 16 }}>
-      <h3 style={{ 
-        fontSize: 22, 
-        fontWeight: 600, 
-        color: theme.textPrimary,
-        marginBottom: 12,
-        textAlign: 'center',
-      }}>
-        Wallet
-      </h3>
+    <div style={{ margin: '0 -20px 16px', borderBottom: `1px solid ${theme.border}` }}>
       <div style={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
@@ -66,9 +57,6 @@ export const WalletSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] })
         alignItems: isMobile ? 'stretch' : 'center',
         padding: '16px 24px',
         backgroundColor: theme.bgPanel,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 16,
-        boxShadow: `0 2px 8px ${theme.shadow}`,
         gap: isMobile ? 16 : 0,
       }}>
         <div style={{ flex: 1 }}>
@@ -83,9 +71,9 @@ export const WalletSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] })
             {tokenCount}
           </div>
         </div>
-        
-        <div style={{ 
-          flex: 1, 
+
+        <div style={{
+          flex: 1,
           textAlign: isMobile ? 'left' : 'center',
           padding: isMobile ? 0 : '0 16px',
           borderLeft: isMobile ? 'none' : `1px solid ${theme.border}`,
@@ -102,9 +90,8 @@ export const WalletSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] })
             {maskValue(formatPrice(totalValue))}
           </div>
         </div>
-        
+
         <div style={{ flex: 1, textAlign: 'right', display: isMobile ? 'none' : 'block' }}>
-          {/* Placeholder for symmetry - hidden on mobile */}
           <div style={{ fontSize: 13, marginBottom: 4 }}>&nbsp;</div>
           <div style={{ fontSize: 20, fontWeight: 700 }}>&nbsp;</div>
         </div>
@@ -159,16 +146,7 @@ export const LendingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }
   const netValue = totalSupply - totalBorrow;
   
   return (
-    <div style={{ marginBottom: 16 }}>
-      <h3 style={{ 
-        fontSize: 22, 
-        fontWeight: 600, 
-        color: theme.textPrimary,
-        marginBottom: 12,
-        textAlign: 'center',
-      }}>
-        Lending & Borrowing
-      </h3>
+    <div style={{ margin: '0 -20px 16px', borderBottom: `1px solid ${theme.border}` }}>
       <div style={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
@@ -176,9 +154,6 @@ export const LendingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }
         alignItems: isMobile ? 'stretch' : 'center',
         padding: '16px 24px',
         backgroundColor: theme.bgPanel,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 16,
-        boxShadow: `0 2px 8px ${theme.shadow}`,
         gap: isMobile ? 16 : 0,
       }}>
         <div style={{ flex: 1 }}>
@@ -274,16 +249,7 @@ export const PoolsSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }) 
   const positionsCount = data.length;
   
   return (
-    <div style={{ marginBottom: 16 }}>
-      <h3 style={{ 
-        fontSize: 22, 
-        fontWeight: 600, 
-        color: theme.textPrimary,
-        marginBottom: 12,
-        textAlign: 'center',
-      }}>
-        Liquidity Pools
-      </h3>
+    <div style={{ margin: '0 -20px 16px', borderBottom: `1px solid ${theme.border}` }}>
       <div style={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
@@ -291,9 +257,6 @@ export const PoolsSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }) 
         alignItems: isMobile ? 'stretch' : 'center',
         padding: '16px 24px',
         backgroundColor: theme.bgPanel,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 16,
-        boxShadow: `0 2px 8px ${theme.shadow}`,
         gap: isMobile ? 16 : 0,
       }}>
         <div style={{ flex: 1 }}>
@@ -417,16 +380,7 @@ export const LockingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }
   const positionsCount = data.length;
   
   return (
-    <div style={{ marginBottom: 16 }}>
-      <h3 style={{ 
-        fontSize: 22, 
-        fontWeight: 600, 
-        color: theme.textPrimary,
-        marginBottom: 12,
-        textAlign: 'center',
-      }}>
-        Locked Tokens
-      </h3>
+    <div style={{ margin: '0 -20px 16px', borderBottom: `1px solid ${theme.border}` }}>
       <div style={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
@@ -434,9 +388,6 @@ export const LockingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }
         alignItems: isMobile ? 'stretch' : 'center',
         padding: '16px 24px',
         backgroundColor: theme.bgPanel,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 16,
-        boxShadow: `0 2px 8px ${theme.shadow}`,
         gap: isMobile ? 16 : 0,
       }}>
         <div style={{ flex: 1 }}>
@@ -504,7 +455,7 @@ export const StrategiesSectionHeader: React.FC<StrategiesSectionHeaderProps> = (
   const isMobile = useIsMobile();
   
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ margin: '0 -20px 16px', borderBottom: `1px solid ${theme.border}` }}>
       <div style={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
@@ -512,9 +463,6 @@ export const StrategiesSectionHeader: React.FC<StrategiesSectionHeaderProps> = (
         alignItems: isMobile ? 'stretch' : 'center',
         padding: '16px 24px',
         backgroundColor: theme.bgPanel,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 16,
-        boxShadow: `0 2px 8px ${theme.shadow}`,
         gap: isMobile ? 16 : 12,
       }}>
         <div style={{ flex: 1 }}>

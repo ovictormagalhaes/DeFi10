@@ -49,7 +49,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
     (data || []).forEach((item) => {
       const position = item.position || item;
       const tokens = position.tokens || [];
-      const mainToken = tokens[0] || {};
+      const mainToken = (tokens[0] || {}) as { symbol?: string; name?: string; logo?: string; chain?: string; [key: string]: unknown };
 
       const additionalData =
         item.additionalData ||
@@ -175,7 +175,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
     });
 
     const uniqueProjections = Array.from(aggregatedByType.values());
-    const totals = expandedProps?.totals || {};
+    const totals = (expandedProps?.totals || {}) as { totalSupplied?: number; totalBorrowed?: number; netPosition?: number; [key: string]: unknown };
 
     return {
       supplyHistory: supplies.slice(0, MAX_HISTORY_ROWS),
@@ -388,17 +388,32 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
       maxWidth: '100%',
       overflow: 'visible',
     }}>
-      {data.flatMap((item, posIndex) => {
+      {[...data].sort((a, b) => {
+        const aPos = a.position || a;
+        const bPos = b.position || b;
+        const aTokens = aPos.tokens || [];
+        const bTokens = bPos.tokens || [];
+        const aIsBorrow = aTokens.some(t => {
+          const type = (t.type || '').toLowerCase();
+          return type.includes('borrowed') || type.includes('borrow');
+        });
+        const bIsBorrow = bTokens.some(t => {
+          const type = (t.type || '').toLowerCase();
+          return type.includes('borrowed') || type.includes('borrow');
+        });
+        return Number(aIsBorrow) - Number(bIsBorrow);
+      }).flatMap((item, posIndex) => {
         const position = item.position || item;
-        const protocol = position.protocol || item.protocol || {};
+        const protocol = (position.protocol || item.protocol || {}) as { logo?: string; icon?: string; name?: string; [key: string]: unknown };
         const tokens = position.tokens || [];
-        
+
         const projections = item.additionalData?.projections || item.additionalInfo?.projections || position?.projections || null;
         const projection = item.additionalInfo?.projection || item.additionalData?.projection || position.projection || null;
         const healthFactor = item.additionalData?.healthFactor || item.additionalInfo?.healthFactor || null;
-        const supplyRate = position.supplyRate || position.apy || item.additionalData?.apy || 0;
-        const borrowRate = position.borrowRate || position.borrowApy || item.additionalData?.apy || 0;
-        
+        const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
+        const supplyRate = position.supplyRate || position.apy || projApy || 0;
+        const borrowRate = position.borrowRate || position.borrowApy || projApy || 0;
+
         const isCollateral = [
           position?.isCollateral,
           position?.IsCollateral,
@@ -663,11 +678,12 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
                     <div style={{
                       marginTop: 10,
                     }}>
-                      <ProjectionSelector 
-                        projections={projections} 
-                        defaultType="apy" 
+                      <ProjectionSelector
+                        projections={projections}
+                        defaultType="apy"
                         defaultPeriod="Day"
                         showTypeWhenSingle={false}
+                        invertSign={isBorrowToken}
                         disableDropdownHoverEffects={true}
                         dropdownButtonStyle={{
                           fontSize: 13,
@@ -697,10 +713,11 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
                     <div style={{
                       marginTop: 10,
                     }}>
-                      <ProjectionSelector 
-                        projection={projection} 
+                      <ProjectionSelector
+                        projection={projection}
                         defaultPeriod="Day"
                         showTypeWhenSingle={false}
+                        invertSign={isBorrowToken}
                         disableDropdownHoverEffects={true}
                         dropdownButtonStyle={{
                           fontSize: 13,

@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { SUPPORTED_CHAINS } from '../constants/chains';
 
 import { saveStrategies } from '../services/apiClient';
 import type {
@@ -213,17 +214,9 @@ export function useHealthFactorStrategy() {
   ): HealthFactorStatus[] => {
     const statuses: HealthFactorStatus[] = [];
 
-    // Chain logo mapping
-    const chainLogos: Record<string, string> = {
-      'ethereum': 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
-      'base': 'https://avatars.githubusercontent.com/u/108554348?s=200&v=4',
-      'polygon': 'https://cryptologos.cc/logos/polygon-matic-logo.png',
-      'arbitrum': 'https://cryptologos.cc/logos/arbitrum-arb-logo.png',
-      'optimism': 'https://cryptologos.cc/logos/optimism-ethereum-op-logo.png',
-      'avalanche': 'https://cryptologos.cc/logos/avalanche-avax-logo.png',
-      'solana': 'https://cryptologos.cc/logos/solana-sol-logo.png',
-      'bsc': 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
-    };
+    const chainLogos: Record<string, string> = Object.fromEntries(
+      SUPPORTED_CHAINS.map(c => [c.id.toLowerCase(), c.iconUrl])
+    );
 
     // Filter lending positions with health factor
     const lendingPositions = portfolio.filter(item => 
@@ -385,33 +378,30 @@ export function useHealthFactorStrategy() {
       const token = supplyTokens[0];
       const tokenPrice = token.financials?.price || 0;
       const amount = tokenPrice > 0 ? additionalCollateralNeeded / tokenPrice : 0;
+      const protocolId = item.protocol?.id || 'unknown';
 
       if (amount > 0) {
         suggestions.push({
-          type: 'add_collateral',
-          asset: token.symbol || 'Unknown',
-          amount,
+          action: 'add_collateral',
+          protocol: protocolId,
+          assetKey: `${protocolId}_${token.contractAddress || token.symbol}`,
           amountUsd: additionalCollateralNeeded,
-          currentHF,
-          expectedHF: targetHF,
           priority,
-          description: `Add ${amount.toFixed(4)} ${token.symbol} as collateral`
         });
       }
     }
 
-    // Suggestion 2: Repay debt
-    // Calculate debt reduction needed to reach target HF
     const maxDebt = (collateralValue * liquidationThreshold) / targetHF;
     const debtToRepay = debtValue - maxDebt;
 
     if (debtToRepay > 0 && borrowTokens.length > 0) {
       const token = borrowTokens[0];
-      const assetKey = `${protocol}_${token.mintAddress || token.symbol}`;
+      const protocolId = item.protocol?.id || 'unknown';
+      const assetKey = `${protocolId}_${token.contractAddress || token.symbol}`;
 
       suggestions.push({
         action: 'reduce_debt',
-        protocol,
+        protocol: protocolId,
         assetKey,
         amountUsd: debtToRepay,
         priority

@@ -202,11 +202,11 @@ const WalletSelectorDialog = ({ isOpen, onClose, onSelectWallet, availableWallet
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: 22,
+                      padding: 8,
                       flexShrink: 0,
                     }}
                   >
-                    {wallet.icon}
+                    <img src={wallet.icon} alt={wallet.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   </div>
                   <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
                     <div

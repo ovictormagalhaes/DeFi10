@@ -121,3 +121,21 @@ export function getChainKey(input: string | number | null | undefined): ChainKey
 export function getChainKeyFromId(chainId: number): string {
   return CHAIN_ID_TO_KEY[chainId] || 'unknown';
 }
+
+export interface ChainConfig {
+  name: string;
+  id: string;
+  chainId: number | null;
+  displayName: string;
+  iconUrl: string;
+}
+
+export const SUPPORTED_CHAINS: ChainConfig[] = [
+  { name: 'Ethereum', id: 'ethereum', chainId: 1,     displayName: 'Ethereum', iconUrl: '/resources/chains/ethereum.png' },
+  { name: 'Base',     id: 'base',     chainId: 8453,  displayName: 'Base',     iconUrl: '/resources/chains/base.png' },
+  { name: 'Polygon',  id: 'polygon',  chainId: 137,   displayName: 'Polygon',  iconUrl: '/resources/chains/polygon.png' },
+  { name: 'Arbitrum', id: 'arbitrum', chainId: 42161, displayName: 'Arbitrum', iconUrl: '/resources/chains/arbitrum.png' },
+  { name: 'Optimism', id: 'optimism', chainId: 10,    displayName: 'Optimism', iconUrl: '/resources/chains/optimism.png' },
+  { name: 'BNB Chain',id: 'bnb',      chainId: 56,    displayName: 'BNB Chain',iconUrl: '/resources/chains/bsc.png' },
+  { name: 'Solana',   id: 'solana',   chainId: null,  displayName: 'Solana',   iconUrl: '/resources/chains/solana.png' },
+];

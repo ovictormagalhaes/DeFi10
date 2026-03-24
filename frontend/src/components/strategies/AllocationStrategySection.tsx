@@ -127,7 +127,7 @@ export const AllocationStrategySection: React.FC<
           
           // Keep ALL strategies in the order returned by backend
           const allStrategiesFromBackend = cachedData?.strategies || [];
-          setAllStrategies(allStrategiesFromBackend);
+          setAllStrategies(allStrategiesFromBackend as Strategy[]);
           
           // Trigger hook states to update (they will use the cache, no new API call)
           loadAllocationStrategy(walletGroupId);
@@ -183,7 +183,7 @@ export const AllocationStrategySection: React.FC<
       const { loadStrategyWithCache } = await import('../../hooks/useSharedStrategyCache');
       clearStrategyCache(walletGroupId);
       const data = await loadStrategyWithCache(walletGroupId);
-      setAllStrategies(data?.strategies || []);
+      setAllStrategies((data?.strategies || []) as Strategy[]);
     })();
   };
 
@@ -236,7 +236,7 @@ export const AllocationStrategySection: React.FC<
         
         // Remove the strategy we want to delete (by ID)
         const remainingStrategies = existingData.strategies.filter(
-          (s: Strategy) => s.id !== targetStrategy.id
+          (s: any) => s.id !== targetStrategy.id
         );
         
         // Save remaining strategies (backend format with allocations/targets, not items)
@@ -278,7 +278,7 @@ export const AllocationStrategySection: React.FC<
         (async () => {
           const { loadStrategyWithCache } = await import('../../hooks/useSharedStrategyCache');
           const data = await loadStrategyWithCache(walletGroupId);
-          setAllStrategies(data?.strategies || []);
+          setAllStrategies((data?.strategies || []) as Strategy[]);
         })();
         
         setViewMode('list');
@@ -695,7 +695,7 @@ export const AllocationStrategySection: React.FC<
                   wordBreak: 'break-word',
                 }}
               >
-                {typeof error === 'string' ? error : error?.message || 'Unknown error'}
+                {typeof error === 'string' ? error : (error as any)?.message || 'Unknown error'}
               </p>
             </div>
           )}

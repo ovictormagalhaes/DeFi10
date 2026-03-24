@@ -1,3 +1,4 @@
+import React from 'react';
 import { useChainIcons } from '../context/ChainIconsProvider';
 import type { ThemeShape } from '../context/ThemeProvider';
 import type { WalletItem } from '../types/wallet';
@@ -30,8 +31,8 @@ interface ProtocolsSectionProps {
   selectedChains: Set<string> | null;
   isAllChainsSelected: boolean;
   getCanonicalFromObj: (obj: Record<string, unknown>) => string | undefined;
-  filterLendingDefiTokens: (tokens: unknown[], show: boolean) => unknown[];
-  filterStakingDefiTokens: (tokens: unknown[], show: boolean) => unknown[];
+  filterLendingDefiTokens: (tokens: any[], show: boolean) => any[];
+  filterStakingDefiTokens: (tokens: any[], show: boolean) => any[];
   showLendingDefiTokens: boolean;
   showStakingDefiTokens: boolean;
   setShowLendingDefiTokens: (value: boolean) => void;
@@ -339,7 +340,7 @@ const ProtocolsSection = ({
 
           lendingPositions.forEach((pos) => {
             // Get APY from position's additionalData (not per token)
-            const positionApy = pos.additionalData?.apy;
+            const positionApy = (pos.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
             
             // Iterate through each token to get values
             (pos.tokens || []).forEach((token) => {
@@ -436,8 +437,8 @@ const ProtocolsSection = ({
           protocolGroup.protocol.logoURI || protocolGroup.protocol.logo ? (
             <div style={{ position: 'relative', width: 22, height: 22 }}>
               <img
-                src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo}
-                alt={protocolGroup.protocol.name}
+                src={String(protocolGroup.protocol.logoURI || protocolGroup.protocol.logo)}
+                alt={String(protocolGroup.protocol.name)}
                 style={{
                   width: 22,
                   height: 22,
@@ -732,6 +733,7 @@ const ProtocolsSection = ({
                     lendingGroup.borrowed.length > 0 ||
                     lendingGroup.rewards.length > 0) && (
                     <LendingTables
+                      items={lendingPositions}
                       supplied={lendingGroup.supplied}
                       borrowed={lendingGroup.borrowed}
                       rewards={lendingGroup.rewards}
@@ -739,9 +741,8 @@ const ProtocolsSection = ({
                       netApy={lendingNetApy}
                     />
                   )}
-                {stakingGroup &&
-                  (stakingGroup.staked.length > 0 || stakingGroup.rewards.length > 0) && (
-                    <StakingTables staked={stakingGroup.staked} rewards={stakingGroup.rewards} />
+                {stakingPositions.length > 0 && (
+                    <DepositTables items={stakingPositions} />
                   )}
                 {hasLocking && <LockingTables items={lockingPositions} />}
                 {hasDepositing && <DepositTables items={depositingPositions} />}

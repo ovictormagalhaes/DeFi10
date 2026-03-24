@@ -185,10 +185,26 @@ export function calculateAllocationResult(
   const deltas = calculateAllocationDeltas(strategy, portfolio);
   
   // Get summary
-  const summary = getAllocationSummary(deltas);
-  
+  const rawSummary = getAllocationSummary(deltas);
+  const summary = {
+    totalAssets: rawSummary.totalAssets,
+    assetsNeedingRebalance: rawSummary.assetsNeedingRebalance,
+    maxDeviation: rawSummary.maxDeltaWeight,
+    totalDeltaUsd: rawSummary.totalDeltaValueUsd,
+  };
+
   // Get recommendations
-  const recommendations = suggestRebalanceActions(deltas);
+  const rawRecommendations = suggestRebalanceActions(deltas);
+  const recommendations: RebalanceAction[] = rawRecommendations.map(r => ({
+    action: r.action === 'hold' ? 'buy' as const : r.action,
+    assetKey: r.assetKey,
+    group: r.group,
+    amountUsd: r.amountUsd,
+    currentValueUsd: 0,
+    targetValueUsd: 0,
+    priority: r.percentageChange > 10 ? 'high' as const : r.percentageChange > 5 ? 'medium' as const : 'low' as const,
+    reason: r.action === 'hold' ? 'Within threshold' : `${r.action === 'buy' ? 'Under' : 'Over'}-allocated by ${r.percentageChange.toFixed(1)}%`,
+  }));
 
   return {
     deltas,

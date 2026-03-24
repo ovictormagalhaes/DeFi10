@@ -8,7 +8,7 @@ import {
   normalizeTokenPrice,
 } from './tokenFilters';
 
-interface TokenFinancials {
+export interface TokenFinancials {
   amount?: number;
   decimalPlaces?: number;
   amountFormatted?: number;
@@ -17,10 +17,10 @@ interface TokenFinancials {
   AmountFormatted?: number;
   price?: number;
   totalPrice?: number;
-  [key: string]: unknown;
+  [key: string]: number | undefined;
 }
 
-interface TokenLike {
+export interface TokenLike {
   type?: string | number;
   symbol?: string;
   name?: string;
@@ -41,7 +41,7 @@ interface TokenLike {
   [key: string]: unknown;
 }
 
-interface ProtocolObj {
+export interface ProtocolObj {
   id: string;
   name?: string;
   chain?: string;
@@ -49,7 +49,7 @@ interface ProtocolObj {
   [key: string]: unknown;
 }
 
-interface PositionObj {
+export interface PositionObj {
   label?: string;
   name?: string;
   tokens?: TokenLike[];
@@ -62,12 +62,12 @@ interface PositionObj {
   [key: string]: unknown;
 }
 
-interface WalletItemLike {
+export interface WalletItemLike {
   type?: string | number;
   protocol?: ProtocolObj;
   position?: PositionObj;
   token?: TokenLike;
-  additionalData?: Record<string, unknown>;
+  additionalData?: Record<string, unknown> | null;
   [key: string]: unknown;
 }
 
@@ -78,7 +78,7 @@ interface Range {
   inRange?: boolean;
 }
 
-interface ProtocolGroup {
+export interface ProtocolGroup {
   protocol: ProtocolObj;
   positions: PositionObj[];
 }
@@ -713,8 +713,8 @@ export function groupTokensByPool(positions: PositionObj[]): Record<string, Pool
 
     grouped[finalPoolKey] = {
       label: finalPoolKey,
-      tokens: suppliedTokensEnriched,
-      rewards: rewardsArray,
+      tokens: suppliedTokensEnriched as TokenLike[],
+      rewards: rewardsArray as TokenLike[],
       totalValue: 0,
       totalRewards: 0,
       // Attach range at pool level as well
@@ -989,7 +989,7 @@ export function sum(values: (number | string)[]): number {
  * derivePositionKey
  * Função utilitária para gerar chaves únicas para posições baseado em endereço ou símbolo
  */
-export function derivePositionKey(p: Record<string, unknown>, index: number): string {
+export function derivePositionKey(p: Record<string, unknown>, index = 0): string {
   const pos = (p.position || p) as Record<string, unknown>;
   const token = (pos.token || pos.asset || {}) as Record<string, unknown>;
   const addr = ((token.address || token.contract || token.contractAddress || '') as string).toLowerCase();

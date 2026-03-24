@@ -17,7 +17,7 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct AggregationRequest {
     pub wallet_group_id: Option<Uuid>,
-    pub accounts: Option<Vec<String>>,
+    pub wallets: Option<Vec<String>>,
     pub chains: Option<Vec<String>>,
 }
 
@@ -34,7 +34,7 @@ pub struct AggregationResponse {
 pub struct JobStatusResponse {
     pub job_id: Uuid,
     pub status: String,
-    pub accounts: Vec<String>,
+    pub wallets: Vec<String>,
     pub chains: Vec<String>,
     pub wallet_group_id: Option<Uuid>,
     pub expected_total: u32,
@@ -44,6 +44,7 @@ pub struct JobStatusResponse {
     pub processed_count: u32,
     pub is_final: bool,
     pub created_at: String,
+    pub updated_at: String,
     pub expires_in_seconds: Option<i64>,
     pub active: bool,
     pub items: Vec<WalletItem>,
@@ -81,7 +82,7 @@ pub async fn start_aggregation(
     });
 
     // Get accounts from request or wallet group
-    let accounts = if let Some(accts) = request.accounts {
+    let accounts = if let Some(accts) = request.wallets {
         accts
     } else if let Some(wg_id) = request.wallet_group_id {
         // Fetch accounts from wallet group
@@ -111,9 +112,9 @@ pub async fn start_aggregation(
         tracing::info!(
             "Using accounts from wallet group '{}': {} accounts",
             wallet_group.display_name.as_deref().unwrap_or("Unnamed"),
-            wallet_group.accounts.len()
+            wallet_group.wallets.len()
         );
-        wallet_group.accounts
+        wallet_group.wallets
     } else {
         return Err(DeFi10Error::Validation(
             "Either accounts or walletGroupId must be provided".to_string(),
@@ -144,7 +145,7 @@ pub async fn start_aggregation(
     let agg_publisher = AggregationPublisher::new(message_publisher, None);
 
     let published_count = agg_publisher
-        .publish_job(job_id, &job.accounts, &job.chains, job.wallet_group_id)
+        .publish_job(job_id, &job.wallets, &job.chains, job.wallet_group_id)
         .await
         .map_err(|e| DeFi10Error::Internal(format!("Failed to publish job: {}", e)))?;
 
@@ -157,7 +158,7 @@ pub async fn start_aggregation(
         "Published {} messages for job {} ({} accounts × {} chains)",
         published_count,
         job_id,
-        job.accounts.len(),
+        job.wallets.len(),
         job.chains.len()
     );
 
@@ -177,11 +178,11 @@ pub async fn get_job_status(
     Path(job_id): Path<Uuid>,
 ) -> ApiResult<Json<JobStatusResponse>> {
     let job_manager = JobManager::new(&state.config.redis.url)
-        .map_err(|e| DeFi10Error::Cache(format!("Redis connection error: {}", e)))?;
+        .map_err(|_| DeFi10Error::NotFound(format!("Job {} not found", job_id)))?;
 
     let snapshot = job_manager
         .get_snapshot(&job_id)
-        .map_err(|e| DeFi10Error::Cache(format!("Failed to get job: {}", e)))?
+        .map_err(|_| DeFi10Error::NotFound(format!("Job {} not found", job_id)))?
         .ok_or_else(|| DeFi10Error::NotFound(format!("Job {} not found", job_id)))?;
 
     let (mut items, summary) = transform_results_to_items(&snapshot.results);
@@ -191,7 +192,7 @@ pub async fn get_job_status(
     Ok(Json(JobStatusResponse {
         job_id: snapshot.job_id,
         status: snapshot.status.to_string(),
-        accounts: snapshot.accounts,
+        wallets: snapshot.wallets,
         chains: snapshot.chains,
         wallet_group_id: snapshot.wallet_group_id,
         expected_total: snapshot.expected_total,
@@ -201,6 +202,7 @@ pub async fn get_job_status(
         processed_count: snapshot.processed_count,
         is_final: snapshot.is_final,
         created_at: snapshot.created_at.to_rfc3339(),
+        updated_at: snapshot.updated_at.to_rfc3339(),
         expires_in_seconds: snapshot.expires_in_seconds,
         active: snapshot.active,
         items,
@@ -337,8 +339,27 @@ fn transform_results_to_items(
     let mut items = Vec::new();
     let mut summary = AggregationSummary::default();
 
+    // Deduplicate results by (account, protocol, chain, position_type, token_address, token_type)
+    // to handle cases where the same message is processed twice (worker restart, redelivery, etc.)
+    let mut seen_results: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let deduped_results: Vec<&AggregationResult> = results
+        .iter()
+        .filter(|r| {
+            let dedup_key = format!(
+                "{}:{}:{}:{}:{}:{}",
+                r.account,
+                r.protocol,
+                r.chain,
+                r.position_type,
+                r.token_address,
+                r.token_type.as_deref().unwrap_or("")
+            );
+            seen_results.insert(dedup_key)
+        })
+        .collect();
+
     let mut grouped: HashMap<String, Vec<&AggregationResult>> = HashMap::new();
-    for result in results {
+    for result in deduped_results {
         let key = if is_lending_protocol(&result.protocol) {
             format!(
                 "{}:{}:{}:{}",
@@ -438,7 +459,7 @@ fn create_protocol_info(protocol: &str, chain: &str) -> ProtocolInfo {
         "raydium" => ProtocolInfo::raydium(chain),
         "kamino" => ProtocolInfo::kamino(chain),
         "pendle" => ProtocolInfo::pendle(chain),
-        _ => ProtocolInfo::new(protocol, chain, protocol),
+        _ => ProtocolInfo::new(protocol, chain),
     }
 }
 
@@ -600,7 +621,6 @@ fn create_lending_additional_data(
 
     Some(AdditionalData {
         health_factor,
-        apy,
         is_collateral,
         can_be_collateral,
         projections,
@@ -621,9 +641,6 @@ fn create_liquidity_pool_additional_data(
     let first = results.first()?;
     let metadata = first.metadata.as_ref();
 
-    let apr = first
-        .apr
-        .or_else(|| metadata.and_then(|m| m.get("apr").and_then(|v| v.as_f64())));
     let pool_id = metadata.and_then(|m| {
         m.get("poolId")
             .and_then(|v| v.as_str())
@@ -658,12 +675,10 @@ fn create_liquidity_pool_additional_data(
         None
     };
 
-    let (projections, apr_historical) =
+    let (projections, _) =
         compute_fee_projections(results, created_at, total_value_usd);
 
     let mut data = AdditionalData {
-        apr,
-        apr_historical,
         pool_id,
         tier_percent,
         total_value_usd,
@@ -727,7 +742,7 @@ fn compute_fee_projections(
                     one_year: daily_rate * 365.0,
                 },
                 metadata: Some(serde_json::json!({
-                    "apr": historical_apr,
+                    "value": historical_apr,
                     "createdAt": created_ts,
                     "totalFeesGenerated": total_fees_usd,
                     "daysActive": days_active
@@ -799,7 +814,7 @@ fn compute_apy_projection(
             one_month: total_value_usd * rate / 12.0,
             one_year: total_value_usd * rate,
         },
-        metadata: Some(serde_json::json!({ "apy": apy_val })),
+        metadata: Some(serde_json::json!({ "value": apy_val })),
     }])
 }
 
@@ -901,7 +916,7 @@ mod tests {
             Some("user123".to_string()),
         );
 
-        assert_eq!(group.accounts.len(), 2);
+        assert_eq!(group.wallets.len(), 2);
         assert!(!group.id.is_nil());
     }
 

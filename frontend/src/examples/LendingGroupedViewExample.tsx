@@ -7,7 +7,7 @@ import {
   LendingCards,
   LendingSectionHeader,
   LendingSubSectionHeader
-} from './components/cards';
+} from '../components/cards';
 
 interface LendingDataItem {
   position?: {
@@ -39,7 +39,7 @@ interface LendingDataItem {
 }
 
 interface LendingDataProps {
-  lendingData: LendingDataItem[];
+  lendingData: any[];
 }
 
 type ViewMode = 'grouped' | 'individual';
@@ -163,7 +163,7 @@ export const ExemploComFiltros: React.FC<LendingDataProps> = ({ lendingData }) =
       const getPositionValue = (item: LendingDataItem): number => {
         const tokens = item.position?.tokens || item.tokens || [];
         return tokens.reduce((sum, token) => {
-          return sum + Math.abs(token.financials?.totalPrice || token.totalPrice || 0);
+          return sum + Math.abs((token as any).financials?.totalPrice || (token as any).totalPrice || 0);
         }, 0);
       };
       return getPositionValue(b) - getPositionValue(a); // Maior primeiro
@@ -221,7 +221,7 @@ export const ExemploComFiltros: React.FC<LendingDataProps> = ({ lendingData }) =
           <span style={{ fontSize: 14, fontWeight: 500 }}>Filter:</span>
           <select
             value={filterHealthFactor}
-            onChange={(e) => setFilterHealthFactor(e.target.value)}
+            onChange={(e) => setFilterHealthFactor(e.target.value as HealthFactorFilter)}
             style={{
               padding: '8px 12px',
               borderRadius: 8,
@@ -241,7 +241,7 @@ export const ExemploComFiltros: React.FC<LendingDataProps> = ({ lendingData }) =
           <span style={{ fontSize: 14, fontWeight: 500 }}>Sort by:</span>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
             style={{
               padding: '8px 12px',
               borderRadius: 8,

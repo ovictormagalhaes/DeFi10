@@ -434,7 +434,7 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
         const tokensRaw = getTokens(pos);
         const rewardsRaw = extractRewards(pos);
         const tokens = mergeTokenList(tokensRaw);
-        const rewards = mergeTokenList(rewardsRaw);
+        const rewards = mergeTokenList(rewardsRaw as Token[]);
 
         // Extract uncollected fees specifically from LiquidityUncollectedFee tokens
         const uncollectedFeeTokens =
@@ -448,12 +448,12 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
 
         // Extract range using unified utility function
         const range = extractPoolRange(p);
-        const poolName =
-          pos.name ||
+        const poolName: string =
+          String(pos.name || '') ||
           (tokens.length >= 2
             ? `${tokens[0].symbol || tokens[0].name}/${tokens[1].symbol || tokens[1].name}`
             : tokens[0]?.symbol || tokens[0]?.name || `Pool #${i + 1}`);
-        const poolId = pos.id || pos.poolId || pos.address || pos.contractAddress || `pool-${i}`;
+        const poolId = String(pos.id || pos.poolId || pos.address || pos.contractAddress || `pool-${i}`);
 
         // Calculate uncollected fees value from LiquidityUncollectedFee tokens (like PoolTables)
         const rewardsTotalValue = uncollectedFeeTokens.reduce(

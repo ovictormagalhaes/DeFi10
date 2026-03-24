@@ -288,11 +288,11 @@ export default function RebalancingView({
 
   // Form state
   // Start all selects unselected (placeholder)
-  const [assetType, setAssetType] = React.useState('');
-  const [assetId, setAssetId] = React.useState('');
-  const [assetIds, setAssetIds] = React.useState([]); // Array of {type, id} for grouping multiple assets
-  const [referenceType, setReferenceType] = React.useState('');
-  const [referenceValue, setReferenceValue] = React.useState('');
+  const [assetType, setAssetType] = React.useState<string | number>('');
+  const [assetId, setAssetId] = React.useState<string>('');
+  const [assetIds, setAssetIds] = React.useState<any[]>([]); // Array of {type, id} for grouping multiple assets
+  const [referenceType, setReferenceType] = React.useState<string>('');
+  const [referenceValue, setReferenceValue] = React.useState<string | number>('');
   const [note, setNote] = React.useState(0);
   const [entries, setEntries] = React.useState([]);
   const [saving, setSaving] = React.useState(false);
@@ -458,7 +458,7 @@ export default function RebalancingView({
   const handleAdd = () => {
     if (!canAdd) return;
     const atLabel =
-      ASSET_TYPE_OPTIONS.find((a) => a.value === assetType)?.label || getAssetTypeLabel(assetType);
+      ASSET_TYPE_OPTIONS.find((a) => a.value === assetType)?.label || getAssetTypeLabel(assetType as number);
     // Use assetIds if available, otherwise use single assetId
     const finalAssets = assetIds.length > 0 ? assetIds : [{ type: assetType, id: assetId }];
     const assetLabels = finalAssets.map(asset => {
@@ -886,7 +886,7 @@ export default function RebalancingView({
                     : type === RebalanceAssetType.Group
                       ? groupById
                       : null;
-      return src?.get(assetId)?.label || assetId;
+      return (src?.get(assetId) as any)?.label || assetId;
     };
 
     const makeRefLabel = (refType, val) => {
@@ -1119,7 +1119,7 @@ export default function RebalancingView({
       setSaveResult({
         key: data.key,
         itemsCount: data.itemsCount,
-        accounts: data.accounts,
+        wallets: data.wallets,
         savedAt: new Date(),
       });
       // Update lastSavedHashRef after successful save
@@ -1139,7 +1139,7 @@ export default function RebalancingView({
       }
     } catch (err) {
       console.error('Auto-save error', err);
-      setSaveError(err.message || 'Save failed');
+      setSaveError((err as any).message || 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -1243,20 +1243,20 @@ export default function RebalancingView({
         assetOptions={assetOptions}
         referenceType={referenceType}
         setReferenceType={setReferenceType}
-        referenceValue={referenceValue}
-        setReferenceValue={setReferenceValue}
+        referenceValue={String(referenceValue)}
+        setReferenceValue={setReferenceValue as (value: string) => void}
         referenceOptions={referenceOptions}
         note={note}
         setNote={setNote}
         ASSET_TYPE_OPTIONS={ASSET_TYPE_OPTIONS}
         RebalanceReferenceType={RebalanceReferenceType}
-        ITEM_TYPES={ITEM_TYPES}
-        AssetDropdown={AssetDropdown}
+        ITEM_TYPES={ITEM_TYPES as unknown as Record<string, number>}
+        AssetDropdown={AssetDropdown as unknown as React.ComponentType<Record<string, unknown>>}
         TokenDisplay={TokenDisplay}
         tokensList={tokensList}
         protocolsList={protocolsList}
         getOptionsForType={getOptionsForType}
-        canAdd={canAdd}
+        canAdd={!!canAdd}
         isDuplicateCandidate={isDuplicateCandidate}
         onCancel={() => {
           setShowDialog(false);
@@ -1348,15 +1348,15 @@ export default function RebalancingView({
                     setAssetType(row.assetType);
                     const assets = row.assetIds || [{ type: row.assetType, id: row.assetId }];
                     if (assets.length === 1) {
-                      setAssetId(assets[0].id || assets[0]);
+                      setAssetId(String(assets[0].id || assets[0]));
                       setAssetIds([]);
                     } else {
                       setAssetId('');
                       setAssetIds(assets);
                     }
-                    setReferenceType(row.referenceType);
-                    setReferenceValue(row.referenceValue || '');
-                    setNote(row.note || 0);
+                    setReferenceType(String(row.referenceType || ''));
+                    setReferenceValue((row.referenceValue as string | number) || '');
+                    setNote(Number(row.note) || 0);
                   }}
                   onDelete={removeEntry}
                   entryCurrentValues={entryCurrentValues}

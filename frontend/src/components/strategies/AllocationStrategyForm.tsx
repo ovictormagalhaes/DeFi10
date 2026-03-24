@@ -30,9 +30,10 @@ import { useChainIcons } from '../../context/ChainIconsProvider';
 
 import { RebalanceAssetType, ASSET_TYPE_OPTIONS } from '../../types/rebalancing';
 import type { AllocationByWeightConfig } from '../../types/strategies/allocationByWeight';
-import type { SaveStrategyResponse } from '../../types/strategy';
+import type { SaveStrategiesResponse } from '../../types/strategy';
 import type { WalletItem } from '../../types/wallet';
 import { WalletItemType } from '../../constants/walletItemTypes';
+import { getProtocolConfig } from '../../constants/protocols';
 
 // Helper to map WalletItemType to RebalanceAssetType
 const mapWalletTypeToRebalanceType = (type: WalletItemType): RebalanceAssetType => {
@@ -59,7 +60,7 @@ interface AllocationStrategyFormProps {
     config: AllocationByWeightConfig,
     portfolio: WalletItem[],
     strategyId?: string // Optional: when editing, pass the ID to update
-  ) => Promise<SaveStrategyResponse>;
+  ) => Promise<SaveStrategiesResponse>;
   onCancel: () => void;
   onSuccess: () => void;
   saving: boolean;
@@ -139,7 +140,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         // NEW structure: data is already in the allocation object
         const protocol = alloc.protocol?.id || alloc.protocol;
         const protocolName = alloc.protocol?.name || '';
-        const protocolLogo = alloc.protocol?.logo || '';
+        const protocolLogo = getProtocolConfig(alloc.protocol?.id || alloc.protocol?.name || '').logo;
         const chain = alloc.chain?.id || alloc.chain;
         const symbol = alloc.token?.symbol || alloc.assetKey;
         const tokenLogo = alloc.token?.logo || '';
@@ -251,7 +252,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
             protocol: protocol?.id,
             protocolName: protocol?.name,
             chain: protocol?.chain,
-            protocolLogo: protocol?.logo,
+            protocolLogo: getProtocolConfig(protocol?.id || protocol?.name || '').logo,
             chainLogo: protocol?.chain ? getChainIcon(protocol.chain) : undefined,
             tokenLogo: item.metadata.tokens?.[0]?.logo,
             weight: alloc.targetWeight,
@@ -979,7 +980,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         .allocation-form {
           width: 100%;
         }

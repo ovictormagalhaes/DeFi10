@@ -1,6 +1,6 @@
 import { useTheme } from '../context/ThemeProvider';
 
-type ViewMode = 'chart' | 'table' | 'cards' | 'strategies';
+type ViewMode = 'chart' | 'cards' | 'strategies';
 
 interface ViewModeSelectorProps {
   value?: ViewMode;
@@ -18,7 +18,7 @@ interface ModeOption {
  * @param {string} value - Current selected view mode: 'chart' | 'table' | 'cards' | 'strategies'
  * @param {Function} onChange - Callback when view mode changes
  */
-const ViewModeSelector = ({ value = 'table', onChange }: ViewModeSelectorProps) => {
+const ViewModeSelector = ({ value = 'cards', onChange }: ViewModeSelectorProps) => {
   const { theme } = useTheme();
 
   const modes: ModeOption[] = [
@@ -33,29 +33,6 @@ const ViewModeSelector = ({ value = 'table', onChange }: ViewModeSelectorProps) 
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: 'table',
-      label: 'Table',
-      icon: (
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect
-            x="2"
-            y="3"
-            width="14"
-            height="12"
-            rx="1.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <path
-            d="M2 7H16M2 11H16"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
           />
         </svg>
       ),

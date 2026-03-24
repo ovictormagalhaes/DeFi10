@@ -76,13 +76,12 @@ public class AaveBorrowsMapper : IWalletItemMapper<AaveGetUserBorrowsResponse>
                     Position = new Position { Label = "Borrowed", Tokens = new List<Token> { borrowedToken } },
                     AdditionalData = new AdditionalData()
                     {
-                        Apy = apy,
-                        Projections = projection != null ? new List<ProjectionData> 
+                        Projections = projection != null ? new List<ProjectionData>
                         {
                             _projectionCalculator.CreateProjectionData(
                                 ProjectionType.Apy,
                                 projection,
-                                new ProjectionMetadata { Apy = apy }
+                                new ProjectionMetadata { Value = apy }
                             )
                         } : null
                     }

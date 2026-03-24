@@ -60,7 +60,7 @@ const DeFiMenu: React.FC<DeFiMenuProps> = ({
                       (sum, pos) =>
                         sum +
                         (pos.rewards?.reduce(
-                          (rewardSum, reward) => rewardSum + (reward.totalPrice || 0),
+                          (rewardSum, reward) => rewardSum + (Number(reward.totalPrice) || 0),
                           0
                         ) || 0),
                       0
@@ -82,7 +82,7 @@ const DeFiMenu: React.FC<DeFiMenuProps> = ({
                       (sum, pos) =>
                         sum +
                         (pos.tokens?.reduce(
-                          (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                          (tokenSum, token) => tokenSum + (Number(token.totalPrice) || 0),
                           0
                         ) || 0),
                       0
@@ -104,7 +104,7 @@ const DeFiMenu: React.FC<DeFiMenuProps> = ({
                     (sum, pos) =>
                       sum +
                       (pos.tokens?.reduce(
-                        (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                        (tokenSum, token) => tokenSum + (Number(token.totalPrice) || 0),
                         0
                       ) || 0),
                     0
@@ -136,7 +136,7 @@ const DeFiMenu: React.FC<DeFiMenuProps> = ({
                         sum +
                         (pos.tokens
                           ?.filter((token) => token.type === 'supplied')
-                          .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0),
+                          .reduce((tokenSum, token) => tokenSum + (Number(token.totalPrice) || 0), 0) || 0),
                       0
                     ),
                   0
@@ -157,7 +157,7 @@ const DeFiMenu: React.FC<DeFiMenuProps> = ({
                         sum +
                         (pos.tokens
                           ?.filter((token) => token.type === 'borrowed')
-                          .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0),
+                          .reduce((tokenSum, token) => tokenSum + (Number(token.totalPrice) || 0), 0) || 0),
                       0
                     ),
                   0
@@ -173,7 +173,7 @@ const DeFiMenu: React.FC<DeFiMenuProps> = ({
                 groupDefiByProtocol(data).reduce(
                   (total, group) =>
                     total +
-                    group.positions.reduce((sum, pos) => sum + (parseFloat(pos.balance) || 0), 0),
+                    group.positions.reduce((sum, pos) => sum + (parseFloat(String(pos.balance)) || 0), 0),
                   0
                 )
               )
@@ -201,7 +201,7 @@ const DeFiMenu: React.FC<DeFiMenuProps> = ({
                       (sum, pos) =>
                         sum +
                         (pos.tokens?.reduce(
-                          (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                          (tokenSum, token) => tokenSum + (Number(token.totalPrice) || 0),
                           0
                         ) || 0),
                       0
@@ -220,7 +220,7 @@ const DeFiMenu: React.FC<DeFiMenuProps> = ({
                   (total, group) =>
                     total +
                     group.positions.reduce(
-                      (sum, pos) => sum + (parseFloat(pos.totalUnclaimed) || 0),
+                      (sum, pos) => sum + (parseFloat(String(pos.totalUnclaimed)) || 0),
                       0
                     ),
                   0
@@ -236,7 +236,7 @@ const DeFiMenu: React.FC<DeFiMenuProps> = ({
                 groupDefiByProtocol(data).reduce(
                   (total, group) =>
                     total +
-                    group.positions.reduce((sum, pos) => sum + (parseFloat(pos.balance) || 0), 0),
+                    group.positions.reduce((sum, pos) => sum + (parseFloat(String(pos.balance)) || 0), 0),
                   0
                 )
               )
@@ -351,7 +351,7 @@ const ProtocolGroup: React.FC<ProtocolGroupProps> = ({
                   (sum, pos) =>
                     sum +
                     (pos.rewards?.reduce(
-                      (rewardSum, reward) => rewardSum + (reward.totalPrice || 0),
+                      (rewardSum, reward) => rewardSum + (Number(reward.totalPrice) || 0),
                       0
                     ) || 0),
                   0
@@ -368,7 +368,7 @@ const ProtocolGroup: React.FC<ProtocolGroupProps> = ({
                   (sum, pos) =>
                     sum +
                     (pos.tokens?.reduce(
-                      (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                      (tokenSum, token) => tokenSum + (Number(token.totalPrice) || 0),
                       0
                     ) || 0),
                   0
@@ -396,7 +396,7 @@ const ProtocolGroup: React.FC<ProtocolGroupProps> = ({
                     sum +
                     (pos.tokens
                       ?.filter((token) => token.type === 'supplied')
-                      .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0),
+                      .reduce((tokenSum, token) => tokenSum + (Number(token.totalPrice) || 0), 0) || 0),
                   0
                 )
               )
@@ -412,7 +412,7 @@ const ProtocolGroup: React.FC<ProtocolGroupProps> = ({
                     sum +
                     (pos.tokens
                       ?.filter((token) => token.type === 'borrowed')
-                      .reduce((tokenSum, token) => tokenSum + (token.totalPrice || 0), 0) || 0),
+                      .reduce((tokenSum, token) => tokenSum + (Number(token.totalPrice) || 0), 0) || 0),
                   0
                 )
               )
@@ -424,7 +424,7 @@ const ProtocolGroup: React.FC<ProtocolGroupProps> = ({
             value: maskValue(
               formatPrice(
                 protocolGroup.positions.reduce(
-                  (sum, pos) => sum + (parseFloat(pos.balance) || 0),
+                  (sum, pos) => sum + (parseFloat(String(pos.balance)) || 0),
                   0
                 )
               )
@@ -449,7 +449,7 @@ const ProtocolGroup: React.FC<ProtocolGroupProps> = ({
                   (sum, pos) =>
                     sum +
                     (pos.tokens?.reduce(
-                      (tokenSum, token) => tokenSum + (token.totalPrice || 0),
+                      (tokenSum, token) => tokenSum + (Number(token.totalPrice) || 0),
                       0
                     ) || 0),
                   0
@@ -463,7 +463,7 @@ const ProtocolGroup: React.FC<ProtocolGroupProps> = ({
             value: maskValue(
               formatPrice(
                 protocolGroup.positions.reduce(
-                  (sum, pos) => sum + (parseFloat(pos.totalUnclaimed) || 0),
+                  (sum, pos) => sum + (parseFloat(String(pos.totalUnclaimed)) || 0),
                   0
                 )
               )
@@ -475,7 +475,7 @@ const ProtocolGroup: React.FC<ProtocolGroupProps> = ({
             value: maskValue(
               formatPrice(
                 protocolGroup.positions.reduce(
-                  (sum, pos) => sum + (parseFloat(pos.balance) || 0),
+                  (sum, pos) => sum + (parseFloat(String(pos.balance)) || 0),
                   0
                 )
               )
@@ -501,7 +501,7 @@ const ProtocolGroup: React.FC<ProtocolGroupProps> = ({
                   src={protocolGroup.protocol.logoURI || protocolGroup.protocol.logo}
                   alt={protocolGroup.protocol.name}
                   className="token-logo block"
-                  onError={(e) => (e.target.style.display = 'none')}
+                  onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
                 />
                 {chainIcon && (
                   <img
@@ -550,10 +550,10 @@ const LiquidityPositions: React.FC<LiquidityPositionsProps> = ({ protocolGroup }
                 <React.Fragment key={`${poolKey}-logo-${tokenIndex}`}>
                   {token.logo && (
                     <img
-                      src={token.logo}
-                      alt={token.symbol}
+                      src={token.logo as string}
+                      alt={token.symbol as string}
                       className="pool-token-logo"
-                      onError={(e) => (e.target.style.display = 'none')}
+                      onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
                     />
                   )}
                   <span className={tokenIndex < poolData.tokens.length - 1 ? 'mr-4' : undefined}>
@@ -575,7 +575,7 @@ const LiquidityPositions: React.FC<LiquidityPositionsProps> = ({ protocolGroup }
                   const correspondingReward = poolData.rewards?.find(
                     (reward) => reward.symbol === token.symbol
                   );
-                  const tokenReward = correspondingReward ? correspondingReward.totalPrice || 0 : 0;
+                  const tokenReward = correspondingReward ? Number(correspondingReward.totalPrice) || 0 : 0;
 
                   return (
                     <TokenRow
@@ -652,7 +652,7 @@ const TokenRow: React.FC<TokenRowProps> = ({ token, tokenReward, isLast, showTyp
             src={token.logo}
             alt={token.symbol}
             className="token-logo mr-10"
-            onError={(e) => (e.target.style.display = 'none')}
+            onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
           />
         )}
         <span className="token-symbol">{token.symbol}</span>

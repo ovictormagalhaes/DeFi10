@@ -105,7 +105,7 @@ export function calculateAllocationDeltas(
   rebalanceThreshold: number = 5
 ): AllocationDelta[] {
   // Support both new (allocations) and legacy (targetAllocations) structure
-  const targets = (strategy as any).allocations || strategy.targetAllocations || [];
+  const targets = (strategy as any).allocations || (strategy as any).targetAllocations || [];
   
   if (targets.length === 0) {
     return [];

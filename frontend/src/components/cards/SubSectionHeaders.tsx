@@ -101,7 +101,7 @@ interface PeriodValues {
   year?: number;
 }
 
-type DropdownValues = PeriodValues | Record<string, PeriodValues | string | number> | string | number;
+type DropdownValues = Record<string, any>;
 
 interface SubSectionItemWithDropdownProps {
   label: string;
@@ -153,7 +153,6 @@ const SubSectionItemWithDropdown: React.FC<SubSectionItemWithDropdownProps> = ({
         const lowerType = type.toLowerCase();
         switch (lowerType) {
           case 'apr': return { key: type, label: 'APR' };
-          case 'aprhistorical': return { key: type, label: 'APR Historical' };
           default: return { key: type, label: type.charAt(0).toUpperCase() + type.slice(1) };
         }
       })
@@ -283,7 +282,7 @@ const SubSectionItemWithDropdown: React.FC<SubSectionItemWithDropdownProps> = ({
         wordBreak: 'break-word',
         overflowWrap: 'break-word'
       }}>
-        {isSimpleValue ? `${currentValue}%` : maskValue(formatPrice(currentValue))}
+        {isSimpleValue ? `${currentValue}%` : maskValue(formatPrice(currentValue as string | number))}
       </div>
     </div>
   );
@@ -315,7 +314,6 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
   const projectionSums = {
     apr: { day: 0, week: 0, month: 0, year: 0 },
     apy: { day: 0, week: 0, month: 0, year: 0 },
-    aprHistorical: { day: 0, week: 0, month: 0, year: 0 },
   };
 
   // Se groupByProtocol, calcular Health Factor único por protocolo + chain
@@ -330,22 +328,22 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
                item.additionalData?.healthFactor ||
                item.healthFactor;
     
-    if (groupByProtocol && hf != null && isFinite(parseFloat(hf)) && parseFloat(hf) > 0) {
-      // Agrupar por protocol + chain para não contar o mesmo HF múltiplas vezes
-      const protocol = position.protocol || item.protocol || {};
+    if (groupByProtocol && hf != null && isFinite(parseFloat(String(hf))) && parseFloat(String(hf)) > 0) {
+      const protocol = (position.protocol || item.protocol || {}) as { name?: string; [key: string]: unknown };
       const chain = tokens[0]?.chain || 'unknown';
       const key = `${protocol.name || 'unknown'}-${chain}`;
-      
+
       if (!uniqueHealthFactors.has(key)) {
-        uniqueHealthFactors.set(key, parseFloat(hf));
+        uniqueHealthFactors.set(key, parseFloat(String(hf)));
       }
-    } else if (!groupByProtocol && hf != null && isFinite(parseFloat(hf)) && parseFloat(hf) > 0) {
-      healthFactorSum += parseFloat(hf);
+    } else if (!groupByProtocol && hf != null && isFinite(parseFloat(String(hf))) && parseFloat(String(hf)) > 0) {
+      healthFactorSum += parseFloat(String(hf));
       healthFactorCount++;
     }
 
-    const supplyRate = position.supplyRate || position.apy || item.additionalData?.apy || 0;
-    const borrowRate = position.borrowRate || position.borrowApy || item.additionalData?.apy || 0;
+    const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
+    const supplyRate = position.supplyRate || position.apy || projApy || 0;
+    const borrowRate = position.borrowRate || position.borrowApy || projApy || 0;
     
     // Support both new projections array and legacy single projection
     const projections = item.additionalData?.projections || 
@@ -366,8 +364,8 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
     if (projections && Array.isArray(projections)) {
       projections.forEach(proj => {
         const rawType = proj.type?.toLowerCase() || 'apy';
-        // Map type to correct key in projectionSums
-        const type = rawType === 'aprhistorical' ? 'aprHistorical' : rawType;
+        if (rawType === 'aprhistorical') return;
+        const type = rawType;
         const projection = proj.projection;
         
         if (projection && projectionSums[type]) {
@@ -389,12 +387,12 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
     
     // Processar tokens
     tokens.forEach(token => {
-      const tokenValue = parseFloat(
-        token.totalPrice || 
-        token.financials?.totalPrice || 
+      const tokenValue = parseFloat(String(
+        token.totalPrice ||
+        token.financials?.totalPrice ||
         token.balanceUSD ||
         0
-      );
+      ));
       
       const tokenType = (token.type || '').toLowerCase();
       const tokenApy = token.apy || token.apr;
@@ -435,13 +433,11 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
                            (projectionSums.apr?.month || 0) !== 0 || (projectionSums.apr?.year || 0) !== 0;
   const hasApyProjections = (projectionSums.apy?.day || 0) !== 0 || (projectionSums.apy?.week || 0) !== 0 || 
                            (projectionSums.apy?.month || 0) !== 0 || (projectionSums.apy?.year || 0) !== 0;
-  const hasAprHistoricalProjections = (projectionSums.aprHistorical?.day || 0) !== 0 || (projectionSums.aprHistorical?.week || 0) !== 0 || 
-                                 (projectionSums.aprHistorical?.month || 0) !== 0 || (projectionSums.aprHistorical?.year || 0) !== 0;
-  const hasProjections = hasAprProjections || hasApyProjections || hasAprHistoricalProjections;
+  const hasProjections = hasAprProjections || hasApyProjections;
 
   const items = [
     avgHealthFactor !== null && {
-      label: 'Health Factor',
+      label: 'Net Health Factor',
       value: avgHealthFactor.toFixed(2),
       flex: 1,
       color: avgHealthFactor > 2 ? '#10b981' : avgHealthFactor > 1.5 ? '#f59e0b' : '#ef4444',
@@ -452,7 +448,7 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
       ),
     },
     avgApy !== null && avgApy !== 0 && {
-      label: 'Avg APY',
+      label: 'Net APY',
       value: `${avgApy >= 0 ? '+' : ''}${avgApy.toFixed(2)}%`,
       flex: 1,
       color: avgApy >= 0 ? '#10b981' : '#ef4444',
@@ -463,12 +459,11 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
   let projectionValues: Record<string, unknown> = {};
   const shouldShowTypeDropdown = false; // LendingCards uses showTypeWhenSingle: false
   
-  if ((hasAprProjections && hasApyProjections) || (hasAprProjections && hasAprHistoricalProjections) || (hasApyProjections && hasAprHistoricalProjections)) {
+  if (hasAprProjections && hasApyProjections) {
     // Multiple types: create nested structure
     projectionValues = {};
-    if (hasAprProjections) projectionValues.apr = projectionSums.apr;
-    if (hasApyProjections) projectionValues.apy = projectionSums.apy;
-    if (hasAprHistoricalProjections) projectionValues.aprHistorical = projectionSums.aprHistorical;
+    projectionValues.apr = projectionSums.apr;
+    projectionValues.apy = projectionSums.apy;
   } else if (hasApyProjections) {
     // Single type: use nested structure if showTypeWhenSingle is true, otherwise flat
     if (shouldShowTypeDropdown) {
@@ -481,12 +476,6 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
       projectionValues = { apr: projectionSums.apr };
     } else {
       projectionValues = projectionSums.apr;
-    }
-  } else if (hasAprHistoricalProjections) {
-    if (shouldShowTypeDropdown) {
-      projectionValues = { aprHistorical: projectionSums.aprHistorical };
-    } else {
-      projectionValues = projectionSums.aprHistorical;
     }
   }
 
@@ -560,15 +549,10 @@ export const LiquiditySubSectionHeader: React.FC<LiquiditySubSectionHeaderProps>
     const position = item.position || item;
     const tokens = Array.isArray(position.tokens) ? position.tokens : [];
     
-    const positionApr = position.additionalData?.aprHistorical || 
-                        position.aprHistorical || 
-                        item.aprHistorical ||
-                        item.additionalData?.aprHistorical ||
-                        position.additionalData?.apr || 
-                        position.apr || 
+    const positionApr = (position.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata?.value ||
+                        (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata?.value ||
+                        position.apr ||
                         item.apr ||
-                        item.additionalData?.apr ||
-                        position.additionalData?.apy ||
                         position.apy;
     
     // Support both new projections array and legacy single projection
@@ -617,13 +601,13 @@ export const LiquiditySubSectionHeader: React.FC<LiquiditySubSectionHeaderProps>
     let positionFeesValue = 0;
 
     tokens.forEach(token => {
-      const tokenValue = parseFloat(
-        token.totalPrice || 
-        token.financials?.totalPrice || 
+      const tokenValue = parseFloat(String(
+        token.totalPrice ||
+        token.financials?.totalPrice ||
         token.balanceUSD ||
         0
-      );
-      
+      ));
+
       const tokenType = (token.type || '').toLowerCase();
       
       if (tokenType.includes('supplied') || 

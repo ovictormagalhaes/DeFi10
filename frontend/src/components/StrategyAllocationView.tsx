@@ -119,7 +119,7 @@ export const StrategyAllocationView: React.FC<StrategyAllocationViewProps> = ({
               const action = rebalanceActions[index];
               
               // Find logo from strategy items
-              const item = strategy.items.find(it => 
+              const item = (strategy as any).items?.find((it: any) =>
                 it.metadata?.symbol === delta.assetKey || it.assets[0]?.key === delta.assetKey
               );
               const logo = item?.metadata?.tokens?.[0]?.logo;
@@ -176,7 +176,7 @@ export const StrategyAllocationView: React.FC<StrategyAllocationViewProps> = ({
       </div>
 
       {/* Styling */}
-      <style jsx>{`
+      <style>{`
         .strategy-allocation-view {
           padding: 24px;
           background: var(--color-background);

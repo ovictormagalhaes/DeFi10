@@ -7,7 +7,7 @@
 import { useMemo } from 'react';
 import { useStrategy } from '../useStrategy';
 import type { WalletItem } from '../../types/wallet';
-import type { AllocationDelta, SaveStrategyResponse, Strategy } from '../../types/strategy';
+import type { AllocationDelta, SaveStrategyResponse, SaveStrategiesResponse, Strategy } from '../../types/strategy';
 import type { 
   AllocationByWeightConfig, 
   AllocationByWeightResult 
@@ -27,7 +27,7 @@ export interface UseAllocationStrategyResult {
     config: AllocationByWeightConfig,
     portfolio: WalletItem[],
     strategyId?: string
-  ) => Promise<SaveStrategyResponse>;
+  ) => Promise<SaveStrategiesResponse>;
   clearStrategy: () => void;
   
   // Calculations
@@ -58,7 +58,7 @@ export function useAllocationStrategy(): UseAllocationStrategyResult {
     config: AllocationByWeightConfig,
     portfolio: WalletItem[],
     strategyId?: string
-  ): Promise<SaveStrategyResponse> => {
+  ): Promise<SaveStrategiesResponse> => {
     return saveStrategy(1, walletGroupId, config, portfolio, strategyId);
   };
 

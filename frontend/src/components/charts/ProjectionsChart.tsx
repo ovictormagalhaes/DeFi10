@@ -60,13 +60,17 @@ export const ProjectionsChart: React.FC<Props> = ({
   };
   
   // Projection types for each category
-  const lendingTypes = useMemo(() => 
-    projections.lending.map(p => ({ value: p.type, label: formatTypeLabel(p.type) })),
+  const lendingTypes = useMemo(() =>
+    projections.lending
+      .filter(p => p.type?.toLowerCase() !== 'aprhistorical')
+      .map(p => ({ value: p.type, label: formatTypeLabel(p.type) })),
     [projections.lending]
   );
-  
-  const liquidityTypes = useMemo(() => 
-    projections.liquidity.map(p => ({ value: p.type, label: formatTypeLabel(p.type) })),
+
+  const liquidityTypes = useMemo(() =>
+    projections.liquidity
+      .filter(p => p.type?.toLowerCase() !== 'aprhistorical')
+      .map(p => ({ value: p.type, label: formatTypeLabel(p.type) })),
     [projections.liquidity]
   );
 
@@ -220,7 +224,7 @@ export const ProjectionsChart: React.FC<Props> = ({
           )}
         </div>
         <div style={{ paddingTop: 6, borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
-          <span style={{ color: chartColors.positive, fontSize: 12 }}>Portfolio: </span>
+          <span style={{ color: (chartColors as any).positive || chartColors.wallet, fontSize: 12 }}>Portfolio: </span>
           <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>
             {maskValue(formatPrice(data.total))}
           </span>
@@ -666,14 +670,14 @@ export const ProjectionsChart: React.FC<Props> = ({
                 <div style={{
                   fontSize: 15,
                   fontWeight: 700,
-                  color: chartColors.positive
+                  color: (chartColors as any).positive || chartColors.wallet
                 }}>
                   {maskValue(formatPrice(item.total))}
                 </div>
                 <div style={{
                   fontSize: 11,
                   fontWeight: 600,
-                  color: chartColors.positive
+                  color: (chartColors as any).positive || chartColors.wallet
                 }}>
                   {ratePercent}
                 </div>

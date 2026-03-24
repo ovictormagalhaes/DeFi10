@@ -1,13 +1,15 @@
 use anyhow::Result;
-use defi10_core::aggregation::JobStatus;
+use defi10_core::aggregation::{AggregationResult, JobStatus};
 use defi10_infrastructure::{
     aggregation::{AggregationMessage, JobManager},
+    cache::{CacheService, RedisCache, AGGREGATION_CACHE_PREFIX},
     config::load_config,
     messaging::RabbitMqConnection,
 };
 use futures_util::stream::StreamExt;
 use lapin::ExchangeKind;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -16,10 +18,8 @@ use processor::AggregationProcessor;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Load .env file
     dotenvy::dotenv().ok();
 
-    // Initialize tracing
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .with_target(false)
@@ -28,10 +28,8 @@ async fn main() -> Result<()> {
 
     info!("Starting DeFi10 Aggregation Worker...");
 
-    // Load configuration from environment and config files
     let config = load_config().expect("Failed to load configuration");
 
-    // Log blockchain configuration for debugging
     info!("Blockchain RPCs configured:");
     info!(
         "  Ethereum: {}",
@@ -71,11 +69,9 @@ async fn main() -> Result<()> {
     );
     info!("Configuration loaded");
 
-    // Connect to RabbitMQ
     let rabbitmq = RabbitMqConnection::new(&config.rabbitmq.url).await?;
     info!("Connected to RabbitMQ");
 
-    // Declare exchange and queue
     let exchange = "aggregation.requests";
     let queue = "aggregation.queue";
 
@@ -87,21 +83,26 @@ async fn main() -> Result<()> {
     rabbitmq.declare_queue(queue, true).await?;
     info!("Queue '{}' declared", queue);
 
-    // Bind queue to exchange with routing key pattern
     rabbitmq
         .bind_queue(queue, exchange, "aggregation.*")
         .await?;
     info!("Queue bound to exchange with pattern 'aggregation.*'");
 
-    // Create job manager
     let job_manager = Arc::new(JobManager::new(&config.redis.url)?);
     info!("Job manager initialized");
 
-    // Create processor
     let processor = Arc::new(AggregationProcessor::new(config.clone()));
     info!("Processor initialized");
 
-    // Get channel and create consumer
+    let cache = RedisCache::new(&config.redis.url, config.redis.default_ttl_seconds)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create Redis cache: {}", e))?;
+    let account_cache_ttl = Duration::from_secs(config.redis.account_cache_ttl_seconds);
+    info!(
+        "Account cache initialized (TTL={}s)",
+        config.redis.account_cache_ttl_seconds
+    );
+
     let channel = rabbitmq.create_channel().await?;
     let mut consumer = channel
         .basic_consume(
@@ -114,11 +115,9 @@ async fn main() -> Result<()> {
 
     info!("Starting message consumption from queue '{}'...", queue);
 
-    // Consume messages
     while let Some(delivery) = consumer.next().await {
         match delivery {
             Ok(delivery) => {
-                // Parse message
                 match serde_json::from_slice::<AggregationMessage>(&delivery.data) {
                     Ok(message) => {
                         info!(
@@ -128,12 +127,19 @@ async fn main() -> Result<()> {
 
                         let job_manager = Arc::clone(&job_manager);
                         let processor = Arc::clone(&processor);
+                        let mut cache_clone = cache.clone();
 
-                        // Process message
-                        match process_message(message, job_manager, processor).await {
+                        match process_message(
+                            message,
+                            job_manager,
+                            processor,
+                            &mut cache_clone,
+                            account_cache_ttl,
+                        )
+                        .await
+                        {
                             Ok(_) => {
                                 info!("Message processed successfully");
-                                // Ack message
                                 if let Err(e) = delivery
                                     .ack(lapin::options::BasicAckOptions::default())
                                     .await
@@ -143,7 +149,6 @@ async fn main() -> Result<()> {
                             }
                             Err(e) => {
                                 error!("Failed to process message: {}", e);
-                                // Nack and requeue
                                 if let Err(e) = delivery
                                     .nack(lapin::options::BasicNackOptions {
                                         requeue: true,
@@ -158,7 +163,6 @@ async fn main() -> Result<()> {
                     }
                     Err(e) => {
                         error!("Failed to parse message: {}", e);
-                        // Ack invalid message to remove from queue
                         if let Err(e) = delivery
                             .ack(lapin::options::BasicAckOptions::default())
                             .await
@@ -182,15 +186,55 @@ async fn process_message(
     message: AggregationMessage,
     job_manager: Arc<JobManager>,
     processor: Arc<AggregationProcessor>,
+    cache: &mut RedisCache,
+    account_cache_ttl: Duration,
 ) -> Result<()> {
-    // Process the aggregation
-    let results = processor
-        .process(&message.account, &message.chain, message.job_id)
-        .await;
+    let cache_key = format!(
+        "{}:{}",
+        message.account.to_lowercase(),
+        message.chain.to_lowercase()
+    );
 
-    match results {
+    let cached: Option<Vec<AggregationResult>> = cache
+        .get(AGGREGATION_CACHE_PREFIX, &cache_key)
+        .await
+        .ok()
+        .flatten();
+
+    let agg_results = if let Some(cached_results) = cached {
+        info!(
+            "Job {}: Cache HIT for {}/{} ({} results)",
+            message.job_id,
+            message.account,
+            message.chain,
+            cached_results.len()
+        );
+        Ok(cached_results)
+    } else {
+        info!(
+            "Job {}: Cache MISS for {}/{}, fetching from chain",
+            message.job_id, message.account, message.chain
+        );
+        let results = processor
+            .process(&message.account, &message.chain, message.job_id)
+            .await;
+
+        if let Ok(ref r) = results {
+            if let Err(e) = cache
+                .set(AGGREGATION_CACHE_PREFIX, &cache_key, r, Some(account_cache_ttl))
+                .await
+            {
+                warn!(
+                    "Failed to cache results for {}/{}: {}",
+                    message.account, message.chain, e
+                );
+            }
+        }
+        results
+    };
+
+    match agg_results {
         Ok(agg_results) => {
-            // Add each result to job
             let result_count = agg_results.len();
             let total_value: f64 = agg_results.iter().map(|r| r.value_usd).sum();
 
@@ -198,7 +242,6 @@ async fn process_message(
                 job_manager.add_result(&message.job_id, &result)?;
             }
 
-            // Increment succeeded counter
             job_manager.increment_counters(&message.job_id, 1, 0, 0)?;
 
             info!(
@@ -212,19 +255,16 @@ async fn process_message(
                 message.job_id, message.account, message.chain, e
             );
 
-            // Increment failed counter
             job_manager.increment_counters(&message.job_id, 0, 1, 0)?;
         }
     }
 
-    // Check if job is complete
     check_job_completion(&message.job_id, &job_manager).await?;
 
     Ok(())
 }
 
 async fn check_job_completion(job_id: &Uuid, job_manager: &JobManager) -> Result<()> {
-    // Get job snapshot
     if let Some(snapshot) = job_manager.get_snapshot(job_id)? {
         let total_processed = snapshot.succeeded + snapshot.failed + snapshot.timed_out;
 
@@ -238,21 +278,17 @@ async fn check_job_completion(job_id: &Uuid, job_manager: &JobManager) -> Result
             snapshot.timed_out
         );
 
-        // Check if all tasks are processed
         if total_processed >= snapshot.expected_total {
-            // Determine final status
             let final_status = if snapshot.succeeded == snapshot.expected_total {
                 JobStatus::Completed
             } else if snapshot.succeeded > 0 {
-                JobStatus::Completed // Partial success
+                JobStatus::Completed
             } else {
                 JobStatus::Failed
             };
 
-            // Update job status
             job_manager.update_job_status(job_id, final_status.clone())?;
 
-            // Mark as final
             job_manager.mark_final(job_id)?;
 
             info!(

@@ -49,7 +49,7 @@ pub async fn save_strategies(
         .strategy_service
         .save_strategies(
             request.wallet_group_id,
-            wallet_group.accounts,
+            wallet_group.wallets,
             request.strategies,
         )
         .await
@@ -71,7 +71,7 @@ pub async fn save_strategies(
                 key: result.key,
                 strategies_count: result.strategies.len(),
                 strategies,
-                accounts: result.accounts,
+                wallets: result.wallets,
                 saved_at: Utc::now(),
             };
 
@@ -122,7 +122,7 @@ pub async fn get_strategies(
         Ok(Some(result)) => Ok(Json(WalletGroupStrategiesResponse::from(result))),
         Ok(None) => {
             let empty_result =
-                WalletGroupStrategies::new(wallet_group_id, wallet_group.accounts, vec![]);
+                WalletGroupStrategies::new(wallet_group_id, wallet_group.wallets, vec![]);
             Ok(Json(WalletGroupStrategiesResponse::from(empty_result)))
         }
         Err(e) => {

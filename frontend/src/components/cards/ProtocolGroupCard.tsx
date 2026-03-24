@@ -55,7 +55,7 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
 
   // Get protocol info from first position
   const firstPosition = positions[0]?.position || positions[0];
-  const protocol = firstPosition.protocol || positions[0]?.protocol || {};
+  const protocol = (firstPosition.protocol || positions[0]?.protocol || {}) as { name?: string; logo?: string; icon?: string; iconUrl?: string; [key: string]: unknown };
   
   // Get protocol logo from multiple possible sources
   const protocolLogo = protocol.logo || 
@@ -99,7 +99,7 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
     totalSupplied += supplyValue;
     totalBorrowed += borrowValue;
 
-    const itemApy = item.additionalData?.apy || item.additionalInfo?.apy || 0;
+    const itemApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value || item.additionalInfo?.apy || 0;
     const supplyRate = position.supplyRate || position.apy || (supplyValue > borrowValue ? itemApy : 0);
     const borrowRate = position.borrowRate || position.borrowApy || (borrowValue > supplyValue ? Math.abs(itemApy) : 0);
 
@@ -389,9 +389,10 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
           {/* Individual Token Cards - flatten tokens from positions */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))',
             gap: 16,
             padding: 20,
+            backgroundColor: theme.bgApp,
           }}>
             {visiblePositions.flatMap((item, posIndex) => {
               const position = item.position || item;
@@ -399,8 +400,9 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
 
               const projections = item.additionalData?.projections || item.additionalInfo?.projections || position?.projections || null;
               const projection = item.additionalInfo?.projection || item.additionalData?.projection || position.projection || null;
-              const supplyRate = position.supplyRate || position.apy || item.additionalData?.apy || 0;
-              const borrowRate = position.borrowRate || position.borrowApy || item.additionalData?.apy || 0;
+              const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
+              const supplyRate = position.supplyRate || position.apy || projApy || 0;
+              const borrowRate = position.borrowRate || position.borrowApy || projApy || 0;
 
               const isCollateral = [
                 position?.isCollateral,
@@ -419,7 +421,7 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
                 <div
                   key={`${posIndex}-${tokenIndex}`}
                   style={{
-                    backgroundColor: theme.bgSecondary,
+                    backgroundColor: theme.bgPanel,
                     border: `1px solid ${theme.border}`,
                     borderRadius: 12,
                     padding: 16,
