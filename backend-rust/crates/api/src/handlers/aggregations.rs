@@ -111,9 +111,9 @@ pub async fn start_aggregation(
         tracing::info!(
             "Using accounts from wallet group '{}': {} accounts",
             wallet_group.display_name.as_deref().unwrap_or("Unnamed"),
-            wallet_group.accounts.len()
+            wallet_group.wallets.len()
         );
-        wallet_group.accounts
+        wallet_group.wallets
     } else {
         return Err(DeFi10Error::Validation(
             "Either accounts or walletGroupId must be provided".to_string(),
@@ -144,7 +144,7 @@ pub async fn start_aggregation(
     let agg_publisher = AggregationPublisher::new(message_publisher, None);
 
     let published_count = agg_publisher
-        .publish_job(job_id, &job.accounts, &job.chains, job.wallet_group_id)
+        .publish_job(job_id, &job.wallets, &job.chains, job.wallet_group_id)
         .await
         .map_err(|e| DeFi10Error::Internal(format!("Failed to publish job: {}", e)))?;
 
@@ -157,7 +157,7 @@ pub async fn start_aggregation(
         "Published {} messages for job {} ({} accounts × {} chains)",
         published_count,
         job_id,
-        job.accounts.len(),
+        job.wallets.len(),
         job.chains.len()
     );
 
@@ -191,7 +191,7 @@ pub async fn get_job_status(
     Ok(Json(JobStatusResponse {
         job_id: snapshot.job_id,
         status: snapshot.status.to_string(),
-        accounts: snapshot.accounts,
+        accounts: snapshot.wallets,
         chains: snapshot.chains,
         wallet_group_id: snapshot.wallet_group_id,
         expected_total: snapshot.expected_total,
@@ -901,7 +901,7 @@ mod tests {
             Some("user123".to_string()),
         );
 
-        assert_eq!(group.accounts.len(), 2);
+        assert_eq!(group.wallets.len(), 2);
         assert!(!group.id.is_nil());
     }
 
