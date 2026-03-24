@@ -80,7 +80,7 @@ const createButtonStyle = (theme, fontStyles, additionalProps = {}) => ({
   ...additionalProps,
 });
 
-const createTableStyle = (additionalProps = {}) => ({
+const createTableStyle = (additionalProps: React.CSSProperties = {}): React.CSSProperties => ({
   width: '100%',
   tableLayout: 'fixed',
   borderCollapse: 'collapse',
@@ -386,10 +386,10 @@ export default function SectionTable({
                 }}
                 style={createButtonStyle(theme, fontStyles)}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = 0.7;
+                  e.currentTarget.style.opacity = '0.7';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = 1;
+                  e.currentTarget.style.opacity = '1';
                 }}
               >
                 {expanded ? '-' : '+'}

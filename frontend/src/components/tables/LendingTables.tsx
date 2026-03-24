@@ -112,8 +112,8 @@ function aggregateFromItems(items: WalletItem[] = []): AggregatedPosition[] {
   });
 
   return Object.values(grouped).map((group: any) => {
-    const token = group[0]; // primeiro token do grupo
-    
+    const token = group[0];
+
     const totalSupplied = sum(
       group
         .filter((t: any) => t.type === 'Supplied' || t.type === 'Supply')
@@ -125,7 +125,7 @@ function aggregateFromItems(items: WalletItem[] = []): AggregatedPosition[] {
             t.valueUsd ||
             parseFloat(String(t.balance || 0)) * parseFloat(String(t.price || 0)) ||
             0
-          );
+          ) as number;
         })
     );
     
@@ -140,7 +140,7 @@ function aggregateFromItems(items: WalletItem[] = []): AggregatedPosition[] {
             t.valueUsd ||
             parseFloat(String(t.balance || 0)) * parseFloat(String(t.price || 0)) ||
             0
-          );
+          ) as number;
         })
     );
 
@@ -152,14 +152,7 @@ function aggregateFromItems(items: WalletItem[] = []): AggregatedPosition[] {
     );
     const rewardsValue = sum(
       rewards.map(
-        (r) =>
-          r.totalValueUsd ||
-          r.totalValueUSD ||
-          r.totalValue ||
-          r.valueUsd ||
-          r.valueUSD ||
-          r.value ||
-          0
+        (r) => Number(r.totalValueUsd || r.totalValueUSD || r.totalValue || r.valueUsd || r.valueUSD || r.value || 0)
       )
     );
 
@@ -238,14 +231,7 @@ function aggregatePositions(positions: WalletItem[] = []): AggregatedPosition[] 
     );
     const rewardsValue = sum(
       rewards.map(
-        (r) =>
-          r.totalValueUsd ||
-          r.totalValueUSD ||
-          r.totalValue ||
-          r.valueUsd ||
-          r.valueUSD ||
-          r.value ||
-          0
+        (r) => Number(r.totalValueUsd || r.totalValueUSD || r.totalValue || r.valueUsd || r.valueUSD || r.value || 0)
       )
     );
 
@@ -362,7 +348,7 @@ export default function LendingTables({
     lendingItems.forEach((item: any) => {
       const tokens = item.tokens || [];
       // Get APY from position's additionalData (not per token)
-      const positionApy = item.additionalData?.apy;
+      const positionApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
       
       tokens.forEach((token: any) => {
         const tokenValue = 
@@ -487,7 +473,7 @@ export default function LendingTables({
               labels={{
                 token: title === 'Supplied' ? 'Supply' : title === 'Borrowed' ? 'Borrow' : 'Token',
               }}
-              columns={['token', 'collateral', 'price', 'amount', 'value']}
+              columns={['token', 'collateral', 'price', 'amount', 'value'] as any}
             />
             <tbody>
               {tokens.map((t: any, idx) => {
@@ -647,7 +633,7 @@ export default function LendingTables({
       {suppliedList.length > 0 && (
         <table className="table-unified text-primary">
           <StandardHeader
-            columns={['token', 'supplied', 'net']}
+            columns={['token', 'supplied', 'net'] as any}
             columnDefs={[
               { key: 'supplied', label: 'Supplied', align: 'right' },
               { key: 'net', label: 'Net Value', align: 'right' },
@@ -656,7 +642,7 @@ export default function LendingTables({
           />
           <tbody>
             {suppliedList.map((p, i) => {
-              const key = derivePositionKey(p, i);
+              const key = derivePositionKey(p as unknown as Record<string, unknown>, i);
               const suppliedValue = parseFloat(p.supplied.toString()) || 0;
               const netValue = parseFloat(p.netValue.toString()) || 0;
               const isOpen = expanded[`sup-${i}`];

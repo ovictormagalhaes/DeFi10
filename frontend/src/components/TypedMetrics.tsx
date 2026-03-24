@@ -4,6 +4,7 @@ import { useMaskValues } from '../context/MaskValuesContext';
 import { useTheme } from '../context/ThemeProvider';
 import type { WalletItem, Range } from '../types/wallet';
 import { extractHealthFactor, extractPoolFees24h, extractPoolRange } from '../types/wallet';
+import { WalletItemType } from '../constants/walletItemTypes';
 import { formatPrice } from '../utils/walletUtils.js';
 
 import MiniMetric from './MiniMetric';
@@ -19,11 +20,10 @@ const AdvancedAnalysis: React.FC<{ items: WalletItem[] }> = ({ items }) => {
   // Análise de Risk Profile usando type guards
   const riskAnalysis = React.useMemo(() => {
     const liquidityPools = items.filter(
-      (item): item is WalletItem & { type: 'LiquidityPool' } => item.type === 'LiquidityPool'
+      (item): item is WalletItem => item.type === WalletItemType.LIQUIDITY_POOL
     );
     const lendingPositions = items.filter(
-      (item): item is WalletItem & { type: 'LendingAndBorrowing' } =>
-        item.type === 'LendingAndBorrowing'
+      (item): item is WalletItem => item.type === WalletItemType.LENDING_AND_BORROWING
     );
 
     // Análise de ranges dos pools (type-safe)

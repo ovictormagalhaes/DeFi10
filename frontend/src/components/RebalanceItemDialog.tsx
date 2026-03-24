@@ -97,7 +97,7 @@ export default function RebalanceItemDialog({
 }: RebalanceItemDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const firstFieldRef = useRef<HTMLSelectElement>(null);
-  const lastActiveRef = useRef<Element | null>(null);
+  const lastActiveRef = useRef<HTMLElement | null>(null);
 
   // Close on ESC
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function RebalanceItemDialog({
   // Manage focus on open/close
   useEffect(() => {
     if (open) {
-      lastActiveRef.current = document.activeElement;
+      lastActiveRef.current = document.activeElement as HTMLElement | null;
       setTimeout(() => {
         firstFieldRef.current?.focus();
       }, 0);

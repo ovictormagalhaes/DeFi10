@@ -94,6 +94,12 @@ pub struct RedisConfig {
     pub pool_size: u32,
     #[serde(alias = "defaultttlseconds")]
     pub default_ttl_seconds: u64,
+    #[serde(default = "default_account_cache_ttl", alias = "accountcachettlseconds")]
+    pub account_cache_ttl_seconds: u64,
+}
+
+fn default_account_cache_ttl() -> u64 {
+    120
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -226,6 +232,7 @@ impl Default for RedisConfig {
             url: "redis://localhost:6379".to_string(),
             pool_size: 10,
             default_ttl_seconds: 300,
+            account_cache_ttl_seconds: 120,
         }
     }
 }
@@ -251,6 +258,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
         .set_default("server.port", 10000)?
         .set_default("redis.pool_size", 10)?
         .set_default("redis.default_ttl_seconds", 300)?
+        .set_default("redis.account_cache_ttl_seconds", 120)?
         .set_default("rate_limiting.enabled", true)?
         .set_default("rate_limiting.max_requests", 100)?
         .set_default("rate_limiting.window_seconds", 60)?

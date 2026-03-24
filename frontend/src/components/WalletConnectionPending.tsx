@@ -31,22 +31,16 @@ const WalletConnectionPending: React.FC<WalletConnectionPendingProps> = ({ isOpe
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'rgba(0, 0, 0, 0.85)',
-        backdropFilter: 'blur(8px)',
+        background: 'rgba(0, 0, 0, 0.88)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10000,
         padding: '20px',
-        animation: 'fadeIn 0.2s ease-out',
       }}
     >
       <style>
         {`
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
           @keyframes pulse {
             0%, 100% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.05); opacity: 0.8; }
@@ -160,12 +154,16 @@ const WalletConnectionPending: React.FC<WalletConnectionPendingProps> = ({ isOpe
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 60,
+            padding: 24,
             animation: 'pulse 2s ease-in-out infinite',
             boxShadow: `0 8px 32px ${walletColor}40`,
           }}
         >
-          {walletIcon || '🔗'}
+          {typeof walletIcon === 'string' && walletIcon.endsWith('.svg') ? (
+            <img src={walletIcon} alt={walletName || 'Wallet'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          ) : (
+            <span style={{ fontSize: 60 }}>{walletIcon || '🔗'}</span>
+          )}
         </div>
 
         {/* Title */}

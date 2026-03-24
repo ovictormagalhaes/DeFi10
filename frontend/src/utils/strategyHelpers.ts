@@ -6,16 +6,18 @@
 // Re-export types
 export type {
   Strategy,
-  StrategyType,
-  TargetAllocation,
-  StrategyItem,
-  StrategyAssetMetadata,
-  TokenMetadata,
-  ProtocolMetadata,
   AllocationDelta,
   SaveStrategyRequest,
   SaveStrategyResponse,
+  TargetAllocation,
+  StrategyAssetMetadata,
+  TokenMetadata,
+  ProtocolMetadata,
 } from '../types/strategy';
+
+export { StrategyType } from '../types/strategy';
+
+export type { StrategyItem } from '../types/strategy';
 
 // Re-export metadata utilities
 export {

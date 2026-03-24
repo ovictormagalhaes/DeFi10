@@ -6,10 +6,11 @@
 
 import { useState, useCallback } from 'react';
 import type { WalletItem } from '../types/wallet';
-import type { 
-  Strategy, 
+import type {
+  Strategy,
   StrategyType,
-  SaveStrategyResponse
+  SaveStrategyResponse,
+  SaveStrategiesResponse
 } from '../types/strategy';
 import { saveStrategy as saveStrategyApi, saveStrategies } from '../services/apiClient';
 import { loadStrategyWithCache, clearStrategyCache, getStrategyByType } from './useSharedStrategyCache';
@@ -34,7 +35,7 @@ export interface UseStrategyResult<TConfig = unknown, TResult = unknown> {
     config: TConfig,
     portfolio: WalletItem[],
     strategyId?: string
-  ) => Promise<SaveStrategyResponse>;
+  ) => Promise<SaveStrategiesResponse>;
   clearStrategy: () => void;
   
   // Calculations
@@ -80,7 +81,7 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
     config: TConfig,
     portfolio: WalletItem[],
     strategyId?: string
-  ): Promise<SaveStrategyResponse> => {
+  ): Promise<SaveStrategiesResponse> => {
     setSaving(true);
     setError(null);
 

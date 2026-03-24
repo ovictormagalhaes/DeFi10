@@ -79,7 +79,7 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
     }}>
       {data.map((item, index) => {
         const position = item.position || item;
-        const protocol = position.protocol || item.protocol || {};
+        const protocol = (position.protocol || item.protocol || {}) as { logo?: string; icon?: string; name?: string; [key: string]: unknown };
         const tokens = position.tokens || [];
         
         // Get unlock date from additionalData
@@ -91,11 +91,11 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
         const governanceTokens = filterGovernanceTokens(tokens);
         
         const totalValue = suppliedTokens.reduce((sum, token) => {
-          return sum + (token.financials?.totalPrice || token.totalPrice || 0);
+          return sum + Number(token.financials?.totalPrice || token.totalPrice || 0);
         }, 0);
-        
+
         const governanceValue = governanceTokens.reduce((sum, token) => {
-          return sum + (token.financials?.totalPrice || token.totalPrice || 0);
+          return sum + Number(token.financials?.totalPrice || token.totalPrice || 0);
         }, 0);
         
         // Get main token (first supplied token)
@@ -153,8 +153,8 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                     zIndex: 2,
                   }}>
                     <img
-                      src={mainToken.logo}
-                      alt={mainToken.symbol}
+                      src={mainToken.logo as string}
+                      alt={mainToken.symbol as string}
                       style={{ width: '100%', height: '100%', objectFit: 'fill' }}
                       onError={(e) => e.currentTarget.style.display = 'none'}
                     />
@@ -187,10 +187,10 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                 {/* Chain */}
                 {mainToken?.chain && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {getChainIcon(mainToken.chain) && (
+                    {getChainIcon(mainToken.chain as string) && (
                       <img
-                        src={getChainIcon(mainToken.chain)}
-                        alt={mainToken.chain}
+                        src={getChainIcon(mainToken.chain as string)}
+                        alt={mainToken.chain as string}
                         style={{ 
                           width: 16, 
                           height: 16, 
@@ -201,7 +201,7 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                       />
                     )}
                     <span style={{ fontSize: 12, color: theme.textMuted }}>
-                      {mainToken.chain.charAt(0).toUpperCase() + mainToken.chain.slice(1)}
+                      {String(mainToken.chain || '').charAt(0).toUpperCase() + String(mainToken.chain || '').slice(1)}
                     </span>
                   </div>
                 )}
@@ -267,7 +267,7 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                   color: theme.textPrimary,
                   fontFamily: 'monospace',
                 }}>
-                  {formatBalance(mainToken?.financials?.balanceFormatted || mainToken?.balance || 0)} {mainToken?.symbol}
+                  {formatBalance(Number(mainToken?.financials?.balanceFormatted || mainToken?.balance || 0))} {mainToken?.symbol as string}
                 </span>
               </div>
 
@@ -377,8 +377,8 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           {token.logo && (
                             <img
-                              src={token.logo}
-                              alt={token.symbol}
+                              src={token.logo as string}
+                              alt={token.symbol as string}
                               style={{ 
                                 width: 20, 
                                 height: 20, 
@@ -402,7 +402,7 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                           color: theme.textSecondary,
                           fontFamily: 'monospace',
                         }}>
-                          {formatBalance(token.financials?.balanceFormatted || token.balance || 0)}
+                          {formatBalance(Number(token.financials?.balanceFormatted || token.balance || 0))}
                         </span>
                       </div>
                     ))}

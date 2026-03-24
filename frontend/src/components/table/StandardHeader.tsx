@@ -1,4 +1,4 @@
-type ColumnKey = 'range' | 'price' | 'amount' | 'rewards' | 'value';
+type ColumnKey = 'range' | 'price' | 'amount' | 'rewards' | 'value' | 'unlock';
 
 interface ColumnDef {
   key: string;
@@ -30,6 +30,7 @@ export default function StandardHeader({
     amount: 'Amount',
     rewards: 'Rewards',
     value: 'Value',
+    unlock: 'Unlock At',
   };
   const merged = { ...defaultLabels, ...labels };
 
@@ -52,7 +53,7 @@ export default function StandardHeader({
     sequence = columns && Array.isArray(columns) && columns.length ? columns : null;
     if (!sequence) {
       // Legacy fallback
-      sequence = [showRange ? 'range' : null, 'amount', 'rewards', 'value'].filter(Boolean);
+      sequence = [showRange ? 'range' : null, 'amount', 'rewards', 'value'].filter(Boolean) as ColumnKey[];
     }
   }
 

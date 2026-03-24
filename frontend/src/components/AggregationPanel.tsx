@@ -75,7 +75,7 @@ export default function AggregationPanel({ account, chain = 'Base', auto = true 
             <button
               className="btn btn--primary"
               disabled={!account}
-              onClick={() => start(account, chain)}
+              onClick={() => start(account, chain ? [chain] : null)}
             >
               Start
             </button>

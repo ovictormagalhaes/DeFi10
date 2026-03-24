@@ -76,6 +76,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
   const [name, setName] = useState('Health Factor Monitor');
   const [description, setDescription] = useState('');
   const [lendingPositions, setLendingPositions] = useState<LendingPosition[]>([]);
+  const [submitted, setSubmitted] = useState(false);
   const [showPositionDialog, setShowPositionDialog] = useState(false);
   const [selectedPosition, setSelectedPosition] = useState<WalletItem | null>(null);
   const [dialogTargetHF, setDialogTargetHF] = useState(2.0);
@@ -167,16 +168,16 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
         if (loadedPositions.length > 0) {
           setLendingPositions(loadedPositions);
         }
-      } else if (initialStrategy.items && initialStrategy.items.length > 0) {
+      } else if ((initialStrategy as any).items && (initialStrategy as any).items.length > 0) {
         // OLD structure: read from items array
         // Target HF items have positionLabel = 'Health Factor Target'
         // Critical threshold items have positionLabel = 'Health Factor Critical'
-        
+
         const targetHFsMap: Record<string, number> = {};
         const criticalThresholdsMap: Record<string, number> = {};
         const positionIds = new Set<string>();
-        
-        initialStrategy.items.forEach(item => {
+
+        (initialStrategy as any).items.forEach((item: any) => {
           const posId = item.value;
           if (!posId) return;
           
@@ -238,6 +239,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
   }, [lendingPositions]);
 
   const handleSubmit = async () => {
+    setSubmitted(true);
     if (!validation.valid) {
       return;
     }
@@ -912,7 +914,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
       )}
 
       {/* Validation Errors */}
-      {!validation.valid && (
+      {submitted && !validation.valid && (
         <div className="hf-form-section" style={{
           background: '#dc262610',
           borderColor: '#dc2626'

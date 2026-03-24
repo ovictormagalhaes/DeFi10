@@ -1,8 +1,8 @@
 declare global {
   interface Window {
-    rabby?: unknown;
-    ethereum?: unknown;
-    solana?: { isPhantom?: boolean };
+    rabby?: { request?: (...args: any[]) => any; on?: (...args: any[]) => any; removeListener?: (...args: any[]) => any; [key: string]: any };
+    ethereum?: { request?: (...args: any[]) => any; on?: (...args: any[]) => any; removeListener?: (...args: any[]) => any; [key: string]: any };
+    solana?: { isPhantom?: boolean; isConnected?: boolean; connect?: (...args: any[]) => any; disconnect?: (...args: any[]) => any; on?: (...args: any[]) => any; removeListener?: (...args: any[]) => any; [key: string]: any };
   }
 }
 
@@ -23,7 +23,7 @@ export const WALLETS: WalletConfig[] = [
     id: 'rabby',
     name: 'Rabby',
     description: 'Connect with Rabby',
-    icon: '\u{1F430}',
+    icon: '/wallets/rabby.svg',
     color: '#8697FF',
     type: 'evm',
     detectFn: () => {
@@ -34,7 +34,7 @@ export const WALLETS: WalletConfig[] = [
     id: 'metamask',
     name: 'MetaMask',
     description: 'Connect with MetaMask',
-    icon: '\u{1F98A}',
+    icon: '/wallets/metamask.svg',
     color: '#F6851B',
     type: 'evm',
     detectFn: () => {
@@ -45,7 +45,7 @@ export const WALLETS: WalletConfig[] = [
     id: 'phantom',
     name: 'Phantom',
     description: 'Connect with Phantom',
-    icon: '\u{1F47B}',
+    icon: '/wallets/phantom.svg',
     color: '#AB9FF2',
     type: 'solana',
     detectFn: () => !!(window.solana && window.solana.isPhantom),

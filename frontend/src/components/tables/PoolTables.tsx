@@ -324,14 +324,14 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
               !hidePrice && 'price',
               !hideAmount && 'amount',
               'value',
-            ].filter(Boolean) as string[]
+            ].filter(Boolean) as any
           }
           columnDefs={[
-            !hideRange && { key: 'range', label: 'Range', align: 'center' },
-            !hidePrice && { key: 'price', label: 'Price', align: 'right' },
-            !hideAmount && { key: 'amount', label: 'Amount', align: 'right' },
-            { key: 'value', label: 'Value', align: 'right' },
-          ].filter(Boolean)}
+            !hideRange && { key: 'range', label: 'Range', align: 'center' as const },
+            !hidePrice && { key: 'price', label: 'Price', align: 'right' as const },
+            !hideAmount && { key: 'amount', label: 'Amount', align: 'right' as const },
+            { key: 'value', label: 'Value', align: 'right' as const },
+          ].filter(Boolean) as any}
           labels={{ token: 'Pools' }}
         />
         <tbody>
@@ -400,7 +400,7 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
                   {!hideRange && (
                     <td className="td td-center col-range">
                       {poolRange ? (
-                        <RangeChip range={poolRange} />
+                        <RangeChip range={poolRange as any} />
                       ) : (
                         // Try to show "Full Range" for standard pools without specific range
                         <span

@@ -201,7 +201,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                     projections.Add(_projectionCalculator.CreateProjectionData(
                         ProjectionType.Apr,
                         aprProjection,
-                        new ProjectionMetadata { Apr = effectiveApr }
+                        new ProjectionMetadata { Value = effectiveApr }
                     ));
                 }
             }
@@ -238,7 +238,7 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                             aprHistoricalProjection,
                             new ProjectionMetadata
                             {
-                                AprHistorical = aprHistorical.Value,
+                                Value = aprHistorical.Value,
                                 CreatedAt = (long)createdAt.Value,
                                 TotalFeesGenerated = totalFees,
                                 DaysActive = (decimal)daysActive
@@ -262,8 +262,6 @@ public class UniswapV3Mapper : IWalletItemMapper<UniswapV3GetActivePoolsResponse
                     Range = new RangeInfo { Lower = lower, Upper = upper, Current = current, InRange = inRange, RangeSize = rangeSize },
                     PriceUnavailable = priceUnavailable,
                     TierPercent = FormatFeeTier(position.Pool?.FeeTier),
-                    Apr = effectiveApr,
-                    AprHistorical = calculatedAprHistorical,
                     Projections = projections.Any() ? projections : null
                 }
             };

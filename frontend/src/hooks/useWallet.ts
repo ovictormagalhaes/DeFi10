@@ -1,17 +1,28 @@
-import { useState, useEffect, useCallback, useRef, Dispatch, SetStateAction } from 'react';
+import { useState, useEffect, useCallback, Dispatch, SetStateAction } from 'react';
 
 import { api } from '../config/api';
-import { STORAGE_KEY, EXPIRY_HOURS, API_BASE } from '../constants/config';
+import { STORAGE_KEY, EXPIRY_HOURS } from '../constants/config';
 import { detectAvailableWallets, hasAnyWallet, getWalletNames, getWalletById } from '../constants/wallets';
 import type { WalletConfig } from '../constants/wallets';
+import { SUPPORTED_CHAINS } from '../constants/chains';
 
-declare global {
-  interface Window {
-    ethereum?: any;
-    rabby?: any;
-    solana?: any;
-  }
+interface EthereumProvider {
+  request: (args: { method: string; params?: unknown[] }) => Promise<any>;
+  on?: (event: string, handler: (...args: any[]) => void) => void;
+  removeListener?: (event: string, handler: (...args: any[]) => void) => void;
+  [key: string]: any;
 }
+
+interface SolanaProvider {
+  isPhantom?: boolean;
+  isConnected?: boolean;
+  connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString: () => string } }>;
+  disconnect: () => Promise<void>;
+  on?: (event: string, handler: (...args: any[]) => void) => void;
+  removeListener?: (event: string, handler: (...args: any[]) => void) => void;
+  [key: string]: any;
+}
+
 
 interface PendingConnection {
   walletName: string;
@@ -35,7 +46,7 @@ interface UseWalletConnectionReturn {
   setLoading: Dispatch<SetStateAction<boolean>>;
   supportedChains: any[];
   chainsLoading: boolean;
-  refreshSupportedChains: (force?: boolean) => Promise<void>;
+  refreshSupportedChains: (force?: boolean) => void;
   connectWallet: () => Promise<void>;
   connectToWallet: (walletType: string) => Promise<void>;
   showWalletSelector: boolean;
@@ -59,48 +70,13 @@ interface UseTooltipReturn {
 export function useWalletConnection(): UseWalletConnectionReturn {
   const [account, setAccount] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [supportedChains, setSupportedChains] = useState<any[]>([]);
-  const [chainsLoading, setChainsLoading] = useState(false);
-  const chainsFetchedRef = useRef(false);
+  const supportedChains = SUPPORTED_CHAINS;
+  const chainsLoading = false;
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const [availableWallets, setAvailableWallets] = useState<Record<string, boolean>>({});
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
 
-  const fetchSupportedChains = useCallback(async ({ force }: { force?: boolean } = {}) => {
-    if (chainsFetchedRef.current && !force) return;
-    if (!chainsFetchedRef.current) chainsFetchedRef.current = true;
-    try {
-      setChainsLoading(true);
-      const res = await fetch(`${API_BASE}/wallets/supported-chains`);
-      if (res.ok) {
-        const data = await res.json();
-        let chains: any[] = [];
-        if (Array.isArray(data)) chains = data;
-        else if (data) {
-          if (Array.isArray(data.supportedChains)) chains = data.supportedChains;
-          else if (Array.isArray(data.chains)) chains = data.chains;
-          else if (Array.isArray(data.data)) chains = data.data;
-        }
-        setSupportedChains(chains.map((c: any) => ({
-          ...c,
-          iconUrl: c.iconUrl || c.icon_url,
-          displayName: c.displayName || c.display_name,
-          chainId: c.chainId || c.chain_id,
-        })));
-      } else {
-        console.error('Failed to fetch supported chains', res.status);
-      }
-    } catch (err) {
-      console.error('Error fetching supported chains', err);
-    } finally {
-      setChainsLoading(false);
-    }
-  }, []);
-
-  const refreshSupportedChains = useCallback(
-    (force = false) => fetchSupportedChains({ force }),
-    [fetchSupportedChains]
-  );
+  const refreshSupportedChains = useCallback(() => {}, []);
 
   function saveAccount(addr: string): void {
     const data: StoredAccount = {
@@ -157,6 +133,10 @@ export function useWalletConnection(): UseWalletConnectionReturn {
       walletIcon: wallet.icon,
       walletColor: wallet.color,
     });
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
 
     try {
       if (wallet.type === 'solana') {

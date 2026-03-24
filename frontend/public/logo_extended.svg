@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 100">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="270" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2ecc71"/>
+      <stop offset="50%" stop-color="#6fd299"/>
+      <stop offset="100%" stop-color="#a8f0c6"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glow-text" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="0.6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <path d="M 22 10 A 40 40 0 0 1 22 90" fill="none" stroke="url(#grad)" stroke-width="7" stroke-linecap="round" filter="url(#glow)"/>
+  <path d="M 22 30 A 22 22 0 0 1 22 70" fill="none" stroke="url(#grad)" stroke-width="7" stroke-linecap="round" filter="url(#glow)"/>
+
+  <text x="74" y="70" font-family="'Arial Black', Impact, Arial, sans-serif" font-weight="900" font-size="52" fill="url(#grad)" filter="url(#glow-text)">efi 10</text>
+</svg>

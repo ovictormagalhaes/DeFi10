@@ -43,17 +43,12 @@ const TokensMenu: React.FC<TokensMenuProps> = ({
   setSelectedTokenTypes,
 }) => {
   // Hooks must run before any early returns
-  const filteredTokens = getFilteredTokens(
-    tokens || [],
-    searchTerm,
-    selectedChains,
-    selectedTokenTypes
-  );
+  const filteredTokens = getFilteredTokens(tokens || []);
   const { maskValue } = useMaskValues();
   if (!tokens || tokens.length === 0) return null;
 
   const totalValue = filteredTokens.reduce((sum, token) => {
-    const price = parseFloat(token.totalPrice) || 0;
+    const price = parseFloat(String(token.totalPrice)) || 0;
     return sum + (isNaN(price) ? 0 : price);
   }, 0);
 
@@ -82,16 +77,7 @@ const TokensMenu: React.FC<TokensMenuProps> = ({
       isExpanded={isExpanded}
       onToggle={onToggle}
       columns={getTokenColumns()}
-      showOptionsMenu={showOptionsMenu}
-      optionsExpanded={optionsExpanded}
-      toggleOptionsExpanded={toggleOptionsExpanded}
-      searchTerm={searchTerm}
-      setSearchTerm={setSearchTerm}
-      selectedChains={selectedChains}
-      setSelectedChains={setSelectedChains}
-      selectedTokenTypes={selectedTokenTypes}
-      setSelectedTokenTypes={setSelectedTokenTypes}
-      tokens={tokens}
+      optionsMenu={showOptionsMenu ? <></> : undefined}
     >
       <TokenTable tokens={filteredTokens} />
     </CollapsibleMenu>
@@ -157,7 +143,7 @@ const TokenRow: React.FC<TokenRowProps> = ({ token, index }) => {
               src={logo}
               alt={symbol}
               className="token-logo mr-3"
-              onError={(e) => (e.target.className += ' is-hidden')}
+              onError={(e) => ((e.target as HTMLImageElement).className += ' is-hidden')}
             />
           )}
           <div>

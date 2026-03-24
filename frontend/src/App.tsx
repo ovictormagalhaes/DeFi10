@@ -11,6 +11,7 @@ import ProtocolsSection from './components/ProtocolsSection';
 import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
 import { StrategiesPage } from './components/strategies';
 import SectionTable from './components/SectionTable';
+import CollapsibleSection from './components/CollapsibleSection';
 import SummaryView from './components/SummaryView';
 import ViewModeSelector from './components/ViewModeSelector';
 import { LendingGroupedView, LockingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
@@ -27,8 +28,10 @@ import {
   DEFAULT_EXPANSION_STATES,
   DEFAULT_FILTER_SETTINGS,
 } from './constants/config';
+import { hydrateProtocol } from './constants/protocols';
 import { ChainIconsProvider } from './context/ChainIconsProvider';
 import { MaskValuesProvider } from './context/MaskValuesContext';
+import type { MaskInput } from './context/MaskValuesContext';
 import { useTheme } from './context/ThemeProvider';
 import { useAggregationJob } from './hooks/useAggregationJob';
 import { useWalletConnection, useTooltip } from './hooks/useWallet';
@@ -54,6 +57,8 @@ import {
   setTotalPortfolioValue,
   calculatePercentage,
 } from './utils/walletUtils';
+import type { WalletItemLike } from './utils/walletUtils';
+import type { WalletItem } from './types/wallet';
 
 function App(): JSX.Element {
   const { theme, mode, toggleTheme } = useTheme();
@@ -128,13 +133,16 @@ function App(): JSX.Element {
   const [pendingWalletGroupId, setPendingWalletGroupId] = useState<string | null>(null);
 
   const [showStatusDialog, setShowStatusDialog] = useState<boolean>(false);
-  const [statusData, setStatusData] = useState<Record<string, unknown> | null>(null);
+  const [statusData, setStatusData] = useState<{ protocols?: any[]; availableChains?: string[]; [key: string]: unknown } | null>(null);
   const [loadingStatus, setLoadingStatus] = useState<boolean>(false);
 
   // Handle disconnect - clears both wallet and group
   const handleDisconnect = (): void => {
+    resetAgg();
     disconnect();
     setSelectedWalletGroupId(null);
+    setActiveAggregationAddress(null);
+    setActiveAggregationGroupId(null);
     window.history.pushState({}, '', '/');
   };
 
@@ -229,7 +237,7 @@ function App(): JSX.Element {
 
   // Wallet data derived from aggregation (replaces legacy /wallets/accounts flow)
   const [walletData, setWalletData] = useState<Record<string, any> | null>(null);
-  const callAccountAPI = (): void => {};
+  const callAccountAPI = (..._args: unknown[]): void => {};
   const refreshWalletData = (): void => {};
   const clearWalletData = (): void => {};
   const [aggregationError, setAggregationError] = useState<string | null>(null);
@@ -285,12 +293,12 @@ function App(): JSX.Element {
   // Chain selection (null or Set of canonical keys). Default: all selected
   const [selectedChains, setSelectedChains] = useState(null);
   // View type selector (chart, table, cards)
-  const [viewType, setViewType] = useState('table');
+  const [viewType, setViewType] = useState<'chart' | 'table' | 'cards' | 'strategies'>('cards');
   // View mode toggle state
   // (legacy viewMode state removed; sidebar navigation provides viewMode further below)
 
   const [defaultStates, setDefaultStates] = useState({});
-  const [protocolExpansions, setProtocolExpansions] = useState({});
+  const [protocolExpansions, setProtocolExpansions] = useState<Record<string, boolean>>({});
   // Ensure any new protocol defaults to expanded=true (so Uniswap/Aave open automatically)
   useEffect(() => {
     // After walletData loaded, infer protocol names and set default true if not set
@@ -300,7 +308,7 @@ function App(): JSX.Element {
       ...(getStakingData() || []),
     ];
     if (!allDefi.length) return;
-    const protocolNames = new Set();
+    const protocolNames = new Set<string>();
     allDefi.forEach((p) => {
       const name =
         p.protocol?.name ||
@@ -413,7 +421,8 @@ function App(): JSX.Element {
     };
     const mapped = aggSnapshot.items.map((it) => {
       const numericType = TYPE_MAP[it.type] ?? it.type;
-      return { ...it, type: numericType };
+      const protocol = it.protocol ? hydrateProtocol(it.protocol) : it.protocol;
+      return { ...it, type: numericType, protocol };
     });
     setWalletData({
       items: mapped,
@@ -509,7 +518,7 @@ function App(): JSX.Element {
     return walletData.tokens || [];
   };
 
-  const getLiquidityPoolsData = () => {
+  const getLiquidityPoolsData = (): WalletItem[] => {
     if (!walletData) return [];
     if (walletData.items && Array.isArray(walletData.items))
       return getLiquidityPoolItems(walletData.items);
@@ -646,8 +655,8 @@ function App(): JSX.Element {
   // Using shared calculatePercentage from utils (imported above)
 
   // Mascara para valores financeiros quando maskValues ativo
-  const maskValue = (formatted, opts = {}) => {
-    if (!maskValues) return formatted;
+  const maskValue = (formatted: MaskInput, opts: { short?: boolean } = {}): string => {
+    if (!maskValues) return formatted == null ? '' : String(formatted);
     const { short = false } = opts;
     return short ? '•••' : '••••••';
   };
@@ -1291,7 +1300,7 @@ function App(): JSX.Element {
                     {/* Center: ViewModeSelector */}
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
                       <ViewModeSelector
-                        value={viewType}
+                        value={viewType as any}
                         onChange={setViewType}
                       />
                     </div>
@@ -1383,10 +1392,10 @@ function App(): JSX.Element {
                                     : 'Clique para selecionar'
                                 }
                                 onMouseEnter={(e) => {
-                                  if (!isSelected) e.currentTarget.style.opacity = 0.55;
+                                  if (!isSelected) e.currentTarget.style.opacity = '0.55';
                                 }}
                                 onMouseLeave={(e) => {
-                                  if (!isSelected) e.currentTarget.style.opacity = 0.35;
+                                  if (!isSelected) e.currentTarget.style.opacity = '0.35';
                                 }}
                               >
                                 <div
@@ -1608,13 +1617,13 @@ function App(): JSX.Element {
                         portfolio={walletData?.items || []}
                       />
                     )}
-                    {viewMode === 'pools' && (
+                    {(viewMode as string) === 'pools' && (
                       <PoolsView getLiquidityPoolsData={getLiquidityPoolsData} />
                     )}
                     {viewMode === 'overview' && (
                       <>
                         {/* Liquidity placeholder when viewMode === 'liquidity' */}
-                        {viewMode === 'liquidity' && (
+                        {(viewMode as string) === 'liquidity' && (
                           <div
                             style={{
                               background: theme.bgPanel,
@@ -1866,10 +1875,10 @@ function App(): JSX.Element {
                                 {(() => {
                                   const filtered = walletTokens;
                                   return filtered.length > 0 && (
-                                    <div>
+                                    <CollapsibleSection title="Wallet">
                                       <WalletSectionHeader data={filtered} />
                                       <WalletCards data={filtered} />
-                                    </div>
+                                    </CollapsibleSection>
                                   );
                                 })()}
 
@@ -1877,14 +1886,14 @@ function App(): JSX.Element {
                                 {(() => {
                                   const filtered = getLendingAndBorrowingData().filter(defiItemMatchesSelection);
                                   return filtered.length > 0 && (
-                                    <div>
+                                    <CollapsibleSection title="Lending & Borrowing">
                                       <LendingSectionHeader data={filtered} />
                                       <LendingSubSectionHeader data={filtered} groupByProtocol={true} />
                                       <LendingGroupedView
                                         data={filtered}
                                         onOpenDetail={setSelectedLendingGroup}
                                       />
-                                    </div>
+                                    </CollapsibleSection>
                                   );
                                 })()}
 
@@ -1892,11 +1901,11 @@ function App(): JSX.Element {
                                 {(() => {
                                   const filtered = getLiquidityPoolsData().filter(defiItemMatchesSelection);
                                   return filtered.length > 0 && (
-                                    <div>
+                                    <CollapsibleSection title="Liquidity Pools">
                                       <PoolsSectionHeader data={filtered} />
                                       <LiquiditySubSectionHeader data={filtered} />
                                       <PoolCards data={filtered} />
-                                    </div>
+                                    </CollapsibleSection>
                                   );
                                 })()}
 
@@ -1904,17 +1913,9 @@ function App(): JSX.Element {
                                 {(() => {
                                   const filtered = getStakingData().filter(defiItemMatchesSelection);
                                   return filtered.length > 0 && (
-                                    <div>
-                                      <h3 style={{ 
-                                        fontSize: 18, 
-                                        fontWeight: 600, 
-                                        color: theme.textPrimary,
-                                        marginBottom: 16,
-                                      }}>
-                                        Staking
-                                      </h3>
+                                    <CollapsibleSection title="Staking">
                                       <StakingCards data={filtered} />
-                                    </div>
+                                    </CollapsibleSection>
                                   );
                                 })()}
 
@@ -1924,10 +1925,10 @@ function App(): JSX.Element {
                             {(() => {
                               const filtered = getLockingData().filter(defiItemMatchesSelection);
                               return filtered.length > 0 && (
-                                <div>
+                                <CollapsibleSection title="Locked Tokens">
                                   <LockingSectionHeader data={filtered} />
                                   <LockingCards data={filtered} />
-                                </div>
+                                </CollapsibleSection>
                               );
                             })()}
                           </div>
@@ -2041,16 +2042,18 @@ function App(): JSX.Element {
             setPendingWalletGroupId(null);
           }}
           onGroupSelected={(groupId, isReconnect) => {
-            // Select existing group
             setSelectedWalletGroupId(groupId);
-            setAggregationError(null); // Clear any previous errors
+            setAggregationError(null);
             window.history.pushState({}, '', `/portfolio/${groupId}`);
             setIsWalletGroupModalOpen(false);
             setPendingWalletGroupId(null);
-            
-            // If it's a reconnect, force aggregation refresh
             if (isReconnect) {
               setRefreshNonce(prev => prev + 1);
+            }
+          }}
+          onDisconnectGroup={(groupId) => {
+            if (groupId === selectedWalletGroupId) {
+              handleDisconnect();
             }
           }}
         />
@@ -2209,7 +2212,7 @@ function App(): JSX.Element {
                                       height: 20,
                                       borderRadius: '50%',
                                     }}
-                                    onError={(e) => e.target.style.display = 'none'}
+                                    onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
                                   />
                                 )}
                                 <span>{chain}</span>
@@ -2246,7 +2249,7 @@ function App(): JSX.Element {
                                   borderRadius: 6,
                                   flexShrink: 0,
                                 }}
-                                onError={(e) => e.target.style.display = 'none'}
+                                onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
                               />
                               <div>
                                 <div style={{ fontWeight: 500, color: theme.textPrimary, marginBottom: 4 }}>
@@ -2264,8 +2267,8 @@ function App(): JSX.Element {
                                       opacity: 0.7,
                                       transition: 'opacity 0.2s',
                                     }}
-                                    onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                                    onMouseLeave={(e) => e.currentTarget.style.opacity = 0.7}
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
                                   >
                                     {protocol.website.replace(/^https?:\/\//, '')}
                                   </a>

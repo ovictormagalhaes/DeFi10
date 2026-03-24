@@ -7,6 +7,7 @@ pub const PRICE_PREFIX: &str = "price";
 pub const TOKEN_PREFIX: &str = "token";
 pub const WALLET_PREFIX: &str = "wallet";
 pub const PROTOCOL_PREFIX: &str = "protocol";
+pub const AGGREGATION_CACHE_PREFIX: &str = "aggregation_cache";
 
 #[derive(Clone)]
 pub struct RedisCache {

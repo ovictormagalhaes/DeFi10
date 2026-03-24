@@ -70,7 +70,7 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
         portfolio
       );
 
-      alert(`Strategy saved successfully! Items: ${response.itemsCount}`);
+      alert(`Strategy saved successfully! Items: ${(response as any).itemsCount ?? response.count}`);
     } catch (err) {
       console.error('Failed to create strategy:', err);
       alert(`Failed to create strategy: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -165,11 +165,11 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
               <dt>Wallet Group:</dt>
               <dd>{strategy.walletGroupId}</dd>
               
-              <dt>Accounts:</dt>
-              <dd>{strategy.accounts.join(', ')}</dd>
-              
+              <dt>Wallets:</dt>
+              <dd>{(strategy as any).wallets?.join(', ')}</dd>
+
               <dt>Items:</dt>
-              <dd>{strategy.count}</dd>
+              <dd>{(strategy as any).count}</dd>
               
               {strategy.createdAt && (
                 <>
@@ -189,7 +189,7 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
         </>
       )}
 
-      <style jsx>{`
+      <style>{`
         .strategy-management-example {
           max-width: 1400px;
           margin: 0 auto;

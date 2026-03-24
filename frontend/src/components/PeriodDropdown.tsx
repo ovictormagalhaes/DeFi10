@@ -109,7 +109,7 @@ const PeriodDropdown: React.FC<PeriodDropdownProps> = ({
         style={{
           ...defaultButtonStyle,
           ...buttonStyle,
-          backgroundColor: theme.bgSecondary,
+          backgroundColor: theme.bgPanel,
           border: `1px solid ${theme.border}`,
           cursor: 'pointer',
           display: 'flex',

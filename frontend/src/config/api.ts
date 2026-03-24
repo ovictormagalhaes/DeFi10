@@ -189,21 +189,19 @@ export const api = {
     `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}`,
 
   // Aggregation jobs (pluralized backend: /api/v1/aggregations)
-  // Contrato atual: POST /api/v1/aggregations  body: { accounts, chains? }
   startAggregation: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.AGGREGATIONS}`,
   buildStartAggregationBody: (account: string, chains?: string[] | string) => {
-    const body: any = { accounts: [account] };
+    const body: any = { wallets: [account] };
     if (chains) body.chains = Array.isArray(chains) ? chains : [chains];
     return JSON.stringify(body);
   },
-  // V2: Multi-wallet support with walletGroupId
   buildStartAggregationBodyV2: (options: {
     account?: string;
     walletGroupId?: string;
     chains?: string[] | string;
   }) => {
     const body: any = {};
-    if (options.account) body.accounts = [options.account];
+    if (options.account) body.wallets = [options.account];
     if (options.walletGroupId) body.walletGroupId = options.walletGroupId;
     if (options.chains) {
       body.chains = Array.isArray(options.chains) ? options.chains : [options.chains];

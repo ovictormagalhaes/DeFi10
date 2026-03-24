@@ -88,7 +88,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({
             </div>
           )}
         </div>
-        <style jsx>{`
+        <style>{`
           .allocation-chart-tooltip {
             background: white;
             border: 1px solid #ccc;
@@ -154,7 +154,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({
     return (
       <div className="allocation-chart-empty">
         <p>No allocation data available</p>
-        <style jsx>{`
+        <style>{`
           .allocation-chart-empty {
             display: flex;
             align-items: center;
@@ -240,7 +240,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({
         </BarChart>
       </ResponsiveContainer>
 
-      <style jsx>{`
+      <style>{`
         .allocation-chart-container {
           width: 100%;
           padding: 16px;

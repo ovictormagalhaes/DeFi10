@@ -129,6 +129,15 @@ export function useWalletGroups() {
     [groups]
   );
 
+  const disconnectGroup = useCallback(
+    (id: string) => {
+      apiClient.removeToken(id);
+      const updated = groups.filter((g) => g.id !== id);
+      persist(updated);
+    },
+    [groups, persist]
+  );
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -140,6 +149,7 @@ export function useWalletGroups() {
     createGroup,
     updateGroup,
     deleteGroup,
+    disconnectGroup,
     getGroup,
     clearError,
   };

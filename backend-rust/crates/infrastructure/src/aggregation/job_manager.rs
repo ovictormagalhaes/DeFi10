@@ -17,6 +17,7 @@ const META_FIELD_TIMED_OUT: &str = "timedOut";
 const META_FIELD_PROCESSED: &str = "processedCount";
 const META_FIELD_FINAL: &str = "finalEmitted";
 const META_FIELD_CREATED: &str = "createdAt";
+const META_FIELD_UPDATED: &str = "updatedAt";
 
 pub struct JobManager {
     redis: redis::Client,
@@ -40,7 +41,7 @@ impl JobManager {
         let mut conn = self.redis.get_connection()?;
         let meta_key = self.meta_key(&job.job_id);
 
-        let accounts_json = serde_json::to_string(&job.accounts)?;
+        let accounts_json = serde_json::to_string(&job.wallets)?;
         let chains_json = serde_json::to_string(&job.chains)?;
         let wallet_group_id_str = job
             .wallet_group_id
@@ -64,6 +65,7 @@ impl JobManager {
                     if job.is_final { "1" } else { "0" }.to_string(),
                 ),
                 (META_FIELD_CREATED, job.created_at.to_rfc3339()),
+                (META_FIELD_UPDATED, job.updated_at.to_rfc3339()),
             ],
         )?;
 
@@ -151,6 +153,12 @@ impl JobManager {
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(Utc::now);
 
+        let updated_at = meta_map
+            .get(META_FIELD_UPDATED)
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or(created_at);
+
         let ttl: i64 = conn.ttl(&meta_key)?;
         let expires_at = if ttl > 0 {
             Some(Utc::now() + chrono::Duration::seconds(ttl))
@@ -161,7 +169,7 @@ impl JobManager {
         Ok(Some(AggregationJob {
             job_id: *job_id,
             status,
-            accounts,
+            wallets: accounts,
             chains,
             wallet_group_id,
             expected_total,
@@ -171,6 +179,7 @@ impl JobManager {
             processed_count,
             is_final,
             created_at,
+            updated_at,
             expires_at,
         }))
     }
@@ -179,6 +188,7 @@ impl JobManager {
         let mut conn = self.redis.get_connection()?;
         let meta_key = self.meta_key(job_id);
         let _: () = conn.hset(&meta_key, META_FIELD_STATUS, status.to_string())?;
+        let _: () = conn.hset(&meta_key, META_FIELD_UPDATED, Utc::now().to_rfc3339())?;
         Ok(())
     }
 
@@ -267,7 +277,7 @@ impl JobManager {
         Ok(Some(JobSnapshot {
             job_id: job.job_id,
             status: job.status.clone(),
-            accounts: job.accounts,
+            wallets: job.wallets,
             chains: job.chains,
             wallet_group_id: job.wallet_group_id,
             expected_total: job.expected_total,
@@ -277,6 +287,7 @@ impl JobManager {
             processed_count: job.processed_count,
             is_final: job.is_final,
             created_at: job.created_at,
+            updated_at: job.updated_at,
             expires_in_seconds,
             active: is_active,
             results,
@@ -288,6 +299,7 @@ impl JobManager {
         let mut conn = self.redis.get_connection()?;
         let meta_key = self.meta_key(job_id);
         let _: () = conn.hset(&meta_key, META_FIELD_FINAL, "1")?;
+        let _: () = conn.hset(&meta_key, META_FIELD_UPDATED, Utc::now().to_rfc3339())?;
         Ok(())
     }
 
@@ -313,6 +325,8 @@ impl JobManager {
             let _: () = conn.hincr(&meta_key, META_FIELD_TIMED_OUT, timed_out)?;
             let _: () = conn.hincr(&meta_key, META_FIELD_PROCESSED, timed_out)?;
         }
+
+        let _: () = conn.hset(&meta_key, META_FIELD_UPDATED, Utc::now().to_rfc3339())?;
 
         Ok(())
     }

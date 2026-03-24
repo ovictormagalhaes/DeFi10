@@ -189,7 +189,7 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                                 Projection = aprHistoricalProjection,
                                 Metadata = new ProjectionMetadata
                                 {
-                                    Apr = aprHistorical.Value,
+                                    Value = aprHistorical.Value,
                                     CreatedAt = p.CreatedAt.Value,
                                     TotalFeesGenerated = totalFees,
                                     DaysActive = (decimal)daysActive
@@ -225,7 +225,6 @@ namespace DeFi10.API.Services.Protocols.Raydium.Mappers
                     AdditionalData = new AdditionalData
                     {
                         TotalValueUsd = totalValueUsd,
-                        Apr = calculatedAprHistorical,
                         Fees24h = p.Fees24h,
                         SqrtPriceX96 = p.SqrtPriceX96,
                         PoolId = p.Pool,

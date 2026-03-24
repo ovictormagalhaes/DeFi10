@@ -322,7 +322,7 @@ impl KaminoService {
                     total_value_usd: borrow_value_usd,
                     metadata: serde_json::json!({
                         "market": market_name,
-                        "apy": borrow_apy * 100.0,
+                        "apy": -(borrow_apy * 100.0),
                         "healthFactor": health_factor,
                         "netAccountValue": net_value,
                         "loanToValue": ltv,

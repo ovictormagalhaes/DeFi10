@@ -3,10 +3,10 @@ import LendingCards from './cards/LendingCards';
 interface LendingGroup {
   protocolName?: string;
   chainName?: string;
-  positions?: unknown[];
+  positions?: any[];
   healthFactor?: number | null;
   protocolLogo?: string;
-  totals?: Record<string, number>;
+  totals?: Record<string, any>;
 }
 
 interface LendingDetailViewProps {
@@ -26,14 +26,14 @@ const LendingDetailView = ({ group, onBack }: LendingDetailViewProps): React.Rea
 
   return (
     <LendingCards
-      data={positions}
+      data={positions as any}
       mode="expanded"
       expandedProps={{
         protocolName,
         chainName,
         healthFactor,
         protocolLogo,
-        totals,
+        totals: totals as any,
         onBack,
       }}
     />

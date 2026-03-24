@@ -14,17 +14,17 @@ import {
 import type { ThemeTokens } from '../theme/tokens';
 
 interface AdvancedAnalyticsProps {
-  walletTokens: unknown[];
-  getLiquidityPoolsData: () => unknown[];
-  getLendingAndBorrowingData: () => unknown[];
-  getStakingData: () => unknown[];
-  getLockingData?: () => unknown[];
+  walletTokens: any[];
+  getLiquidityPoolsData: () => any[];
+  getLendingAndBorrowingData: () => any[];
+  getStakingData: () => any[];
+  getLockingData?: () => any[];
   getTotalPortfolioValue: () => number;
   maskValue: (formatted: string, opts?: { short?: boolean }) => string;
   formatPrice: (value: number) => string;
   theme: ThemeTokens;
-  groupDefiByProtocol: (data: unknown[]) => Record<string, unknown[]>;
-  filterLendingDefiTokens: (tokens: unknown[], showInternal: boolean) => unknown[];
+  groupDefiByProtocol: (data: any[]) => any;
+  filterLendingDefiTokens: (tokens: any[], showInternal: boolean) => any[];
   showLendingDefiTokens: boolean;
 }
 
@@ -239,7 +239,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
         {(projectionData.lending.length > 0 || projectionData.liquidity.length > 0) && (
           <div style={{ gridColumn: '1 / -1' }}>
             <ProjectionsChart
-              projections={projectionData}
+              projections={projectionData as any}
               formatPrice={formatPrice}
               maskValue={maskValue}
               totalPortfolioValue={getTotalPortfolioValue()}

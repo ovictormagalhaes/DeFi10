@@ -138,7 +138,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         </div>
 
         {controls && (
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0, width: controls.props?.style?.width || 'auto' }}>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, width: (controls as any).props?.style?.width || 'auto' }}>
             {controls}
           </div>
         )}

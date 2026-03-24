@@ -27,7 +27,6 @@ export enum StrategyType {
 export interface ProtocolInfo {
   id: string;
   name: string;
-  logo: string | null;
 }
 
 /**
@@ -36,7 +35,6 @@ export interface ProtocolInfo {
 export interface ChainInfo {
   id: string;
   name: string;
-  logo: string | null;
 }
 
 /**
@@ -120,19 +118,19 @@ export interface GetStrategiesResponse {
 }
 
 /**
- * Request to create or update a strategy (NEW structure)
+ * @deprecated Use SaveAllocationStrategyRequest | SaveHealthFactorStrategyRequest instead
  */
-export interface SaveStrategyRequest {
+export interface LegacySaveStrategyRequest {
   walletGroupId: string;
-  strategyId?: string;           // For updates
+  strategyId?: string;
   strategyType: number;
   name?: string | null;
   description?: string | null;
   allocations: Array<{
     assetKey: string;
-    protocol: string;            // Protocol ID
-    chain: string;               // Chain ID
-    group: string;               // "Lending Supply"
+    protocol: string;
+    chain: string;
+    group: string;
     targetWeight: number;
   }>;
 }
@@ -143,7 +141,7 @@ export interface SaveStrategyRequest {
 export interface SaveStrategyResponse {
   key: string;
   itemsCount: number;
-  accounts: string[];
+  wallets: string[];
   savedAt: string;
 }
 
@@ -276,3 +274,101 @@ export interface SaveHealthFactorStrategyRequest {
  * Union type for save requests
  */
 export type SaveStrategyRequest = SaveAllocationStrategyRequest | SaveHealthFactorStrategyRequest;
+
+/**
+ * Legacy type alias for target allocation
+ */
+export interface TargetAllocation {
+  assetKey: string;
+  group: string;
+  targetWeight: number;
+  protocol?: string;
+  chain?: string;
+}
+
+/**
+ * Legacy type alias for strategy item
+ */
+export type StrategyItem = AllocationItem | HealthFactorTarget;
+
+/**
+ * Token metadata for strategy assets
+ */
+export interface TokenMetadata {
+  type: number | null;
+  symbol: string;
+  name: string;
+  address: string | null;
+  logo: string | null;
+  chain: string;
+}
+
+/**
+ * Protocol metadata for strategy assets
+ */
+export interface ProtocolMetadata {
+  id: string;
+  name: string;
+  chain: string;
+  url: string | null;
+  logo: string | null;
+}
+
+/**
+ * Complete metadata for a strategy asset
+ */
+export interface StrategyAssetMetadata {
+  symbol: string | null;
+  name: string | null;
+  address: string | null;
+  chainId: string | null;
+  chain: string | null;
+  protocol: ProtocolMetadata | null;
+  positionLabel: string | null;
+  positionType: number;
+  tokens: TokenMetadata[];
+}
+
+/**
+ * Legacy type alias for strategy asset
+ */
+export type StrategyAsset = AllocationItem;
+
+/**
+ * Strategy data in multi-strategy response
+ */
+export interface StrategyData {
+  id: string;
+  strategyType: number;
+  name: string;
+  description?: string | null;
+  allocations?: AllocationItem[];
+  targets?: HealthFactorTarget[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Request to save multiple strategies
+ */
+export interface SaveStrategiesRequest {
+  walletGroupId: string;
+  strategies: Array<{
+    id?: string;
+    strategyType: number;
+    name: string;
+    description?: string | null;
+    allocations?: unknown[];
+    targets?: unknown[];
+  }>;
+}
+
+/**
+ * Response from GET/POST multi-strategy endpoint
+ */
+export interface SaveStrategiesResponse {
+  walletGroupId: string;
+  strategies: StrategyData[];
+  wallets: string[];
+  count: number;
+}

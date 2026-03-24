@@ -131,17 +131,15 @@ pub async fn update_wallet_group(
         }
     }
 
-    // Validate if updating accounts
-    if let Some(ref accounts) = req.accounts {
-        if accounts.is_empty() {
+    if let Some(ref wallets) = req.wallets {
+        if wallets.is_empty() {
             return Err(DeFi10Error::Validation(
-                "At least one account is required".to_string(),
+                "At least one wallet is required".to_string(),
             ));
         }
     }
 
-    // Update group
-    group.update(req.display_name, req.accounts);
+    group.update(req.display_name, req.wallets);
 
     // Save to database
     state.wallet_group_repo.update(&group).await?;
@@ -244,7 +242,7 @@ pub async fn connect_wallet_group(
         token: token_data.token,
         wallet_group_id: group.id,
         expires_at: token_data.expires_at,
-        wallets: group.accounts.clone(),
+        wallets: group.wallets.clone(),
         display_name: group.display_name,
         has_password: group
             .password_hash
@@ -270,7 +268,7 @@ mod tests {
         );
 
         assert_eq!(group.display_name, Some("Test Group".to_string()));
-        assert_eq!(group.accounts.len(), 2);
+        assert_eq!(group.wallets.len(), 2);
         assert_eq!(group.user_id, Some("user123".to_string()));
         assert!(!group.id.is_nil());
     }

@@ -50,7 +50,6 @@ export default function HeaderBar({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const brandGradient = `linear-gradient(135deg, ${theme.accent || '#6366f1'} 0%, ${theme.primary || '#3b82f6'} 60%, ${theme.accentAlt || '#10b981'} 100%)`;
   const ACCOUNT_CHIP_WIDTH = 172;
 
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200);
@@ -82,53 +81,15 @@ export default function HeaderBar({
       }}
     >
       {/* Left Brand (Area 1) */}
-      <div className="flex items-center min-w-0" style={{ gap: isMobile ? 8 : 12 }}>
-        <div
-          className="flex-center"
-          style={{
-            width: isMobile ? 32 : 40,
-            height: isMobile ? 32 : 40,
-            borderRadius: 12,
-            overflow: 'hidden',
-            padding: 4,
-            flexShrink: 0,
-          }}
-        >
-          <img 
-            src="/logo.svg" 
-            alt="Defi10" 
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-            }}
-          />
-        </div>
-        {!isMobile && (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 18, fontWeight: 600, color: theme.textPrimary }}>DeFi 10</span>
-            <span
-              style={{
-                fontSize: 11,
-                letterSpacing: 0.5,
-                textTransform: 'uppercase',
-                color: theme.textSecondary,
-              }}
-            >
-              Portfolio
-            </span>
-          </div>
-        )}
+      <div className="flex items-center min-w-0">
         <img
-          src="/me.png"
-          alt="Me"
+          src="/logo_extended.svg"
+          alt="DeFi10"
           style={{
-            width: isMobile ? 28 : 34,
             height: isMobile ? 28 : 34,
-            borderRadius: '50%',
-            objectFit: 'cover',
+            width: 'auto',
+            objectFit: 'contain',
             flexShrink: 0,
-            border: `2px solid ${theme.border}`,
           }}
         />
       </div>

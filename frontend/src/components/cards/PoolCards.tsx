@@ -5,7 +5,6 @@ import { useChainIcons } from '../../context/ChainIconsProvider';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
 import RangeChip from '../RangeChip';
 import ProjectionSelector from '../ProjectionSelector';
-import PeriodDropdown from '../PeriodDropdown';
 import type { WalletItem } from '../../types/wallet';
 
 interface PoolCardsProps {
@@ -27,7 +26,6 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
   const [expandedValues, setExpandedValues] = React.useState<Record<number, boolean>>({});
   const [expandedProjections, setExpandedProjections] = React.useState<Record<number, boolean>>({});
   const [expandedAmounts, setExpandedAmounts] = React.useState<Record<number, boolean>>({});
-  const [selectedAprTypes, setSelectedAprTypes] = React.useState<Record<number, string>>({});
 
   if (!data || data.length === 0) {
     return (
@@ -53,7 +51,7 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
     }}>
       {data.map((item, index) => {
         const position = item.position || item;
-        const protocol = position.protocol || item.protocol || {};
+        const protocol = (position.protocol || item.protocol || {}) as { logo?: string; icon?: string; name?: string; [key: string]: unknown };
         const tokens = position.tokens || [];
         const rewards = position.rewards || [];
         const additionalInfo = item.additionalInfo || position.additionalInfo || {};
@@ -120,7 +118,7 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
           if (!createdAt) return '-';
           const created = new Date(createdAt * 1000); // Convert Unix timestamp to ms
           const now = new Date();
-          const diffMs = now - created;
+          const diffMs = now.getTime() - created.getTime();
           
           const diffMinutes = Math.floor(diffMs / (1000 * 60));
           const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -183,12 +181,9 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
         const displayToken0 = isFlipped ? token1 : token0;
         const displayToken1 = isFlipped ? token0 : token1;
         
-        const aprValue = additionalInfo.apr || item.additionalData?.apr || position.apr || position.apy || 0;
-        const aprHistorical = additionalInfo.aprHistorical || item.additionalData?.aprHistorical || position.aprHistorical || 0;
-        const apr = aprHistorical || aprValue;
-        const hasMultipleAprTypes = aprValue > 0 && aprHistorical > 0;
-        const selectedAprType = selectedAprTypes[index] || 'APR';
-        const displayedApr = selectedAprType === 'APR Historical' ? aprHistorical : aprValue;
+        const projApr = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata?.value;
+        const apr = additionalInfo.apr || projApr || position.apr || position.apy || 0;
+        const displayedApr = apr;
 
         // Range data from additionalData or additionalInfo
         const rangeData = additionalInfo.range || item.additionalData?.range || position.range || null;
@@ -663,51 +658,12 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
                 alignItems: 'center',
                 marginBottom: 10,
               }}>
-                {hasMultipleAprTypes ? (
-                  <>
-                    <div 
-                      style={{ 
-                        display: 'flex', 
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      <PeriodDropdown
-                        periods={['APR', 'APR Historical']}
-                        selectedPeriod={selectedAprType}
-                        onPeriodChange={(type) => {
-                          setSelectedAprTypes(prev => ({ ...prev, [index]: type }));
-                        }}
-                        compact={true}
-                        disableHoverEffects={true}
-                        buttonStyle={{
-                          fontSize: 13,
-                          fontWeight: 400,
-                          fontFamily: 'inherit',
-                          color: 'rgb(162, 169, 181)',
-                          backgroundColor: 'transparent',
-                          border: 'none',
-                          borderRadius: 0,
-                          padding: 0,
-                          transition: 'none',
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                        }}
-                      />
-                    </div>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
-                      {displayedApr ? `${displayedApr.toFixed(2)}%` : '0.00%'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span style={{ fontSize: 13, color: theme.textSecondary }}>APR</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
-                      {apr ? `${apr.toFixed(2)}%` : '0.00%'}
-                    </span>
-                  </>
-                )}
+                <>
+                  <span style={{ fontSize: 13, color: theme.textSecondary }}>APR</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: theme.textPrimary }}>
+                    {displayedApr ? `${displayedApr.toFixed(2)}%` : '0.00%'}
+                  </span>
+                </>
               </div>
 
               {/* Age */}

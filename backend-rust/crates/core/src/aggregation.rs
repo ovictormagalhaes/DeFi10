@@ -30,7 +30,7 @@ impl fmt::Display for JobStatus {
 pub struct AggregationJob {
     pub job_id: Uuid,
     pub status: JobStatus,
-    pub accounts: Vec<String>,
+    pub wallets: Vec<String>,
     pub chains: Vec<String>,
     pub wallet_group_id: Option<Uuid>,
     pub expected_total: u32,
@@ -40,6 +40,7 @@ pub struct AggregationJob {
     pub processed_count: u32,
     pub is_final: bool,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub expires_at: Option<DateTime<Utc>>,
 }
 
@@ -67,8 +68,8 @@ pub fn is_chain_compatible(account: &str, chain: &str) -> bool {
 }
 
 impl AggregationJob {
-    pub fn new(accounts: Vec<String>, chains: Vec<String>, wallet_group_id: Option<Uuid>) -> Self {
-        let expected: u32 = accounts
+    pub fn new(wallets: Vec<String>, chains: Vec<String>, wallet_group_id: Option<Uuid>) -> Self {
+        let expected: u32 = wallets
             .iter()
             .flat_map(|account| {
                 chains
@@ -82,7 +83,7 @@ impl AggregationJob {
         Self {
             job_id: Uuid::new_v4(),
             status: JobStatus::Pending,
-            accounts,
+            wallets,
             chains,
             wallet_group_id,
             expected_total: expected,
@@ -92,6 +93,7 @@ impl AggregationJob {
             processed_count: 0,
             is_final: false,
             created_at: now,
+            updated_at: now,
             expires_at: Some(expires_at),
         }
     }
@@ -142,7 +144,7 @@ pub struct AggregationResult {
 pub struct JobSnapshot {
     pub job_id: Uuid,
     pub status: JobStatus,
-    pub accounts: Vec<String>,
+    pub wallets: Vec<String>,
     pub chains: Vec<String>,
     pub wallet_group_id: Option<Uuid>,
     pub expected_total: u32,
@@ -152,6 +154,7 @@ pub struct JobSnapshot {
     pub processed_count: u32,
     pub is_final: bool,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub expires_in_seconds: Option<i64>,
     pub active: bool,
     pub results: Vec<AggregationResult>,
@@ -164,11 +167,11 @@ mod tests {
 
     #[test]
     fn test_job_creation() {
-        let accounts = vec!["0x1234567890AbcdEF1234567890aBcDeF12345678".to_string()];
+        let wallets = vec!["0x1234567890AbcdEF1234567890aBcDeF12345678".to_string()];
         let chains = vec!["ethereum".to_string(), "base".to_string()];
-        let job = AggregationJob::new(accounts.clone(), chains.clone(), None);
+        let job = AggregationJob::new(wallets.clone(), chains.clone(), None);
 
-        assert_eq!(job.accounts, accounts);
+        assert_eq!(job.wallets, wallets);
         assert_eq!(job.chains, chains);
         assert_eq!(job.expected_total, 2);
         assert_eq!(job.status, JobStatus::Pending);

@@ -110,7 +110,7 @@ impl WalletGroupRepositoryTrait for WalletGroupRepository {
         let update = doc! {
             "$set": {
                 "displayName": &group.display_name,
-                "wallets": &group.accounts,
+                "wallets": &group.wallets,
                 "updatedAt": group.updated_at.to_rfc3339(),
             }
         };

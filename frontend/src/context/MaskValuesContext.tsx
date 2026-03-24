@@ -1,6 +1,6 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 
-type MaskInput = number | string | null | undefined;
+export type MaskInput = number | string | null | undefined;
 interface MaskValuesContextValue {
   maskValues: boolean;
   // Returns a masked string (or placeholder) when masking is enabled; otherwise formatted value string.

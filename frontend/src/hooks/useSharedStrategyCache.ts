@@ -71,7 +71,7 @@ export function getStrategyByType(data: SaveStrategiesResponse | null, strategyT
   return {
     id: strategy.id, // CRITICAL: Preserve ID for update operations
     walletGroupId: data.walletGroupId,
-    accounts: data.accounts,
+    wallets: data.wallets,
     strategyType: strategy.strategyType,
     name: strategy.name,
     description: strategy.description || null,
@@ -99,7 +99,7 @@ export function getAllStrategiesByType(data: SaveStrategiesResponse | null, stra
     .map(strategy => ({
       id: strategy.id,
       walletGroupId: data.walletGroupId,
-      accounts: data.accounts,
+      wallets: data.wallets,
       strategyType: strategy.strategyType,
       name: strategy.name,
       description: strategy.description || null,

@@ -8,18 +8,10 @@ import {
   formatAddress,
   validateWalletGroup,
 } from '../types/wallet-groups';
+import type { WalletGroup } from '../types/wallet-groups';
 import * as apiClient from '../services/apiClient';
 import { detectAvailableWallets, getWalletById } from '../constants/wallets';
 import WalletSelectorDialog from './WalletSelectorDialog';
-
-// Extend Window interface for wallet providers
-declare global {
-  interface Window {
-    ethereum?: any;
-    rabby?: any;
-    solana?: any;
-  }
-}
 
 interface WalletGroupModalProps {
   isOpen: boolean;
@@ -27,8 +19,9 @@ interface WalletGroupModalProps {
   onGroupCreated?: (groupId: string) => void;
   onGroupSelected?: (groupId: string, isReconnect?: boolean) => void;
   currentWalletAddress?: string | null; // Current connected wallet to add to group
-  onConnectToGroup?: (groupId: string) => void; // Callback when wallet is connected to group
-  initialGroupId?: string | null; // Pre-fill connect form with this group ID
+  onConnectToGroup?: (groupId: string) => void;
+  onDisconnectGroup?: (groupId: string) => void;
+  initialGroupId?: string | null;
 }
 
 const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
@@ -38,10 +31,11 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   onGroupSelected,
   currentWalletAddress,
   onConnectToGroup,
+  onDisconnectGroup,
   initialGroupId,
 }) => {
   const { theme } = useTheme();
-  const { groups, loading, error, createGroup, updateGroup, deleteGroup, clearError } = useWalletGroups();
+  const { groups, loading, error, createGroup, updateGroup, deleteGroup, disconnectGroup, clearError } = useWalletGroups();
 
   const [viewportWidth, setViewportWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'addWallet' | 'connect'>('list');
@@ -351,15 +345,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     }
 
     try {
-      // Remove token
-      apiClient.removeToken(groupId);
-      
-      // Remove from local storage
-      const updatedGroups = groups.filter(g => g.id !== groupId);
-      localStorage.setItem('defi10_wallet_groups', JSON.stringify(updatedGroups));
-      
-      // Force refresh by triggering a re-render
-      window.location.reload();
+      disconnectGroup(groupId);
+      onDisconnectGroup?.(groupId);
     } catch (err) {
       console.error('[WalletGroup] Failed to disconnect:', err);
     }

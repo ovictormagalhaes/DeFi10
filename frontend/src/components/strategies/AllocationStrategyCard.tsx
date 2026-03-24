@@ -8,6 +8,8 @@ import type { Strategy } from '../../types/strategy';
 import type { WalletItem } from '../../types/wallet';
 import { useAllocationStrategy } from '../../hooks/strategies/useAllocationStrategy';
 import { useMaskValues } from '../../context/MaskValuesContext';
+import { getProtocolConfig } from '../../constants/protocols';
+import { SUPPORTED_CHAINS } from '../../constants/chains';
 import './strategies.css';
 
 interface AllocationStrategyCardProps {
@@ -36,23 +38,14 @@ export const AllocationStrategyCard: React.FC<AllocationStrategyCardProps> = ({
     }).format(value);
   };
 
-  // Chain logo mapping (same as HealthFactorCard)
-  const chainLogos: Record<string, string> = {
-    'ethereum': 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
-    'base': 'https://avatars.githubusercontent.com/u/108554348?s=200&v=4',
-    'polygon': 'https://cryptologos.cc/logos/polygon-matic-logo.png',
-    'arbitrum': 'https://cryptologos.cc/logos/arbitrum-arb-logo.png',
-    'optimism': 'https://cryptologos.cc/logos/optimism-ethereum-op-logo.png',
-    'avalanche': 'https://cryptologos.cc/logos/avalanche-avax-logo.png',
-    'solana': 'https://cryptologos.cc/logos/solana-sol-logo.png',
-    'bsc': 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
-    'bnb': 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
-  };
+  const chainLogos: Record<string, string> = Object.fromEntries(
+    SUPPORTED_CHAINS.map(c => [c.id.toLowerCase(), c.iconUrl])
+  );
 
   // Calculate current status and deltas
   const { status, deltas } = useMemo(() => {
     // Check if strategy has allocations (new structure) or targetAllocations (old structure)
-    const rawAllocations = (strategy as any).allocations || strategy.targetAllocations || [];
+    const rawAllocations = (strategy as any).allocations || (strategy as any).targetAllocations || [];
     
     // Sort by displayOrder if available
     const allocations = [...rawAllocations].sort((a, b) => {
@@ -180,7 +173,7 @@ export const AllocationStrategyCard: React.FC<AllocationStrategyCardProps> = ({
         // Extract data from new or old structure
         const protocol = alloc.protocol?.id || alloc.protocol;
         const protocolName = alloc.protocol?.name || 'Unknown';
-        const protocolLogo = alloc.protocol?.logo || null;
+        const protocolLogo = getProtocolConfig(alloc.protocol?.id || alloc.protocol?.name || '').logo || null;
         const chain = alloc.chain?.id || alloc.chain;
         const tokenSymbol = alloc.token?.symbol || alloc.symbol || alloc.assetKey;
         const tokenLogo = alloc.token?.logo || alloc.logo;

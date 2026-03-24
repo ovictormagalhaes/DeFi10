@@ -38,9 +38,17 @@ export interface ColorPalette {
   warning: string;
   danger: string;
   info: string;
+  shadow: string;
   shadowLight: string;
   shadowHover: string;
+  shadowPanel: string;
   focusRing: string;
+  bgCard: string;
+  bgPrimary: string;
+  bgPanelHover: string;
+  error: string;
+  positive: string;
+  [key: string]: string;
 }
 
 export const darkTokens: ColorPalette = {
@@ -79,9 +87,16 @@ export const darkTokens: ColorPalette = {
   warning: '#d99738',
   danger: '#ff5f56',
   info: '#6fd299',
+  shadow: 'rgba(0,0,0,0.35)',
   shadowLight: '0 2px 4px -1px rgba(0,0,0,0.45), 0 4px 18px -4px rgba(0,0,0,0.55)',
   shadowHover: '0 4px 10px -2px rgba(0,0,0,0.55), 0 6px 22px -6px rgba(0,0,0,0.6)',
+  shadowPanel: '0 10px 40px rgba(0,0,0,0.45)',
   focusRing: '0 0 0 2px rgba(69,183,115,0.55)',
+  bgCard: '#1e2028',
+  bgPrimary: '#15171f',
+  bgPanelHover: '#2b2e37',
+  error: '#ff5f56',
+  positive: '#45b773',
 };
 
 export const lightTokens: ColorPalette = {
@@ -120,9 +135,16 @@ export const lightTokens: ColorPalette = {
   warning: '#e29a29',
   danger: '#e14f48',
   info: '#4abf95',
+  shadow: 'rgba(0,0,0,0.08)',
   shadowLight: '0 1px 2px rgba(0,0,0,0.05), 0 3px 6px rgba(0,0,0,0.08)',
   shadowHover: '0 4px 10px -2px rgba(0,0,0,0.14), 0 8px 24px -6px rgba(0,0,0,0.18)',
+  shadowPanel: '0 10px 40px rgba(0,0,0,0.12)',
   focusRing: '0 0 0 2px rgba(45,152,115,0.45)',
+  bgCard: '#f7f9fb',
+  bgPrimary: '#f0f2f4',
+  bgPanelHover: '#ecf0f3',
+  error: '#e14f48',
+  positive: '#2d9873',
 };
 
 export const TOKENS = { dark: darkTokens, light: lightTokens };

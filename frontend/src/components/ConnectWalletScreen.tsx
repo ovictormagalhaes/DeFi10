@@ -38,16 +38,17 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConn
             height: 80,
             margin: '0 auto 24px',
             borderRadius: '50%',
-            background: `linear-gradient(135deg, #35f7a5 0%, #2fbfd9 100%)`,
+            background: 'rgba(20, 24, 32, 0.85)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(53, 247, 165, 0.25)',
+            boxShadow: '0 8px 24px rgba(53, 247, 165, 0.2)',
             padding: '12px',
+            border: '1.5px solid rgba(53, 247, 165, 0.25)',
           }}
         >
           <img
-            src="/logo_white_border.svg"
+            src="/logo.svg"
             alt="DeFi10"
             style={{
               width: '100%',
@@ -204,7 +205,7 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConn
               textAlign: 'center',
             }}
           >
-            💡 Create groups with up to 3 wallets to track multiple addresses together
+            💡 Create groups to track multiple wallets together
           </p>
         </div>
 
@@ -251,10 +252,10 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConn
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 20,
+                    padding: 6,
                   }}
                 >
-                  {wallet.icon}
+                  <img src={wallet.icon} alt={wallet.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 </div>
                 <span style={{ fontSize: 11, color: theme.textSecondary }}>{wallet.name}</span>
               </div>
@@ -273,10 +274,10 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConn
           }}
         >
           {[
-            { icon: '📊', text: 'Track your DeFi portfolio in real-time' },
-            { icon: '🔗', text: 'Multi-chain support (Ethereum, Solana, BSC)' },
-            { icon: '👥', text: 'Manage multiple wallets in groups (up to 3)' },
-            { icon: '🔒', text: 'Secure and decentralized' },
+            { icon: '🗂️', text: 'Multi-wallet — group and track wallets together' },
+            { icon: '🔗', text: 'Multi-chain — Ethereum, Solana, Base and more' },
+            { icon: '🏦', text: 'Multi-protocol — Aave, Kamino, Uniswap, Pendle and more' },
+            { icon: '🔒', text: 'Non-custodial and read-only' },
           ].map((feature, idx) => (
             <div
               key={idx}

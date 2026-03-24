@@ -33,15 +33,6 @@ public class AdditionalData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public decimal? TotalValueUsd { get; set; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public decimal? Apr { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public decimal? AprHistorical { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public decimal? Apy { get; set; }
-
     /// <summary>
     /// Multiple projection calculations for liquidity pool positions
     /// Each projection uses a different methodology (APR-based, CreatedAt-based, Fees24h-based)
