@@ -221,6 +221,7 @@ namespace DeFi10.API.Services.Protocols.Kamino.Mappers
                         {
                             HealthFactor = position.HealthFactor,
                             IsCollateral = splToken.Type == TokenType.Supplied,
+                            Apy = displayApy,
                             Projections = projection != null ? new List<ProjectionData>
                             {
                                 _projectionCalculator.CreateProjectionData(
