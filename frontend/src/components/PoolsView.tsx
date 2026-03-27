@@ -24,6 +24,7 @@ import {
 } from '../utils/walletUtils';
 
 import MiniMetric from './MiniMetric';
+import OmniScoreBadge from './OmniScoreBadge';
 import RangeChip from './RangeChip';
 import TokenDisplay from './TokenDisplay';
 
@@ -625,12 +626,22 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
                   <div
                     style={{
                       display: 'flex',
-                      gap: '16px',
+                      gap: '10px',
                       alignItems: 'center',
                       fontSize: '14px',
                     }}
                   >
                     {range && <RangeChip range={range} width={80} />}
+                    {tokens.length >= 2 && (
+                      <OmniScoreBadge
+                        type="pool"
+                        token0={tokens[0].symbol}
+                        token1={tokens[1].symbol}
+                        protocol={protocolName || undefined}
+                        chain={tokens[0].chain || undefined}
+                        feeTier={enrichedPool.raw.additionalData?.tickSpacing != null ? String(enrichedPool.raw.additionalData.tickSpacing) : undefined}
+                      />
+                    )}
                   </div>
                 </div>
               }

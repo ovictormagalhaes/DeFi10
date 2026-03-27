@@ -3,6 +3,7 @@ import { useTheme } from '../../context/ThemeProvider';
 import { useMaskValues } from '../../context/MaskValuesContext';
 import { useChainIcons } from '../../context/ChainIconsProvider';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
+import OmniScoreBadge from '../OmniScoreBadge';
 import ProjectionSelector from '../ProjectionSelector';
 import type { WalletItem } from '../../types/wallet';
 
@@ -524,25 +525,35 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
 
             {/* Token Title with Type Badge */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ 
+              <div style={{
                 fontSize: 16,
                 fontWeight: 700,
                 color: theme.textPrimary,
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 gap: 8,
               }}>
-                {token?.symbol || 'Unknown'}
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  backgroundColor: isBorrowToken ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                  color: isBorrowToken ? '#ef4444' : '#10b981',
-                }}>
-                  {positionType}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {token?.symbol || 'Unknown'}
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    backgroundColor: isBorrowToken ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                    color: isBorrowToken ? '#ef4444' : '#10b981',
+                  }}>
+                    {positionType}
+                  </span>
+                </div>
+                <OmniScoreBadge
+                  type="lending"
+                  supply={isBorrowToken ? [] : [token?.symbol || '']}
+                  borrow={isBorrowToken ? [token?.symbol || ''] : []}
+                  protocol={(protocol.name as string) || undefined}
+                  chain={token?.chain || undefined}
+                />
               </div>
             </div>
 
