@@ -16,6 +16,26 @@ pub struct AppConfig {
     pub blockchain: BlockchainConfig,
     pub moralis: Option<MoralisConfig>,
     pub graph: Option<GraphConfig>,
+    #[serde(default)]
+    pub newrelic: Option<NewRelicConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct NewRelicConfig {
+    #[serde(alias = "licensekey")]
+    pub license_key: String,
+    #[serde(default = "default_newrelic_endpoint", alias = "otlpendpoint")]
+    pub otlp_endpoint: String,
+    #[serde(default = "default_service_name", alias = "servicename")]
+    pub service_name: String,
+}
+
+fn default_newrelic_endpoint() -> String {
+    "https://otlp.nr-data.net:4317".to_string()
+}
+
+fn default_service_name() -> String {
+    "defi10-api".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -110,6 +130,12 @@ pub struct RabbitMqConfig {
     pub url: String,
     #[serde(alias = "prefetchcount")]
     pub prefetch_count: u16,
+    #[serde(default = "default_worker_concurrency", alias = "workerconcurrency")]
+    pub worker_concurrency: u16,
+}
+
+fn default_worker_concurrency() -> u16 {
+    10
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -266,6 +292,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
         .set_default("rate_limiting.max_requests", 100)?
         .set_default("rate_limiting.window_seconds", 60)?
         .set_default("rabbitmq.prefetch_count", 10)?
+        .set_default("rabbitmq.worker_concurrency", 10)?
         .set_default("jwt.expiration_hours", 24)?;
 
     if env != "production" {

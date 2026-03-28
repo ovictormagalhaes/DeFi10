@@ -13,10 +13,10 @@ pub async fn health_check(
         StatusCode::SERVICE_UNAVAILABLE
     };
 
-    Ok((
-        status_code,
-        Json(serde_json::to_value(health_status).unwrap()),
-    ))
+    let value = serde_json::to_value(health_status)
+        .map_err(|e| defi10_core::DeFi10Error::Internal(format!("Serialization failed: {}", e)))?;
+
+    Ok((status_code, Json(value)))
 }
 
 #[cfg(test)]

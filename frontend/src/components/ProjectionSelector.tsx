@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useTheme } from '../context/ThemeProvider';
 import { useMaskValues } from '../context/MaskValuesContext';
 import { formatPrice } from '../utils/walletUtils';
+import { capitalize } from '../utils/format';
 import PeriodDropdown from './PeriodDropdown';
 
 interface ProjectionData {
@@ -101,7 +102,7 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
           break;
         default:
           label = rawType
-            ? rawType.charAt(0).toUpperCase() + rawType.slice(1)
+            ? capitalize(rawType)
             : 'APR';
       }
 

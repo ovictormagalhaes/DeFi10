@@ -159,6 +159,68 @@ pub struct JobSnapshot {
     pub active: bool,
     pub results: Vec<AggregationResult>,
     pub total_value_usd: f64,
+    pub operations: Vec<OperationStatus>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum OperationOutcome {
+    Success,
+    Failed,
+    Skipped,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationStatus {
+    pub account: String,
+    pub chain: String,
+    pub protocol: String,
+    pub status: OperationOutcome,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+}
+
+impl OperationStatus {
+    pub fn success(account: &str, chain: &str, protocol: &str) -> Self {
+        Self {
+            account: account.to_string(),
+            chain: chain.to_string(),
+            protocol: protocol.to_string(),
+            status: OperationOutcome::Success,
+            error: None,
+            duration_ms: None,
+        }
+    }
+
+    pub fn failed(account: &str, chain: &str, protocol: &str, error: &str) -> Self {
+        Self {
+            account: account.to_string(),
+            chain: chain.to_string(),
+            protocol: protocol.to_string(),
+            status: OperationOutcome::Failed,
+            error: Some(error.to_string()),
+            duration_ms: None,
+        }
+    }
+
+    pub fn skipped(account: &str, chain: &str, protocol: &str) -> Self {
+        Self {
+            account: account.to_string(),
+            chain: chain.to_string(),
+            protocol: protocol.to_string(),
+            status: OperationOutcome::Skipped,
+            error: None,
+            duration_ms: None,
+        }
+    }
+
+    pub fn with_duration(mut self, duration_ms: u64) -> Self {
+        self.duration_ms = Some(duration_ms);
+        self
+    }
 }
 
 #[cfg(test)]

@@ -4,6 +4,7 @@ import { useMaskValues } from '../context/MaskValuesContext';
 import { useTheme } from '../context/ThemeProvider';
 import { useWalletGroups } from '../hooks/useWalletGroups';
 import { formatAddress } from '../types/wallet-groups';
+import DataFreshness from './DataFreshness';
 
 interface HeaderBarProps {
   account: string | null;
@@ -15,6 +16,7 @@ interface HeaderBarProps {
   selectedWalletGroupId: string | null;
   onSelectWalletGroup?: (groupId: string) => void;
   onShowStatus?: () => void;
+  lastUpdatedAt?: Date | null;
 }
 
 /**
@@ -32,6 +34,7 @@ export default function HeaderBar({
   selectedWalletGroupId,
   onSelectWalletGroup,
   onShowStatus,
+  lastUpdatedAt,
 }: HeaderBarProps) {
   const { theme, mode, toggleTheme } = useTheme();
   const { maskValues, setMaskValues } = useMaskValues();
@@ -104,6 +107,9 @@ export default function HeaderBar({
           minWidth: 0,
         }}
       >
+        {!isMobile && lastUpdatedAt && (
+          <DataFreshness lastUpdatedAt={lastUpdatedAt} onRefresh={onRefresh} />
+        )}
         {/* Theme toggle */}
         <IconButton
           label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`}

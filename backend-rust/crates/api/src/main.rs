@@ -5,17 +5,16 @@ mod state;
 mod worker;
 
 use anyhow::Result;
-use defi10_infrastructure::{init_tracing, load_config};
+use defi10_infrastructure::{init_tracing_with_newrelic, load_config, shutdown_tracing};
 use std::net::SocketAddr;
 use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
-    init_tracing();
-
-    // Load configuration
     let config = load_config()?;
+
+    init_tracing_with_newrelic(config.newrelic.as_ref());
+
     info!("Configuration loaded successfully");
     info!("CORS allowed origins: {:?}", config.cors.allowed_origins);
 
@@ -43,6 +42,8 @@ async fn main() -> Result<()> {
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+
+    shutdown_tracing();
 
     Ok(())
 }

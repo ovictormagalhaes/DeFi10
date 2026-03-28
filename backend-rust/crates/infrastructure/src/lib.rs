@@ -7,13 +7,15 @@ pub mod logging;
 pub mod messaging;
 pub mod pow_service;
 pub mod price_hydration_service;
+pub mod protocol_factory;
+pub mod retry;
 pub mod strategy_service;
 pub mod token_logo_service;
 
 pub use config::{load_config, AppConfig};
 pub use external::CoingeckoClient;
 pub use external::MoralisClient;
-pub use logging::init_tracing;
+pub use logging::{init_tracing, init_tracing_with_newrelic, shutdown_tracing};
 pub use pow_service::ProofOfWorkService;
 pub use price_hydration_service::{HydrationStats, PriceHydrationService};
 pub use strategy_service::StrategyService;

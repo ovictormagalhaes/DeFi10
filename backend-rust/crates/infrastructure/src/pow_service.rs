@@ -1,27 +1,28 @@
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use defi10_core::pow::{Challenge, ChallengeData};
-use redis::Commands;
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
 
-const KEY_PREFIX: &str = "walletgroup:pow:";
+use crate::cache::{CacheService, RedisCache};
+
+const POW_PREFIX: &str = "walletgroup_pow";
 const DEFAULT_DIFFICULTY: u32 = 5;
 const DEFAULT_TTL_MINUTES: i64 = 15;
 
 pub struct ProofOfWorkService {
-    redis: redis::Client,
+    cache: Arc<RedisCache>,
     difficulty: u32,
     ttl_minutes: i64,
 }
 
 impl ProofOfWorkService {
-    pub fn new(redis_url: &str) -> Result<Self> {
-        let redis = redis::Client::open(redis_url)?;
-        Ok(Self {
-            redis,
+    pub fn new(cache: Arc<RedisCache>) -> Self {
+        Self {
+            cache,
             difficulty: DEFAULT_DIFFICULTY,
             ttl_minutes: DEFAULT_TTL_MINUTES,
-        })
+        }
     }
 
     pub fn with_difficulty(mut self, difficulty: u32) -> Self {
@@ -34,7 +35,7 @@ impl ProofOfWorkService {
         self
     }
 
-    pub fn generate_challenge(&self) -> Result<Challenge> {
+    pub async fn generate_challenge(&self) -> Result<Challenge> {
         let challenge = self.generate_random_challenge();
         let expires_at = Utc::now() + Duration::minutes(self.ttl_minutes);
 
@@ -44,12 +45,13 @@ impl ProofOfWorkService {
             expires_at,
         };
 
-        let mut conn = self.redis.get_connection()?;
-        let key = Self::get_key(&challenge);
         let json = serde_json::to_string(&challenge_data)?;
+        let ttl = std::time::Duration::from_secs((self.ttl_minutes * 60) as u64);
 
-        let ttl_seconds = (self.ttl_minutes * 60) as u64;
-        let _: () = conn.set_ex(&key, json, ttl_seconds)?;
+        self.cache
+            .set_with_expiry(POW_PREFIX, &challenge, json, ttl)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to store PoW challenge: {}", e))?;
 
         tracing::info!(
             "Generated PoW challenge {} with difficulty {}, expires at {}",
@@ -64,17 +66,18 @@ impl ProofOfWorkService {
         })
     }
 
-    pub fn validate_proof(&self, challenge: &str, nonce: &str) -> Result<bool> {
+    pub async fn validate_proof(&self, challenge: &str, nonce: &str) -> Result<bool> {
         if challenge.is_empty() || nonce.is_empty() {
             tracing::warn!("PoW validation failed: challenge or nonce is empty");
             return Ok(false);
         }
 
-        let mut conn = self.redis.get_connection()?;
-        let key = Self::get_key(challenge);
-        let json: Option<String> = conn.get(&key)?;
+        let stored: Option<String> = self.cache
+            .get(POW_PREFIX, challenge)
+            .await
+            .unwrap_or(None);
 
-        if json.is_none() {
+        if stored.is_none() {
             tracing::warn!(
                 "PoW validation failed: challenge {} not found or expired",
                 challenge
@@ -101,14 +104,12 @@ impl ProofOfWorkService {
         Ok(is_valid)
     }
 
-    pub fn invalidate_challenge(&self, challenge: &str) -> Result<()> {
+    pub async fn invalidate_challenge(&self, challenge: &str) -> Result<()> {
         if challenge.is_empty() {
             return Ok(());
         }
 
-        let mut conn = self.redis.get_connection()?;
-        let key = Self::get_key(challenge);
-        let deleted: bool = conn.del(&key)?;
+        let deleted = self.cache.delete(POW_PREFIX, challenge).await.unwrap_or(false);
 
         if deleted {
             tracing::info!("Invalidated PoW challenge {}", challenge);
@@ -134,20 +135,35 @@ impl ProofOfWorkService {
         let bytes: [u8; 32] = rng.gen();
         hex::encode(bytes)
     }
-
-    fn get_key(challenge: &str) -> String {
-        format!("{}{}", KEY_PREFIX, challenge)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn make_service_for_hash_test() -> ProofOfWorkService {
+        let cache = Arc::new(
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(RedisCache::new("redis://localhost", 300))
+                .unwrap(),
+        );
+        ProofOfWorkService {
+            cache,
+            difficulty: DEFAULT_DIFFICULTY,
+            ttl_minutes: DEFAULT_TTL_MINUTES,
+        }
+    }
+
     #[test]
     fn test_validate_hash_with_valid_nonce() {
         let service = ProofOfWorkService {
-            redis: redis::Client::open("redis://localhost").unwrap(),
+            cache: Arc::new(
+                tokio::runtime::Runtime::new()
+                    .unwrap()
+                    .block_on(RedisCache::new("redis://localhost", 300))
+                    .unwrap(),
+            ),
             difficulty: 2,
             ttl_minutes: 15,
         };
@@ -170,10 +186,10 @@ mod tests {
 
     #[test]
     fn test_validate_hash_with_invalid_nonce() {
+        let service = make_service_for_hash_test();
         let service = ProofOfWorkService {
-            redis: redis::Client::open("redis://localhost").unwrap(),
             difficulty: 10,
-            ttl_minutes: 15,
+            ..service
         };
 
         let challenge = "test123";
@@ -184,11 +200,7 @@ mod tests {
 
     #[test]
     fn test_generate_random_challenge() {
-        let service = ProofOfWorkService {
-            redis: redis::Client::open("redis://localhost").unwrap(),
-            difficulty: 5,
-            ttl_minutes: 15,
-        };
+        let service = make_service_for_hash_test();
 
         let challenge1 = service.generate_random_challenge();
         let challenge2 = service.generate_random_challenge();

@@ -25,24 +25,32 @@ pub struct PriceHydrationService {
     moralis: Option<MoralisClient>,
     cache: Arc<RwLock<HashMap<String, CachedPrice>>>,
     cache_ttl_hours: i64,
+    coinmarketcap_api_key: Option<String>,
+    http_client: Arc<Client>,
 }
 
 impl PriceHydrationService {
     pub fn new() -> Self {
+        let client = Arc::new(Client::new());
         Self {
             coingecko: CoingeckoClient::new(),
             moralis: None,
             cache: Arc::new(RwLock::new(HashMap::new())),
             cache_ttl_hours: 1,
+            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY").ok().filter(|k| !k.is_empty()),
+            http_client: client,
         }
     }
 
     pub fn with_moralis(moralis_api_key: &str) -> Self {
+        let client = Arc::new(Client::new());
         Self {
             coingecko: CoingeckoClient::new(),
             moralis: Some(MoralisClient::new(moralis_api_key.to_string())),
             cache: Arc::new(RwLock::new(HashMap::new())),
             cache_ttl_hours: 1,
+            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY").ok().filter(|k| !k.is_empty()),
+            http_client: client,
         }
     }
 
@@ -52,6 +60,8 @@ impl PriceHydrationService {
             moralis: None,
             cache: Arc::new(RwLock::new(HashMap::new())),
             cache_ttl_hours: 1,
+            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY").ok().filter(|k| !k.is_empty()),
+            http_client: client,
         }
     }
 
@@ -59,11 +69,13 @@ impl PriceHydrationService {
         Self {
             coingecko: CoingeckoClient::with_client(client.clone()),
             moralis: Some(MoralisClient::with_client(
-                client,
+                client.clone(),
                 moralis_api_key.to_string(),
             )),
             cache: Arc::new(RwLock::new(HashMap::new())),
             cache_ttl_hours: 1,
+            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY").ok().filter(|k| !k.is_empty()),
+            http_client: client,
         }
     }
 
@@ -139,6 +151,15 @@ impl PriceHydrationService {
                 self.cache_price(&key, price).await;
                 stats.fetched_from_api += 1;
                 tracing::debug!("[PriceHydration] Fetched price for {}: ${}", symbol, price);
+                continue;
+            }
+
+            if let Some(price) = self.try_fetch_coinmarketcap(symbol).await {
+                results[*idx].price_usd = price;
+                results[*idx].value_usd = results[*idx].balance * price;
+                self.cache_price(&key, price).await;
+                stats.fetched_from_api += 1;
+                tracing::debug!("[PriceHydration] CoinMarketCap price for {}: ${}", symbol, price);
                 continue;
             }
 
@@ -261,6 +282,51 @@ impl PriceHydrationService {
         }
 
         None
+    }
+
+    async fn try_fetch_coinmarketcap(&self, symbol: &str) -> Option<f64> {
+        let api_key = self.coinmarketcap_api_key.as_ref()?;
+
+        let url = format!(
+            "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol={}",
+            symbol.to_uppercase()
+        );
+
+        let response = self
+            .http_client
+            .get(&url)
+            .header("X-CMC_PRO_API_KEY", api_key)
+            .send()
+            .await
+            .ok()?;
+
+        if !response.status().is_success() {
+            tracing::debug!("[PriceHydration] CoinMarketCap returned {} for {}", response.status(), symbol);
+            return None;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct CmcResponse {
+            data: HashMap<String, CmcToken>,
+        }
+        #[derive(serde::Deserialize)]
+        struct CmcToken {
+            quote: HashMap<String, CmcQuote>,
+        }
+        #[derive(serde::Deserialize)]
+        struct CmcQuote {
+            price: f64,
+        }
+
+        let data: CmcResponse = response.json().await.ok()?;
+        let token = data.data.get(&symbol.to_uppercase())?;
+        let quote = token.quote.get("USD")?;
+
+        if quote.price > 0.0 {
+            Some(quote.price)
+        } else {
+            None
+        }
     }
 
     fn try_fallback_price(

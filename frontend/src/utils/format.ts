@@ -66,6 +66,11 @@ export function maskValue(show: boolean, value: string | number): string {
   return String(value);
 }
 
+export function capitalize(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function trimZeros(numStr: string): string {
   if (!numStr.includes('.')) return numStr;
   return numStr.replace(/\.\d*?0+$/, '').replace(/\.$/, '');

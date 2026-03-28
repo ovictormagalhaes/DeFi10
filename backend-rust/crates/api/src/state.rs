@@ -1,3 +1,4 @@
+use defi10_aggregation::PriceAggregator;
 use defi10_core::Result;
 use defi10_infrastructure::{
     aggregation::JobManager,
@@ -5,15 +6,16 @@ use defi10_infrastructure::{
     config::AppConfig,
     database::{MongoDatabase, WalletGroupRepository, WalletGroupRepositoryTrait},
     messaging::RabbitMqConnection,
+    retry::{retry_async, RetryConfig},
     ProofOfWorkService, StrategyService, TokenLogoService,
 };
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<MongoDatabase>,
-    pub cache: Arc<RwLock<RedisCache>>,
+    pub cache: Arc<RedisCache>,
     pub messaging: Arc<RabbitMqConnection>,
     pub config: Arc<AppConfig>,
     pub wallet_group_repo: Arc<dyn WalletGroupRepositoryTrait>,
@@ -21,58 +23,71 @@ pub struct AppState {
     pub pow_service: Arc<ProofOfWorkService>,
     pub strategy_service: Arc<StrategyService>,
     pub token_logo_service: Arc<TokenLogoService>,
+    pub price_aggregator: Arc<PriceAggregator>,
 }
 
 impl AppState {
     pub async fn new(config: AppConfig) -> Result<Self> {
-        // Initialize MongoDB
         tracing::info!(
             "Connecting to MongoDB database: {}",
             config.mongodb.database
         );
-        let db = MongoDatabase::new(&config.mongodb.uri, &config.mongodb.database).await?;
+        let retry_cfg = RetryConfig::new("MongoDB", 5).with_base_delay(Duration::from_secs(3));
+        let db = retry_async(&retry_cfg, || {
+            MongoDatabase::new(&config.mongodb.uri, &config.mongodb.database)
+        })
+        .await?;
         tracing::info!(
             "MongoDB connected successfully to database: {}",
             config.mongodb.database
         );
 
-        // Initialize Redis
-        let cache = RedisCache::new(&config.redis.url, config.redis.default_ttl_seconds).await?;
+        let retry_cfg = RetryConfig::new("Redis cache", 5).with_base_delay(Duration::from_secs(3));
+        let cache = retry_async(&retry_cfg, || {
+            RedisCache::new(&config.redis.url, config.redis.default_ttl_seconds)
+        })
+        .await?;
+        let cache = Arc::new(cache);
         tracing::info!("Redis connected successfully");
 
-        // Initialize RabbitMQ
-        let messaging = RabbitMqConnection::new(&config.rabbitmq.url).await?;
+        let retry_cfg = RetryConfig::new("RabbitMQ", 5).with_base_delay(Duration::from_secs(3));
+        let messaging = retry_async(&retry_cfg, || async {
+            RabbitMqConnection::new(&config.rabbitmq.url).await
+        })
+        .await?;
         tracing::info!("RabbitMQ connected successfully");
 
-        // Initialize repositories
         let wallet_group_repo = WalletGroupRepository::new(db.database());
 
-        // Initialize job manager
-        let job_manager = JobManager::new(&config.redis.url)
-            .map_err(|e| defi10_core::DeFi10Error::Cache(e.to_string()))?;
+        let retry_cfg = RetryConfig::new("JobManager", 5).with_base_delay(Duration::from_secs(3));
+        let job_manager = retry_async(&retry_cfg, || async {
+            JobManager::new(&config.redis.url)
+                .await
+                .map_err(|e| defi10_core::DeFi10Error::Cache(e.to_string()))
+        })
+        .await?;
         tracing::info!("JobManager initialized successfully");
 
-        // Initialize PoW service
-        let pow_service = ProofOfWorkService::new(&config.redis.url)
-            .map_err(|e| defi10_core::DeFi10Error::Cache(e.to_string()))?;
+        let pow_service = ProofOfWorkService::new(cache.clone());
         tracing::info!("ProofOfWorkService initialized successfully");
 
-        // Initialize Strategy service
         let strategy_service = StrategyService::new(db.database());
         tracing::info!("StrategyService initialized successfully");
 
-        // Wrap db in Arc first for reuse
         let db = Arc::new(db);
 
-        // Initialize Token Logo service with MongoDB support
-        let token_logo_service = TokenLogoService::new(&config.redis.url)
-            .map_err(|e| defi10_core::DeFi10Error::Cache(e.to_string()))?
-            .with_mongo(db.clone());
+        let token_logo_service = TokenLogoService::new(cache.clone()).with_mongo(db.clone());
         tracing::info!("TokenLogoService initialized with MongoDB support");
+
+        let coinmarketcap_api_key = std::env::var("COINMARKETCAP_API_KEY")
+            .or_else(|_| std::env::var("CoinMarketCap__ApiKey"))
+            .unwrap_or_default();
+        let price_aggregator = PriceAggregator::new(cache.clone(), coinmarketcap_api_key, 300);
+        tracing::info!("PriceAggregator initialized");
 
         Ok(Self {
             db,
-            cache: Arc::new(RwLock::new(cache)),
+            cache,
             messaging: Arc::new(messaging),
             config: Arc::new(config),
             wallet_group_repo: Arc::new(wallet_group_repo),
@@ -80,6 +95,7 @@ impl AppState {
             pow_service: Arc::new(pow_service),
             strategy_service: Arc::new(strategy_service),
             token_logo_service: Arc::new(token_logo_service),
+            price_aggregator: Arc::new(price_aggregator),
         })
     }
 
@@ -91,7 +107,7 @@ impl AppState {
             },
         };
 
-        let cache_status = match self.cache.write().await.health_check().await {
+        let cache_status = match self.cache.health_check().await {
             Ok(_) => ServiceStatus::Healthy,
             Err(e) => ServiceStatus::Unhealthy {
                 error: e.to_string(),

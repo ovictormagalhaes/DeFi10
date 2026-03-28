@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../context/ThemeProvider';
 
 interface CollapsibleSectionProps {
@@ -14,6 +14,28 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 }) => {
   const { theme } = useTheme();
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [height, setHeight] = useState<number | 'auto'>(defaultExpanded ? 'auto' : 0);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const isInitial = useRef(true);
+
+  useEffect(() => {
+    if (isInitial.current) {
+      isInitial.current = false;
+      return;
+    }
+    if (expanded) {
+      const h = contentRef.current?.scrollHeight || 0;
+      setHeight(h);
+      const t = setTimeout(() => setHeight('auto'), 250);
+      return () => clearTimeout(t);
+    } else {
+      const h = contentRef.current?.scrollHeight || 0;
+      setHeight(h);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setHeight(0));
+      });
+    }
+  }, [expanded]);
 
   return (
     <div
@@ -59,11 +81,18 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
         </svg>
       </button>
 
-      {expanded && (
+      <div
+        ref={contentRef}
+        style={{
+          height: height === 'auto' ? 'auto' : height,
+          overflow: 'hidden',
+          transition: height === 'auto' ? 'none' : 'height 0.25s ease',
+        }}
+      >
         <div style={{ padding: '0 20px 20px' }}>
           {children}
         </div>
-      )}
+      </div>
     </div>
   );
 };

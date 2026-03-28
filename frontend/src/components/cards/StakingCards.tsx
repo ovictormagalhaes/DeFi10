@@ -1,37 +1,29 @@
 import { useTheme } from '../../context/ThemeProvider';
 import { useMaskValues } from '../../context/MaskValuesContext';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
+import SafeImage from '../SafeImage';
+import EmptyStateCard from './EmptyStateCard';
+import CardContainer from './CardContainer';
+import SkeletonCardGrid from './SkeletonCardGrid';
 import type { WalletItem } from '../../types/wallet';
 
 interface StakingCardsProps {
   data: WalletItem[];
+  isLoading?: boolean;
 }
 
-/**
- * StakingCards - Card view for staking positions
- * @param {Array} data - Staking positions data
- */
-const StakingCards: React.FC<StakingCardsProps> = ({ data = [] }) => {
+const StakingCards: React.FC<StakingCardsProps> = ({ data = [], isLoading }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
 
   if (!data || data.length === 0) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '40px 20px',
-        color: theme.textSecondary,
-        fontSize: 14,
-      }}>
-        No staking positions found
-      </div>
-    );
+    return <EmptyStateCard label="staking positions" />;
   }
 
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))',
       gap: 16,
       padding: '8px 0',
     }}>
@@ -46,26 +38,8 @@ const StakingCards: React.FC<StakingCardsProps> = ({ data = [] }) => {
         const rewardsValue = rewards.reduce((sum, reward) => sum + (reward.totalPrice || 0), 0);
         
         return (
-          <div
+          <CardContainer
             key={index}
-            style={{
-              backgroundColor: theme.bgPanel,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 12,
-              padding: 16,
-              transition: 'all 0.2s ease',
-              cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = theme.accent;
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = theme.border;
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
           >
             {/* Header - Protocol */}
             <div style={{ 
@@ -77,7 +51,7 @@ const StakingCards: React.FC<StakingCardsProps> = ({ data = [] }) => {
               borderBottom: `1px solid ${theme.border}`,
             }}>
               {protocol.icon && (
-                <img
+                <SafeImage
                   src={protocol.icon}
                   alt={protocol.name}
                   style={{
@@ -86,7 +60,6 @@ const StakingCards: React.FC<StakingCardsProps> = ({ data = [] }) => {
                     borderRadius: '50%',
                     border: `1px solid ${theme.border}`,
                   }}
-                  onError={(e) => e.currentTarget.style.display = 'none'}
                 />
               )}
               <div style={{ flex: 1 }}>
@@ -173,11 +146,10 @@ const StakingCards: React.FC<StakingCardsProps> = ({ data = [] }) => {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {token.logo && (
-                        <img
+                        <SafeImage
                           src={token.logo}
                           alt={token.symbol}
                           style={{ width: 20, height: 20, borderRadius: '50%' }}
-                          onError={(e) => e.currentTarget.style.display = 'none'}
                         />
                       )}
                       <span style={{ 
@@ -217,9 +189,10 @@ const StakingCards: React.FC<StakingCardsProps> = ({ data = [] }) => {
                 )}
               </div>
             </div>
-          </div>
+          </CardContainer>
         );
       })}
+      {isLoading && <SkeletonCardGrid itemCount={data.length} minCardWidth={320} gap={16} />}
     </div>
   );
 };

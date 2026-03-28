@@ -1,33 +1,32 @@
 use anyhow::Result;
-use redis::Commands;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
+use crate::cache::{CacheService, RedisCache};
 use crate::database::{MongoDatabase, TokenMetadataRepository};
 
-const TOKEN_LOGO_KEY_PREFIX: &str = "token_logo:";
+const TOKEN_LOGO_PREFIX: &str = "token_logo";
 const DEFAULT_EXPIRATION_SECONDS: u64 = 604800; // 7 days
 
 pub struct TokenLogoService {
-    redis: redis::Client,
+    cache: Arc<RedisCache>,
     memory_cache: Arc<RwLock<HashMap<String, String>>>,
-    expiration_seconds: u64,
+    expiration: Duration,
     initialized: Arc<RwLock<bool>>,
     mongo_repo: Option<Arc<TokenMetadataRepository>>,
 }
 
 impl TokenLogoService {
-    pub fn new(redis_url: &str) -> Result<Self> {
-        let redis = redis::Client::open(redis_url)?;
-
-        Ok(Self {
-            redis,
+    pub fn new(cache: Arc<RedisCache>) -> Self {
+        Self {
+            cache,
             memory_cache: Arc::new(RwLock::new(HashMap::new())),
-            expiration_seconds: DEFAULT_EXPIRATION_SECONDS,
+            expiration: Duration::from_secs(DEFAULT_EXPIRATION_SECONDS),
             initialized: Arc::new(RwLock::new(false)),
             mongo_repo: None,
-        })
+        }
     }
 
     pub fn with_mongo(mut self, mongo_db: Arc<MongoDatabase>) -> Self {
@@ -36,37 +35,35 @@ impl TokenLogoService {
     }
 
     pub fn with_expiration(mut self, seconds: u64) -> Self {
-        self.expiration_seconds = seconds;
+        self.expiration = Duration::from_secs(seconds);
         self
     }
 
     pub async fn get_token_logo(&self, token_address: &str) -> Result<Option<String>> {
         self.ensure_initialized().await?;
 
-        let normalized_address = Self::normalize_address(token_address);
+        let normalized = Self::normalize_address(token_address);
 
         {
-            let cache = self.memory_cache.read().await;
-            if let Some(logo_url) = cache.get(&normalized_address) {
+            let mem = self.memory_cache.read().await;
+            if let Some(logo_url) = mem.get(&normalized) {
                 return Ok(Some(logo_url.clone()));
             }
         }
 
-        let mut conn = self.redis.get_connection()?;
-        let redis_key = Self::generate_redis_key(token_address);
-        let redis_value: Option<String> = conn.get(&redis_key)?;
-
-        if let Some(logo_url) = redis_value {
-            let mut cache = self.memory_cache.write().await;
-            cache.insert(normalized_address, logo_url.clone());
+        if let Ok(Some(logo_url)) = self.cache.get::<String>(TOKEN_LOGO_PREFIX, &normalized).await {
+            let mut mem = self.memory_cache.write().await;
+            mem.insert(normalized, logo_url.clone());
             return Ok(Some(logo_url));
         }
 
         if let Some(repo) = &self.mongo_repo {
-            if let Ok(Some(logo_url)) = repo.get_logo(&normalized_address).await {
-                let _: Result<(), _> = conn.set_ex(&redis_key, &logo_url, self.expiration_seconds);
-                let mut cache = self.memory_cache.write().await;
-                cache.insert(normalized_address, logo_url.clone());
+            if let Ok(Some(logo_url)) = repo.get_logo(&normalized).await {
+                let _ = self.cache
+                    .set(TOKEN_LOGO_PREFIX, &normalized, &logo_url, Some(self.expiration))
+                    .await;
+                let mut mem = self.memory_cache.write().await;
+                mem.insert(normalized, logo_url.clone());
                 return Ok(Some(logo_url));
             }
         }
@@ -75,27 +72,27 @@ impl TokenLogoService {
     }
 
     pub async fn set_token_logo(&self, token_address: &str, logo_url: &str) -> Result<()> {
-        let normalized_address = Self::normalize_address(token_address);
+        let normalized = Self::normalize_address(token_address);
 
-        let mut conn = self.redis.get_connection()?;
-        let redis_key = Self::generate_redis_key(token_address);
-        let _: () = conn.set_ex(&redis_key, logo_url, self.expiration_seconds)?;
+        self.cache
+            .set(TOKEN_LOGO_PREFIX, &normalized, &logo_url.to_string(), Some(self.expiration))
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to set token logo in Redis: {}", e))?;
 
         if let Some(repo) = &self.mongo_repo {
-            let _ = repo.set_logo(&normalized_address, logo_url).await;
+            let _ = repo.set_logo(&normalized, logo_url).await;
         }
 
-        let mut cache = self.memory_cache.write().await;
-        cache.insert(normalized_address, logo_url.to_string());
+        let mut mem = self.memory_cache.write().await;
+        mem.insert(normalized, logo_url.to_string());
 
         Ok(())
     }
 
     pub async fn get_all_token_logos(&self) -> Result<HashMap<String, String>> {
         self.ensure_initialized().await?;
-
-        let cache = self.memory_cache.read().await;
-        Ok(cache.clone())
+        let mem = self.memory_cache.read().await;
+        Ok(mem.clone())
     }
 
     pub async fn get_token_logos_batch(
@@ -105,54 +102,57 @@ impl TokenLogoService {
         self.ensure_initialized().await?;
 
         let mut result = HashMap::new();
-        let mut missing_from_cache: Vec<String> = Vec::new();
-        let mut conn = self.redis.get_connection()?;
+        let mut missing: Vec<(String, String)> = Vec::new();
 
-        for token_address in token_addresses {
-            let normalized = Self::normalize_address(token_address);
-
-            {
-                let cache = self.memory_cache.read().await;
-                if let Some(logo_url) = cache.get(&normalized) {
-                    result.insert(token_address.clone(), logo_url.clone());
-                    continue;
+        {
+            let mem = self.memory_cache.read().await;
+            for addr in token_addresses {
+                let normalized = Self::normalize_address(addr);
+                if let Some(logo_url) = mem.get(&normalized) {
+                    result.insert(addr.clone(), logo_url.clone());
+                } else {
+                    missing.push((addr.clone(), normalized));
                 }
-            }
-
-            let redis_key = Self::generate_redis_key(token_address);
-            if let Ok(Some(logo_url)) = conn.get::<_, Option<String>>(&redis_key) {
-                result.insert(token_address.clone(), logo_url.clone());
-
-                let mut cache = self.memory_cache.write().await;
-                cache.insert(normalized, logo_url);
-            } else {
-                missing_from_cache.push(token_address.clone());
             }
         }
 
-        if !missing_from_cache.is_empty() {
-            if let Some(repo) = &self.mongo_repo {
-                let normalized_addresses: Vec<String> = missing_from_cache
-                    .iter()
-                    .map(|a| Self::normalize_address(a))
-                    .collect();
+        if missing.is_empty() {
+            return Ok(result);
+        }
 
-                if let Ok(mongo_logos) = repo.get_logos_batch(&normalized_addresses).await {
+        let mut still_missing: Vec<(String, String)> = Vec::new();
+        {
+            let mut mem = self.memory_cache.write().await;
+            for (original, normalized) in &missing {
+                if let Ok(Some(logo_url)) = self.cache.get::<String>(TOKEN_LOGO_PREFIX, normalized).await
+                {
+                    result.insert(original.clone(), logo_url.clone());
+                    mem.insert(normalized.clone(), logo_url);
+                } else {
+                    still_missing.push((original.clone(), normalized.clone()));
+                }
+            }
+        }
+
+        if !still_missing.is_empty() {
+            if let Some(repo) = &self.mongo_repo {
+                let normalized_addrs: Vec<String> =
+                    still_missing.iter().map(|(_, n)| n.clone()).collect();
+
+                if let Ok(mongo_logos) = repo.get_logos_batch(&normalized_addrs).await {
+                    let mut mem = self.memory_cache.write().await;
                     for (addr, logo_url) in mongo_logos {
-                        let original_addr = missing_from_cache
+                        let original = still_missing
                             .iter()
-                            .find(|a| Self::normalize_address(a) == addr)
-                            .cloned()
+                            .find(|(_, n)| *n == addr)
+                            .map(|(o, _)| o.clone())
                             .unwrap_or(addr.clone());
 
-                        result.insert(original_addr, logo_url.clone());
-
-                        let redis_key = Self::generate_redis_key(&addr);
-                        let _: Result<(), _> =
-                            conn.set_ex(&redis_key, &logo_url, self.expiration_seconds);
-
-                        let mut cache = self.memory_cache.write().await;
-                        cache.insert(addr, logo_url);
+                        result.insert(original, logo_url.clone());
+                        let _ = self.cache
+                            .set(TOKEN_LOGO_PREFIX, &addr, &logo_url, Some(self.expiration))
+                            .await;
+                        mem.insert(addr, logo_url);
                     }
                 }
             }
@@ -162,22 +162,20 @@ impl TokenLogoService {
     }
 
     pub async fn set_token_logos_batch(&self, token_logos: HashMap<String, String>) -> Result<()> {
-        let mut conn = self.redis.get_connection()?;
-
         {
-            let mut cache = self.memory_cache.write().await;
-            for (token_address, logo_url) in &token_logos {
-                let redis_key = Self::generate_redis_key(token_address);
-                let _: () = conn.set_ex(&redis_key, logo_url, self.expiration_seconds)?;
-
-                let normalized = Self::normalize_address(token_address);
-                cache.insert(normalized.clone(), logo_url.clone());
+            let mut mem = self.memory_cache.write().await;
+            for (addr, logo_url) in &token_logos {
+                let normalized = Self::normalize_address(addr);
+                let _ = self.cache
+                    .set(TOKEN_LOGO_PREFIX, &normalized, logo_url, Some(self.expiration))
+                    .await;
+                mem.insert(normalized, logo_url.clone());
             }
         }
 
         if let Some(repo) = &self.mongo_repo {
-            for (token_address, logo_url) in &token_logos {
-                let normalized = Self::normalize_address(token_address);
+            for (addr, logo_url) in &token_logos {
+                let normalized = Self::normalize_address(addr);
                 let _ = repo.set_logo(&normalized, logo_url).await;
             }
         }
@@ -198,54 +196,33 @@ impl TokenLogoService {
             return Ok(());
         }
 
-        tracing::info!("TokenLogoService: Loading all tokens into memory cache...");
+        tracing::info!("TokenLogoService: Loading tokens into memory cache...");
 
-        let mut conn = self.redis.get_connection()?;
-        let pattern = format!("{}*", TOKEN_LOGO_KEY_PREFIX);
-        let keys: Vec<String> = conn.keys(&pattern)?;
-
-        let mut cache = self.memory_cache.write().await;
-        for key in keys {
-            if let Ok(Some(value)) = conn.get::<_, Option<String>>(&key) {
-                let token_address = key.trim_start_matches(TOKEN_LOGO_KEY_PREFIX);
-                let normalized = Self::normalize_address(token_address);
-                cache.insert(normalized, value);
-            }
-        }
-
-        tracing::info!(
-            "TokenLogoService: Loaded {} token logos from Redis",
-            cache.len()
-        );
-
-        if cache.is_empty() {
-            if let Some(repo) = &self.mongo_repo {
-                tracing::info!("TokenLogoService: Redis cache empty, loading from MongoDB...");
-                match repo.get_all_with_logos().await {
-                    Ok(mongo_logos) => {
-                        for (address, logo_url) in &mongo_logos {
-                            let normalized = Self::normalize_address(address);
-                            cache.insert(normalized.clone(), logo_url.clone());
-
-                            let redis_key = Self::generate_redis_key(address);
-                            let _: Result<(), _> =
-                                conn.set_ex(&redis_key, logo_url, self.expiration_seconds);
-                        }
-                        tracing::info!(
-                            "TokenLogoService: Loaded {} token logos from MongoDB into cache",
-                            mongo_logos.len()
-                        );
+        if let Some(repo) = &self.mongo_repo {
+            match repo.get_all_with_logos().await {
+                Ok(mongo_logos) => {
+                    let mut mem = self.memory_cache.write().await;
+                    for (address, logo_url) in &mongo_logos {
+                        let normalized = Self::normalize_address(address);
+                        mem.insert(normalized.clone(), logo_url.clone());
+                        let _ = self.cache
+                            .set(TOKEN_LOGO_PREFIX, &normalized, logo_url, Some(self.expiration))
+                            .await;
                     }
-                    Err(e) => {
-                        tracing::warn!("TokenLogoService: Failed to load from MongoDB: {}", e);
-                    }
+                    tracing::info!(
+                        "TokenLogoService: Loaded {} token logos from MongoDB",
+                        mongo_logos.len()
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!("TokenLogoService: Failed to load from MongoDB: {}", e);
                 }
             }
         }
 
         tracing::info!(
             "TokenLogoService: Total {} token logos in memory cache",
-            cache.len()
+            self.memory_cache.read().await.len()
         );
         *initialized = true;
 
@@ -254,11 +231,6 @@ impl TokenLogoService {
 
     fn normalize_address(address: &str) -> String {
         address.trim().to_lowercase()
-    }
-
-    fn generate_redis_key(token_address: &str) -> String {
-        let normalized = Self::normalize_address(token_address);
-        format!("{}{}", TOKEN_LOGO_KEY_PREFIX, normalized)
     }
 }
 
@@ -272,14 +244,6 @@ mod tests {
         assert_eq!(
             TokenLogoService::normalize_address("  0xDEF456  "),
             "0xdef456"
-        );
-    }
-
-    #[test]
-    fn test_generate_redis_key() {
-        assert_eq!(
-            TokenLogoService::generate_redis_key("0xABC123"),
-            "token_logo:0xabc123"
         );
     }
 }

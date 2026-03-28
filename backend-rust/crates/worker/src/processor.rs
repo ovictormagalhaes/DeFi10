@@ -2,12 +2,11 @@ use anyhow::Result;
 use defi10_blockchain::evm::EvmProvider;
 use defi10_blockchain::solana::SolanaProvider;
 use defi10_blockchain::BlockchainProvider;
-use defi10_core::aggregation::AggregationResult;
+use defi10_core::aggregation::{AggregationResult, OperationStatus};
 use defi10_core::Chain;
 use defi10_infrastructure::config::AppConfig;
+use defi10_infrastructure::protocol_factory::{build_aave_config, build_uniswap_config};
 use defi10_infrastructure::PriceHydrationService;
-use defi10_protocols::aave::AaveGraphConfig;
-use defi10_protocols::uniswap::UniswapGraphConfig;
 use defi10_protocols::{
     AaveAdapter, FetchContext, KaminoAdapter, PendleAdapter, ProtocolRegistry, RaydiumAdapter,
     UniswapAdapter,
@@ -17,6 +16,11 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
+
+pub struct ProcessorOutput {
+    pub results: Vec<AggregationResult>,
+    pub operations: Vec<OperationStatus>,
+}
 
 pub struct AggregationProcessor {
     config: Arc<AppConfig>,
@@ -29,32 +33,8 @@ impl AggregationProcessor {
     pub fn new(config: AppConfig) -> Self {
         let http_client = Arc::new(Client::new());
 
-        let aave_config = config
-            .graph
-            .as_ref()
-            .map(|g| AaveGraphConfig {
-                api_key: Some(g.api_key.clone()),
-                url_template: Some(g.url_template.clone()),
-                base_subgraph_id: g.subgraphs.aave_v3_base.clone(),
-                ethereum_subgraph_id: g.subgraphs.aave_v3_ethereum.clone(),
-                arbitrum_subgraph_id: g.subgraphs.aave_v3_arbitrum.clone(),
-            })
-            .unwrap_or_default();
-
-        let uniswap_config = config
-            .graph
-            .as_ref()
-            .map(|g| UniswapGraphConfig {
-                api_key: Some(g.api_key.clone()),
-                url_template: Some(g.url_template.clone()),
-                ethereum_subgraph_id: g.subgraphs.uniswap_v3_ethereum.clone(),
-                base_subgraph_id: g.subgraphs.uniswap_v3_base.clone(),
-                arbitrum_subgraph_id: g.subgraphs.uniswap_v3_arbitrum.clone(),
-                ethereum_rpc: config.blockchain.get_ethereum_rpc(),
-                base_rpc: config.blockchain.get_base_rpc(),
-                arbitrum_rpc: config.blockchain.get_arbitrum_rpc(),
-            })
-            .unwrap_or_default();
+        let aave_config = build_aave_config(&config);
+        let uniswap_config = build_uniswap_config(&config);
 
         let mut registry = ProtocolRegistry::new();
         registry.register(Arc::new(AaveAdapter::new(http_client.clone(), aave_config)));
@@ -83,40 +63,43 @@ impl AggregationProcessor {
         account: &str,
         chain: &str,
         _job_id: Uuid,
-    ) -> Result<Vec<AggregationResult>> {
+    ) -> Result<ProcessorOutput> {
         tracing::debug!(
             "Processing aggregation for account {} on chain {}",
             account,
             chain
         );
 
-        // Parse chain
         let chain_enum = Chain::from_str(chain)
             .map_err(|e| anyhow::anyhow!("Invalid chain: {} - {}", chain, e))?;
 
-        // Check if RPC is configured
         let has_rpc = self.get_rpc_url(&chain_enum).is_ok();
 
-        let results = if has_rpc {
+        let (results, operations) = if has_rpc {
             tracing::info!("Using REAL blockchain data for {} on {}", account, chain);
 
             match chain_enum {
                 Chain::Solana => self.fetch_solana_positions(account).await?,
-                _ if chain_enum.is_evm() => self.fetch_evm_positions(account, &chain_enum).await?,
+                _ if chain_enum.is_evm() => {
+                    self.fetch_evm_positions(account, &chain_enum).await?
+                }
                 _ => {
                     tracing::warn!("Chain {} not supported yet", chain);
-                    vec![]
+                    (vec![], vec![])
                 }
             }
         } else {
             tracing::warn!("RPC not configured for {} - skipping", chain);
-            vec![]
+            (vec![], vec![])
         };
 
         let mut results = results;
         self.price_hydration.hydrate_prices(&mut results).await;
 
-        Ok(results)
+        Ok(ProcessorOutput {
+            results,
+            operations,
+        })
     }
 
     /// Fetch positions from EVM-compatible chains (Ethereum, Base, Arbitrum, BNB)
@@ -124,8 +107,9 @@ impl AggregationProcessor {
         &self,
         account: &str,
         chain: &Chain,
-    ) -> Result<Vec<AggregationResult>> {
+    ) -> Result<(Vec<AggregationResult>, Vec<OperationStatus>)> {
         let rpc_url = self.get_rpc_url(chain)?;
+        let chain_str = format!("{:?}", chain).to_lowercase();
 
         tracing::info!(
             "Fetching EVM positions for {} on {:?} using RPC",
@@ -140,22 +124,40 @@ impl AggregationProcessor {
 
         if !provider.health_check().await.unwrap_or(false) {
             tracing::warn!("EVM provider health check failed for {:?}", chain);
-            return Ok(vec![]);
+            return Ok((vec![], vec![]));
         }
 
         let mut all_results = Vec::new();
+        let mut ops = Vec::new();
 
+        let t = std::time::Instant::now();
         match self.fetch_native_balance(&provider, account, chain).await {
-            Ok(Some(result)) => all_results.push(result),
-            Ok(None) => {}
-            Err(e) => tracing::warn!("Failed to fetch native balance: {}", e),
+            Ok(Some(result)) => {
+                all_results.push(result);
+                ops.push(OperationStatus::success(account, &chain_str, "native").with_duration(t.elapsed().as_millis() as u64));
+            }
+            Ok(None) => {
+                ops.push(OperationStatus::success(account, &chain_str, "native").with_duration(t.elapsed().as_millis() as u64));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch native balance: {}", e);
+                ops.push(OperationStatus::failed(account, &chain_str, "native", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+            }
         }
 
         let ctx = FetchContext { rpc_url };
         for adapter in self.registry.get_for_chain(*chain) {
+            let protocol_name = adapter.name();
+            let t = std::time::Instant::now();
             match adapter.fetch_positions(account, *chain, &ctx).await {
-                Ok(mut results) => all_results.append(&mut results),
-                Err(e) => tracing::warn!("Failed to fetch {} positions: {}", adapter.name(), e),
+                Ok(mut results) => {
+                    all_results.append(&mut results);
+                    ops.push(OperationStatus::success(account, &chain_str, protocol_name).with_duration(t.elapsed().as_millis() as u64));
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to fetch {} positions: {}", protocol_name, e);
+                    ops.push(OperationStatus::failed(account, &chain_str, protocol_name, &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                }
             }
         }
 
@@ -166,7 +168,7 @@ impl AggregationProcessor {
             chain
         );
 
-        Ok(all_results)
+        Ok((all_results, ops))
     }
 
     /// Fetch native token balance (ETH, BNB, etc.)
@@ -254,7 +256,10 @@ impl AggregationProcessor {
     }
 
     /// Fetch positions from Solana
-    async fn fetch_solana_positions(&self, account: &str) -> Result<Vec<AggregationResult>> {
+    async fn fetch_solana_positions(
+        &self,
+        account: &str,
+    ) -> Result<(Vec<AggregationResult>, Vec<OperationStatus>)> {
         let rpc_url = self
             .config
             .blockchain
@@ -270,16 +275,30 @@ impl AggregationProcessor {
 
         if !provider.health_check().await.unwrap_or(false) {
             tracing::warn!("Solana provider health check failed");
-            return Ok(vec![]);
+            return Ok((vec![], vec![]));
         }
 
         let mut all_results: Vec<AggregationResult> = Vec::new();
+        let mut ops = Vec::new();
 
         let ctx = FetchContext { rpc_url };
         for adapter in self.registry.get_for_chain(Chain::Solana) {
+            let protocol_name = adapter.name();
+            let t = std::time::Instant::now();
             match adapter.fetch_positions(account, Chain::Solana, &ctx).await {
-                Ok(mut results) => all_results.append(&mut results),
-                Err(e) => tracing::warn!("Failed to fetch {} positions: {}", adapter.name(), e),
+                Ok(mut results) => {
+                    all_results.append(&mut results);
+                    ops.push(OperationStatus::success(account, "solana", protocol_name).with_duration(t.elapsed().as_millis() as u64));
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to fetch {} positions: {}", protocol_name, e);
+                    ops.push(OperationStatus::failed(
+                        account,
+                        "solana",
+                        protocol_name,
+                        &e.to_string(),
+                    ).with_duration(t.elapsed().as_millis() as u64));
+                }
             }
         }
 
@@ -288,7 +307,7 @@ impl AggregationProcessor {
             all_results.len(),
             account
         );
-        Ok(all_results)
+        Ok((all_results, ops))
     }
 
     async fn fetch_token_price(&self, token_id: &str) -> Result<f64> {
@@ -363,6 +382,7 @@ mod tests {
             rabbitmq: defi10_infrastructure::config::RabbitMqConfig {
                 url: "amqp://localhost:5672".to_string(),
                 prefetch_count: 10,
+                worker_concurrency: 10,
             },
             jwt: defi10_infrastructure::config::JwtConfig {
                 secret: "test".to_string(),

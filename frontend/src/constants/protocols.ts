@@ -7,19 +7,32 @@ export interface ProtocolConfig {
   url: string;
 }
 
+const AAVE_V3: ProtocolConfig = {
+  id: 'aave-v3',
+  name: 'Aave V3',
+  logo: '/resources/protocols/aave.svg',
+  url: 'https://app.aave.com',
+};
+
+const UNISWAP_V3: ProtocolConfig = {
+  id: 'uniswap-v3',
+  name: 'Uniswap V3',
+  logo: '/resources/protocols/uniswap.svg',
+  url: 'https://app.uniswap.org',
+};
+
+const PENDLE_V2: ProtocolConfig = {
+  id: 'pendle-v2',
+  name: 'Pendle V2',
+  logo: '/resources/protocols/pendle.svg',
+  url: 'https://app.pendle.finance',
+};
+
 const PROTOCOL_MAP: Record<string, ProtocolConfig> = {
-  'aave v3': {
-    id: 'aave-v3',
-    name: 'Aave V3',
-    logo: '/resources/protocols/aave.svg',
-    url: 'https://app.aave.com',
-  },
-  'uniswap v3': {
-    id: 'uniswap-v3',
-    name: 'Uniswap V3',
-    logo: '/resources/protocols/uniswap.svg',
-    url: 'https://app.uniswap.org',
-  },
+  'aave v3': AAVE_V3,
+  'aave-v3': AAVE_V3,
+  'uniswap v3': UNISWAP_V3,
+  'uniswap-v3': UNISWAP_V3,
   'kamino': {
     id: 'kamino',
     name: 'Kamino',
@@ -32,12 +45,8 @@ const PROTOCOL_MAP: Record<string, ProtocolConfig> = {
     logo: '/resources/protocols/raydium.svg',
     url: 'https://raydium.io',
   },
-  'pendle v2': {
-    id: 'pendle-v2',
-    name: 'Pendle V2',
-    logo: '/resources/protocols/pendle.svg',
-    url: 'https://app.pendle.finance',
-  },
+  'pendle v2': PENDLE_V2,
+  'pendle-v2': PENDLE_V2,
   'wallet': {
     id: 'moralis',
     name: 'Wallet',

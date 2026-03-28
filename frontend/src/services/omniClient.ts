@@ -27,6 +27,19 @@ const getOmniBaseUrl = (): string => {
 
 const OMNI_BASE = getOmniBaseUrl();
 
+const PROTOCOL_KEY_MAP: Record<string, string> = {
+  'aave v3': 'aave-v3',
+  'uniswap v3': 'uniswap-v3',
+  'uniswap v4': 'uniswap-v4',
+  'compound v3': 'compound-v3',
+};
+
+function normalizeProtocol(name?: string): string | undefined {
+  if (!name) return undefined;
+  const lower = name.toLowerCase().trim();
+  return PROTOCOL_KEY_MAP[lower] || lower;
+}
+
 export interface PoolScoreRequest {
   token0: string;
   token1: string;
@@ -47,6 +60,8 @@ export interface PoolScoreSuggestion {
   feeTier: string;
   feeRateBps: number;
   tvlUsd: number;
+  volume24h: number;
+  turnoverRatio24h: number;
   feeApr24h: number;
   feeApr7d: number;
   totalApr: number;
@@ -67,9 +82,14 @@ export interface PoolScoreResponse {
   suggestions: PoolScoreSuggestion[];
 }
 
+export interface ScoreAsset {
+  token: string;
+  value: number;
+}
+
 export interface LendingScoreRequest {
-  supply: string[];
-  borrow: string[];
+  supplies: ScoreAsset[];
+  borrows: ScoreAsset[];
   protocol?: string;
   chain?: string;
   min_liquidity?: number;
@@ -83,6 +103,7 @@ export interface LendingAssetRate {
   rewards: number;
   netApy: number;
   liquidity: number;
+  valueUsd?: number;
 }
 
 export interface LendingScoreSuggestion {
@@ -94,6 +115,7 @@ export interface LendingScoreSuggestion {
   combinedNetApy: number;
   assetsMatched: number;
   assetsTotal: number;
+  url: string;
 }
 
 export interface LendingScoreResponse {
@@ -107,11 +129,17 @@ export interface LendingScoreResponse {
 }
 
 export async function scorePool(req: PoolScoreRequest): Promise<PoolScoreResponse> {
-  const res = await axios.post(`${OMNI_BASE}/api/v1/score/pool`, req);
+  const res = await axios.post(`${OMNI_BASE}/api/v1/score/pool`, {
+    ...req,
+    protocol: normalizeProtocol(req.protocol),
+  });
   return res.data;
 }
 
 export async function scoreLending(req: LendingScoreRequest): Promise<LendingScoreResponse> {
-  const res = await axios.post(`${OMNI_BASE}/api/v1/score/lending`, req);
+  const res = await axios.post(`${OMNI_BASE}/api/v1/score/lending`, {
+    ...req,
+    protocol: normalizeProtocol(req.protocol),
+  });
   return res.data;
 }

@@ -2,21 +2,27 @@ use anyhow::Result;
 use defi10_blockchain::evm::EvmProvider;
 use defi10_blockchain::solana::SolanaProvider;
 use defi10_blockchain::BlockchainProvider;
-use defi10_core::aggregation::AggregationResult;
+use defi10_core::aggregation::{AggregationResult, OperationStatus};
 use defi10_core::Chain;
 use defi10_infrastructure::config::AppConfig;
+use defi10_infrastructure::protocol_factory::{build_aave_config, build_uniswap_config};
 use defi10_infrastructure::MoralisClient;
 use defi10_infrastructure::PriceHydrationService;
-use defi10_protocols::aave::{AaveGraphConfig, AaveV3Service};
+use defi10_protocols::aave::AaveV3Service;
 use defi10_protocols::kamino::KaminoService;
 use defi10_protocols::pendle::PendleService;
 use defi10_protocols::raydium::RaydiumService;
-use defi10_protocols::uniswap::{UniswapGraphConfig, UniswapV3Service};
+use defi10_protocols::uniswap::UniswapV3Service;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use uuid::Uuid;
+
+pub struct ProcessorOutput {
+    pub results: Vec<AggregationResult>,
+    pub operations: Vec<OperationStatus>,
+}
 
 pub struct AggregationProcessor {
     config: Arc<AppConfig>,
@@ -52,36 +58,23 @@ impl AggregationProcessor {
             tracing::warn!("Moralis NOT configured - token fetching will be limited");
         }
 
-        let aave_config = config
-            .graph
-            .as_ref()
-            .map(|g| AaveGraphConfig {
-                api_key: Some(g.api_key.clone()),
-                url_template: Some(g.url_template.clone()),
-                base_subgraph_id: g.subgraphs.aave_v3_base.clone(),
-                ethereum_subgraph_id: g.subgraphs.aave_v3_ethereum.clone(),
-                arbitrum_subgraph_id: g.subgraphs.aave_v3_arbitrum.clone(),
-            })
-            .unwrap_or_default();
-
-        let uniswap_config = config
-            .graph
-            .as_ref()
-            .map(|g| UniswapGraphConfig {
-                api_key: Some(g.api_key.clone()),
-                url_template: Some(g.url_template.clone()),
-                ethereum_subgraph_id: g.subgraphs.uniswap_v3_ethereum.clone(),
-                base_subgraph_id: g.subgraphs.uniswap_v3_base.clone(),
-                arbitrum_subgraph_id: g.subgraphs.uniswap_v3_arbitrum.clone(),
-                ethereum_rpc: config.blockchain.get_ethereum_rpc(),
-                base_rpc: config.blockchain.get_base_rpc(),
-                arbitrum_rpc: config.blockchain.get_arbitrum_rpc(),
-            })
-            .unwrap_or_default();
+        let aave_config = build_aave_config(&config);
+        let uniswap_config = build_uniswap_config(&config);
 
         let aave_service = AaveV3Service::with_client(http_client.clone(), aave_config);
         let uniswap_service = UniswapV3Service::with_client(http_client.clone(), uniswap_config);
-        let price_hydration = PriceHydrationService::with_client(http_client.clone());
+        let price_hydration = if let Some(ref moralis_cfg) = config.moralis {
+            if moralis_cfg.is_configured() {
+                PriceHydrationService::with_client_and_moralis(
+                    http_client.clone(),
+                    &moralis_cfg.api_key,
+                )
+            } else {
+                PriceHydrationService::with_client(http_client.clone())
+            }
+        } else {
+            PriceHydrationService::with_client(http_client.clone())
+        };
 
         Self {
             config: Arc::new(config),
@@ -100,40 +93,64 @@ impl AggregationProcessor {
         account: &str,
         chain: &str,
         _job_id: Uuid,
-    ) -> Result<Vec<AggregationResult>> {
+    ) -> Result<ProcessorOutput> {
         tracing::debug!(
             "Processing aggregation for account {} on chain {}",
             account,
             chain
         );
 
-        // Parse chain
         let chain_enum = Chain::from_str(chain)
             .map_err(|e| anyhow::anyhow!("Invalid chain: {} - {}", chain, e))?;
 
-        // Check if RPC is configured
         let has_rpc = self.get_rpc_url(&chain_enum).is_ok();
 
-        let results = if has_rpc {
+        let (results, operations) = if has_rpc {
             tracing::info!("Using REAL blockchain data for {} on {}", account, chain);
 
             match chain_enum {
                 Chain::Solana => self.fetch_solana_positions(account).await?,
-                _ if chain_enum.is_evm() => self.fetch_evm_positions(account, &chain_enum).await?,
+                _ if chain_enum.is_evm() => {
+                    self.fetch_evm_positions(account, &chain_enum).await?
+                }
                 _ => {
                     tracing::warn!("Chain {} not supported yet", chain);
-                    vec![]
+                    (vec![], vec![])
                 }
             }
         } else {
             tracing::warn!("RPC not configured for {} - using mock data", chain);
-            self.fetch_mock_data(account, chain).await?
+            let results = self.fetch_mock_data(account, chain).await?;
+            (results, vec![])
         };
 
         let mut results = results;
         self.price_hydration.hydrate_prices(&mut results).await;
 
-        Ok(results)
+        let pre_filter = results.len();
+        results.retain(|r| {
+            if r.protocol == "wallet" && r.price_usd <= 0.0 && r.chain != "solana" {
+                tracing::debug!(
+                    "Filtering unpriced wallet token as spam: {} ({}) on {}",
+                    r.token_symbol,
+                    r.token_address,
+                    r.chain
+                );
+                return false;
+            }
+            true
+        });
+        if results.len() < pre_filter {
+            tracing::info!(
+                "Filtered {} unpriced wallet tokens (likely spam)",
+                pre_filter - results.len()
+            );
+        }
+
+        Ok(ProcessorOutput {
+            results,
+            operations,
+        })
     }
 
     /// Fetch mock data (placeholder for real implementation)
@@ -201,9 +218,9 @@ impl AggregationProcessor {
         &self,
         account: &str,
         chain: &Chain,
-    ) -> Result<Vec<AggregationResult>> {
-        // Get RPC URL for the chain
+    ) -> Result<(Vec<AggregationResult>, Vec<OperationStatus>)> {
         let rpc_url = self.get_rpc_url(chain)?;
+        let chain_str = format!("{:?}", chain).to_lowercase();
 
         tracing::info!(
             "Fetching EVM positions for {} on {:?} using RPC",
@@ -211,34 +228,46 @@ impl AggregationProcessor {
             chain
         );
 
-        // Create EVM provider
         let provider = EvmProvider::new(*chain, &rpc_url).await.map_err(|e| {
             tracing::error!("Failed to create EVM provider: {}", e);
             anyhow::anyhow!("EVM provider creation failed: {}", e)
         })?;
 
-        // Health check
         if !provider.health_check().await.unwrap_or(false) {
             tracing::warn!("EVM provider health check failed for {:?}", chain);
-            return Ok(vec![]); // Return empty instead of failing the whole job
+            return Ok((vec![], vec![]));
         }
 
         let mut all_results = Vec::new();
+        let mut ops = Vec::new();
 
-        // 1. Fetch native balance (ETH, BNB, etc.)
+        let t = std::time::Instant::now();
         match self.fetch_native_balance(&provider, account, chain).await {
-            Ok(Some(result)) => all_results.push(result),
-            Ok(None) => {}
-            Err(e) => tracing::warn!("Failed to fetch native balance: {}", e),
+            Ok(Some(result)) => {
+                all_results.push(result);
+                ops.push(OperationStatus::success(account, &chain_str, "native").with_duration(t.elapsed().as_millis() as u64));
+            }
+            Ok(None) => {
+                ops.push(OperationStatus::success(account, &chain_str, "native").with_duration(t.elapsed().as_millis() as u64));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch native balance: {}", e);
+                ops.push(OperationStatus::failed(account, &chain_str, "native", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+            }
         }
 
-        // 2. Fetch ERC-20 tokens from Moralis
+        let t = std::time::Instant::now();
         match self.fetch_moralis_evm_tokens(account, chain).await {
-            Ok(mut results) => all_results.append(&mut results),
-            Err(e) => tracing::warn!("Failed to fetch Moralis tokens: {}", e),
+            Ok(mut results) => {
+                all_results.append(&mut results);
+                ops.push(OperationStatus::success(account, &chain_str, "moralis").with_duration(t.elapsed().as_millis() as u64));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch Moralis tokens: {}", e);
+                ops.push(OperationStatus::failed(account, &chain_str, "moralis", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+            }
         }
 
-        // 3. NFT Screening - detect which protocols to call
         let nft_contracts = self
             .screen_moralis_evm_nfts(account, chain)
             .await
@@ -247,48 +276,60 @@ impl AggregationProcessor {
         let has_uniswap_nft = self.has_uniswap_v3_nft(&nft_contracts, chain);
         let has_pendle_nft = self.has_pendle_nft(&nft_contracts, chain);
 
-        // 4. Fetch Aave positions (lending/borrowing)
+        let t = std::time::Instant::now();
         match self.fetch_aave_positions(&provider, account, chain).await {
-            Ok(mut results) => all_results.append(&mut results),
-            Err(e) => tracing::warn!("Failed to fetch Aave positions: {}", e),
+            Ok(mut results) => {
+                all_results.append(&mut results);
+                ops.push(OperationStatus::success(account, &chain_str, "aave-v3").with_duration(t.elapsed().as_millis() as u64));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch Aave positions: {}", e);
+                ops.push(OperationStatus::failed(account, &chain_str, "aave-v3", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+            }
         }
 
-        // 5. Fetch Uniswap positions (only if NFT detected)
         if has_uniswap_nft {
+            let t = std::time::Instant::now();
             match self
                 .fetch_uniswap_positions(&provider, account, chain)
                 .await
             {
-                Ok(mut results) => all_results.append(&mut results),
-                Err(e) => tracing::warn!("Failed to fetch Uniswap positions: {}", e),
+                Ok(mut results) => {
+                    all_results.append(&mut results);
+                    ops.push(OperationStatus::success(account, &chain_str, "uniswap-v3").with_duration(t.elapsed().as_millis() as u64));
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to fetch Uniswap positions: {}", e);
+                    ops.push(OperationStatus::failed(account, &chain_str, "uniswap-v3", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                }
             }
-        } else {
-            tracing::debug!(
-                "Skipping Uniswap V3 - no NFT detected for {} on {:?}",
-                account,
-                chain
-            );
         }
 
-        // 6. Fetch Pendle positions (only if NFT detected)
         if has_pendle_nft {
+            let t = std::time::Instant::now();
             match self.fetch_pendle_positions(&provider, account, chain).await {
-                Ok(mut results) => all_results.append(&mut results),
-                Err(e) => tracing::warn!("Failed to fetch Pendle positions: {}", e),
+                Ok(mut results) => {
+                    all_results.append(&mut results);
+                    ops.push(OperationStatus::success(account, &chain_str, "pendle").with_duration(t.elapsed().as_millis() as u64));
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to fetch Pendle positions: {}", e);
+                    ops.push(OperationStatus::failed(account, &chain_str, "pendle", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                }
             }
-        } else {
-            tracing::debug!(
-                "Skipping Pendle - no NFT detected for {} on {:?}",
-                account,
-                chain
-            );
         }
 
-        // 7. Fetch Pendle vePENDLE locking positions (Ethereum only, no NFT needed)
         if *chain == Chain::Ethereum {
+            let t = std::time::Instant::now();
             match self.fetch_pendle_ve_positions(account, chain).await {
-                Ok(mut results) => all_results.append(&mut results),
-                Err(e) => tracing::warn!("Failed to fetch Pendle vePENDLE positions: {}", e),
+                Ok(mut results) => {
+                    all_results.append(&mut results);
+                    ops.push(OperationStatus::success(account, &chain_str, "pendle-ve").with_duration(t.elapsed().as_millis() as u64));
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to fetch Pendle vePENDLE positions: {}", e);
+                    ops.push(OperationStatus::failed(account, &chain_str, "pendle-ve", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                }
             }
         }
 
@@ -299,7 +340,7 @@ impl AggregationProcessor {
             chain
         );
 
-        Ok(all_results)
+        Ok((all_results, ops))
     }
 
     /// Fetch native token balance (ETH, BNB, etc.)
@@ -392,8 +433,10 @@ impl AggregationProcessor {
         }))
     }
 
-    /// Fetch positions from Solana
-    async fn fetch_solana_positions(&self, account: &str) -> Result<Vec<AggregationResult>> {
+    async fn fetch_solana_positions(
+        &self,
+        account: &str,
+    ) -> Result<(Vec<AggregationResult>, Vec<OperationStatus>)> {
         let rpc_url = self
             .config
             .blockchain
@@ -413,30 +456,46 @@ impl AggregationProcessor {
 
         if !provider.health_check().await.unwrap_or(false) {
             tracing::warn!("Solana provider health check failed");
-            return Ok(vec![]);
+            return Ok((vec![], vec![]));
         }
 
         let mut all_results: Vec<AggregationResult> = Vec::new();
+        let mut ops = Vec::new();
 
-        // 1. Fetch SPL tokens from Moralis
+        let t = std::time::Instant::now();
         match self.fetch_moralis_solana_tokens(account).await {
-            Ok(mut positions) => all_results.append(&mut positions),
-            Err(e) => tracing::warn!("Failed to fetch Moralis Solana tokens: {}", e),
+            Ok(mut positions) => {
+                all_results.append(&mut positions);
+                ops.push(OperationStatus::success(account, "solana", "moralis").with_duration(t.elapsed().as_millis() as u64));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch Moralis Solana tokens: {}", e);
+                ops.push(OperationStatus::failed(account, "solana", "moralis", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+            }
         }
 
-        // 2. NFT Screening for Solana (not returned in results)
-        // Future: detect Raydium CLMM NFTs and trigger conditionally
-
-        // 3. Fetch Kamino positions (lending)
+        let t = std::time::Instant::now();
         match self.fetch_kamino_positions(&provider, account).await {
-            Ok(mut positions) => all_results.append(&mut positions),
-            Err(e) => tracing::warn!("Failed to fetch Kamino positions: {}", e),
+            Ok(mut positions) => {
+                all_results.append(&mut positions);
+                ops.push(OperationStatus::success(account, "solana", "kamino").with_duration(t.elapsed().as_millis() as u64));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch Kamino positions: {}", e);
+                ops.push(OperationStatus::failed(account, "solana", "kamino", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+            }
         }
 
-        // 4. Fetch Raydium positions (liquidity pools)
+        let t = std::time::Instant::now();
         match self.fetch_raydium_positions(&provider, account).await {
-            Ok(mut positions) => all_results.append(&mut positions),
-            Err(e) => tracing::warn!("Failed to fetch Raydium positions: {}", e),
+            Ok(mut positions) => {
+                all_results.append(&mut positions);
+                ops.push(OperationStatus::success(account, "solana", "raydium").with_duration(t.elapsed().as_millis() as u64));
+            }
+            Err(e) => {
+                tracing::warn!("Failed to fetch Raydium positions: {}", e);
+                ops.push(OperationStatus::failed(account, "solana", "raydium", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+            }
         }
 
         tracing::info!(
@@ -444,7 +503,7 @@ impl AggregationProcessor {
             all_results.len(),
             account
         );
-        Ok(all_results)
+        Ok((all_results, ops))
     }
 
     async fn fetch_aave_positions(
@@ -825,7 +884,7 @@ impl AggregationProcessor {
         tracing::info!("Fetching Kamino positions for {}", account);
 
         let kamino_service = KaminoService::with_client(self.http_client.clone());
-        let positions = kamino_service
+        let (positions, market_data) = kamino_service
             .get_user_positions(account, Arc::new((*provider).clone()))
             .await?;
 
@@ -882,21 +941,23 @@ impl AggregationProcessor {
             }
         }
 
-        let events = kamino_service
-            .get_transaction_history(account)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!("Failed to fetch Kamino transaction history: {}", e);
-                vec![]
-            });
+        if !results.is_empty() {
+            let events = kamino_service
+                .get_transaction_history(account, &market_data)
+                .await
+                .unwrap_or_else(|e| {
+                    tracing::warn!("Failed to fetch Kamino transaction history: {}", e);
+                    vec![]
+                });
 
-        tracing::info!(
-            "Kamino: {} transaction events for {}",
-            events.len(),
-            account
-        );
+            tracing::info!(
+                "Kamino: {} transaction events for {}",
+                events.len(),
+                account
+            );
 
-        defi10_protocols::kamino::attach_transaction_history(&mut results, &events);
+            defi10_protocols::kamino::attach_transaction_history(&mut results, &events);
+        }
 
         Ok(results)
     }
@@ -927,7 +988,8 @@ impl AggregationProcessor {
 
             for token in &pos.tokens {
                 let balance_f64: f64 = token.balance.parse().unwrap_or(0.0);
-                if balance_f64 > 0.0 || token.balance_usd > 0.0 {
+                let is_supplied = token.token_type.as_deref() == Some("Supplied");
+                if balance_f64 > 0.0 || token.balance_usd > 0.0 || is_supplied {
                     let raw_balance = (balance_f64 * 10f64.powi(token.decimals as i32)) as u128;
                     results.push(AggregationResult {
                         account: account.to_string(),
@@ -1222,21 +1284,27 @@ impl AggregationProcessor {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Moralis not configured"))?;
 
-        tracing::debug!("Fetching Moralis Solana tokens for {}", account);
+        tracing::info!("Fetching Moralis Solana tokens for {}", account);
 
         let tokens = moralis
             .get_solana_tokens(account)
             .await
             .map_err(|e| anyhow::anyhow!("Moralis Solana tokens error: {}", e))?;
 
+        tracing::info!(
+            "Moralis returned {} Solana tokens for {}",
+            tokens.len(),
+            account
+        );
+
         let mut results = Vec::new();
+        let mut priced_count = 0u32;
+        let mut unpriced_count = 0u32;
 
         for token in tokens {
             let balance = token
                 .amount
-                .parse::<u128>()
-                .ok()
-                .map(|b| (b as f64) / 10_f64.powi(token.decimals as i32))
+                .parse::<f64>()
                 .unwrap_or(0.0);
 
             if balance <= 0.0 {
@@ -1253,14 +1321,43 @@ impl AggregationProcessor {
             let mut value_usd = token.usd_value.unwrap_or(0.0);
 
             if price_usd == 0.0 {
-                if let Ok(Some(fetched_price)) = moralis.get_solana_token_price(&token.mint).await {
-                    price_usd = fetched_price;
-                    value_usd = balance * price_usd;
+                match moralis.get_solana_token_price(&token.mint).await {
+                    Ok(Some(fetched_price)) => {
+                        price_usd = fetched_price;
+                        value_usd = balance * price_usd;
+                        tracing::debug!(
+                            "Solana token {} ({}) price fetched: ${}",
+                            symbol,
+                            token.mint,
+                            price_usd
+                        );
+                    }
+                    Ok(None) => {
+                        tracing::debug!(
+                            "Solana token {} ({}) has no price available",
+                            symbol,
+                            token.mint
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Solana token {} ({}) price fetch error: {}",
+                            symbol,
+                            token.mint,
+                            e
+                        );
+                    }
                 }
             }
 
             if value_usd == 0.0 && price_usd > 0.0 {
                 value_usd = balance * price_usd;
+            }
+
+            if price_usd > 0.0 {
+                priced_count += 1;
+            } else {
+                unpriced_count += 1;
             }
 
             results.push(AggregationResult {
@@ -1269,7 +1366,13 @@ impl AggregationProcessor {
                 protocol: "wallet".to_string(),
                 position_type: "token".to_string(),
                 balance,
-                balance_raw: token.amount.clone(),
+                balance_raw: token
+                    .amount_raw
+                    .clone()
+                    .unwrap_or_else(|| {
+                        let raw = balance * 10f64.powi(token.decimals as i32);
+                        format!("{:.0}", raw)
+                    }),
                 decimals: token.decimals as u8,
                 value_usd,
                 price_usd,
@@ -1289,7 +1392,13 @@ impl AggregationProcessor {
             });
         }
 
-        tracing::info!("Found {} SPL tokens from Moralis", results.len());
+        tracing::info!(
+            "Solana tokens for {}: {} total, {} priced, {} unpriced",
+            account,
+            results.len(),
+            priced_count,
+            unpriced_count
+        );
         Ok(results)
     }
 
@@ -1376,6 +1485,7 @@ mod tests {
             rabbitmq: defi10_infrastructure::config::RabbitMqConfig {
                 url: "amqp://localhost:5672".to_string(),
                 prefetch_count: 10,
+                worker_concurrency: 10,
             },
             jwt: defi10_infrastructure::config::JwtConfig {
                 secret: "test".to_string(),

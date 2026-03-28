@@ -259,9 +259,11 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
         positionCriticalThresholds[p.id] = p.criticalThreshold;
       });
       
+      const warningThreshold = avgCriticalThreshold + (avgTargetHF - avgCriticalThreshold) * 0.5;
+
       const config: HealthFactorTargetConfig = {
         targetHealthFactor: avgTargetHF,
-        warningThreshold: avgTargetHF - 0.2,
+        warningThreshold: Math.round(warningThreshold * 100) / 100,
         criticalThreshold: avgCriticalThreshold,
         autoSuggest: true,
         protocols: positionIds

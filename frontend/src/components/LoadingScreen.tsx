@@ -22,15 +22,14 @@ const LoadingScreen = ({ theme, message = 'Loading your portfolio...' }: Loading
           textAlign: 'center',
         }}
       >
-        {/* Animated loader */}
         <div
           style={{
             width: 80,
             height: 80,
             margin: '0 auto 32px',
-            border: '6px solid rgba(255,255,255,0.1)',
-            borderTop: '6px solid #35f7a5',
-            borderRight: '6px solid #2fbfd9',
+            border: `6px solid ${theme.bgInteractive || 'rgba(255,255,255,0.1)'}`,
+            borderTop: `6px solid ${theme.accent || theme.primary}`,
+            borderRight: `6px solid ${theme.info || theme.accentAlt}`,
             borderRadius: '50%',
             animation: 'spin 0.85s linear infinite',
           }}

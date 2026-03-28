@@ -4,7 +4,6 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,14 +25,14 @@ pub struct AggregatedPrice {
 
 pub struct PriceAggregator {
     client: Arc<Client>,
-    cache: Arc<RwLock<RedisCache>>,
+    cache: Arc<RedisCache>,
     coinmarketcap_api_key: String,
     cache_ttl_seconds: u64,
 }
 
 impl PriceAggregator {
     pub fn new(
-        cache: Arc<RwLock<RedisCache>>,
+        cache: Arc<RedisCache>,
         coinmarketcap_api_key: String,
         cache_ttl_seconds: u64,
     ) -> Self {
@@ -47,7 +46,7 @@ impl PriceAggregator {
 
     pub fn with_client(
         client: Arc<Client>,
-        cache: Arc<RwLock<RedisCache>>,
+        cache: Arc<RedisCache>,
         coinmarketcap_api_key: String,
         cache_ttl_seconds: u64,
     ) -> Self {
@@ -115,12 +114,9 @@ impl PriceAggregator {
 
     /// Get aggregated price from multiple sources with caching
     pub async fn get_aggregated_price(&self, symbol: &str) -> Result<AggregatedPrice> {
-        // Try cache first
         let cache_key = format!("price:{}", symbol);
         if let Ok(Some(cached)) = self
             .cache
-            .write()
-            .await
             .get::<AggregatedPrice>("prices", &cache_key)
             .await
         {
@@ -128,7 +124,6 @@ impl PriceAggregator {
             return Ok(cached);
         }
 
-        // Fetch from CoinMarketCap
         let mut prices = Vec::new();
         match self.fetch_coinmarketcap_price(symbol).await {
             Ok(price) => prices.push(price),
@@ -153,20 +148,24 @@ impl PriceAggregator {
             last_updated: chrono::Utc::now(),
         };
 
-        // Cache the result
-        if let Err(e) = self
-            .cache
-            .write()
-            .await
-            .set(
-                "prices",
-                &cache_key,
-                &serde_json::to_string(&aggregated).unwrap(),
-                Some(std::time::Duration::from_secs(self.cache_ttl_seconds)),
-            )
-            .await
-        {
-            error!("Failed to cache price: {}", e);
+        match serde_json::to_string(&aggregated) {
+            Ok(serialized) => {
+                if let Err(e) = self
+                    .cache
+                    .set(
+                        "prices",
+                        &cache_key,
+                        &serialized,
+                        Some(std::time::Duration::from_secs(self.cache_ttl_seconds)),
+                    )
+                    .await
+                {
+                    error!("Failed to cache price: {}", e);
+                }
+            }
+            Err(e) => {
+                error!("Failed to serialize price for caching: {}", e);
+            }
         }
 
         info!("Price for {} aggregated successfully", symbol);

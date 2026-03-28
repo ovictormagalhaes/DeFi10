@@ -13,6 +13,13 @@ use tokio::time::{sleep, Duration};
 const KAMINO_API_BASE: &str = "https://api.kamino.finance";
 const MARKET_DELAY_MS: u64 = 500;
 
+pub struct MarketData {
+    pub market_pubkey: String,
+    pub market_name: String,
+    pub obligations: Vec<KaminoObligationResponse>,
+    pub reserves_map: HashMap<String, KaminoReserveMetric>,
+}
+
 fn get_decimals_for_symbol(symbol: &str) -> u8 {
     token_decimals::get_token_decimals(symbol, Chain::Solana, None)
 }
@@ -79,25 +86,20 @@ impl KaminoService {
         &self,
         wallet_address: &str,
         _provider: Arc<dyn BlockchainProvider>,
-    ) -> Result<Vec<ProtocolPosition>> {
-        let mut all_data: Vec<(
-            String,
-            String,
-            KaminoObligationResponse,
-            HashMap<String, KaminoReserveMetric>,
-        )> = Vec::new();
+    ) -> Result<(Vec<ProtocolPosition>, Vec<MarketData>)> {
+        let mut market_data_list: Vec<MarketData> = Vec::new();
 
-        for (market_pubkey, market_name) in KNOWN_MARKETS {
+        for (i, (market_pubkey, market_name)) in KNOWN_MARKETS.iter().enumerate() {
+            if i > 0 {
+                sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
+            }
+
             let obligations = self.fetch_obligations(market_pubkey, wallet_address).await;
             let obligations = match obligations {
                 Ok(obs) if !obs.is_empty() => obs,
-                Ok(_) => {
-                    sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
-                    continue;
-                }
+                Ok(_) => continue,
                 Err(e) => {
                     tracing::warn!("Kamino obligations error for {}: {}", market_name, e);
-                    sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
                     continue;
                 }
             };
@@ -110,25 +112,24 @@ impl KaminoService {
                 reserves_map.len()
             );
 
-            for obligation in obligations {
-                all_data.push((
-                    market_pubkey.to_string(),
-                    market_name.to_string(),
-                    obligation,
-                    reserves_map.clone(),
-                ));
-            }
-
-            sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
+            market_data_list.push(MarketData {
+                market_pubkey: market_pubkey.to_string(),
+                market_name: market_name.to_string(),
+                obligations,
+                reserves_map,
+            });
         }
 
-        if all_data.is_empty() {
-            return Ok(vec![]);
+        if market_data_list.is_empty() {
+            return Ok((vec![], vec![]));
         }
 
         let mut positions = Vec::new();
 
-        for (_market_pubkey, market_name, obligation, reserves_map) in &all_data {
+        for md in &market_data_list {
+        for obligation in &md.obligations {
+            let market_name = &md.market_name;
+            let reserves_map = &md.reserves_map;
             let total_deposit_usd = obligation
                 .refreshed_stats
                 .as_ref()
@@ -330,6 +331,7 @@ impl KaminoService {
                 });
             }
         }
+        }
 
         tracing::info!(
             "Kamino: found {} positions for wallet {}",
@@ -337,7 +339,7 @@ impl KaminoService {
             wallet_address
         );
 
-        Ok(positions)
+        Ok((positions, market_data_list))
     }
 
     async fn fetch_obligations(
@@ -425,43 +427,30 @@ impl KaminoService {
     pub async fn get_transaction_history(
         &self,
         wallet_address: &str,
+        market_data: &[MarketData],
     ) -> Result<Vec<KaminoTransactionEvent>> {
         tracing::info!(
             "Kamino: Starting transaction history fetch for {}",
             wallet_address
         );
         let mut all_events = Vec::new();
+        let mut request_count = 0;
 
-        for (market_pubkey, market_name) in KNOWN_MARKETS {
-            let obligations = self.fetch_obligations(market_pubkey, wallet_address).await;
-            let obligations = match obligations {
-                Ok(obs) if !obs.is_empty() => {
-                    tracing::info!("Kamino {}: Found {} obligations", market_name, obs.len());
-                    obs
-                }
-                Ok(_) => {
-                    tracing::debug!("Kamino {}: No obligations found", market_name);
+        for md in market_data {
+            for obligation in &md.obligations {
+                if request_count > 0 {
                     sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
-                    continue;
                 }
-                Err(e) => {
-                    tracing::warn!("Kamino {}: Failed to fetch obligations: {}", market_name, e);
-                    sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
-                    continue;
-                }
-            };
+                request_count += 1;
 
-            let reserves_map = self.fetch_reserves_map(market_pubkey).await;
-
-            for obligation in &obligations {
                 let history = self
-                    .fetch_obligation_history(market_pubkey, &obligation.obligation_address)
+                    .fetch_obligation_history(&md.market_pubkey, &obligation.obligation_address)
                     .await;
                 let snapshots = match history {
                     Ok(h) if h.history.len() >= 2 => {
                         tracing::info!(
                             "Kamino {}: {} snapshots for obligation {}",
-                            market_name,
+                            md.market_name,
                             h.history.len(),
                             &obligation.obligation_address
                                 [..8.min(obligation.obligation_address.len())]
@@ -471,38 +460,32 @@ impl KaminoService {
                     Ok(h) => {
                         tracing::info!(
                             "Kamino {}: Only {} snapshots (need >=2) for obligation {}",
-                            market_name,
+                            md.market_name,
                             h.history.len(),
                             &obligation.obligation_address
                                 [..8.min(obligation.obligation_address.len())]
                         );
-                        sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
                         continue;
                     }
                     Err(e) => {
                         tracing::warn!(
                             "Kamino {}: Failed to fetch obligation history: {}",
-                            market_name,
+                            md.market_name,
                             e
                         );
-                        sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
                         continue;
                     }
                 };
 
-                let events = self.infer_transaction_events(&snapshots, &reserves_map);
+                let events = self.infer_transaction_events(&snapshots, &md.reserves_map);
                 tracing::info!(
                     "Kamino {}: {} events inferred for obligation {}",
-                    market_name,
+                    md.market_name,
                     events.len(),
                     &obligation.obligation_address[..8.min(obligation.obligation_address.len())]
                 );
                 all_events.extend(events);
-
-                sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
             }
-
-            sleep(Duration::from_millis(MARKET_DELAY_MS)).await;
         }
 
         tracing::info!(
