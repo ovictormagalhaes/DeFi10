@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(dotnet:*)",
+      "Bash(gh:*)",
+      "Bash(\"/c/Program Files/GitHub:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(echo:*)",
+      "Bash(pwd:*)",
+      "Bash(which:*)",
+      "Bash(where:*)",
+      "Bash(env:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(touch:*)",
+      "Bash(rustup:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(pip:*)",
+      "Bash(pip3:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(cd:*)",
+      "Bash(test:*)",
+      "WebFetch",
+      "Bash(\"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" pr view 44 --json title,body)",
+      "Bash(taskkill //PID 53012 //F)",
+      "Bash(taskkill //PID 60828 //F)",
+      "Bash(taskkill //PID 73460 //F)",
+      "Bash(taskkill //PID 4032 //F)"
+    ],
+    "ask": [
+      "Bash(git:*)"
+    ]
+  }
+}
