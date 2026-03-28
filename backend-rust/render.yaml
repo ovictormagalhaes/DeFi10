@@ -41,6 +41,10 @@ services:
         sync: false
       - key: Graph__ApiKey
         sync: false
+      - key: NewRelic__LicenseKey
+        sync: false
+      - key: NewRelic__ServiceName
+        value: "defi10-api"
     healthCheckPath: /health
 
   - type: redis
