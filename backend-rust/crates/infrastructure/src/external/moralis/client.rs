@@ -124,7 +124,7 @@ impl MoralisClient {
 
     pub async fn get_solana_tokens(&self, address: &str) -> Result<Vec<SolanaToken>> {
         let url = format!(
-            "{}/account/mainnet/{}/portfolio?nftMetadata=false&mediaItems=false&excludeSpam=true",
+            "{}/account/mainnet/{}/portfolio?nftMetadata=false&mediaItems=false",
             self.solana_base_url, address
         );
 
@@ -146,10 +146,16 @@ impl MoralisClient {
             if let Some(solana_str) = native.solana {
                 if let Ok(sol_amount) = solana_str.parse::<f64>() {
                     if sol_amount > 0.0 {
+                        let sol_mint = "So11111111111111111111111111111111111111112";
+                        let (sol_price, sol_value) =
+                            match self.get_solana_token_price(sol_mint).await {
+                                Ok(Some(p)) => (Some(p), Some(sol_amount * p)),
+                                _ => (None, None),
+                            };
                         tokens.insert(
                             0,
                             SolanaToken {
-                                mint: "So11111111111111111111111111111111111111112".to_string(),
+                                mint: sol_mint.to_string(),
                                 amount_raw: native.lamports,
                                 amount: solana_str,
                                 decimals: 9,
@@ -159,8 +165,8 @@ impl MoralisClient {
                                     "https://moralis.com/wp-content/uploads/2022/12/Solana.svg"
                                         .to_string(),
                                 ),
-                                usd_price: None,
-                                usd_value: None,
+                                usd_price: sol_price,
+                                usd_value: sol_value,
                             },
                         );
                     }

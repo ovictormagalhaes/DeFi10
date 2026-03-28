@@ -512,8 +512,8 @@ export const AllocationStrategySection: React.FC<
               height: 80,
               margin: '0 auto 32px',
               border: '6px solid rgba(255,255,255,0.1)',
-              borderTop: '6px solid #35f7a5',
-              borderRight: '6px solid #2fbfd9',
+              borderTop: `6px solid ${theme.accent || theme.primary}`,
+              borderRight: `6px solid ${theme.info || theme.accentAlt}`,
               borderRadius: '50%',
               animation: 'spin 0.85s linear infinite',
             }}
@@ -610,11 +610,11 @@ export const AllocationStrategySection: React.FC<
               height: 64,
               margin: '0 auto 20px',
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
+              background: theme.dangerGrad,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 6px 18px rgba(255, 107, 107, 0.25)',
+              boxShadow: theme.dangerGlow,
             }}
           >
             <svg
@@ -716,20 +716,20 @@ export const AllocationStrategySection: React.FC<
                 fontSize: 14,
                 fontWeight: 600,
                 color: 'white',
-                background: 'linear-gradient(135deg, #35f7a5 0%, #2fbfd9 100%)',
+                background: theme.brandGrad,
                 border: 'none',
                 borderRadius: 999,
                 cursor: 'pointer',
                 transition: 'transform 0.2s, box-shadow 0.2s',
-                boxShadow: '0 4px 12px rgba(53, 247, 165, 0.3)',
+                boxShadow: theme.brandGlow,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 6px 18px rgba(53, 247, 165, 0.4)';
+                e.currentTarget.style.boxShadow = theme.brandGlowHover;
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(53, 247, 165, 0.3)';
+                e.currentTarget.style.boxShadow = theme.brandGlow;
               }}
             >
               Try Again

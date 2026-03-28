@@ -38,7 +38,7 @@ impl ProtocolAdapter for KaminoAdapter {
         let provider = SolanaProvider::new(&ctx.rpc_url)
             .map_err(|e| anyhow::anyhow!("Solana provider creation failed: {}", e))?;
 
-        let positions = kamino_service
+        let (positions, market_data) = kamino_service
             .get_user_positions(account, Arc::new(provider))
             .await?;
         tracing::info!(
@@ -59,20 +59,22 @@ impl ProtocolAdapter for KaminoAdapter {
             }
         }
 
-        let events = kamino_service
-            .get_transaction_history(account)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!("Failed to fetch Kamino transaction history: {}", e);
-                vec![]
-            });
+        if !results.is_empty() {
+            let events = kamino_service
+                .get_transaction_history(account, &market_data)
+                .await
+                .unwrap_or_else(|e| {
+                    tracing::warn!("Failed to fetch Kamino transaction history: {}", e);
+                    vec![]
+                });
 
-        tracing::info!(
-            "Kamino: {} transaction events for {}",
-            events.len(),
-            account
-        );
-        attach_transaction_history(&mut results, &events);
+            tracing::info!(
+                "Kamino: {} transaction events for {}",
+                events.len(),
+                account
+            );
+            attach_transaction_history(&mut results, &events);
+        }
 
         Ok(results)
     }

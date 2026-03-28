@@ -101,7 +101,7 @@ async fn test_get_user_positions_success() {
     let result = service.get_user_positions("TestWallet", provider).await;
 
     assert!(result.is_ok());
-    let positions = result.unwrap();
+    let (positions, _market_data) = result.unwrap();
     assert_eq!(positions.len(), 2);
 
     let lending = positions.iter().find(|p| p.position_type == PositionType::Lending);
@@ -134,7 +134,7 @@ async fn test_get_user_positions_no_positions() {
     let result = service.get_user_positions("EmptyWallet", provider).await;
 
     assert!(result.is_ok());
-    assert_eq!(result.unwrap().len(), 0);
+    assert_eq!(result.unwrap().0.len(), 0);
 }
 
 #[tokio::test]
@@ -147,7 +147,7 @@ async fn test_get_user_positions_empty_obligations() {
     let result = service.get_user_positions("Wallet", provider).await;
 
     assert!(result.is_ok());
-    assert_eq!(result.unwrap().len(), 0);
+    assert_eq!(result.unwrap().0.len(), 0);
 }
 
 #[tokio::test]
@@ -159,7 +159,7 @@ async fn test_get_user_positions_http_500() {
 
     let result = service.get_user_positions("Wallet", provider).await;
     assert!(result.is_ok());
-    assert_eq!(result.unwrap().len(), 0);
+    assert_eq!(result.unwrap().0.len(), 0);
 }
 
 #[tokio::test]
@@ -191,7 +191,7 @@ async fn test_get_user_positions_only_deposits() {
     let result = service.get_user_positions("Wallet123", provider).await;
 
     assert!(result.is_ok());
-    let positions = result.unwrap();
+    let (positions, _market_data) = result.unwrap();
     assert!(positions.iter().all(|p| p.position_type == PositionType::Lending));
 }
 
@@ -230,7 +230,7 @@ async fn test_proportional_value_distribution() {
 
     let result = service.get_user_positions("Wallet", provider).await;
     assert!(result.is_ok());
-    let positions = result.unwrap();
+    let (positions, _market_data) = result.unwrap();
     assert_eq!(positions.len(), 2);
 
     let total: f64 = positions.iter().map(|p| p.total_value_usd).sum();

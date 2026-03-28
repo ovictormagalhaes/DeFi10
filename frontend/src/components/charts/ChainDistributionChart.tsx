@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { ChartContainer } from './ChartContainer';
 import { useChartTheme } from './hooks/useChartTheme';
 import { useChainIcons } from '../../context/ChainIconsProvider';
+import { capitalize } from '../../utils/format';
 
 interface ChainData {
   chain: string;
@@ -32,7 +33,7 @@ export const ChainDistributionChart: React.FC<Props> = ({
 
     const data = payload[0].payload;
     const chainName = data.chain || 'Unknown';
-    const formattedChain = chainName.charAt(0).toUpperCase() + chainName.slice(1).toLowerCase();
+    const formattedChain = capitalize(chainName.toLowerCase());
     const chainIcon = getChainIcon(chainName.toLowerCase());
     
     return (
@@ -136,7 +137,7 @@ export const ChainDistributionChart: React.FC<Props> = ({
             iconType="circle"
             formatter={(value, entry: any) => {
               const chainName = entry.payload?.chain || value;
-              const formattedName = chainName.charAt(0).toUpperCase() + chainName.slice(1).toLowerCase();
+              const formattedName = capitalize(chainName.toLowerCase());
               const chainIcon = getChainIcon(chainName.toLowerCase());
               
               return (

@@ -8,50 +8,10 @@ use defi10_protocols::ProtocolPosition;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::info;
 
+use super::shared::{aggregation_result_to_position, log_internal_error, ErrorResponse};
 use crate::state::AppState;
-
-/// Helper function to convert AggregationResult to ProtocolPosition
-fn aggregation_result_to_protocol_position(
-    r: defi10_core::aggregation::AggregationResult,
-) -> ProtocolPosition {
-    // Parse protocol, default to Moralis (wallet) if "native"
-    let protocol = r.protocol.parse().unwrap_or(Protocol::Moralis);
-
-    // Parse position_type from string
-    let position_type = match r.position_type.to_lowercase().as_str() {
-        "lending" => defi10_protocols::PositionType::Lending,
-        "borrowing" => defi10_protocols::PositionType::Borrowing,
-        "liquidity" | "liquidity-pool" => defi10_protocols::PositionType::LiquidityPool,
-        "staking" => defi10_protocols::PositionType::Staking,
-        "yield" => defi10_protocols::PositionType::Yield,
-        _ => defi10_protocols::PositionType::Lending, // default
-    };
-
-    ProtocolPosition {
-        protocol,
-        chain: r.chain.parse().unwrap_or(Chain::Ethereum),
-        wallet_address: r.account,
-        position_type,
-        tokens: vec![defi10_protocols::PositionToken {
-            token_address: String::new(),
-            symbol: r.token_symbol.clone(),
-            name: r.token_symbol.clone(),
-            decimals: 18,
-            balance: r.balance.to_string(),
-            balance_usd: r.value_usd,
-            price_usd: if r.balance > 0.0 {
-                r.value_usd / r.balance
-            } else {
-                0.0
-            },
-            token_type: None,
-        }],
-        total_value_usd: r.value_usd,
-        metadata: serde_json::json!({"timestamp": r.timestamp}),
-    }
-}
 
 #[derive(Debug, Serialize)]
 pub struct PositionsResponse {
@@ -84,13 +44,26 @@ pub struct PositionsQuery {
     pub chain: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
+fn to_position_detail(pos: ProtocolPosition) -> PositionDetail {
+    PositionDetail {
+        protocol: pos.protocol,
+        chain: pos.chain,
+        position_type: format!("{:?}", pos.position_type),
+        total_value_usd: pos.total_value_usd,
+        tokens: pos
+            .tokens
+            .into_iter()
+            .map(|t| TokenDetail {
+                token_address: t.token_address,
+                symbol: t.symbol,
+                balance: t.balance,
+                balance_usd: t.balance_usd,
+                price_usd: t.price_usd,
+            })
+            .collect(),
+    }
 }
 
-/// GET /api/v1/positions/:wallet
-/// Returns all positions for a wallet, optionally filtered by protocol or chain
 pub async fn get_positions(
     Path(wallet): Path<String>,
     Query(params): Query<PositionsQuery>,
@@ -101,44 +74,29 @@ pub async fn get_positions(
         wallet, params.protocol, params.chain
     );
 
-    // Find most recent completed job for this wallet
     let job_id = state
         .job_manager
         .find_latest_job_for_wallet(&wallet)
-        .map_err(|e| {
-            error!("Failed to find job for wallet: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to query aggregation jobs".to_string(),
-                }),
-            )
-        })?;
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to query aggregation jobs"))?;
 
-    // If no job found, return empty positions
     let mut positions: Vec<ProtocolPosition> = if let Some(job_id) = job_id {
-        let results = state.job_manager.get_results(&job_id).map_err(|e| {
-            error!("Failed to get results: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to retrieve results".to_string(),
-                }),
-            )
-        })?;
+        let results = state
+            .job_manager
+            .get_results(&job_id)
+            .await
+            .map_err(|e| log_internal_error(e, "Failed to retrieve results"))?;
 
-        // Filter results for this wallet and convert to ProtocolPosition
         results
             .into_iter()
             .filter(|r| r.account.eq_ignore_ascii_case(&wallet))
-            .map(aggregation_result_to_protocol_position)
+            .map(aggregation_result_to_position)
             .collect()
     } else {
         info!("No completed jobs found for wallet: {}", wallet);
         Vec::new()
     };
 
-    // Apply filters if provided
     if let Some(protocol_str) = &params.protocol {
         if let Ok(protocol) = protocol_str.parse::<Protocol>() {
             positions.retain(|p| p.protocol == protocol);
@@ -153,26 +111,8 @@ pub async fn get_positions(
         }
     }
 
-    let position_details: Vec<PositionDetail> = positions
-        .into_iter()
-        .map(|p| PositionDetail {
-            protocol: p.protocol,
-            chain: p.chain,
-            position_type: format!("{:?}", p.position_type),
-            total_value_usd: p.total_value_usd,
-            tokens: p
-                .tokens
-                .into_iter()
-                .map(|t| TokenDetail {
-                    token_address: t.token_address,
-                    symbol: t.symbol,
-                    balance: t.balance,
-                    balance_usd: t.balance_usd,
-                    price_usd: t.price_usd,
-                })
-                .collect(),
-        })
-        .collect();
+    let position_details: Vec<PositionDetail> =
+        positions.into_iter().map(to_position_detail).collect();
 
     let response = PositionsResponse {
         wallet_address: wallet.clone(),
@@ -187,8 +127,6 @@ pub async fn get_positions(
     Ok((StatusCode::OK, Json(response)))
 }
 
-/// GET /api/v1/positions/:wallet/protocols
-/// Returns positions grouped by protocol
 pub async fn get_positions_by_protocol(
     Path(wallet): Path<String>,
     State(state): State<Arc<AppState>>,
@@ -198,132 +136,78 @@ pub async fn get_positions_by_protocol(
         wallet
     );
 
-    // Find most recent completed job for this wallet
     let job_id = state
         .job_manager
         .find_latest_job_for_wallet(&wallet)
-        .map_err(|e| {
-            error!("Failed to find job for wallet: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to query aggregation jobs".to_string(),
-                }),
-            )
-        })?;
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to query aggregation jobs"))?;
 
     let positions: Vec<ProtocolPosition> = if let Some(job_id) = job_id {
-        let results = state.job_manager.get_results(&job_id).map_err(|e| {
-            error!("Failed to get results: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to retrieve results".to_string(),
-                }),
-            )
-        })?;
+        let results = state
+            .job_manager
+            .get_results(&job_id)
+            .await
+            .map_err(|e| log_internal_error(e, "Failed to retrieve results"))?;
 
         results
             .into_iter()
             .filter(|r| r.account.eq_ignore_ascii_case(&wallet))
-            .map(aggregation_result_to_protocol_position)
+            .map(aggregation_result_to_position)
             .collect()
     } else {
         info!("No completed jobs found for wallet: {}", wallet);
         Vec::new()
     };
 
-    // Group by protocol
     let mut grouped: HashMap<Protocol, Vec<PositionDetail>> = HashMap::new();
     for pos in positions {
-        let detail = PositionDetail {
-            protocol: pos.protocol,
-            chain: pos.chain,
-            position_type: format!("{:?}", pos.position_type),
-            total_value_usd: pos.total_value_usd,
-            tokens: pos
-                .tokens
-                .into_iter()
-                .map(|t| TokenDetail {
-                    token_address: t.token_address,
-                    symbol: t.symbol,
-                    balance: t.balance,
-                    balance_usd: t.balance_usd,
-                    price_usd: t.price_usd,
-                })
-                .collect(),
-        };
-        grouped.entry(pos.protocol).or_default().push(detail);
+        let protocol = pos.protocol;
+        grouped
+            .entry(protocol)
+            .or_default()
+            .push(to_position_detail(pos));
     }
 
     info!("Successfully grouped positions for wallet: {}", wallet);
     Ok((StatusCode::OK, Json(grouped)))
 }
 
-/// GET /api/v1/positions/:wallet/chains
-/// Returns positions grouped by chain
 pub async fn get_positions_by_chain(
     Path(wallet): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     info!("Fetching positions grouped by chain for wallet: {}", wallet);
 
-    // Find most recent completed job for this wallet
     let job_id = state
         .job_manager
         .find_latest_job_for_wallet(&wallet)
-        .map_err(|e| {
-            error!("Failed to find job for wallet: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to query aggregation jobs".to_string(),
-                }),
-            )
-        })?;
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to query aggregation jobs"))?;
 
     let positions: Vec<ProtocolPosition> = if let Some(job_id) = job_id {
-        let results = state.job_manager.get_results(&job_id).map_err(|e| {
-            error!("Failed to get results: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to retrieve results".to_string(),
-                }),
-            )
-        })?;
+        let results = state
+            .job_manager
+            .get_results(&job_id)
+            .await
+            .map_err(|e| log_internal_error(e, "Failed to retrieve results"))?;
 
         results
             .into_iter()
             .filter(|r| r.account.eq_ignore_ascii_case(&wallet))
-            .map(aggregation_result_to_protocol_position)
+            .map(aggregation_result_to_position)
             .collect()
     } else {
         info!("No completed jobs found for wallet: {}", wallet);
         Vec::new()
     };
 
-    // Group by chain
     let mut grouped: HashMap<Chain, Vec<PositionDetail>> = HashMap::new();
     for pos in positions {
-        let detail = PositionDetail {
-            protocol: pos.protocol,
-            chain: pos.chain,
-            position_type: format!("{:?}", pos.position_type),
-            total_value_usd: pos.total_value_usd,
-            tokens: pos
-                .tokens
-                .into_iter()
-                .map(|t| TokenDetail {
-                    token_address: t.token_address,
-                    symbol: t.symbol,
-                    balance: t.balance,
-                    balance_usd: t.balance_usd,
-                    price_usd: t.price_usd,
-                })
-                .collect(),
-        };
-        grouped.entry(pos.chain).or_default().push(detail);
+        let chain = pos.chain;
+        grouped
+            .entry(chain)
+            .or_default()
+            .push(to_position_detail(pos));
     }
 
     info!("Successfully grouped positions for wallet: {}", wallet);

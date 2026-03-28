@@ -4,6 +4,7 @@ pub mod portfolio;
 pub mod positions;
 pub mod pow;
 pub mod prices;
+pub mod shared;
 pub mod strategies;
 pub mod tokens;
 pub mod wallet;

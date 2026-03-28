@@ -1,36 +1,25 @@
 import React from 'react';
-import { useTheme } from '../../context/ThemeProvider';
-import { useMaskValues } from '../../context/MaskValuesContext';
-import { useChainIcons } from '../../context/ChainIconsProvider';
+import { useCardContext } from '../../hooks/useCardContext';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
+import { capitalize } from '../../utils/format';
 import { filterSuppliedTokens, filterGovernanceTokens } from '../../utils/tokenFilters';
+import SafeImage from '../SafeImage';
+import EmptyStateCard from './EmptyStateCard';
+import CardContainer from './CardContainer';
+import SkeletonCardGrid from './SkeletonCardGrid';
 import type { WalletItem } from '../../types/wallet';
 
 interface LockingCardsProps {
   data: WalletItem[];
+  isLoading?: boolean;
 }
 
-/**
- * LockingCards - Card view for locked token positions
- * @param {Array} data - Locking positions data
- */
-const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
-  const { theme } = useTheme();
-  const { maskValue } = useMaskValues();
-  const { getIcon: getChainIcon } = useChainIcons();
+const LockingCards: React.FC<LockingCardsProps> = ({ data = [], isLoading }) => {
+  const { theme, maskValue, getChainIcon } = useCardContext();
   const [expandedGovernance, setExpandedGovernance] = React.useState<Record<number, boolean>>({});
 
   if (!data || data.length === 0) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '40px 20px',
-        color: theme.textSecondary,
-        fontSize: 14,
-      }}>
-        No locking positions found
-      </div>
-    );
+    return <EmptyStateCard label="locking positions" />;
   }
 
   // Helper function to format unlock date
@@ -72,7 +61,7 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))',
       gap: 20,
       padding: '8px 0',
       maxWidth: '100%',
@@ -110,27 +99,11 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
         };
         
         return (
-          <div
+          <CardContainer
             key={index}
             style={{
-              backgroundColor: theme.bgPanel,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 12,
-              padding: 16,
-              transition: 'all 0.2s ease',
-              cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = theme.accent;
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = theme.border;
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
             }}
           >
             {/* Header - Token Icon, Protocol & Chain */}
@@ -152,11 +125,10 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                     backgroundColor: theme.bgPanel,
                     zIndex: 2,
                   }}>
-                    <img
+                    <SafeImage
                       src={mainToken.logo as string}
                       alt={mainToken.symbol as string}
                       style={{ width: '100%', height: '100%', objectFit: 'fill' }}
-                      onError={(e) => e.currentTarget.style.display = 'none'}
                     />
                   </div>
                 )}
@@ -167,16 +139,15 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                 {/* Protocol */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {(protocol.logo || protocol.icon) && (
-                    <img
+                    <SafeImage
                       src={protocol.logo || protocol.icon}
                       alt={protocol.name}
-                      style={{ 
-                        width: 18, 
-                        height: 18, 
+                      style={{
+                        width: 18,
+                        height: 18,
                         borderRadius: '50%',
                         objectFit: 'fill',
                       }}
-                      onError={(e) => e.currentTarget.style.display = 'none'}
                     />
                   )}
                   <span style={{ fontSize: 13, color: theme.textSecondary, fontWeight: 500 }}>
@@ -188,20 +159,19 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                 {mainToken?.chain && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     {getChainIcon(mainToken.chain as string) && (
-                      <img
+                      <SafeImage
                         src={getChainIcon(mainToken.chain as string)}
                         alt={mainToken.chain as string}
-                        style={{ 
-                          width: 16, 
-                          height: 16, 
+                        style={{
+                          width: 16,
+                          height: 16,
                           borderRadius: '50%',
                           objectFit: 'fill',
                         }}
-                        onError={(e) => e.currentTarget.style.display = 'none'}
                       />
                     )}
                     <span style={{ fontSize: 12, color: theme.textMuted }}>
-                      {String(mainToken.chain || '').charAt(0).toUpperCase() + String(mainToken.chain || '').slice(1)}
+                      {capitalize(String(mainToken.chain || ''))}
                     </span>
                   </div>
                 )}
@@ -376,16 +346,15 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           {token.logo && (
-                            <img
+                            <SafeImage
                               src={token.logo as string}
                               alt={token.symbol as string}
-                              style={{ 
-                                width: 20, 
-                                height: 20, 
+                              style={{
+                                width: 20,
+                                height: 20,
                                 borderRadius: '50%',
                                 objectFit: 'fill',
                               }}
-                              onError={(e) => e.currentTarget.style.display = 'none'}
                             />
                           )}
                           <span style={{ 
@@ -410,9 +379,10 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [] }) => {
                 )}
               </>
             )}
-          </div>
+          </CardContainer>
         );
       })}
+      {isLoading && <SkeletonCardGrid itemCount={data.length} minCardWidth={340} gap={20} />}
     </div>
   );
 };

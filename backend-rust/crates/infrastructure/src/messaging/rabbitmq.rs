@@ -7,52 +7,110 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+const MAX_RETRIES: u32 = 3;
+
 #[derive(Clone)]
 pub struct RabbitMqConnection {
-    connection: Arc<Connection>,
+    url: String,
+    connection: Arc<RwLock<Connection>>,
     channel: Arc<RwLock<Channel>>,
 }
 
 impl RabbitMqConnection {
     pub async fn new(url: &str) -> Result<Self> {
-        let connection = Connection::connect(url, ConnectionProperties::default())
-            .await
-            .map_err(|e| DeFi10Error::Internal(format!("Failed to connect to RabbitMQ: {}", e)))?;
-
+        let connection = Self::connect(url).await?;
         let channel = connection
             .create_channel()
             .await
             .map_err(|e| DeFi10Error::Internal(format!("Failed to create channel: {}", e)))?;
 
         Ok(Self {
-            connection: Arc::new(connection),
+            url: url.to_string(),
+            connection: Arc::new(RwLock::new(connection)),
             channel: Arc::new(RwLock::new(channel)),
         })
     }
 
+    async fn connect(url: &str) -> Result<Connection> {
+        Connection::connect(url, ConnectionProperties::default())
+            .await
+            .map_err(|e| DeFi10Error::Internal(format!("Failed to connect to RabbitMQ: {}", e)))
+    }
+
+    async fn ensure_connected(&self) -> Result<()> {
+        let connected = {
+            let conn = self.connection.read().await;
+            conn.status().connected()
+        };
+
+        if !connected {
+            tracing::info!("RabbitMQ disconnected, reconnecting...");
+            let new_conn = Self::connect(&self.url).await?;
+            let new_channel = new_conn
+                .create_channel()
+                .await
+                .map_err(|e| DeFi10Error::Internal(format!("Failed to create channel: {}", e)))?;
+            *self.connection.write().await = new_conn;
+            *self.channel.write().await = new_channel;
+            tracing::info!("RabbitMQ reconnected");
+        }
+
+        Ok(())
+    }
+
+    async fn with_retry<F, Fut, T>(&self, mut f: F) -> Result<T>
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = Result<T>>,
+    {
+        let mut last_err = None;
+        for attempt in 1..=MAX_RETRIES {
+            if attempt > 1 {
+                self.ensure_connected().await.ok();
+            }
+            match f().await {
+                Ok(v) => return Ok(v),
+                Err(e) => {
+                    tracing::warn!("RabbitMQ attempt {}/{} failed: {}", attempt, MAX_RETRIES, e);
+                    last_err = Some(e);
+                    if attempt < MAX_RETRIES {
+                        tokio::time::sleep(std::time::Duration::from_secs(attempt as u64)).await;
+                    }
+                }
+            }
+        }
+        Err(last_err.unwrap())
+    }
+
     pub async fn create_channel(&self) -> Result<Channel> {
-        self.connection
-            .create_channel()
+        self.ensure_connected().await?;
+        let conn = self.connection.read().await;
+        conn.create_channel()
             .await
             .map_err(|e| DeFi10Error::Internal(format!("Failed to create channel: {}", e)))
     }
 
     pub async fn declare_queue(&self, queue_name: &str, durable: bool) -> Result<()> {
-        let channel = self.channel.read().await;
-
-        channel
-            .queue_declare(
-                queue_name,
-                QueueDeclareOptions {
-                    durable,
-                    ..Default::default()
-                },
-                FieldTable::default(),
-            )
-            .await
-            .map_err(|e| DeFi10Error::Internal(format!("Failed to declare queue: {}", e)))?;
-
-        Ok(())
+        let qn = queue_name.to_string();
+        self.with_retry(|| {
+            let qn = qn.clone();
+            let channel = self.channel.clone();
+            async move {
+                let ch = channel.read().await;
+                ch.queue_declare(
+                    &qn,
+                    QueueDeclareOptions {
+                        durable,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .map_err(|e| DeFi10Error::Internal(format!("Failed to declare queue: {}", e)))?;
+                Ok(())
+            }
+        })
+        .await
     }
 
     pub async fn declare_exchange(
@@ -61,8 +119,8 @@ impl RabbitMqConnection {
         exchange_kind: ExchangeKind,
         durable: bool,
     ) -> Result<()> {
+        self.ensure_connected().await?;
         let channel = self.channel.read().await;
-
         channel
             .exchange_declare(
                 exchange_name,
@@ -75,7 +133,6 @@ impl RabbitMqConnection {
             )
             .await
             .map_err(|e| DeFi10Error::Internal(format!("Failed to declare exchange: {}", e)))?;
-
         Ok(())
     }
 
@@ -85,24 +142,28 @@ impl RabbitMqConnection {
         exchange_name: &str,
         routing_key: &str,
     ) -> Result<()> {
-        let channel = self.channel.read().await;
-
-        channel
-            .queue_bind(
-                queue_name,
-                exchange_name,
-                routing_key,
-                QueueBindOptions::default(),
-                FieldTable::default(),
-            )
-            .await
-            .map_err(|e| DeFi10Error::Internal(format!("Failed to bind queue: {}", e)))?;
-
-        Ok(())
+        let qn = queue_name.to_string();
+        let en = exchange_name.to_string();
+        let rk = routing_key.to_string();
+        self.with_retry(|| {
+            let qn = qn.clone();
+            let en = en.clone();
+            let rk = rk.clone();
+            let channel = self.channel.clone();
+            async move {
+                let ch = channel.read().await;
+                ch.queue_bind(&qn, &en, &rk, QueueBindOptions::default(), FieldTable::default())
+                    .await
+                    .map_err(|e| DeFi10Error::Internal(format!("Failed to bind queue: {}", e)))?;
+                Ok(())
+            }
+        })
+        .await
     }
 
     pub async fn health_check(&self) -> Result<()> {
-        if self.connection.status().connected() {
+        let conn = self.connection.read().await;
+        if conn.status().connected() {
             Ok(())
         } else {
             Err(DeFi10Error::Internal(
@@ -130,20 +191,28 @@ impl MessagePublisher {
         let payload = serde_json::to_vec(message)
             .map_err(|e| DeFi10Error::Internal(format!("Failed to serialize message: {}", e)))?;
 
-        let channel = self.connection.channel.read().await;
-
-        channel
-            .basic_publish(
-                exchange,
-                routing_key,
-                BasicPublishOptions::default(),
-                &payload,
-                lapin::BasicProperties::default(),
-            )
-            .await
-            .map_err(|e| DeFi10Error::Internal(format!("Failed to publish message: {}", e)))?;
-
-        Ok(())
+        let ex = exchange.to_string();
+        let rk = routing_key.to_string();
+        self.connection.with_retry(|| {
+            let ex = ex.clone();
+            let rk = rk.clone();
+            let payload = payload.clone();
+            let channel = self.connection.channel.clone();
+            async move {
+                let ch = channel.read().await;
+                ch.basic_publish(
+                    &ex,
+                    &rk,
+                    BasicPublishOptions::default(),
+                    &payload,
+                    lapin::BasicProperties::default(),
+                )
+                .await
+                .map_err(|e| DeFi10Error::Internal(format!("Failed to publish message: {}", e)))?;
+                Ok(())
+            }
+        })
+        .await
     }
 
     pub async fn publish_to_queue<T: Serialize>(
@@ -165,6 +234,7 @@ impl MessageConsumer {
     }
 
     pub async fn consume(&self, queue_name: &str, consumer_tag: &str) -> Result<Consumer> {
+        self.connection.ensure_connected().await?;
         let channel = self.connection.channel.read().await;
 
         let consumer = channel

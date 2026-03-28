@@ -5,52 +5,13 @@ use axum::{
 };
 use defi10_aggregation::DataAggregator;
 use defi10_core::{Chain, Protocol};
-use defi10_protocols::ProtocolPosition;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::info;
 
+use super::shared::{aggregation_result_to_position, log_internal_error, ErrorResponse};
 use crate::state::AppState;
-
-#[allow(dead_code)]
-fn to_protocol_position(r: defi10_core::aggregation::AggregationResult) -> ProtocolPosition {
-    // Parse protocol, default to Moralis (wallet) if cannot parse
-    let protocol = r.protocol.parse().unwrap_or(Protocol::Moralis);
-
-    // Parse position_type from string
-    let position_type = match r.position_type.to_lowercase().as_str() {
-        "lending" => defi10_protocols::PositionType::Lending,
-        "borrowing" => defi10_protocols::PositionType::Borrowing,
-        "liquidity" | "liquidity-pool" => defi10_protocols::PositionType::LiquidityPool,
-        "staking" => defi10_protocols::PositionType::Staking,
-        "yield" => defi10_protocols::PositionType::Yield,
-        _ => defi10_protocols::PositionType::Lending, // default
-    };
-
-    ProtocolPosition {
-        protocol,
-        chain: r.chain.parse().unwrap_or(Chain::Ethereum),
-        wallet_address: r.account,
-        position_type,
-        tokens: vec![defi10_protocols::PositionToken {
-            token_address: String::new(),
-            symbol: r.token_symbol.clone(),
-            name: r.token_symbol.clone(),
-            decimals: 18,
-            balance: r.balance.to_string(),
-            balance_usd: r.value_usd,
-            price_usd: if r.balance > 0.0 {
-                r.value_usd / r.balance
-            } else {
-                0.0
-            },
-            token_type: None,
-        }],
-        total_value_usd: r.value_usd,
-        metadata: serde_json::json!({"timestamp": r.timestamp}),
-    }
-}
 
 #[derive(Debug, Serialize)]
 pub struct PortfolioResponse {
@@ -87,75 +48,47 @@ pub struct SummaryResponse {
     pub chain_distribution: HashMap<Chain, f64>,
 }
 
-/// GET /api/v1/portfolio/:wallet
-/// Returns aggregated portfolio data for a wallet
+fn to_position_response(p: defi10_protocols::ProtocolPosition) -> PositionResponse {
+    PositionResponse {
+        protocol: p.protocol,
+        chain: p.chain,
+        total_value_usd: p.total_value_usd,
+        tokens: p
+            .tokens
+            .into_iter()
+            .map(|t| TokenResponse {
+                token_address: t.token_address,
+                symbol: t.symbol,
+                balance: t.balance,
+                balance_usd: t.balance_usd,
+            })
+            .collect(),
+    }
+}
+
 pub async fn get_portfolio(
     Path(wallet): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     info!("Fetching portfolio for wallet: {}", wallet);
 
-    // Find most recent completed job for this wallet
     let job_id = state
         .job_manager
         .find_latest_job_for_wallet(&wallet)
-        .map_err(|e| {
-            error!("Failed to find job for wallet: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to query aggregation jobs".to_string(),
-                }),
-            )
-        })?;
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to query aggregation jobs"))?;
 
-    // If no job found, return empty portfolio
     let positions = if let Some(job_id) = job_id {
-        let results = state.job_manager.get_results(&job_id).map_err(|e| {
-            error!("Failed to get results: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to retrieve results".to_string(),
-                }),
-            )
-        })?;
+        let results = state
+            .job_manager
+            .get_results(&job_id)
+            .await
+            .map_err(|e| log_internal_error(e, "Failed to retrieve results"))?;
 
-        // Filter results for this wallet and convert to ProtocolPosition
         results
             .into_iter()
             .filter(|r| r.account.eq_ignore_ascii_case(&wallet))
-            .map(|r| ProtocolPosition {
-                protocol: r.protocol.parse().unwrap_or(Protocol::Moralis),
-                chain: r.chain.parse().unwrap_or(Chain::Ethereum),
-                wallet_address: r.account,
-                position_type: match r.position_type.to_lowercase().as_str() {
-                    "lending" => defi10_protocols::PositionType::Lending,
-                    "borrowing" => defi10_protocols::PositionType::Borrowing,
-                    "liquidity" | "liquidity-pool" => defi10_protocols::PositionType::LiquidityPool,
-                    "staking" => defi10_protocols::PositionType::Staking,
-                    "yield" => defi10_protocols::PositionType::Yield,
-                    _ => defi10_protocols::PositionType::Lending,
-                },
-                tokens: vec![defi10_protocols::PositionToken {
-                    token_address: String::new(),
-                    symbol: r.token_symbol.clone(),
-                    name: r.token_symbol,
-                    decimals: 18,
-                    balance: r.balance.to_string(),
-                    balance_usd: r.value_usd,
-                    price_usd: if r.balance > 0.0 {
-                        r.value_usd / r.balance
-                    } else {
-                        0.0
-                    },
-                    token_type: None,
-                }],
-                total_value_usd: r.value_usd,
-                metadata: serde_json::json!({
-                    "timestamp": r.timestamp,
-                }),
-            })
+            .map(aggregation_result_to_position)
             .collect()
     } else {
         info!("No completed jobs found for wallet: {}", wallet);
@@ -165,15 +98,7 @@ pub async fn get_portfolio(
     let aggregator = DataAggregator::new();
     let portfolio = aggregator
         .aggregate_portfolio(wallet.clone(), positions)
-        .map_err(|e| {
-            error!("Failed to aggregate portfolio: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to aggregate portfolio".to_string(),
-                }),
-            )
-        })?;
+        .map_err(|e| log_internal_error(e, "Failed to aggregate portfolio"))?;
 
     let response = PortfolioResponse {
         wallet_address: portfolio.wallet_address,
@@ -184,24 +109,7 @@ pub async fn get_portfolio(
             .map(|(protocol, positions)| {
                 (
                     protocol,
-                    positions
-                        .into_iter()
-                        .map(|p| PositionResponse {
-                            protocol: p.protocol,
-                            chain: p.chain,
-                            total_value_usd: p.total_value_usd,
-                            tokens: p
-                                .tokens
-                                .into_iter()
-                                .map(|t| TokenResponse {
-                                    token_address: t.token_address,
-                                    symbol: t.symbol,
-                                    balance: t.balance,
-                                    balance_usd: t.balance_usd,
-                                })
-                                .collect(),
-                        })
-                        .collect(),
+                    positions.into_iter().map(to_position_response).collect(),
                 )
             })
             .collect(),
@@ -211,24 +119,7 @@ pub async fn get_portfolio(
             .map(|(chain, positions)| {
                 (
                     chain,
-                    positions
-                        .into_iter()
-                        .map(|p| PositionResponse {
-                            protocol: p.protocol,
-                            chain: p.chain,
-                            total_value_usd: p.total_value_usd,
-                            tokens: p
-                                .tokens
-                                .into_iter()
-                                .map(|t| TokenResponse {
-                                    token_address: t.token_address,
-                                    symbol: t.symbol,
-                                    balance: t.balance,
-                                    balance_usd: t.balance_usd,
-                                })
-                                .collect(),
-                        })
-                        .collect(),
+                    positions.into_iter().map(to_position_response).collect(),
                 )
             })
             .collect(),
@@ -239,75 +130,29 @@ pub async fn get_portfolio(
     Ok((StatusCode::OK, Json(response)))
 }
 
-/// GET /api/v1/portfolio/:wallet/summary
-/// Returns portfolio summary with distributions
 pub async fn get_portfolio_summary(
     Path(wallet): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     info!("Fetching portfolio summary for wallet: {}", wallet);
 
-    // Find most recent completed job for this wallet
     let job_id = state
         .job_manager
         .find_latest_job_for_wallet(&wallet)
-        .map_err(|e| {
-            error!("Failed to find job for wallet: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to query aggregation jobs".to_string(),
-                }),
-            )
-        })?;
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to query aggregation jobs"))?;
 
-    // If no job found, return empty summary
     let positions = if let Some(job_id) = job_id {
-        let results = state.job_manager.get_results(&job_id).map_err(|e| {
-            error!("Failed to get results: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to retrieve results".to_string(),
-                }),
-            )
-        })?;
+        let results = state
+            .job_manager
+            .get_results(&job_id)
+            .await
+            .map_err(|e| log_internal_error(e, "Failed to retrieve results"))?;
 
-        // Filter results for this wallet and convert to ProtocolPosition
         results
             .into_iter()
             .filter(|r| r.account.eq_ignore_ascii_case(&wallet))
-            .map(|r| ProtocolPosition {
-                protocol: r.protocol.parse().unwrap_or(Protocol::Moralis),
-                chain: r.chain.parse().unwrap_or(Chain::Ethereum),
-                wallet_address: r.account,
-                position_type: match r.position_type.to_lowercase().as_str() {
-                    "lending" => defi10_protocols::PositionType::Lending,
-                    "borrowing" => defi10_protocols::PositionType::Borrowing,
-                    "liquidity" | "liquidity-pool" => defi10_protocols::PositionType::LiquidityPool,
-                    "staking" => defi10_protocols::PositionType::Staking,
-                    "yield" => defi10_protocols::PositionType::Yield,
-                    _ => defi10_protocols::PositionType::Lending,
-                },
-                tokens: vec![defi10_protocols::PositionToken {
-                    token_address: String::new(),
-                    symbol: r.token_symbol.clone(),
-                    name: r.token_symbol,
-                    decimals: 18,
-                    balance: r.balance.to_string(),
-                    balance_usd: r.value_usd,
-                    price_usd: if r.balance > 0.0 {
-                        r.value_usd / r.balance
-                    } else {
-                        0.0
-                    },
-                    token_type: None,
-                }],
-                total_value_usd: r.value_usd,
-                metadata: serde_json::json!({
-                    "timestamp": r.timestamp,
-                }),
-            })
+            .map(aggregation_result_to_position)
             .collect()
     } else {
         info!("No completed jobs found for wallet: {}", wallet);
@@ -317,25 +162,11 @@ pub async fn get_portfolio_summary(
     let aggregator = DataAggregator::new();
     let portfolio = aggregator
         .aggregate_portfolio(wallet.clone(), positions)
-        .map_err(|e| {
-            error!("Failed to aggregate portfolio: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to aggregate portfolio".to_string(),
-                }),
-            )
-        })?;
+        .map_err(|e| log_internal_error(e, "Failed to aggregate portfolio"))?;
 
-    let summary = aggregator.create_summary(&portfolio).map_err(|e| {
-        error!("Failed to create summary: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "Failed to create summary".to_string(),
-            }),
-        )
-    })?;
+    let summary = aggregator
+        .create_summary(&portfolio)
+        .map_err(|e| log_internal_error(e, "Failed to create summary"))?;
 
     let protocol_dist = aggregator.calculate_protocol_distribution(&portfolio);
     let chain_dist = aggregator.calculate_chain_distribution(&portfolio);
@@ -351,11 +182,6 @@ pub async fn get_portfolio_summary(
 
     info!("Successfully fetched summary for wallet: {}", wallet);
     Ok((StatusCode::OK, Json(response)))
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
 }
 
 #[cfg(test)]

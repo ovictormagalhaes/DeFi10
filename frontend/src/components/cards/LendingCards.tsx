@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { useTheme } from '../../context/ThemeProvider';
-import { useMaskValues } from '../../context/MaskValuesContext';
-import { useChainIcons } from '../../context/ChainIconsProvider';
+import { useCardContext } from '../../hooks/useCardContext';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
+import { capitalize } from '../../utils/format';
 import OmniScoreBadge from '../OmniScoreBadge';
 import ProjectionSelector from '../ProjectionSelector';
+import SafeImage from '../SafeImage';
+import EmptyStateCard from './EmptyStateCard';
+import CardContainer from './CardContainer';
 import type { WalletItem } from '../../types/wallet';
 
 const MAX_HISTORY_ROWS = 20;
@@ -32,9 +34,7 @@ interface LendingCardsProps {
 }
 
 const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', expandedProps = null }) => {
-  const { theme } = useTheme();
-  const { maskValue } = useMaskValues();
-  const { getIcon: getChainIcon } = useChainIcons();
+  const { theme, maskValue, getChainIcon } = useCardContext();
 
   // Compute aggregated data for expanded mode
   const { supplyHistory, borrowHistory, repayHistory, aggregateProjections, totalSupplied, totalBorrowed, netPosition } = useMemo(() => {
@@ -190,16 +190,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
   }, [data, mode, expandedProps]);
 
   if (!data || data.length === 0) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '40px 20px',
-        color: theme.textSecondary,
-        fontSize: 14,
-      }}>
-        No lending positions found
-      </div>
-    );
+    return <EmptyStateCard label="lending positions" />;
   }
 
   // Expanded mode rendering
@@ -256,10 +247,10 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
             </button>
 
             {protocolLogo && (
-              <img src={protocolLogo} alt={protocolName} style={{
+              <SafeImage src={protocolLogo} alt={protocolName} style={{
                 width: 40, height: 40, borderRadius: '50%', objectFit: 'cover',
                 border: `2px solid ${theme.border}`, backgroundColor: theme.bgSecondary,
-              }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              }} />
             )}
 
             <div>
@@ -271,11 +262,10 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
                     backgroundColor: theme.bgSecondary, borderRadius: 20, border: `1px solid ${theme.border}`,
                   }}>
                     {getChainIcon(chainName) && (
-                      <img src={getChainIcon(chainName)} alt={chainName} style={{ width: 16, height: 16, borderRadius: '50%' }}
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                      <SafeImage src={getChainIcon(chainName)} alt={chainName} style={{ width: 16, height: 16, borderRadius: '50%' }} />
                     )}
                     <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary }}>
-                      {chainName.charAt(0).toUpperCase() + chainName.slice(1)}
+                      {capitalize(chainName)}
                     </span>
                   </div>
                 )}
@@ -383,7 +373,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))',
       gap: 20,
       padding: '8px 0',
       maxWidth: '100%',
@@ -434,28 +424,12 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
           const tokenValue = token.financials?.totalPrice || token.totalPrice || 0;
 
           return (
-          <div
+          <CardContainer
             key={`${posIndex}-${tokenIndex}`}
             style={{
-              backgroundColor: theme.bgPanel,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 12,
-              padding: 16,
-              transition: 'all 0.2s ease',
-              cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'visible',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = theme.accent;
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = theme.border;
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
             }}
           >
             {/* Header - Token Icon, Protocol & Chain */}
@@ -477,11 +451,10 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
                     backgroundColor: theme.bgPanel,
                     zIndex: 2,
                   }}>
-                    <img
+                    <SafeImage
                       src={token.logo}
                       alt={token.symbol}
                       style={{ width: '100%', height: '100%', objectFit: 'fill' }}
-                      onError={(e) => e.currentTarget.style.display = 'none'}
                     />
                   </div>
                 )}
@@ -492,11 +465,10 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
                 {/* Protocol */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {(protocol.logo || protocol.icon) && (
-                    <img
+                    <SafeImage
                       src={protocol.logo || protocol.icon}
                       alt={protocol.name}
                       style={{ width: 16, height: 16, borderRadius: '50%' }}
-                      onError={(e) => e.currentTarget.style.display = 'none'}
                     />
                   )}
                   <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
@@ -508,15 +480,14 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
                 {token?.chain && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     {getChainIcon(token.chain) && (
-                      <img
+                      <SafeImage
                         src={getChainIcon(token.chain)}
                         alt={token.chain}
                         style={{ width: 16, height: 16, borderRadius: '50%' }}
-                        onError={(e) => e.currentTarget.style.display = 'none'}
                       />
                     )}
                     <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary }}>
-                      {token.chain.charAt(0).toUpperCase() + token.chain.slice(1)}
+                      {capitalize(token.chain)}
                     </span>
                   </div>
                 )}
@@ -549,8 +520,8 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
                 </div>
                 <OmniScoreBadge
                   type="lending"
-                  supply={isBorrowToken ? [] : [token?.symbol || '']}
-                  borrow={isBorrowToken ? [token?.symbol || ''] : []}
+                  supplies={isBorrowToken ? [] : [{ token: token?.symbol || '', value: Math.abs(token?.balanceUSD || token?.totalPrice || 0) }]}
+                  borrows={isBorrowToken ? [{ token: token?.symbol || '', value: Math.abs(token?.balanceUSD || token?.totalPrice || 0) }] : []}
                   protocol={(protocol.name as string) || undefined}
                   chain={token?.chain || undefined}
                 />
@@ -749,7 +720,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({ data = [], mode = 'cards', 
                 return null;
               })()}
             </div>
-          </div>
+          </CardContainer>
           );
         });
       })}

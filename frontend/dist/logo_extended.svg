@@ -1,0 +1,41 @@
+<svg width="180" height="72" viewBox="0 0 180 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="arcGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2ecc71"/>
+      <stop offset="100%" stop-color="#a8f0c6"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="50%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2ecc71"/>
+      <stop offset="50%" stop-color="#5edda0"/>
+      <stop offset="100%" stop-color="#1a8a4a"/>
+    </linearGradient>
+    <filter id="arcGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="textGlow" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g>
+    <path d="M 20 6 A 30 30 0 0 1 20 66" fill="none" stroke="url(#arcGrad)" stroke-width="5" stroke-linecap="round" filter="url(#arcGlow)"/>
+    <path d="M 20 18 A 18 18 0 0 1 20 54" fill="none" stroke="url(#arcGrad)" stroke-width="5" stroke-linecap="round" filter="url(#arcGlow)"/>
+  </g>
+
+  <text x="53" y="48" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="32" font-weight="700" fill="url(#textGrad)" letter-spacing="1">eFi</text>
+
+  <text x="110" y="48" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="32" font-weight="700" fill="url(#accentGrad)" letter-spacing="1">10</text>
+</svg>

@@ -4,9 +4,9 @@ use crate::{
     state::AppState,
 };
 use axum::{extract::Path, extract::State, http::Extensions, Json};
-use defi10_core::aggregation::{AggregationJob, AggregationResult, JobStatus};
+use defi10_core::aggregation::{AggregationJob, AggregationResult, JobStatus, OperationStatus};
 use defi10_core::DeFi10Error;
-use defi10_infrastructure::aggregation::{AggregationPublisher, JobManager};
+use defi10_infrastructure::aggregation::AggregationPublisher;
 use defi10_infrastructure::messaging::MessagePublisher;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -44,10 +44,12 @@ pub struct JobStatusResponse {
     pub processed_count: u32,
     pub is_final: bool,
     pub created_at: String,
+    pub updated_at: String,
     pub expires_in_seconds: Option<i64>,
     pub active: bool,
     pub items: Vec<WalletItem>,
     pub summary: AggregationSummary,
+    pub operations: Vec<OperationStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -127,19 +129,32 @@ pub async fn start_aggregation(
         );
     }
 
-    // Create job
+    if let Some(existing) = state
+        .job_manager
+        .find_active_job(&accounts, request.wallet_group_id)
+        .await
+        .map_err(|e| DeFi10Error::Cache(format!("Failed to search active jobs: {}", e)))?
+    {
+        tracing::info!("Returning existing active job {}", existing.job_id);
+        return Ok(Json(AggregationResponse {
+            job_id: existing.job_id,
+            status: existing.status.to_string(),
+            message: format!(
+                "Active aggregation job already exists with ID: {}",
+                existing.job_id
+            ),
+        }));
+    }
+
     let job = AggregationJob::new(accounts, chains, request.wallet_group_id);
     let job_id = job.job_id;
 
-    // Save job to Redis
-    let job_manager = JobManager::new(&state.config.redis.url)
-        .map_err(|e| DeFi10Error::Cache(format!("Redis connection error: {}", e)))?;
-
-    job_manager
+    state
+        .job_manager
         .create_job(&job)
+        .await
         .map_err(|e| DeFi10Error::Cache(format!("Failed to create job: {}", e)))?;
 
-    // Publish messages to RabbitMQ for processing
     let message_publisher = MessagePublisher::new((*state.messaging).clone());
     let agg_publisher = AggregationPublisher::new(message_publisher, None);
 
@@ -148,9 +163,10 @@ pub async fn start_aggregation(
         .await
         .map_err(|e| DeFi10Error::Internal(format!("Failed to publish job: {}", e)))?;
 
-    // Update job status to Processing after publishing
-    job_manager
+    state
+        .job_manager
         .update_job_status(&job_id, JobStatus::Processing)
+        .await
         .map_err(|e| DeFi10Error::Cache(format!("Failed to update job status: {}", e)))?;
 
     tracing::info!(
@@ -176,11 +192,10 @@ pub async fn get_job_status(
     State(state): State<Arc<AppState>>,
     Path(job_id): Path<Uuid>,
 ) -> ApiResult<Json<JobStatusResponse>> {
-    let job_manager = JobManager::new(&state.config.redis.url)
-        .map_err(|e| DeFi10Error::Cache(format!("Redis connection error: {}", e)))?;
-
-    let snapshot = job_manager
+    let snapshot = state
+        .job_manager
         .get_snapshot(&job_id)
+        .await
         .map_err(|e| DeFi10Error::Cache(format!("Failed to get job: {}", e)))?
         .ok_or_else(|| DeFi10Error::NotFound(format!("Job {} not found", job_id)))?;
 
@@ -201,10 +216,12 @@ pub async fn get_job_status(
         processed_count: snapshot.processed_count,
         is_final: snapshot.is_final,
         created_at: snapshot.created_at.to_rfc3339(),
+        updated_at: snapshot.updated_at.to_rfc3339(),
         expires_in_seconds: snapshot.expires_in_seconds,
         active: snapshot.active,
         items,
         summary,
+        operations: snapshot.operations,
     }))
 }
 
@@ -353,7 +370,15 @@ fn transform_results_to_items(
         grouped.entry(key).or_default().push(result);
     }
 
-    for (_key, group_results) in grouped {
+    let mut sorted_keys: Vec<String> = grouped.keys().cloned().collect();
+    sorted_keys.sort_by(|a, b| {
+        let a_is_borrow = a.contains(":borrowing");
+        let b_is_borrow = b.contains(":borrowing");
+        a_is_borrow.cmp(&b_is_borrow).then(a.cmp(b))
+    });
+
+    for _key in sorted_keys {
+        let group_results = &grouped[&_key];
         if group_results.is_empty() {
             continue;
         }
@@ -368,7 +393,7 @@ fn transform_results_to_items(
         let label = determine_label(protocol, position_type);
 
         let mut tokens = Vec::new();
-        for result in &group_results {
+        for result in group_results.iter() {
             update_summary(&mut summary, protocol, position_type);
 
             let token_type = result
@@ -403,7 +428,7 @@ fn transform_results_to_items(
 
         let position = Position::new(&label, tokens);
 
-        let additional_data = create_additional_data(protocol, position_type, &group_results);
+        let additional_data = create_additional_data(protocol, position_type, group_results);
 
         items.push(WalletItem {
             item_type,
@@ -600,7 +625,6 @@ fn create_lending_additional_data(
 
     Some(AdditionalData {
         health_factor,
-        apy,
         is_collateral,
         can_be_collateral,
         projections,
@@ -658,12 +682,9 @@ fn create_liquidity_pool_additional_data(
         None
     };
 
-    let (projections, apr_historical) =
-        compute_fee_projections(results, created_at, total_value_usd);
+    let projections = compute_fee_projections(results, created_at, total_value_usd, apr);
 
     let mut data = AdditionalData {
-        apr,
-        apr_historical,
         pool_id,
         tier_percent,
         total_value_usd,
@@ -693,7 +714,8 @@ fn compute_fee_projections(
     results: &[&AggregationResult],
     created_at: Option<i64>,
     total_value_usd: Option<f64>,
-) -> (Option<Vec<ProjectionData>>, Option<f64>) {
+    protocol_apr: Option<f64>,
+) -> Option<Vec<ProjectionData>> {
     let total_fees_usd: f64 = results
         .iter()
         .filter(|r| {
@@ -706,7 +728,6 @@ fn compute_fee_projections(
         .sum();
 
     let mut projections = Vec::new();
-    let mut apr_historical = None;
 
     if let (Some(created_ts), Some(value_usd)) = (created_at, total_value_usd) {
         if total_fees_usd > 0.0 && value_usd > 0.0 {
@@ -714,8 +735,6 @@ fn compute_fee_projections(
             let days_active = ((now - created_ts) as f64 / 86400.0).max(0.1);
             let daily_rate = total_fees_usd / days_active;
             let historical_apr = (total_fees_usd / value_usd) * (365.0 / days_active) * 100.0;
-
-            apr_historical = Some(historical_apr);
 
             projections.push(ProjectionData {
                 projection_type: "apr".to_string(),
@@ -727,7 +746,7 @@ fn compute_fee_projections(
                     one_year: daily_rate * 365.0,
                 },
                 metadata: Some(serde_json::json!({
-                    "apr": historical_apr,
+                    "value": historical_apr,
                     "createdAt": created_ts,
                     "totalFeesGenerated": total_fees_usd,
                     "daysActive": days_active
@@ -736,12 +755,30 @@ fn compute_fee_projections(
         }
     }
 
-    let projections = if projections.is_empty() {
+    if let Some(apr_val) = protocol_apr {
+        if let Some(value_usd) = total_value_usd {
+            if value_usd > 0.0 {
+                let rate = apr_val / 100.0;
+                projections.push(ProjectionData {
+                    projection_type: "apr".to_string(),
+                    calculation_type: Some("protocol".to_string()),
+                    projection: Projection {
+                        one_day: value_usd * rate / 365.0,
+                        one_week: value_usd * rate / 52.0,
+                        one_month: value_usd * rate / 12.0,
+                        one_year: value_usd * rate,
+                    },
+                    metadata: Some(serde_json::json!({ "value": apr_val })),
+                });
+            }
+        }
+    }
+
+    if projections.is_empty() {
         None
     } else {
         Some(projections)
-    };
-    (projections, apr_historical)
+    }
 }
 
 fn extract_projections(metadata: Option<&serde_json::Value>) -> Option<Vec<ProjectionData>> {
@@ -799,7 +836,7 @@ fn compute_apy_projection(
             one_month: total_value_usd * rate / 12.0,
             one_year: total_value_usd * rate,
         },
-        metadata: Some(serde_json::json!({ "apy": apy_val })),
+        metadata: Some(serde_json::json!({ "value": apy_val })),
     }])
 }
 

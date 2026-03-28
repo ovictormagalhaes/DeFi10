@@ -1,39 +1,33 @@
-import { useTheme } from '../../context/ThemeProvider';
-import { useMaskValues } from '../../context/MaskValuesContext';
-import { useChainIcons } from '../../context/ChainIconsProvider';
+import { useCardContext } from '../../hooks/useCardContext';
 import { formatPrice } from '../../utils/walletUtils';
+import { capitalize } from '../../utils/format';
+import { normalizeTokenData } from '../../utils/tokenUtils';
+import SafeImage from '../SafeImage';
+import EmptyStateCard from './EmptyStateCard';
+import CardContainer from './CardContainer';
+import SkeletonCardGrid from './SkeletonCardGrid';
 import type { WalletItem } from '../../types/wallet';
 
 interface WalletCardsProps {
   data: WalletItem[];
+  isLoading?: boolean;
 }
 
 /**
  * WalletCards - Card view for wallet tokens
  * @param {Array} data - Wallet tokens data
  */
-const WalletCards: React.FC<WalletCardsProps> = ({ data = [] }) => {
-  const { theme } = useTheme();
-  const { maskValue } = useMaskValues();
-  const { getIcon: getChainIcon } = useChainIcons();
+const WalletCards: React.FC<WalletCardsProps> = ({ data = [], isLoading }) => {
+  const { theme, maskValue, getChainIcon } = useCardContext();
 
   if (!data || data.length === 0) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '40px 20px',
-        color: theme.textSecondary,
-        fontSize: 14,
-      }}>
-        No wallet tokens found
-      </div>
-    );
+    return <EmptyStateCard label="wallet tokens" />;
   }
 
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))',
       gap: 20,
       padding: '8px 0',
       maxWidth: '100%',
@@ -43,37 +37,16 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [] }) => {
         const token = (item.token || item) as { symbol?: string; name?: string; logo?: string; thumbnail?: string; chain?: string; network?: string; chainName?: string; financials?: Record<string, number | undefined>; priceUsd?: number; price?: number; priceUSD?: number; balance?: number; totalPrice?: number; [key: string]: unknown };
         const position = item.position || {};
         
-        // Get token data
-        const symbol = token.symbol || 'Unknown';
-        const name = token.name || symbol;
-        const logo = token.logo || token.thumbnail || null;
-        const chain = token.chain || token.network || token.chainName || 'unknown';
-        
-        // Get financial data
-        const price = token.financials?.price || token.priceUsd || token.price || token.priceUSD || 0;
+        const { symbol, name, logo, chain, price } = normalizeTokenData(token);
         const amount = token.financials?.amountFormatted ?? token.financials?.balanceFormatted ?? token.balance ?? 0;
         const totalValue = token.financials?.totalPrice || token.totalPrice || 0;
         
         return (
-          <div
+          <CardContainer
             key={index}
             style={{
-              backgroundColor: theme.bgPanel,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 12,
-              padding: 16,
-              transition: 'all 0.2s ease',
-              cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow = `0 4px 12px ${theme.shadow}`;
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = 'none';
-              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             {/* Header: Logo (left) + Chain (right) */}
@@ -95,13 +68,15 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [] }) => {
                 overflow: 'hidden',
               }}>
                 {logo ? (
-                  <img
+                  <SafeImage
                     src={logo}
                     alt={symbol}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
-                      e.currentTarget.parentElement.innerHTML = `<span style="font-size: 14px; font-weight: 600; color: ${theme.textSecondary}">${symbol.charAt(0)}</span>`;
+                      if (e.currentTarget.parentElement) {
+                        e.currentTarget.parentElement.innerHTML = `<span style="font-size: 14px; font-weight: 600; color: ${theme.textSecondary}">${symbol.charAt(0)}</span>`;
+                      }
                     }}
                   />
                 ) : (
@@ -119,15 +94,14 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [] }) => {
                   gap: 6,
                 }}>
                   {getChainIcon(chain) && (
-                    <img
+                    <SafeImage
                       src={getChainIcon(chain)}
                       alt={chain}
                       style={{ width: 16, height: 16, borderRadius: '50%' }}
-                      onError={(e) => e.currentTarget.style.display = 'none'}
                     />
                   )}
                   <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary }}>
-                    {chain.charAt(0).toUpperCase() + chain.slice(1)}
+                    {capitalize(chain)}
                   </span>
                 </div>
               )}
@@ -226,9 +200,10 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [] }) => {
                 </span>
               </div>
             </div>
-          </div>
+          </CardContainer>
         );
       })}
+      {isLoading && <SkeletonCardGrid itemCount={data.length} minCardWidth={280} gap={20} />}
     </div>
   );
 };

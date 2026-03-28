@@ -4,8 +4,10 @@ import ChainSelector from './components/ChainSelector';
 import ConnectWalletScreen from './components/ConnectWalletScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import ErrorScreen from './components/ErrorScreen';
+import FadeTransition from './components/FadeTransition';
 import HeaderBar from './components/HeaderBar';
 import LoadingScreen from './components/LoadingScreen';
+import SkeletonDashboard from './components/SkeletonDashboard';
 import PoolsView from './components/PoolsView';
 import ProtocolsSection from './components/ProtocolsSection';
 import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
@@ -13,6 +15,9 @@ import { StrategiesPage } from './components/strategies';
 import SectionTable from './components/SectionTable';
 import CollapsibleSection from './components/CollapsibleSection';
 import SummaryView from './components/SummaryView';
+import PositionSearchBar from './components/PositionSearchBar';
+import SortDropdown, { sortItems, sortWalletTokens } from './components/SortDropdown';
+import type { SortOption } from './components/SortDropdown';
 import ViewModeSelector from './components/ViewModeSelector';
 import { LendingGroupedView, LockingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
 import LendingDetailView from './components/LendingDetailView';
@@ -290,6 +295,8 @@ function App(): JSX.Element {
   const [showLendingDefiTokens, setShowLendingDefiTokens] = useState(false);
   const [showStakingDefiTokens, setShowStakingDefiTokens] = useState(false);
   const [selectedLendingGroup, setSelectedLendingGroup] = useState(null);
+  const [positionSearch, setPositionSearch] = useState('');
+  const [positionSort, setPositionSort] = useState<SortOption>('value-desc');
   // Chain selection (null or Set of canonical keys). Default: all selected
   const [selectedChains, setSelectedChains] = useState(null);
   // View type selector (chart, table, cards)
@@ -403,6 +410,11 @@ function App(): JSX.Element {
   // Ready flag: only true when aggregation finished and walletData mapped
   const isAggregationReady = aggCompleted && !!walletData;
 
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  useEffect(() => {
+    if (isAggregationReady) setLastUpdatedAt(new Date());
+  }, [isAggregationReady]);
+
   // Immutable snapshot of the last full walletData to ensure global aggregates (chainTotals) are independent from any UI filtering mutations.
   const walletDataSnapshotRef = useRef(null);
   const [snapshotVersion, setSnapshotVersion] = useState(0);
@@ -437,11 +449,9 @@ function App(): JSX.Element {
   // Track aggregation errors
   useEffect(() => {
     if (aggError) {
-      // API error (network, start failed, polling timeout)
       const errorMessage = aggError.message || String(aggError);
       setAggregationError(errorMessage);
     } else if (aggExpired) {
-      // Só exibe erro se job realmente expirou (404), não apenas status TimedOut
       setAggregationError('Aggregation timed out. Please try again.');
     } else if (aggCompleted && aggFailed && aggFailed > 0 && aggSucceeded === 0) {
       setAggregationError('Failed to load data from all sources.');
@@ -777,6 +787,30 @@ function App(): JSX.Element {
     const norm = normalizeChainKey(raw);
     return chainAliasToCanonical[norm] || norm;
   };
+
+  const matchesPositionSearch = useCallback((item: any): boolean => {
+    if (!positionSearch) return true;
+    const q = positionSearch.toLowerCase();
+    const pos = item?.position || item;
+    const name = (pos?.name || pos?.label || '').toLowerCase();
+    const protocol = (pos?.protocol?.name || item?.protocol?.name || item?.protocolName || '').toLowerCase();
+    const chain = (pos?.chain || pos?.blockchain || item?.chain || '').toLowerCase();
+    const tokens = Array.isArray(pos?.tokens) ? pos.tokens : [];
+    const tokenMatch = tokens.some((t: any) =>
+      (t.symbol || '').toLowerCase().includes(q) || (t.name || '').toLowerCase().includes(q)
+    );
+    return name.includes(q) || protocol.includes(q) || chain.includes(q) || tokenMatch;
+  }, [positionSearch]);
+
+  const matchesWalletSearch = useCallback((tokenData: any): boolean => {
+    if (!positionSearch) return true;
+    const q = positionSearch.toLowerCase();
+    const t = tokenData?.token || tokenData;
+    return (
+      (t.symbol || '').toLowerCase().includes(q) ||
+      (t.name || '').toLowerCase().includes(q)
+    );
+  }, [positionSearch]);
 
   const defiItemMatchesSelection = (item) => {
     if (!selectedChains || isAllChainsSelected) return true;
@@ -1226,9 +1260,35 @@ function App(): JSX.Element {
           />
         )}
 
-        {/* State 2: Connected but loading - Show Loading Screen */}
+        {/* State 2: Connected but loading - Show Header + Skeleton Dashboard */}
         {(account || selectedWalletGroupId) && !isAggregationReady && !aggregationError && (
-          <LoadingScreen theme={theme} />
+          <>
+            <HeaderBar
+              account={account}
+              onDisconnect={handleDisconnect}
+              onConnect={connectWallet}
+              onManageGroups={() => setIsWalletGroupModalOpen(true)}
+              selectedWalletGroupId={selectedWalletGroupId}
+              onSelectWalletGroup={(groupId) => {
+                setSelectedWalletGroupId(groupId);
+                window.history.pushState({}, '', groupId ? `/portfolio/${groupId}` : '/portfolio');
+              }}
+              copyToClipboard={(val) => {
+                try {
+                  navigator.clipboard.writeText(val);
+                } catch {}
+              }}
+            />
+            <div
+              className="w-full"
+              style={{ padding: `24px ${sidePadding}`, boxSizing: 'border-box' }}
+            >
+              <SkeletonDashboard
+                progress={aggProgress}
+                message={aggStatus === 'polling' ? 'Synchronizing your portfolio...' : 'Loading your portfolio...'}
+              />
+            </div>
+          </>
         )}
 
         {/* State 3: Error occurred - Show Error Screen */}
@@ -1277,6 +1337,7 @@ function App(): JSX.Element {
                 setShowStatusDialog(true);
                 fetchProtocolsStatus();
               }}
+              lastUpdatedAt={lastUpdatedAt}
             />
             <div className="w-full flex flex-column" style={{ minHeight: '100vh' }}>
               <div
@@ -1294,8 +1355,32 @@ function App(): JSX.Element {
                     alignItems: 'center',
                     gap: 12,
                   }}>
-                    {/* Empty space for left */}
-                    <div />
+                    {/* Left: Search + Sort (cards/table views only) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {viewMode === 'overview' && (
+                        <>
+                          <PositionSearchBar
+                            value={positionSearch}
+                            onChange={setPositionSearch}
+                            totalCount={
+                              walletTokens.length +
+                              getLendingAndBorrowingData().filter(defiItemMatchesSelection).length +
+                              getLiquidityPoolsData().filter(defiItemMatchesSelection).length +
+                              getStakingData().filter(defiItemMatchesSelection).length +
+                              getLockingData().filter(defiItemMatchesSelection).length
+                            }
+                            filteredCount={
+                              walletTokens.filter(matchesWalletSearch).length +
+                              getLendingAndBorrowingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch).length +
+                              getLiquidityPoolsData().filter(defiItemMatchesSelection).filter(matchesPositionSearch).length +
+                              getStakingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch).length +
+                              getLockingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch).length
+                            }
+                          />
+                          <SortDropdown value={positionSort} onChange={setPositionSort} />
+                        </>
+                      )}
+                    </div>
                     
                     {/* Center: ViewModeSelector */}
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -1519,8 +1604,8 @@ function App(): JSX.Element {
                           border: isMobile
                             ? '5px solid rgba(255,255,255,0.15)'
                             : '6px solid rgba(255,255,255,0.15)',
-                          borderTop: isMobile ? '5px solid #35f7a5' : '6px solid #35f7a5',
-                          borderRight: isMobile ? '5px solid #2fbfd9' : '6px solid #2fbfd9',
+                          borderTop: `${isMobile ? '5px' : '6px'} solid ${theme.accent || theme.primary}`,
+                          borderRight: `${isMobile ? '5px' : '6px'} solid ${theme.info || theme.accentAlt}`,
                           borderRadius: '50%',
                           animation: !aggCompleted ? 'defiSpin 0.85s linear infinite' : 'none',
                         }}
@@ -1593,7 +1678,7 @@ function App(): JSX.Element {
                   </div>
                 )}
                 {isAggregationReady && (
-                  <>
+                  <FadeTransition transitionKey={viewMode}>
                     {viewMode === 'summary' && (
                       <SummaryView
                         walletTokens={walletTokens}
@@ -1873,18 +1958,18 @@ function App(): JSX.Element {
                               <>
                                 {/* Wallet Tokens Cards */}
                                 {(() => {
-                                  const filtered = walletTokens;
+                                  const filtered = sortWalletTokens(walletTokens.filter(matchesWalletSearch), positionSort);
                                   return filtered.length > 0 && (
                                     <CollapsibleSection title="Wallet">
                                       <WalletSectionHeader data={filtered} />
-                                      <WalletCards data={filtered} />
+                                      <WalletCards data={filtered} isLoading={!aggCompleted} />
                                     </CollapsibleSection>
                                   );
                                 })()}
 
                                 {/* Lending Positions Cards */}
                                 {(() => {
-                                  const filtered = getLendingAndBorrowingData().filter(defiItemMatchesSelection);
+                                  const filtered = sortItems(getLendingAndBorrowingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch), positionSort);
                                   return filtered.length > 0 && (
                                     <CollapsibleSection title="Lending & Borrowing">
                                       <LendingSectionHeader data={filtered} />
@@ -1899,22 +1984,22 @@ function App(): JSX.Element {
 
                                 {/* Liquidity Pool Cards */}
                                 {(() => {
-                                  const filtered = getLiquidityPoolsData().filter(defiItemMatchesSelection);
+                                  const filtered = sortItems(getLiquidityPoolsData().filter(defiItemMatchesSelection).filter(matchesPositionSearch), positionSort);
                                   return filtered.length > 0 && (
                                     <CollapsibleSection title="Liquidity Pools">
                                       <PoolsSectionHeader data={filtered} />
                                       <LiquiditySubSectionHeader data={filtered} />
-                                      <PoolCards data={filtered} />
+                                      <PoolCards data={filtered} isLoading={!aggCompleted} />
                                     </CollapsibleSection>
                                   );
                                 })()}
 
                                 {/* Staking Cards */}
                                 {(() => {
-                                  const filtered = getStakingData().filter(defiItemMatchesSelection);
+                                  const filtered = sortItems(getStakingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch), positionSort);
                                   return filtered.length > 0 && (
                                     <CollapsibleSection title="Staking">
-                                      <StakingCards data={filtered} />
+                                      <StakingCards data={filtered} isLoading={!aggCompleted} />
                                     </CollapsibleSection>
                                   );
                                 })()}
@@ -1923,11 +2008,11 @@ function App(): JSX.Element {
                               </>
                             )}
                             {(() => {
-                              const filtered = getLockingData().filter(defiItemMatchesSelection);
+                              const filtered = sortItems(getLockingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch), positionSort);
                               return filtered.length > 0 && (
                                 <CollapsibleSection title="Locked Tokens">
                                   <LockingSectionHeader data={filtered} />
-                                  <LockingCards data={filtered} />
+                                  <LockingCards data={filtered} isLoading={!aggCompleted} />
                                 </CollapsibleSection>
                               );
                             })()}
@@ -1961,7 +2046,7 @@ function App(): JSX.Element {
                         )}
                       </>
                     )}
-                  </>
+                  </FadeTransition>
                 )}
               </div>
               {/* end inner padded content */}
@@ -2287,22 +2372,30 @@ function App(): JSX.Element {
                                 textAlign: 'center',
                               }}>
                                 {hasChain && (
-                                  <div style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: 24,
-                                    height: 24,
-                                    borderRadius: '50%',
-                                    backgroundColor: isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                    border: `2px solid ${isActive ? '#22c55e' : '#ef4444'}`,
-                                  }}>
-                                    <div style={{
-                                      width: 10,
-                                      height: 10,
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      width: 24,
+                                      height: 24,
                                       borderRadius: '50%',
-                                      backgroundColor: isActive ? '#22c55e' : '#ef4444',
-                                    }}></div>
+                                      backgroundColor: isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                      border: `2px solid ${isActive ? theme.success : theme.danger}`,
+                                    }}
+                                    aria-label={isActive ? 'Supported' : 'Not supported'}
+                                    role="img"
+                                  >
+                                    {isActive ? (
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={theme.success} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                    ) : (
+                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={theme.danger} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18" />
+                                        <line x1="6" y1="6" x2="18" y2="18" />
+                                      </svg>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -2326,7 +2419,6 @@ function App(): JSX.Element {
             </div>
           </div>
         )}
-
 
       </ChainIconsProvider>
     </MaskValuesProvider>

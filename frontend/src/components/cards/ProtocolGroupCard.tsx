@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useTheme } from '../../context/ThemeProvider';
-import { useMaskValues } from '../../context/MaskValuesContext';
-import { useChainIcons } from '../../context/ChainIconsProvider';
+import { useCardContext } from '../../hooks/useCardContext';
 import { formatPrice } from '../../utils/walletUtils';
+import { capitalize } from '../../utils/format';
 import ProjectionSelector from '../ProjectionSelector';
+import OmniScoreBadge from '../OmniScoreBadge';
+import SafeImage from '../SafeImage';
 import type { WalletItem } from '../../types/wallet';
 
 interface LendingGroupDetail {
@@ -35,9 +36,7 @@ interface ProtocolGroupCardProps {
  * Exibe Health Factor compartilhado e mantém individualidade dos tokens
  */
 const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, chainName, positions = [], healthFactor = null, onOpenDetail }) => {
-  const { theme } = useTheme();
-  const { maskValue } = useMaskValues();
-  const { getIcon: getChainIcon } = useChainIcons();
+  const { theme, maskValue, getChainIcon } = useCardContext();
   const [isExpanded, setIsExpanded] = useState(true);
 
   if (!positions || positions.length === 0) return null;
@@ -75,17 +74,24 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
   // Aggregate projections
   const aggregateProjections: unknown[] = [];
 
+  const globalSeenKeys = new Set<string>();
   positions.forEach(item => {
     const position = item.position || item;
-    const tokens = position.tokens || [];
+    const allTokens = position.tokens || [];
+    const tokens = allTokens.filter(t => {
+      const k = t.key || `${t.symbol}-${t.type}-${t.contractAddress || ''}`;
+      if (globalSeenKeys.has(k)) return false;
+      globalSeenKeys.add(k);
+      return true;
+    });
 
-    const suppliedTokens = tokens.filter(t => 
-      t.type?.toLowerCase() === 'supplied' || 
+    const suppliedTokens = tokens.filter(t =>
+      t.type?.toLowerCase() === 'supplied' ||
       (!t.type && (t.balance || 0) > 0 && !t.debt)
     );
-    const borrowedTokens = tokens.filter(t => 
-      t.type?.toLowerCase() === 'borrowed' || 
-      t.debt || 
+    const borrowedTokens = tokens.filter(t =>
+      t.type?.toLowerCase() === 'borrowed' ||
+      t.debt ||
       (t.balance || 0) < 0
     );
 
@@ -156,19 +162,16 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* Protocol Logo */}
           {protocolLogo && (
-            <img
+            <SafeImage
               src={protocolLogo}
               alt={protocolName}
-              style={{ 
-                width: 36, 
-                height: 36, 
+              style={{
+                width: 36,
+                height: 36,
                 borderRadius: '50%',
                 objectFit: 'cover',
                 border: `2px solid ${theme.border}`,
                 backgroundColor: theme.bgPanel,
-              }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
               }}
             />
           )}
@@ -197,11 +200,10 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
                   borderRadius: 20,
                 }}>
                   {getChainIcon(chainName) && (
-                    <img
+                    <SafeImage
                       src={getChainIcon(chainName)}
                       alt={chainName}
                       style={{ width: 16, height: 16, borderRadius: '50%' }}
-                      onError={(e) => e.currentTarget.style.display = 'none'}
                     />
                   )}
                   <span style={{ 
@@ -209,7 +211,7 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
                     fontWeight: 600, 
                     color: theme.textSecondary 
                   }}>
-                    {chainName.charAt(0).toUpperCase() + chainName.slice(1)}
+                    {capitalize(chainName)}
                   </span>
                 </div>
               )}
@@ -224,8 +226,33 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
           </div>
         </div>
 
-        {/* Right: Health Factor + Detail Button + Expand Icon */}
+        {/* Right: Omni Score + Health Factor + Detail Button + Expand Icon */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <OmniScoreBadge
+            type="lending"
+            {...(() => {
+              const suppliesMap = new Map<string, number>();
+              const borrowsMap = new Map<string, number>();
+              positions.forEach(item => {
+                const pos = item.position || item;
+                (pos.tokens || []).forEach(t => {
+                  const ttype = (t.type || '').toLowerCase();
+                  const usd = Math.abs(t.balanceUSD || t.totalPrice || 0);
+                  if (ttype === 'supplied' || (!ttype && (t.balance || 0) > 0 && !t.debt)) {
+                    if (t.symbol) suppliesMap.set(t.symbol, (suppliesMap.get(t.symbol) || 0) + usd);
+                  } else if (ttype === 'borrowed' || t.debt || (t.balance || 0) < 0) {
+                    if (t.symbol) borrowsMap.set(t.symbol, (borrowsMap.get(t.symbol) || 0) + usd);
+                  }
+                });
+              });
+              return {
+                supplies: [...suppliesMap.entries()].map(([token, value]) => ({ token, value })),
+                borrows: [...borrowsMap.entries()].map(([token, value]) => ({ token, value })),
+              };
+            })()}
+            protocol={protocolName}
+            chain={chainName}
+          />
           {healthFactor !== null && (
             <div style={{
               display: 'flex',
@@ -394,7 +421,19 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
             padding: 20,
             backgroundColor: theme.bgApp,
           }}>
-            {visiblePositions.flatMap((item, posIndex) => {
+            {[...visiblePositions].sort((a, b) => {
+              const aTokens = (a.position || a).tokens || [];
+              const bTokens = (b.position || b).tokens || [];
+              const aIsBorrow = aTokens.some(t => {
+                const type = (t.type || '').toLowerCase();
+                return type.includes('borrowed') || type.includes('borrow');
+              });
+              const bIsBorrow = bTokens.some(t => {
+                const type = (t.type || '').toLowerCase();
+                return type.includes('borrowed') || type.includes('borrow');
+              });
+              return Number(aIsBorrow) - Number(bIsBorrow);
+            }).flatMap((item, posIndex) => {
               const position = item.position || item;
               const tokens = position.tokens || [];
 
@@ -411,7 +450,15 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
                 item?.additionalData?.isCollateral,
               ].some((v) => v === true);
 
-              return tokens.map((token, tokenIndex) => {
+              const seen = new Set<string>();
+              const uniqueTokens = tokens.filter(t => {
+                const k = t.key || `${t.symbol}-${t.type}-${t.contractAddress || ''}`;
+                if (seen.has(k)) return false;
+                seen.add(k);
+                return true;
+              });
+
+              return uniqueTokens.map((token, tokenIndex) => {
                 const tokenType = (token.type || '').toLowerCase();
                 const isBorrowToken = tokenType.includes('borrowed') || tokenType.includes('borrow');
                 const positionType = isBorrowToken ? 'Borrow' : 'Supply';
@@ -442,11 +489,10 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
                   {/* Token Header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                     {token?.logo && (
-                      <img
+                      <SafeImage
                         src={token.logo}
                         alt={token.symbol}
                         style={{ width: 32, height: 32, borderRadius: '50%' }}
-                        onError={(e) => e.currentTarget.style.display = 'none'}
                       />
                     )}
                     <div style={{ flex: 1 }}>

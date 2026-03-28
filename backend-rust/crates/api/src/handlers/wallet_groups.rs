@@ -12,7 +12,17 @@ use uuid::Uuid;
 
 use crate::{middleware::AuthUser, state::AppState};
 
-/// Create a new wallet group
+fn verify_group_ownership(group: &WalletGroup, user_id: &str, action: &str) -> Result<(), DeFi10Error> {
+    if let Some(ref owner_id) = group.user_id {
+        if owner_id != user_id {
+            return Err(DeFi10Error::Forbidden(
+                format!("You don't have permission to {} this wallet group", action),
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub async fn create_wallet_group(
     State(state): State<Arc<AppState>>,
     extensions: Extensions,
@@ -43,7 +53,6 @@ pub async fn create_wallet_group(
     Ok((StatusCode::CREATED, Json(group.into())))
 }
 
-/// Get a wallet group by ID
 pub async fn get_wallet_group(
     State(state): State<Arc<AppState>>,
     extensions: Extensions,
@@ -65,19 +74,11 @@ pub async fn get_wallet_group(
         .await?
         .ok_or_else(|| DeFi10Error::NotFound(format!("Wallet group {} not found", id)))?;
 
-    // Check if user owns this group
-    if let Some(ref owner_id) = group.user_id {
-        if owner_id != &auth_user.user_id {
-            return Err(DeFi10Error::Forbidden(
-                "You don't have permission to access this wallet group".to_string(),
-            ));
-        }
-    }
+    verify_group_ownership(&group, &auth_user.user_id, "access")?;
 
     Ok(Json(group.into()))
 }
 
-/// List all wallet groups
 pub async fn list_wallet_groups(
     State(state): State<Arc<AppState>>,
     extensions: Extensions,
@@ -98,7 +99,6 @@ pub async fn list_wallet_groups(
     Ok(Json(responses))
 }
 
-/// Update a wallet group
 pub async fn update_wallet_group(
     State(state): State<Arc<AppState>>,
     extensions: Extensions,
@@ -115,21 +115,13 @@ pub async fn update_wallet_group(
         auth_user.user_id
     );
 
-    // Get existing group
     let mut group = state
         .wallet_group_repo
         .get(&id)
         .await?
         .ok_or_else(|| DeFi10Error::NotFound(format!("Wallet group {} not found", id)))?;
 
-    // Check if user owns this group
-    if let Some(ref owner_id) = group.user_id {
-        if owner_id != &auth_user.user_id {
-            return Err(DeFi10Error::Forbidden(
-                "You don't have permission to update this wallet group".to_string(),
-            ));
-        }
-    }
+    verify_group_ownership(&group, &auth_user.user_id, "update")?;
 
     if let Some(ref wallets) = req.wallets {
         if wallets.is_empty() {
@@ -141,7 +133,6 @@ pub async fn update_wallet_group(
 
     group.update(req.display_name, req.wallets);
 
-    // Save to database
     state.wallet_group_repo.update(&group).await?;
 
     tracing::info!("Wallet group updated: {}", id);
@@ -149,7 +140,6 @@ pub async fn update_wallet_group(
     Ok(Json(group.into()))
 }
 
-/// Delete a wallet group
 pub async fn delete_wallet_group(
     State(state): State<Arc<AppState>>,
     extensions: Extensions,
@@ -165,21 +155,13 @@ pub async fn delete_wallet_group(
         auth_user.user_id
     );
 
-    // Get existing group to check ownership
     let group = state
         .wallet_group_repo
         .get(&id)
         .await?
         .ok_or_else(|| DeFi10Error::NotFound(format!("Wallet group {} not found", id)))?;
 
-    // Check if user owns this group
-    if let Some(ref owner_id) = group.user_id {
-        if owner_id != &auth_user.user_id {
-            return Err(DeFi10Error::Forbidden(
-                "You don't have permission to delete this wallet group".to_string(),
-            ));
-        }
-    }
+    verify_group_ownership(&group, &auth_user.user_id, "delete")?;
 
     let deleted = state.wallet_group_repo.delete(&id).await?;
 
@@ -234,7 +216,7 @@ pub async fn connect_wallet_group(
         group.display_name.clone(),
         &state.config.jwt.secret,
         state.config.jwt.expiration_hours * 60,
-    );
+    )?;
 
     tracing::info!("Generated JWT token for wallet group {}", id);
 

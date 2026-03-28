@@ -7,7 +7,7 @@ use crate::state::AppState;
 pub async fn generate_challenge(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Challenge>, (StatusCode, String)> {
-    match state.pow_service.generate_challenge() {
+    match state.pow_service.generate_challenge().await {
         Ok(challenge) => Ok(Json(challenge)),
         Err(e) => {
             tracing::error!("Failed to generate PoW challenge: {}", e);
@@ -34,10 +34,15 @@ pub async fn validate_proof(
     match state
         .pow_service
         .validate_proof(&request.challenge, &request.nonce)
+        .await
     {
         Ok(valid) => {
             if valid {
-                if let Err(e) = state.pow_service.invalidate_challenge(&request.challenge) {
+                if let Err(e) = state
+                    .pow_service
+                    .invalidate_challenge(&request.challenge)
+                    .await
+                {
                     tracing::warn!(
                         "Failed to invalidate challenge after successful validation: {}",
                         e

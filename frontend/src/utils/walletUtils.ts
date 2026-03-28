@@ -7,6 +7,7 @@ import {
   isCollectedFeeToken,
   normalizeTokenPrice,
 } from './tokenFilters';
+import { capitalize } from './format';
 
 export interface TokenFinancials {
   amount?: number;
@@ -403,8 +404,7 @@ export function groupDefiByProtocol(defiData: WalletItemLike[]): ProtocolGroup[]
         const chainStr = chainCandidate.toString();
         const chainClean = chainStr.replace(/[^a-zA-Z0-9_-]/g, '');
         effectiveProtocolId = `${baseProtocolId}-${chainClean}`.toLowerCase();
-        // Pretty chain name capitalized
-        const prettyChain = chainClean.charAt(0).toUpperCase() + chainClean.slice(1);
+        const prettyChain = capitalize(chainClean);
 
         if (isUniswapV3) {
           effectiveProtocolName = `Uniswap V3 (${prettyChain})`;

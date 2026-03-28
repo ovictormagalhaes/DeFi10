@@ -43,6 +43,12 @@ export interface ColorPalette {
   shadowHover: string;
   shadowPanel: string;
   focusRing: string;
+  brandGrad: string;
+  brandGradHover: string;
+  brandGlow: string;
+  brandGlowHover: string;
+  dangerGrad: string;
+  dangerGlow: string;
   bgCard: string;
   bgPrimary: string;
   bgPanelHover: string;
@@ -92,6 +98,12 @@ export const darkTokens: ColorPalette = {
   shadowHover: '0 4px 10px -2px rgba(0,0,0,0.55), 0 6px 22px -6px rgba(0,0,0,0.6)',
   shadowPanel: '0 10px 40px rgba(0,0,0,0.45)',
   focusRing: '0 0 0 2px rgba(69,183,115,0.55)',
+  brandGrad: 'linear-gradient(135deg, #35f7a5 0%, #2fbfd9 100%)',
+  brandGradHover: 'linear-gradient(135deg, #45ffa5 0%, #3fd0ea 100%)',
+  brandGlow: '0 4px 12px rgba(53, 247, 165, 0.3)',
+  brandGlowHover: '0 6px 20px rgba(53, 247, 165, 0.4)',
+  dangerGrad: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
+  dangerGlow: '0 8px 24px rgba(255, 107, 107, 0.25)',
   bgCard: '#1e2028',
   bgPrimary: '#15171f',
   bgPanelHover: '#2b2e37',
@@ -140,6 +152,12 @@ export const lightTokens: ColorPalette = {
   shadowHover: '0 4px 10px -2px rgba(0,0,0,0.14), 0 8px 24px -6px rgba(0,0,0,0.18)',
   shadowPanel: '0 10px 40px rgba(0,0,0,0.12)',
   focusRing: '0 0 0 2px rgba(45,152,115,0.45)',
+  brandGrad: 'linear-gradient(135deg, #2d9873 0%, #4abf95 100%)',
+  brandGradHover: 'linear-gradient(135deg, #32a77e 0%, #55cca0 100%)',
+  brandGlow: '0 4px 12px rgba(45, 152, 115, 0.3)',
+  brandGlowHover: '0 6px 20px rgba(45, 152, 115, 0.4)',
+  dangerGrad: 'linear-gradient(135deg, #e14f48 0%, #d43f52 100%)',
+  dangerGlow: '0 8px 24px rgba(225, 79, 72, 0.25)',
   bgCard: '#f7f9fb',
   bgPrimary: '#f0f2f4',
   bgPanelHover: '#ecf0f3',

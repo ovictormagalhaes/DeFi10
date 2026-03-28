@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeProvider';
 import { useMaskValues } from '../../context/MaskValuesContext';
 import { formatPrice } from '../../utils/walletUtils';
+import { capitalize } from '../../utils/format';
 import PeriodDropdown from '../PeriodDropdown';
 import type { WalletItem } from '../../types/wallet';
 
@@ -153,7 +154,7 @@ const SubSectionItemWithDropdown: React.FC<SubSectionItemWithDropdownProps> = ({
         const lowerType = type.toLowerCase();
         switch (lowerType) {
           case 'apr': return { key: type, label: 'APR' };
-          default: return { key: type, label: type.charAt(0).toUpperCase() + type.slice(1) };
+          default: return { key: type, label: capitalize(type) };
         }
       })
     : [{ key: 'apr', label: 'APR' }];

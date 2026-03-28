@@ -10,6 +10,7 @@ import { useAllocationStrategy } from '../../hooks/strategies/useAllocationStrat
 import { useMaskValues } from '../../context/MaskValuesContext';
 import { getProtocolConfig } from '../../constants/protocols';
 import { SUPPORTED_CHAINS } from '../../constants/chains';
+import { capitalize } from '../../utils/format';
 import './strategies.css';
 
 interface AllocationStrategyCardProps {
@@ -245,9 +246,8 @@ export const AllocationStrategyCard: React.FC<AllocationStrategyCardProps> = ({
         const deltaWeight = alloc.targetWeight - currentWeight;
         const deviation = Math.abs(deltaWeight);
         
-        // Capitalize chain name and get logo
         const chainName = chain || 'Unknown';
-        const chainDisplayName = chainName === 'Unknown' ? 'Unknown' : chainName.charAt(0).toUpperCase() + chainName.slice(1);
+        const chainDisplayName = chainName === 'Unknown' ? 'Unknown' : capitalize(chainName);
         const chainLogo = chainLogos[chainName.toLowerCase()] || undefined;
         
         calculatedDeltas.push({

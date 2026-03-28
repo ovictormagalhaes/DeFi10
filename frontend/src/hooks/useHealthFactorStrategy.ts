@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { SUPPORTED_CHAINS } from '../constants/chains';
-
+import { capitalize } from '../utils/format';
 import { saveStrategies } from '../services/apiClient';
 import type {
   HealthFactorAction,
@@ -99,7 +99,7 @@ export function useHealthFactorStrategy() {
           };
           chainData = {
             id: portfolioItem.protocol.chain,
-            name: portfolioItem.protocol.chain.charAt(0).toUpperCase() + portfolioItem.protocol.chain.slice(1),
+            name: capitalize(portfolioItem.protocol.chain),
             logo: ''
           };
         } else {
@@ -115,7 +115,7 @@ export function useHealthFactorStrategy() {
           };
           chainData = {
             id: chainId,
-            name: chainId.charAt(0).toUpperCase() + chainId.slice(1),
+            name: capitalize(chainId),
             logo: ''
           };
         }
@@ -251,7 +251,7 @@ export function useHealthFactorStrategy() {
       const firstItem = items[0];
       const protocolName = firstItem.protocol?.name || 'Unknown';
       const chainName = firstItem.protocol?.chain || '';
-      const chainDisplayName = chainName.charAt(0).toUpperCase() + chainName.slice(1);
+      const chainDisplayName = capitalize(chainName);
 
       const currentHF = firstItem.additionalData?.healthFactor || 0;
       

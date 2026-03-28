@@ -1,49 +1,35 @@
 import React from 'react';
-import { useTheme } from '../../context/ThemeProvider';
-import { useMaskValues } from '../../context/MaskValuesContext';
-import { useChainIcons } from '../../context/ChainIconsProvider';
+import { useCardContext } from '../../hooks/useCardContext';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
+import { capitalize } from '../../utils/format';
 import RangeChip from '../RangeChip';
 import ProjectionSelector from '../ProjectionSelector';
+import OmniScoreBadge from '../OmniScoreBadge';
+import SafeImage from '../SafeImage';
+import EmptyStateCard from './EmptyStateCard';
+import CardContainer from './CardContainer';
+import SkeletonCardGrid from './SkeletonCardGrid';
 import type { WalletItem } from '../../types/wallet';
 
 interface PoolCardsProps {
   data: WalletItem[];
+  isLoading?: boolean;
 }
 
-/**
- * PoolCards - Card view for liquidity pool positions
- * @param {Array} data - Pool positions data
- */
-const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
-  const { theme } = useTheme();
-  const { maskValue } = useMaskValues();
-  const { getIcon: getChainIcon } = useChainIcons();
+const PoolCards: React.FC<PoolCardsProps> = ({ data = [], isLoading }) => {
+  const { theme, maskValue, getChainIcon } = useCardContext();
   const [flippedCards, setFlippedCards] = React.useState<Record<number, boolean>>({});
-  const [expandedRanges, setExpandedRanges] = React.useState<Record<number, boolean>>({});
-  const [expandedFees, setExpandedFees] = React.useState<Record<number, boolean>>({});
-  const [expandedCollectedFees, setExpandedCollectedFees] = React.useState<Record<number, boolean>>({});
-  const [expandedValues, setExpandedValues] = React.useState<Record<number, boolean>>({});
-  const [expandedProjections, setExpandedProjections] = React.useState<Record<number, boolean>>({});
-  const [expandedAmounts, setExpandedAmounts] = React.useState<Record<number, boolean>>({});
+  type ExpandSection = 'values' | 'amounts' | 'range' | 'fees' | 'collectedFees' | 'projections' | null;
+  const [expandedSection, setExpandedSection] = React.useState<Record<number, ExpandSection>>({});
 
   if (!data || data.length === 0) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '40px 20px',
-        color: theme.textSecondary,
-        fontSize: 14,
-      }}>
-        No pool positions found
-      </div>
-    );
+    return <EmptyStateCard label="pool positions" />;
   }
 
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))',
       gap: 20,
       padding: '8px 0',
       maxWidth: '100%',
@@ -60,58 +46,31 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
         // Check if this card is flipped
         const isFlipped = flippedCards[index] || false;
         
-        // Check if range is expanded
-        const isRangeExpanded = expandedRanges[index] || false;
-        
-        // Check if fees are expanded
-        const isFeesExpanded = expandedFees[index] || false;
-        
-        // Check if collected fees are expanded
-        const isCollectedFeesExpanded = expandedCollectedFees[index] || false;
-        
-        // Toggle flip function
+        const currentSection = expandedSection[index] || null;
+        const isRangeExpanded = currentSection === 'range';
+        const isFeesExpanded = currentSection === 'fees';
+        const isCollectedFeesExpanded = currentSection === 'collectedFees';
+        const isValuesExpanded = currentSection === 'values';
+        const isAmountsExpanded = currentSection === 'amounts';
+        const isProjectionsExpanded = currentSection === 'projections';
+
+        const toggleSection = (section: ExpandSection) => {
+          setExpandedSection(prev => ({
+            ...prev,
+            [index]: prev[index] === section ? null : section,
+          }));
+        };
+
         const handleFlip = () => {
           setFlippedCards(prev => ({ ...prev, [index]: !prev[index] }));
         };
-        
-        // Toggle range expansion
-        const toggleRangeExpansion = () => {
-          setExpandedRanges(prev => ({ ...prev, [index]: !prev[index] }));
-        };
-        
-        // Toggle fees expansion
-        const toggleFeesExpansion = () => {
-          setExpandedFees(prev => ({ ...prev, [index]: !prev[index] }));
-        };
-        
-        // Toggle collected fees expansion
-        const toggleCollectedFeesExpansion = () => {
-          setExpandedCollectedFees(prev => ({ ...prev, [index]: !prev[index] }));
-        };
-        
-        // Check if values are expanded
-        const isValuesExpanded = expandedValues[index] || false;
-        
-        // Toggle values expansion
-        const toggleValuesExpansion = () => {
-          setExpandedValues(prev => ({ ...prev, [index]: !prev[index] }));
-        };
-        
-        // Check if amounts are expanded
-        const isAmountsExpanded = expandedAmounts[index] || false;
-        
-        // Toggle amounts expansion
-        const toggleAmountsExpansion = () => {
-          setExpandedAmounts(prev => ({ ...prev, [index]: !prev[index] }));
-        };
-        
-        // Check if projections are expanded
-        const isProjectionsExpanded = expandedProjections[index] || false;
-        
-        // Toggle projections expansion
-        const toggleProjectionsExpansion = () => {
-          setExpandedProjections(prev => ({ ...prev, [index]: !prev[index] }));
-        };
+
+        const toggleRangeExpansion = () => toggleSection('range');
+        const toggleFeesExpansion = () => toggleSection('fees');
+        const toggleCollectedFeesExpansion = () => toggleSection('collectedFees');
+        const toggleValuesExpansion = () => toggleSection('values');
+        const toggleAmountsExpansion = () => toggleSection('amounts');
+        const toggleProjectionsExpansion = () => toggleSection('projections');
         
         // Calculate age from createdAt (Unix timestamp in seconds)
         const getAge = (createdAt) => {
@@ -172,8 +131,7 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
           return sum + price;
         }, 0);
         const rewardsValue = rewards.reduce((sum, reward) => sum + (reward.totalPrice || 0), 0);
-        
-        // Get token pair (usually 2 tokens in a pool)
+
         const token0 = suppliedTokens[0];
         const token1 = suppliedTokens[1];
         
@@ -290,28 +248,12 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
         } : rangeData;
         
         return (
-          <div
+          <CardContainer
             key={index}
             style={{
-              backgroundColor: theme.bgPanel,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 12,
-              padding: 16,
-              transition: 'all 0.2s ease',
-              cursor: 'pointer',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'visible',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = theme.accent;
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = theme.border;
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = 'none';
             }}
           >
             {/* Header - Token Icons, Protocol & Chain */}
@@ -333,11 +275,10 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
                     backgroundColor: theme.bgPanel,
                     zIndex: 2,
                   }}>
-                    <img
+                    <SafeImage
                       src={displayToken0.logo}
                       alt={displayToken0.symbol}
                       style={{ width: '100%', height: '100%', objectFit: 'fill' }}
-                      onError={(e) => e.currentTarget.style.display = 'none'}
                     />
                   </div>
                 )}
@@ -352,11 +293,10 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
                     marginLeft: -16,
                     zIndex: 1,
                   }}>
-                    <img
+                    <SafeImage
                       src={displayToken1.logo}
                       alt={displayToken1.symbol}
                       style={{ width: '100%', height: '100%', objectFit: 'fill' }}
-                      onError={(e) => e.currentTarget.style.display = 'none'}
                     />
                   </div>
                 )}
@@ -367,11 +307,10 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
                 {/* Protocol */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {(protocol.logo || protocol.icon) && (
-                    <img
+                    <SafeImage
                       src={protocol.logo || protocol.icon}
                       alt={protocol.name}
                       style={{ width: 16, height: 16, borderRadius: '50%' }}
-                      onError={(e) => e.currentTarget.style.display = 'none'}
                     />
                   )}
                   <span style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary }}>
@@ -383,15 +322,14 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
                 {displayToken0?.chain && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     {getChainIcon(displayToken0.chain) && (
-                      <img
+                      <SafeImage
                         src={getChainIcon(displayToken0.chain)}
                         alt={displayToken0.chain}
                         style={{ width: 16, height: 16, borderRadius: '50%' }}
-                        onError={(e) => e.currentTarget.style.display = 'none'}
                       />
                     )}
                     <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary }}>
-                      {displayToken0.chain.charAt(0).toUpperCase() + displayToken0.chain.slice(1)}
+                      {capitalize(displayToken0.chain)}
                     </span>
                   </div>
                 )}
@@ -449,6 +387,15 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
                 }}>
                   {inRange ? 'In Range' : 'Out of Range'}
                 </span>
+
+                <OmniScoreBadge
+                  type="pool"
+                  token0={token0?.symbol || ''}
+                  token1={token1?.symbol || ''}
+                  protocol={protocol.name}
+                  chain={displayToken0?.chain}
+                  feeTier={additionalInfo.feeTier || additionalData?.feeTier}
+                />
               </div>
             </div>
 
@@ -1166,9 +1113,10 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [] }) => {
                 return null;
               })()}
             </div>
-          </div>
+          </CardContainer>
         );
       })}
+      {isLoading && <SkeletonCardGrid itemCount={data.length} minCardWidth={340} gap={20} />}
     </div>
   );
 };

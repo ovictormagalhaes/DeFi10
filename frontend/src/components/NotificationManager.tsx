@@ -307,10 +307,10 @@ export const notificationStyles = `
   align-items: flex-start;
   gap: 12px;
   padding: 16px;
-  background: white;
+  background: var(--app-bg-panel, white);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-left: 4px solid #ccc;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  border-left: 4px solid var(--app-border, #ccc);
   pointer-events: all;
   min-width: 300px;
   max-width: 400px;
@@ -356,13 +356,13 @@ export const notificationStyles = `
 .notification-title {
   font-weight: 600;
   font-size: 14px;
-  color: #111827;
+  color: var(--app-text-primary, #111827);
   margin-bottom: 4px;
 }
 
 .notification-message {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--app-text-secondary, #6b7280);
   line-height: 1.4;
 }
 
@@ -448,7 +448,7 @@ export const notificationStyles = `
   background: none;
   font-size: 18px;
   line-height: 1;
-  color: #9ca3af;
+  color: var(--app-text-muted, #9ca3af);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -458,8 +458,8 @@ export const notificationStyles = `
 }
 
 .notification-close:hover {
-  color: #374151;
-  background: #f3f4f6;
+  color: var(--app-text-primary, #374151);
+  background: var(--app-bg-hover, #f3f4f6);
 }
 
 .notification-autodismiss {
@@ -487,34 +487,6 @@ export const notificationStyles = `
   }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .notification-item {
-    background: #1f2937;
-    color: #f9fafb;
-  }
-  
-  .notification-title {
-    color: #f9fafb;
-  }
-  
-  .notification-message {
-    color: #d1d5db;
-  }
-  
-  .notification-close:hover {
-    background: #374151;
-  }
-  
-  .notification-button.secondary {
-    background: #374151;
-    color: #d1d5db;
-  }
-  
-  .notification-button.secondary:hover {
-    background: #4b5563;
-  }
-}
 `;
 
 export default NotificationManager;

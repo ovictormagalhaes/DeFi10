@@ -36,11 +36,11 @@ const ErrorScreen = ({ theme, error, onRetry, onGoBack }: ErrorScreenProps) => {
             height: 80,
             margin: '0 auto 24px',
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)',
+            background: theme.dangerGrad,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(255, 107, 107, 0.25)',
+            boxShadow: theme.dangerGlow,
           }}
         >
           <svg
@@ -167,20 +167,20 @@ const ErrorScreen = ({ theme, error, onRetry, onGoBack }: ErrorScreenProps) => {
                 fontSize: 15,
                 fontWeight: 600,
                 color: 'white',
-                background: 'linear-gradient(135deg, #35f7a5 0%, #2fbfd9 100%)',
+                background: theme.brandGrad,
                 border: 'none',
                 borderRadius: 12,
                 cursor: 'pointer',
                 transition: 'transform 0.2s, box-shadow 0.2s',
-                boxShadow: '0 4px 12px rgba(53, 247, 165, 0.3)',
+                boxShadow: theme.brandGlow,
               }}
               onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
                 e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(53, 247, 165, 0.4)';
+                e.currentTarget.style.boxShadow = theme.brandGlowHover;
               }}
               onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(53, 247, 165, 0.3)';
+                e.currentTarget.style.boxShadow = theme.brandGlow;
               }}
             >
               Try Again

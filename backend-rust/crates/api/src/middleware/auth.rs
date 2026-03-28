@@ -126,12 +126,12 @@ pub fn generate_wallet_group_token(
     display_name: Option<String>,
     secret: &str,
     expiration_minutes: i64,
-) -> WalletGroupToken {
+) -> Result<WalletGroupToken, defi10_core::DeFi10Error> {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .map_err(|e| defi10_core::DeFi10Error::Internal(format!("System time error: {}", e)))?
         .as_secs() as usize;
 
     let exp = now + (expiration_minutes as usize * 60);
@@ -149,9 +149,9 @@ pub fn generate_wallet_group_token(
         &claims,
         &EncodingKey::from_secret(secret.as_ref()),
     )
-    .expect("Failed to encode JWT token");
+    .map_err(|e| defi10_core::DeFi10Error::Internal(format!("JWT encoding failed: {}", e)))?;
 
-    WalletGroupToken { token, expires_at }
+    Ok(WalletGroupToken { token, expires_at })
 }
 
 /// Helper to generate JWT token (for testing/development)

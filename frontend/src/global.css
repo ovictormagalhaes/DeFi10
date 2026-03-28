@@ -1311,6 +1311,11 @@ pre {
 .skeleton.text { height:13px; width:100%; }
 .skeleton.circle { border-radius:50%; }
 
+/* --- Card stagger fade-in --- */
+@keyframes cardFadeIn { 0% { opacity:0; transform:translateY(10px); } 100% { opacity:1; transform:translateY(0); } }
+.card-stagger { animation: cardFadeIn 0.3s ease both; animation-delay: calc(var(--card-index, 0) * 50ms); }
+@media (prefers-reduced-motion: reduce) { .card-stagger { animation:none; } }
+
 /* --- Added: Trend arrows fallback (data attributes) --- */
 .trend-wrap[data-trend='up']::before { content:'\25B2'; font-size:10px; margin-right:4px; color: var(--mw-success-text,#16a34a); }
 .trend-wrap[data-trend='down']::before { content:'\25BC'; font-size:10px; margin-right:4px; color: var(--mw-danger-text,#dc2626); }

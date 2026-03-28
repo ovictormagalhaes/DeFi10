@@ -10,9 +10,13 @@ use axum::{
 };
 use defi10_infrastructure::config::AppConfig;
 use std::sync::Arc;
+use std::time::Duration;
 use tower::ServiceBuilder;
+use axum::http::StatusCode;
 use tower_http::{
     cors::{Any, CorsLayer},
+    limit::RequestBodyLimitLayer,
+    timeout::TimeoutLayer,
     trace::TraceLayer,
 };
 
@@ -26,13 +30,12 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
                 .cors
                 .allowed_origins
                 .iter()
-                .map(|origin| origin.parse().unwrap())
+                .filter_map(|origin| origin.parse().ok())
                 .collect::<Vec<_>>(),
         )
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build middleware stack
     let middleware_stack = ServiceBuilder::new()
         .layer(TraceLayer::new_for_http())
         .layer(cors);
@@ -136,10 +139,11 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
         )
         .with_state(state.clone());
 
-    // Root router
     Router::new()
         .nest("/api/v1", api_v1)
         .layer(middleware_stack)
+        .layer(TimeoutLayer::with_status_code(StatusCode::GATEWAY_TIMEOUT, Duration::from_secs(30)))
+        .layer(RequestBodyLimitLayer::new(1024 * 1024))
 }
 
 #[cfg(test)]
@@ -166,6 +170,7 @@ mod tests {
             rabbitmq: RabbitMqConfig {
                 url: "amqp://localhost:5672".to_string(),
                 prefetch_count: 10,
+                worker_concurrency: 10,
             },
             jwt: JwtConfig {
                 secret: "test_secret".to_string(),

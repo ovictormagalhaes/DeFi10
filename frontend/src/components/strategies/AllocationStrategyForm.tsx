@@ -27,7 +27,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useTheme } from '../../context/ThemeProvider';
 import { useChainIcons } from '../../context/ChainIconsProvider';
-
+import { capitalize } from '../../utils/format';
 import { RebalanceAssetType, ASSET_TYPE_OPTIONS } from '../../types/rebalancing';
 import type { AllocationByWeightConfig } from '../../types/strategies/allocationByWeight';
 import type { SaveStrategiesResponse } from '../../types/strategy';
@@ -609,7 +609,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                   {allocation.protocolLogo && <img src={allocation.protocolLogo} alt="protocol" className="card-small-logo" />}
                   {allocation.protocolName && <span>{allocation.protocolName}</span>}
                   {allocation.chainLogo && <img src={allocation.chainLogo} alt="chain" className="card-small-logo" />}
-                  {allocation.chain && <span>{allocation.chain.charAt(0).toUpperCase() + allocation.chain.slice(1)}</span>}
+                  {allocation.chain && <span>{capitalize(allocation.chain)}</span>}
                 </div>
               )}
               <span className="card-asset-value">${assetValue.toFixed(2)}</span>

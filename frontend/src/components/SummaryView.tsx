@@ -94,36 +94,89 @@ const SummaryView = ({
         </div>
       </div>
 
-      <div className="summary-grid">
-        {/* Total Portfolio Value */}
-        <div className="metric-card">
-          <div className="metric-label">Total Portfolio</div>
-          <div className="metric-value-lg text-primary">{maskValue(formatPrice(totalValue))}</div>
-        </div>
-
-        {/* Wallet Tokens */}
-        <div className="metric-card">
-          <div className="metric-label">Wallet Assets</div>
-          <div className="metric-value-md text-primary mb-1">
-            {maskValue(formatPrice(walletValue))}
+      {/* Total Portfolio - Hero Card */}
+      <div
+        style={{
+          background: theme.brandGrad || theme.bgPanel,
+          borderRadius: 14,
+          padding: '24px 28px',
+          marginBottom: 16,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 0.5, color: 'rgba(255,255,255,0.7)', marginBottom: 8 }}>
+            Total Portfolio
           </div>
-          <div className="text-xs text-secondary">{walletTokens.length} tokens</div>
-        </div>
-
-        {/* DeFi Positions (Gross) */}
-        <div className="metric-card">
-          <div className="metric-label">DeFi Positions</div>
-          <div className="metric-value-md text-primary mb-1">{maskValue(formatPrice(defiNet))}</div>
-          <div className="text-xs text-secondary">
-            {liquidityData.length + lendingData.length + stakingData.length} positions
+          <div style={{ fontSize: 32, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
+            {maskValue(formatPrice(totalValue))}
+          </div>
+          <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' as const }}>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+              {walletTokens.length} tokens
+            </span>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+              {liquidityData.length + lendingData.length + stakingData.length} DeFi positions
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Breakdown extra removido conforme solicitação do usuário */}
+      {/* Secondary Metrics */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
+        <div className="metric-card" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: theme.bgAccentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={theme.accent || theme.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <path d="M2 10h20" />
+            </svg>
+          </div>
+          <div>
+            <div className="metric-label" style={{ marginBottom: 4 }}>Wallet Assets</div>
+            <div className="metric-value-md text-primary">{maskValue(formatPrice(walletValue))}</div>
+            <div className="text-xs text-secondary" style={{ marginTop: 2 }}>{walletTokens.length} tokens</div>
+          </div>
+        </div>
+
+        <div className="metric-card" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: theme.bgAccentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={theme.accent || theme.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          </div>
+          <div>
+            <div className="metric-label" style={{ marginBottom: 4 }}>DeFi Positions</div>
+            <div className="metric-value-md text-primary">{maskValue(formatPrice(defiNet))}</div>
+            <div className="text-xs text-secondary" style={{ marginTop: 2 }}>
+              {liquidityData.length + lendingData.length + stakingData.length} positions
+            </div>
+          </div>
+        </div>
+
+        {lendingSupplied > 0 && (
+          <div className="metric-card" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v10l4.24 4.24" />
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+            </div>
+            <div>
+              <div className="metric-label" style={{ marginBottom: 4 }}>Supplied</div>
+              <div className="metric-value-md text-primary">{maskValue(formatPrice(lendingSupplied))}</div>
+              {lendingBorrowed > 0 && (
+                <div className="text-xs" style={{ marginTop: 2, color: theme.danger }}>
+                  Borrowed: {maskValue(formatPrice(lendingBorrowed))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Quick Stats */}
-      <div className="quick-stats">
+      <div className="quick-stats" style={{ marginBottom: 20 }}>
         {liquidityData.length > 0 && (
           <div className="quick-stat">
             <div className="quick-dot liquidity" />
