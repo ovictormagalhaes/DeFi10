@@ -52,10 +52,13 @@ impl RedisCache {
     }
 
     async fn connect(client: &Client) -> Result<ConnectionManager> {
-        tokio::time::timeout(Duration::from_secs(15), ConnectionManager::new(client.clone()))
-            .await
-            .map_err(|_| DeFi10Error::Cache("Redis connection timed out after 15s".to_string()))?
-            .map_err(|e| DeFi10Error::Cache(format!("Failed to connect to Redis: {}", e)))
+        tokio::time::timeout(
+            Duration::from_secs(15),
+            ConnectionManager::new(client.clone()),
+        )
+        .await
+        .map_err(|_| DeFi10Error::Cache("Redis connection timed out after 15s".to_string()))?
+        .map_err(|e| DeFi10Error::Cache(format!("Failed to connect to Redis: {}", e)))
     }
 
     async fn get_conn(&self) -> ConnectionManager {
@@ -92,7 +95,9 @@ impl RedisCache {
                     Err(_) => {
                         tracing::warn!(
                             "{}: attempt {}/{} timed out ({}s)",
-                            config.name, attempt, config.max_attempts,
+                            config.name,
+                            attempt,
+                            config.max_attempts,
                             timeout.as_secs()
                         );
                         last_err = Some(DeFi10Error::Cache(format!(
@@ -113,7 +118,10 @@ impl RedisCache {
                 Err(e) => {
                     tracing::warn!(
                         "{}: attempt {}/{} failed: {}",
-                        config.name, attempt, config.max_attempts, e
+                        config.name,
+                        attempt,
+                        config.max_attempts,
+                        e
                     );
                     last_err = Some(e);
                     if attempt < config.max_attempts {

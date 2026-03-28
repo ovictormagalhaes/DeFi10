@@ -72,10 +72,7 @@ impl ProofOfWorkService {
             return Ok(false);
         }
 
-        let stored: Option<String> = self.cache
-            .get(POW_PREFIX, challenge)
-            .await
-            .unwrap_or(None);
+        let stored: Option<String> = self.cache.get(POW_PREFIX, challenge).await.unwrap_or(None);
 
         if stored.is_none() {
             tracing::warn!(
@@ -109,7 +106,11 @@ impl ProofOfWorkService {
             return Ok(());
         }
 
-        let deleted = self.cache.delete(POW_PREFIX, challenge).await.unwrap_or(false);
+        let deleted = self
+            .cache
+            .delete(POW_PREFIX, challenge)
+            .await
+            .unwrap_or(false);
 
         if deleted {
             tracing::info!("Invalidated PoW challenge {}", challenge);

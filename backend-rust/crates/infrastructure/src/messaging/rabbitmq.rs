@@ -152,9 +152,15 @@ impl RabbitMqConnection {
             let channel = self.channel.clone();
             async move {
                 let ch = channel.read().await;
-                ch.queue_bind(&qn, &en, &rk, QueueBindOptions::default(), FieldTable::default())
-                    .await
-                    .map_err(|e| DeFi10Error::Internal(format!("Failed to bind queue: {}", e)))?;
+                ch.queue_bind(
+                    &qn,
+                    &en,
+                    &rk,
+                    QueueBindOptions::default(),
+                    FieldTable::default(),
+                )
+                .await
+                .map_err(|e| DeFi10Error::Internal(format!("Failed to bind queue: {}", e)))?;
                 Ok(())
             }
         })
@@ -193,26 +199,29 @@ impl MessagePublisher {
 
         let ex = exchange.to_string();
         let rk = routing_key.to_string();
-        self.connection.with_retry(|| {
-            let ex = ex.clone();
-            let rk = rk.clone();
-            let payload = payload.clone();
-            let channel = self.connection.channel.clone();
-            async move {
-                let ch = channel.read().await;
-                ch.basic_publish(
-                    &ex,
-                    &rk,
-                    BasicPublishOptions::default(),
-                    &payload,
-                    lapin::BasicProperties::default(),
-                )
-                .await
-                .map_err(|e| DeFi10Error::Internal(format!("Failed to publish message: {}", e)))?;
-                Ok(())
-            }
-        })
-        .await
+        self.connection
+            .with_retry(|| {
+                let ex = ex.clone();
+                let rk = rk.clone();
+                let payload = payload.clone();
+                let channel = self.connection.channel.clone();
+                async move {
+                    let ch = channel.read().await;
+                    ch.basic_publish(
+                        &ex,
+                        &rk,
+                        BasicPublishOptions::default(),
+                        &payload,
+                        lapin::BasicProperties::default(),
+                    )
+                    .await
+                    .map_err(|e| {
+                        DeFi10Error::Internal(format!("Failed to publish message: {}", e))
+                    })?;
+                    Ok(())
+                }
+            })
+            .await
     }
 
     pub async fn publish_to_queue<T: Serialize>(

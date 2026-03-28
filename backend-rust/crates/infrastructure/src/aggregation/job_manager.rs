@@ -8,7 +8,6 @@ use redis::AsyncCommands;
 use serde_json;
 use uuid::Uuid;
 
-
 const KEY_PREFIX: &str = "defi10:agg";
 const META_FIELD_STATUS: &str = "status";
 const META_FIELD_ACCOUNTS: &str = "accounts";
@@ -102,13 +101,20 @@ impl JobManager {
             {
                 Ok(Ok(v)) => return Ok(v),
                 Ok(Err(e)) => {
-                    tracing::warn!("Redis attempt {}/{} failed: {}", attempt + 1, MAX_RETRIES, e);
+                    tracing::warn!(
+                        "Redis attempt {}/{} failed: {}",
+                        attempt + 1,
+                        MAX_RETRIES,
+                        e
+                    );
                     last_err = Some(e);
                 }
                 Err(_) => {
                     tracing::warn!(
                         "Redis attempt {}/{} timed out ({}s)",
-                        attempt + 1, MAX_RETRIES, COMMAND_TIMEOUT_SECS
+                        attempt + 1,
+                        MAX_RETRIES,
+                        COMMAND_TIMEOUT_SECS
                     );
                     last_err = Some(anyhow::anyhow!(
                         "Redis command timed out after {}s",
@@ -345,7 +351,10 @@ impl JobManager {
     pub async fn update_job_status(&self, job_id: &Uuid, status: JobStatus) -> Result<()> {
         let meta_key = self.meta_key(job_id);
         let status_str = status.to_string();
-        let is_terminal = matches!(status, JobStatus::Completed | JobStatus::Failed | JobStatus::TimedOut);
+        let is_terminal = matches!(
+            status,
+            JobStatus::Completed | JobStatus::Failed | JobStatus::TimedOut
+        );
         let job_id_str = job_id.to_string();
         let active_key = Self::active_jobs_key();
 
@@ -356,7 +365,9 @@ impl JobManager {
             let ak = active_key.clone();
             async move {
                 let _: () = c.hset(&mk, META_FIELD_STATUS, &ss).await?;
-                let _: () = c.hset(&mk, META_FIELD_UPDATED, Utc::now().to_rfc3339()).await?;
+                let _: () = c
+                    .hset(&mk, META_FIELD_UPDATED, Utc::now().to_rfc3339())
+                    .await?;
                 let _: () = c.expire(&mk, JOB_TTL_SECS).await?;
                 if is_terminal {
                     let _: () = c.srem(&ak, &jid).await?;
@@ -458,8 +469,7 @@ impl JobManager {
 
                     let mk = format!("{}:meta:{}", KEY_PREFIX, job_id);
 
-                    let status_str: Option<String> =
-                        c.hget(&mk, META_FIELD_STATUS).await.ok();
+                    let status_str: Option<String> = c.hget(&mk, META_FIELD_STATUS).await.ok();
                     match status_str.as_deref() {
                         Some("pending" | "processing") => {}
                         _ => {
@@ -468,13 +478,9 @@ impl JobManager {
                         }
                     }
 
-                    let updated_str: Option<String> =
-                        c.hget(&mk, META_FIELD_UPDATED).await.ok();
-                    let processed: Option<String> =
-                        c.hget(&mk, META_FIELD_PROCESSED).await.ok();
-                    let processed_count: u32 = processed
-                        .and_then(|s| s.parse().ok())
-                        .unwrap_or(0);
+                    let updated_str: Option<String> = c.hget(&mk, META_FIELD_UPDATED).await.ok();
+                    let processed: Option<String> = c.hget(&mk, META_FIELD_PROCESSED).await.ok();
+                    let processed_count: u32 = processed.and_then(|s| s.parse().ok()).unwrap_or(0);
 
                     if let Some(ref ts) = updated_str {
                         if let Ok(updated_at) = chrono::DateTime::parse_from_rfc3339(ts) {
@@ -482,7 +488,8 @@ impl JobManager {
                             if age > chrono::Duration::minutes(5) && processed_count == 0 {
                                 tracing::warn!(
                                     "Expiring stale job {} (no progress in {}s)",
-                                    jid_str, age.num_seconds()
+                                    jid_str,
+                                    age.num_seconds()
                                 );
                                 let _: std::result::Result<(), _> = c
                                     .hset::<_, _, _, ()>(&mk, META_FIELD_STATUS, "timedOut")
@@ -493,8 +500,7 @@ impl JobManager {
                         }
                     }
 
-                    let accounts_json: Option<String> =
-                        c.hget(&mk, META_FIELD_ACCOUNTS).await.ok();
+                    let accounts_json: Option<String> = c.hget(&mk, META_FIELD_ACCOUNTS).await.ok();
                     if let Some(json) = accounts_json {
                         if let Ok(mut stored) = serde_json::from_str::<Vec<String>>(&json) {
                             stored.sort();
@@ -560,7 +566,9 @@ impl JobManager {
             let mk = meta_key.clone();
             async move {
                 let _: () = c.hset(&mk, META_FIELD_FINAL, "1").await?;
-                let _: () = c.hset(&mk, META_FIELD_UPDATED, Utc::now().to_rfc3339()).await?;
+                let _: () = c
+                    .hset(&mk, META_FIELD_UPDATED, Utc::now().to_rfc3339())
+                    .await?;
                 let _: () = c.expire(&mk, JOB_TTL_SECS).await?;
                 Ok(())
             }
@@ -633,8 +641,9 @@ impl JobManager {
                     let _: () = c.hincr(&mk, META_FIELD_TIMED_OUT, timed_out).await?;
                     let _: () = c.hincr(&mk, META_FIELD_PROCESSED, timed_out).await?;
                 }
-                let _: () =
-                    c.hset(&mk, META_FIELD_UPDATED, Utc::now().to_rfc3339()).await?;
+                let _: () = c
+                    .hset(&mk, META_FIELD_UPDATED, Utc::now().to_rfc3339())
+                    .await?;
                 let _: () = c.expire(&mk, JOB_TTL_SECS).await?;
                 Ok(())
             }

@@ -3,6 +3,7 @@ use crate::{
     middleware::{auth_middleware, optional_auth_middleware},
     state::AppState,
 };
+use axum::http::StatusCode;
 use axum::{
     middleware,
     routing::{get, post},
@@ -12,7 +13,6 @@ use defi10_infrastructure::config::AppConfig;
 use std::sync::Arc;
 use std::time::Duration;
 use tower::ServiceBuilder;
-use axum::http::StatusCode;
 use tower_http::{
     cors::{Any, CorsLayer},
     limit::RequestBodyLimitLayer,
@@ -142,7 +142,10 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
     Router::new()
         .nest("/api/v1", api_v1)
         .layer(middleware_stack)
-        .layer(TimeoutLayer::with_status_code(StatusCode::GATEWAY_TIMEOUT, Duration::from_secs(30)))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::GATEWAY_TIMEOUT,
+            Duration::from_secs(30),
+        ))
         .layer(RequestBodyLimitLayer::new(1024 * 1024))
 }
 

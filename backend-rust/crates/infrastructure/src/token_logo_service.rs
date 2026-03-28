@@ -51,7 +51,11 @@ impl TokenLogoService {
             }
         }
 
-        if let Ok(Some(logo_url)) = self.cache.get::<String>(TOKEN_LOGO_PREFIX, &normalized).await {
+        if let Ok(Some(logo_url)) = self
+            .cache
+            .get::<String>(TOKEN_LOGO_PREFIX, &normalized)
+            .await
+        {
             let mut mem = self.memory_cache.write().await;
             mem.insert(normalized, logo_url.clone());
             return Ok(Some(logo_url));
@@ -59,8 +63,14 @@ impl TokenLogoService {
 
         if let Some(repo) = &self.mongo_repo {
             if let Ok(Some(logo_url)) = repo.get_logo(&normalized).await {
-                let _ = self.cache
-                    .set(TOKEN_LOGO_PREFIX, &normalized, &logo_url, Some(self.expiration))
+                let _ = self
+                    .cache
+                    .set(
+                        TOKEN_LOGO_PREFIX,
+                        &normalized,
+                        &logo_url,
+                        Some(self.expiration),
+                    )
                     .await;
                 let mut mem = self.memory_cache.write().await;
                 mem.insert(normalized, logo_url.clone());
@@ -75,7 +85,12 @@ impl TokenLogoService {
         let normalized = Self::normalize_address(token_address);
 
         self.cache
-            .set(TOKEN_LOGO_PREFIX, &normalized, &logo_url.to_string(), Some(self.expiration))
+            .set(
+                TOKEN_LOGO_PREFIX,
+                &normalized,
+                &logo_url.to_string(),
+                Some(self.expiration),
+            )
             .await
             .map_err(|e| anyhow::anyhow!("Failed to set token logo in Redis: {}", e))?;
 
@@ -124,7 +139,10 @@ impl TokenLogoService {
         {
             let mut mem = self.memory_cache.write().await;
             for (original, normalized) in &missing {
-                if let Ok(Some(logo_url)) = self.cache.get::<String>(TOKEN_LOGO_PREFIX, normalized).await
+                if let Ok(Some(logo_url)) = self
+                    .cache
+                    .get::<String>(TOKEN_LOGO_PREFIX, normalized)
+                    .await
                 {
                     result.insert(original.clone(), logo_url.clone());
                     mem.insert(normalized.clone(), logo_url);
@@ -149,7 +167,8 @@ impl TokenLogoService {
                             .unwrap_or(addr.clone());
 
                         result.insert(original, logo_url.clone());
-                        let _ = self.cache
+                        let _ = self
+                            .cache
                             .set(TOKEN_LOGO_PREFIX, &addr, &logo_url, Some(self.expiration))
                             .await;
                         mem.insert(addr, logo_url);
@@ -166,8 +185,14 @@ impl TokenLogoService {
             let mut mem = self.memory_cache.write().await;
             for (addr, logo_url) in &token_logos {
                 let normalized = Self::normalize_address(addr);
-                let _ = self.cache
-                    .set(TOKEN_LOGO_PREFIX, &normalized, logo_url, Some(self.expiration))
+                let _ = self
+                    .cache
+                    .set(
+                        TOKEN_LOGO_PREFIX,
+                        &normalized,
+                        logo_url,
+                        Some(self.expiration),
+                    )
                     .await;
                 mem.insert(normalized, logo_url.clone());
             }
@@ -205,8 +230,14 @@ impl TokenLogoService {
                     for (address, logo_url) in &mongo_logos {
                         let normalized = Self::normalize_address(address);
                         mem.insert(normalized.clone(), logo_url.clone());
-                        let _ = self.cache
-                            .set(TOKEN_LOGO_PREFIX, &normalized, logo_url, Some(self.expiration))
+                        let _ = self
+                            .cache
+                            .set(
+                                TOKEN_LOGO_PREFIX,
+                                &normalized,
+                                logo_url,
+                                Some(self.expiration),
+                            )
                             .await;
                     }
                     tracing::info!(

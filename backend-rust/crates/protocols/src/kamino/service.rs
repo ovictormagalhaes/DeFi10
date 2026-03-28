@@ -127,210 +127,210 @@ impl KaminoService {
         let mut positions = Vec::new();
 
         for md in &market_data_list {
-        for obligation in &md.obligations {
-            let market_name = &md.market_name;
-            let reserves_map = &md.reserves_map;
-            let total_deposit_usd = obligation
-                .refreshed_stats
-                .as_ref()
-                .and_then(|s| s.user_total_deposit.as_ref())
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-
-            let total_borrow_usd = obligation
-                .refreshed_stats
-                .as_ref()
-                .and_then(|s| s.user_total_borrow.as_ref())
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-
-            let net_value = obligation
-                .refreshed_stats
-                .as_ref()
-                .and_then(|s| s.net_account_value.as_ref())
-                .and_then(|v| v.parse::<f64>().ok())
-                .unwrap_or(0.0);
-
-            let ltv = obligation
-                .refreshed_stats
-                .as_ref()
-                .and_then(|s| s.loan_to_value.as_ref())
-                .and_then(|v| v.parse::<f64>().ok());
-
-            const ASSUMED_LT: f64 = 0.8;
-            let health_factor = if total_borrow_usd > 0.0 {
-                Some((total_deposit_usd * ASSUMED_LT) / total_borrow_usd)
-            } else {
-                None
-            };
-
-            let total_market_value_sf: f64 = obligation
-                .state
-                .deposits
-                .iter()
-                .filter_map(|d| d.market_value_sf.parse::<f64>().ok())
-                .sum();
-
-            for deposit in &obligation.state.deposits {
-                let deposit_value_usd = self.calculate_proportional_value(
-                    &deposit.market_value_sf,
-                    total_market_value_sf,
-                    total_deposit_usd,
-                );
-
-                if deposit_value_usd < 0.01 {
-                    continue;
-                }
-
-                let reserve = reserves_map.get(&deposit.deposit_reserve);
-                let symbol = reserve
-                    .map(|r| r.liquidity_token.clone())
-                    .unwrap_or_else(|| "Unknown".to_string());
-                let mint = reserve
-                    .map(|r| r.liquidity_token_mint.clone())
-                    .unwrap_or_else(|| deposit.deposit_reserve.clone());
-                let supply_apy = reserve
-                    .and_then(|r| r.supply_apy.as_ref())
+            for obligation in &md.obligations {
+                let market_name = &md.market_name;
+                let reserves_map = &md.reserves_map;
+                let total_deposit_usd = obligation
+                    .refreshed_stats
+                    .as_ref()
+                    .and_then(|s| s.user_total_deposit.as_ref())
                     .and_then(|v| v.parse::<f64>().ok())
                     .unwrap_or(0.0);
 
-                let decimals = get_decimals_for_symbol(&symbol);
-                let human_amount = convert_raw_to_human(&deposit.deposited_amount, decimals);
-                let unit_price = get_unit_price(reserve);
-                let price_usd = if unit_price > 0.0 {
-                    unit_price
-                } else if human_amount > 0.0 {
-                    deposit_value_usd / human_amount
+                let total_borrow_usd = obligation
+                    .refreshed_stats
+                    .as_ref()
+                    .and_then(|s| s.user_total_borrow.as_ref())
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .unwrap_or(0.0);
+
+                let net_value = obligation
+                    .refreshed_stats
+                    .as_ref()
+                    .and_then(|s| s.net_account_value.as_ref())
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .unwrap_or(0.0);
+
+                let ltv = obligation
+                    .refreshed_stats
+                    .as_ref()
+                    .and_then(|s| s.loan_to_value.as_ref())
+                    .and_then(|v| v.parse::<f64>().ok());
+
+                const ASSUMED_LT: f64 = 0.8;
+                let health_factor = if total_borrow_usd > 0.0 {
+                    Some((total_deposit_usd * ASSUMED_LT) / total_borrow_usd)
                 } else {
-                    0.0
+                    None
                 };
 
-                let token = PositionToken {
-                    token_address: mint,
-                    symbol: symbol.clone(),
-                    name: symbol,
-                    decimals,
-                    balance: format!("{}", human_amount),
-                    balance_usd: deposit_value_usd,
-                    price_usd,
-                    token_type: Some("Supplied".to_string()),
-                };
+                let total_market_value_sf: f64 = obligation
+                    .state
+                    .deposits
+                    .iter()
+                    .filter_map(|d| d.market_value_sf.parse::<f64>().ok())
+                    .sum();
 
-                positions.push(ProtocolPosition {
-                    protocol: Protocol::Kamino,
-                    chain: Chain::Solana,
-                    wallet_address: wallet_address.to_string(),
-                    position_type: PositionType::Lending,
-                    tokens: vec![token],
-                    total_value_usd: deposit_value_usd,
-                    metadata: serde_json::json!({
-                        "market": market_name,
-                        "apy": supply_apy * 100.0,
-                        "healthFactor": health_factor,
-                        "netAccountValue": net_value,
-                        "loanToValue": ltv,
-                    }),
-                });
-            }
+                for deposit in &obligation.state.deposits {
+                    let deposit_value_usd = self.calculate_proportional_value(
+                        &deposit.market_value_sf,
+                        total_market_value_sf,
+                        total_deposit_usd,
+                    );
 
-            let total_borrow_market_sf: f64 = obligation
-                .state
-                .borrows
-                .iter()
-                .filter_map(|b| {
-                    b.market_value_sf
-                        .as_ref()
-                        .and_then(|s| s.parse::<f64>().ok())
-                })
-                .sum();
-
-            for borrow in &obligation.state.borrows {
-                let borrow_value_usd = if total_borrow_market_sf > 0.0 {
-                    let sf = borrow
-                        .market_value_sf
-                        .as_ref()
-                        .and_then(|s| s.parse::<f64>().ok())
-                        .unwrap_or(0.0);
-                    if sf > 0.0 {
-                        (sf / total_borrow_market_sf) * total_borrow_usd
-                    } else {
-                        total_borrow_usd / obligation.state.borrows.len() as f64
+                    if deposit_value_usd < 0.01 {
+                        continue;
                     }
-                } else if !obligation.state.borrows.is_empty() {
-                    total_borrow_usd / obligation.state.borrows.len() as f64
-                } else {
-                    0.0
-                };
 
-                if borrow_value_usd < 0.01 {
-                    continue;
+                    let reserve = reserves_map.get(&deposit.deposit_reserve);
+                    let symbol = reserve
+                        .map(|r| r.liquidity_token.clone())
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    let mint = reserve
+                        .map(|r| r.liquidity_token_mint.clone())
+                        .unwrap_or_else(|| deposit.deposit_reserve.clone());
+                    let supply_apy = reserve
+                        .and_then(|r| r.supply_apy.as_ref())
+                        .and_then(|v| v.parse::<f64>().ok())
+                        .unwrap_or(0.0);
+
+                    let decimals = get_decimals_for_symbol(&symbol);
+                    let human_amount = convert_raw_to_human(&deposit.deposited_amount, decimals);
+                    let unit_price = get_unit_price(reserve);
+                    let price_usd = if unit_price > 0.0 {
+                        unit_price
+                    } else if human_amount > 0.0 {
+                        deposit_value_usd / human_amount
+                    } else {
+                        0.0
+                    };
+
+                    let token = PositionToken {
+                        token_address: mint,
+                        symbol: symbol.clone(),
+                        name: symbol,
+                        decimals,
+                        balance: format!("{}", human_amount),
+                        balance_usd: deposit_value_usd,
+                        price_usd,
+                        token_type: Some("Supplied".to_string()),
+                    };
+
+                    positions.push(ProtocolPosition {
+                        protocol: Protocol::Kamino,
+                        chain: Chain::Solana,
+                        wallet_address: wallet_address.to_string(),
+                        position_type: PositionType::Lending,
+                        tokens: vec![token],
+                        total_value_usd: deposit_value_usd,
+                        metadata: serde_json::json!({
+                            "market": market_name,
+                            "apy": supply_apy * 100.0,
+                            "healthFactor": health_factor,
+                            "netAccountValue": net_value,
+                            "loanToValue": ltv,
+                        }),
+                    });
                 }
 
-                let reserve = reserves_map.get(&borrow.borrow_reserve);
-                let symbol = reserve
-                    .map(|r| r.liquidity_token.clone())
-                    .unwrap_or_else(|| "Unknown".to_string());
-                let mint = reserve
-                    .map(|r| r.liquidity_token_mint.clone())
-                    .unwrap_or_else(|| borrow.borrow_reserve.clone());
-                let borrow_apy = reserve
-                    .and_then(|r| r.borrow_apy.as_ref())
-                    .and_then(|v| v.parse::<f64>().ok())
-                    .unwrap_or(0.0);
+                let total_borrow_market_sf: f64 = obligation
+                    .state
+                    .borrows
+                    .iter()
+                    .filter_map(|b| {
+                        b.market_value_sf
+                            .as_ref()
+                            .and_then(|s| s.parse::<f64>().ok())
+                    })
+                    .sum();
 
-                let decimals = get_decimals_for_symbol(&symbol);
-                let unit_price = get_unit_price(reserve);
+                for borrow in &obligation.state.borrows {
+                    let borrow_value_usd = if total_borrow_market_sf > 0.0 {
+                        let sf = borrow
+                            .market_value_sf
+                            .as_ref()
+                            .and_then(|s| s.parse::<f64>().ok())
+                            .unwrap_or(0.0);
+                        if sf > 0.0 {
+                            (sf / total_borrow_market_sf) * total_borrow_usd
+                        } else {
+                            total_borrow_usd / obligation.state.borrows.len() as f64
+                        }
+                    } else if !obligation.state.borrows.is_empty() {
+                        total_borrow_usd / obligation.state.borrows.len() as f64
+                    } else {
+                        0.0
+                    };
 
-                let raw_amount_str = borrow
-                    .borrowed_amount_outside_elevation_groups
-                    .as_deref()
-                    .filter(|s| !s.is_empty() && *s != "0")
-                    .unwrap_or("0");
+                    if borrow_value_usd < 0.01 {
+                        continue;
+                    }
 
-                let human_amount = if raw_amount_str != "0" {
-                    convert_raw_to_human(raw_amount_str, decimals)
-                } else if unit_price > 0.0 {
-                    borrow_value_usd / unit_price
-                } else {
-                    0.0
-                };
+                    let reserve = reserves_map.get(&borrow.borrow_reserve);
+                    let symbol = reserve
+                        .map(|r| r.liquidity_token.clone())
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    let mint = reserve
+                        .map(|r| r.liquidity_token_mint.clone())
+                        .unwrap_or_else(|| borrow.borrow_reserve.clone());
+                    let borrow_apy = reserve
+                        .and_then(|r| r.borrow_apy.as_ref())
+                        .and_then(|v| v.parse::<f64>().ok())
+                        .unwrap_or(0.0);
 
-                let price_usd = if unit_price > 0.0 {
-                    unit_price
-                } else if human_amount > 0.0 {
-                    borrow_value_usd / human_amount
-                } else {
-                    0.0
-                };
+                    let decimals = get_decimals_for_symbol(&symbol);
+                    let unit_price = get_unit_price(reserve);
 
-                let token = PositionToken {
-                    token_address: mint,
-                    symbol: symbol.clone(),
-                    name: symbol,
-                    decimals,
-                    balance: format!("{}", human_amount),
-                    balance_usd: borrow_value_usd,
-                    price_usd,
-                    token_type: Some("Borrowed".to_string()),
-                };
+                    let raw_amount_str = borrow
+                        .borrowed_amount_outside_elevation_groups
+                        .as_deref()
+                        .filter(|s| !s.is_empty() && *s != "0")
+                        .unwrap_or("0");
 
-                positions.push(ProtocolPosition {
-                    protocol: Protocol::Kamino,
-                    chain: Chain::Solana,
-                    wallet_address: wallet_address.to_string(),
-                    position_type: PositionType::Borrowing,
-                    tokens: vec![token],
-                    total_value_usd: borrow_value_usd,
-                    metadata: serde_json::json!({
-                        "market": market_name,
-                        "apy": -(borrow_apy * 100.0),
-                        "healthFactor": health_factor,
-                        "netAccountValue": net_value,
-                        "loanToValue": ltv,
-                    }),
-                });
+                    let human_amount = if raw_amount_str != "0" {
+                        convert_raw_to_human(raw_amount_str, decimals)
+                    } else if unit_price > 0.0 {
+                        borrow_value_usd / unit_price
+                    } else {
+                        0.0
+                    };
+
+                    let price_usd = if unit_price > 0.0 {
+                        unit_price
+                    } else if human_amount > 0.0 {
+                        borrow_value_usd / human_amount
+                    } else {
+                        0.0
+                    };
+
+                    let token = PositionToken {
+                        token_address: mint,
+                        symbol: symbol.clone(),
+                        name: symbol,
+                        decimals,
+                        balance: format!("{}", human_amount),
+                        balance_usd: borrow_value_usd,
+                        price_usd,
+                        token_type: Some("Borrowed".to_string()),
+                    };
+
+                    positions.push(ProtocolPosition {
+                        protocol: Protocol::Kamino,
+                        chain: Chain::Solana,
+                        wallet_address: wallet_address.to_string(),
+                        position_type: PositionType::Borrowing,
+                        tokens: vec![token],
+                        total_value_usd: borrow_value_usd,
+                        metadata: serde_json::json!({
+                            "market": market_name,
+                            "apy": -(borrow_apy * 100.0),
+                            "healthFactor": health_factor,
+                            "netAccountValue": net_value,
+                            "loanToValue": ltv,
+                        }),
+                    });
+                }
             }
-        }
         }
 
         tracing::info!(

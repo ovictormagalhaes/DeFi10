@@ -110,9 +110,7 @@ impl AggregationProcessor {
 
             match chain_enum {
                 Chain::Solana => self.fetch_solana_positions(account).await?,
-                _ if chain_enum.is_evm() => {
-                    self.fetch_evm_positions(account, &chain_enum).await?
-                }
+                _ if chain_enum.is_evm() => self.fetch_evm_positions(account, &chain_enum).await?,
                 _ => {
                     tracing::warn!("Chain {} not supported yet", chain);
                     (vec![], vec![])
@@ -245,14 +243,23 @@ impl AggregationProcessor {
         match self.fetch_native_balance(&provider, account, chain).await {
             Ok(Some(result)) => {
                 all_results.push(result);
-                ops.push(OperationStatus::success(account, &chain_str, "native").with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::success(account, &chain_str, "native")
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
             Ok(None) => {
-                ops.push(OperationStatus::success(account, &chain_str, "native").with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::success(account, &chain_str, "native")
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
             Err(e) => {
                 tracing::warn!("Failed to fetch native balance: {}", e);
-                ops.push(OperationStatus::failed(account, &chain_str, "native", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::failed(account, &chain_str, "native", &e.to_string())
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
         }
 
@@ -260,11 +267,17 @@ impl AggregationProcessor {
         match self.fetch_moralis_evm_tokens(account, chain).await {
             Ok(mut results) => {
                 all_results.append(&mut results);
-                ops.push(OperationStatus::success(account, &chain_str, "moralis").with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::success(account, &chain_str, "moralis")
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
             Err(e) => {
                 tracing::warn!("Failed to fetch Moralis tokens: {}", e);
-                ops.push(OperationStatus::failed(account, &chain_str, "moralis", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::failed(account, &chain_str, "moralis", &e.to_string())
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
         }
 
@@ -280,11 +293,17 @@ impl AggregationProcessor {
         match self.fetch_aave_positions(&provider, account, chain).await {
             Ok(mut results) => {
                 all_results.append(&mut results);
-                ops.push(OperationStatus::success(account, &chain_str, "aave-v3").with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::success(account, &chain_str, "aave-v3")
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
             Err(e) => {
                 tracing::warn!("Failed to fetch Aave positions: {}", e);
-                ops.push(OperationStatus::failed(account, &chain_str, "aave-v3", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::failed(account, &chain_str, "aave-v3", &e.to_string())
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
         }
 
@@ -296,11 +315,17 @@ impl AggregationProcessor {
             {
                 Ok(mut results) => {
                     all_results.append(&mut results);
-                    ops.push(OperationStatus::success(account, &chain_str, "uniswap-v3").with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::success(account, &chain_str, "uniswap-v3")
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
                 Err(e) => {
                     tracing::warn!("Failed to fetch Uniswap positions: {}", e);
-                    ops.push(OperationStatus::failed(account, &chain_str, "uniswap-v3", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::failed(account, &chain_str, "uniswap-v3", &e.to_string())
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
             }
         }
@@ -310,11 +335,17 @@ impl AggregationProcessor {
             match self.fetch_pendle_positions(&provider, account, chain).await {
                 Ok(mut results) => {
                     all_results.append(&mut results);
-                    ops.push(OperationStatus::success(account, &chain_str, "pendle").with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::success(account, &chain_str, "pendle")
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
                 Err(e) => {
                     tracing::warn!("Failed to fetch Pendle positions: {}", e);
-                    ops.push(OperationStatus::failed(account, &chain_str, "pendle", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::failed(account, &chain_str, "pendle", &e.to_string())
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
             }
         }
@@ -324,11 +355,17 @@ impl AggregationProcessor {
             match self.fetch_pendle_ve_positions(account, chain).await {
                 Ok(mut results) => {
                     all_results.append(&mut results);
-                    ops.push(OperationStatus::success(account, &chain_str, "pendle-ve").with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::success(account, &chain_str, "pendle-ve")
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
                 Err(e) => {
                     tracing::warn!("Failed to fetch Pendle vePENDLE positions: {}", e);
-                    ops.push(OperationStatus::failed(account, &chain_str, "pendle-ve", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::failed(account, &chain_str, "pendle-ve", &e.to_string())
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
             }
         }
@@ -466,11 +503,17 @@ impl AggregationProcessor {
         match self.fetch_moralis_solana_tokens(account).await {
             Ok(mut positions) => {
                 all_results.append(&mut positions);
-                ops.push(OperationStatus::success(account, "solana", "moralis").with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::success(account, "solana", "moralis")
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
             Err(e) => {
                 tracing::warn!("Failed to fetch Moralis Solana tokens: {}", e);
-                ops.push(OperationStatus::failed(account, "solana", "moralis", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::failed(account, "solana", "moralis", &e.to_string())
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
         }
 
@@ -478,11 +521,17 @@ impl AggregationProcessor {
         match self.fetch_kamino_positions(&provider, account).await {
             Ok(mut positions) => {
                 all_results.append(&mut positions);
-                ops.push(OperationStatus::success(account, "solana", "kamino").with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::success(account, "solana", "kamino")
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
             Err(e) => {
                 tracing::warn!("Failed to fetch Kamino positions: {}", e);
-                ops.push(OperationStatus::failed(account, "solana", "kamino", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::failed(account, "solana", "kamino", &e.to_string())
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
         }
 
@@ -490,11 +539,17 @@ impl AggregationProcessor {
         match self.fetch_raydium_positions(&provider, account).await {
             Ok(mut positions) => {
                 all_results.append(&mut positions);
-                ops.push(OperationStatus::success(account, "solana", "raydium").with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::success(account, "solana", "raydium")
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
             Err(e) => {
                 tracing::warn!("Failed to fetch Raydium positions: {}", e);
-                ops.push(OperationStatus::failed(account, "solana", "raydium", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::failed(account, "solana", "raydium", &e.to_string())
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
         }
 
@@ -1302,10 +1357,7 @@ impl AggregationProcessor {
         let mut unpriced_count = 0u32;
 
         for token in tokens {
-            let balance = token
-                .amount
-                .parse::<f64>()
-                .unwrap_or(0.0);
+            let balance = token.amount.parse::<f64>().unwrap_or(0.0);
 
             if balance <= 0.0 {
                 continue;
@@ -1366,13 +1418,10 @@ impl AggregationProcessor {
                 protocol: "wallet".to_string(),
                 position_type: "token".to_string(),
                 balance,
-                balance_raw: token
-                    .amount_raw
-                    .clone()
-                    .unwrap_or_else(|| {
-                        let raw = balance * 10f64.powi(token.decimals as i32);
-                        format!("{:.0}", raw)
-                    }),
+                balance_raw: token.amount_raw.clone().unwrap_or_else(|| {
+                    let raw = balance * 10f64.powi(token.decimals as i32);
+                    format!("{:.0}", raw)
+                }),
                 decimals: token.decimals as u8,
                 value_usd,
                 price_usd,

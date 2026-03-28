@@ -92,25 +92,14 @@ async fn main() -> Result<()> {
     let mut consecutive_failures: u32 = 0;
 
     loop {
-        match run_consumer(
-            &config,
-            &job_manager,
-            &processor,
-            &cache,
-            account_cache_ttl,
-        )
-        .await
-        {
+        match run_consumer(&config, &job_manager, &processor, &cache, account_cache_ttl).await {
             Ok(_) => {
                 warn!("Consumer stream ended, reconnecting...");
                 consecutive_failures = 0;
             }
             Err(e) => {
                 consecutive_failures += 1;
-                error!(
-                    "Consumer failed (attempt {}): {}",
-                    consecutive_failures, e
-                );
+                error!("Consumer failed (attempt {}): {}", consecutive_failures, e);
             }
         }
 
@@ -292,8 +281,12 @@ async fn process_message(
         for result in cached_results {
             job_manager.add_result(&message.job_id, &result).await?;
         }
-        job_manager.add_operations(&message.job_id, &operations).await?;
-        job_manager.increment_counters(&message.job_id, 1, 0, 0).await?;
+        job_manager
+            .add_operations(&message.job_id, &operations)
+            .await?;
+        job_manager
+            .increment_counters(&message.job_id, 1, 0, 0)
+            .await?;
 
         info!(
             "Job {}: Added {} results for {}/{} - total value: ${:.2}",
@@ -335,8 +328,12 @@ async fn process_message(
                     for result in output.results {
                         job_manager.add_result(&message.job_id, &result).await?;
                     }
-                    job_manager.add_operations(&message.job_id, &output.operations).await?;
-                    job_manager.increment_counters(&message.job_id, 1, 0, 0).await?;
+                    job_manager
+                        .add_operations(&message.job_id, &output.operations)
+                        .await?;
+                    job_manager
+                        .increment_counters(&message.job_id, 1, 0, 0)
+                        .await?;
 
                     info!(
                         "Job {}: Added {} results for {}/{} - total value: ${:.2}",
@@ -350,8 +347,13 @@ async fn process_message(
                         let delay = RETRY_BASE_DELAY_MS * attempt as u64;
                         warn!(
                             "Job {}: Attempt {}/{} failed for {}/{}: {} — retrying in {}ms",
-                            message.job_id, attempt, MAX_PROCESS_RETRIES,
-                            message.account, message.chain, e, delay
+                            message.job_id,
+                            attempt,
+                            MAX_PROCESS_RETRIES,
+                            message.account,
+                            message.chain,
+                            e,
+                            delay
                         );
                         tokio::time::sleep(Duration::from_millis(delay)).await;
                     }
@@ -363,11 +365,15 @@ async fn process_message(
         if !succeeded {
             warn!(
                 "Job {}: All {} attempts failed for {}/{}: {}",
-                message.job_id, MAX_PROCESS_RETRIES,
-                message.account, message.chain,
+                message.job_id,
+                MAX_PROCESS_RETRIES,
+                message.account,
+                message.chain,
                 last_err.as_ref().map(|e| e.to_string()).unwrap_or_default()
             );
-            job_manager.increment_counters(&message.job_id, 0, 1, 0).await?;
+            job_manager
+                .increment_counters(&message.job_id, 0, 1, 0)
+                .await?;
         }
     }
 
@@ -399,7 +405,9 @@ async fn check_job_completion(job_id: &Uuid, job_manager: &JobManager) -> Result
                 JobStatus::Failed
             };
 
-            job_manager.update_job_status(job_id, final_status.clone()).await?;
+            job_manager
+                .update_job_status(job_id, final_status.clone())
+                .await?;
 
             job_manager.mark_final(job_id).await?;
 

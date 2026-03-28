@@ -80,9 +80,7 @@ impl AggregationProcessor {
 
             match chain_enum {
                 Chain::Solana => self.fetch_solana_positions(account).await?,
-                _ if chain_enum.is_evm() => {
-                    self.fetch_evm_positions(account, &chain_enum).await?
-                }
+                _ if chain_enum.is_evm() => self.fetch_evm_positions(account, &chain_enum).await?,
                 _ => {
                     tracing::warn!("Chain {} not supported yet", chain);
                     (vec![], vec![])
@@ -134,14 +132,23 @@ impl AggregationProcessor {
         match self.fetch_native_balance(&provider, account, chain).await {
             Ok(Some(result)) => {
                 all_results.push(result);
-                ops.push(OperationStatus::success(account, &chain_str, "native").with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::success(account, &chain_str, "native")
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
             Ok(None) => {
-                ops.push(OperationStatus::success(account, &chain_str, "native").with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::success(account, &chain_str, "native")
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
             Err(e) => {
                 tracing::warn!("Failed to fetch native balance: {}", e);
-                ops.push(OperationStatus::failed(account, &chain_str, "native", &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                ops.push(
+                    OperationStatus::failed(account, &chain_str, "native", &e.to_string())
+                        .with_duration(t.elapsed().as_millis() as u64),
+                );
             }
         }
 
@@ -152,11 +159,17 @@ impl AggregationProcessor {
             match adapter.fetch_positions(account, *chain, &ctx).await {
                 Ok(mut results) => {
                     all_results.append(&mut results);
-                    ops.push(OperationStatus::success(account, &chain_str, protocol_name).with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::success(account, &chain_str, protocol_name)
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
                 Err(e) => {
                     tracing::warn!("Failed to fetch {} positions: {}", protocol_name, e);
-                    ops.push(OperationStatus::failed(account, &chain_str, protocol_name, &e.to_string()).with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::failed(account, &chain_str, protocol_name, &e.to_string())
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
             }
         }
@@ -288,16 +301,17 @@ impl AggregationProcessor {
             match adapter.fetch_positions(account, Chain::Solana, &ctx).await {
                 Ok(mut results) => {
                     all_results.append(&mut results);
-                    ops.push(OperationStatus::success(account, "solana", protocol_name).with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::success(account, "solana", protocol_name)
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
                 Err(e) => {
                     tracing::warn!("Failed to fetch {} positions: {}", protocol_name, e);
-                    ops.push(OperationStatus::failed(
-                        account,
-                        "solana",
-                        protocol_name,
-                        &e.to_string(),
-                    ).with_duration(t.elapsed().as_millis() as u64));
+                    ops.push(
+                        OperationStatus::failed(account, "solana", protocol_name, &e.to_string())
+                            .with_duration(t.elapsed().as_millis() as u64),
+                    );
                 }
             }
         }
