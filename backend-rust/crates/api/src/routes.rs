@@ -197,6 +197,7 @@ mod tests {
             },
             moralis: None,
             graph: None,
+            newrelic: None,
         }
     }
 
