@@ -12,12 +12,17 @@ use uuid::Uuid;
 
 use crate::{middleware::AuthUser, state::AppState};
 
-fn verify_group_ownership(group: &WalletGroup, user_id: &str, action: &str) -> Result<(), DeFi10Error> {
+fn verify_group_ownership(
+    group: &WalletGroup,
+    user_id: &str,
+    action: &str,
+) -> Result<(), DeFi10Error> {
     if let Some(ref owner_id) = group.user_id {
         if owner_id != user_id {
-            return Err(DeFi10Error::Forbidden(
-                format!("You don't have permission to {} this wallet group", action),
-            ));
+            return Err(DeFi10Error::Forbidden(format!(
+                "You don't have permission to {} this wallet group",
+                action
+            )));
         }
     }
     Ok(())

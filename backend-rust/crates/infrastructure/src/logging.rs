@@ -1,6 +1,6 @@
 use crate::config::NewRelicConfig;
 use opentelemetry::trace::TracerProvider as _;
-use opentelemetry::{KeyValue, trace::TraceError};
+use opentelemetry::{trace::TraceError, KeyValue};
 use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
 use opentelemetry_sdk::{runtime, trace::TracerProvider, Resource};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};

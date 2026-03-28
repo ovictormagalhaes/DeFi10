@@ -18,7 +18,10 @@ pub fn internal_error(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
     )
 }
 
-pub fn log_internal_error(e: impl std::fmt::Display, msg: &str) -> (StatusCode, Json<ErrorResponse>) {
+pub fn log_internal_error(
+    e: impl std::fmt::Display,
+    msg: &str,
+) -> (StatusCode, Json<ErrorResponse>) {
     error!("{}: {}", msg, e);
     internal_error(msg)
 }

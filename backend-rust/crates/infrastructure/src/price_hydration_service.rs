@@ -37,7 +37,9 @@ impl PriceHydrationService {
             moralis: None,
             cache: Arc::new(RwLock::new(HashMap::new())),
             cache_ttl_hours: 1,
-            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY").ok().filter(|k| !k.is_empty()),
+            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty()),
             http_client: client,
         }
     }
@@ -49,7 +51,9 @@ impl PriceHydrationService {
             moralis: Some(MoralisClient::new(moralis_api_key.to_string())),
             cache: Arc::new(RwLock::new(HashMap::new())),
             cache_ttl_hours: 1,
-            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY").ok().filter(|k| !k.is_empty()),
+            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty()),
             http_client: client,
         }
     }
@@ -60,7 +64,9 @@ impl PriceHydrationService {
             moralis: None,
             cache: Arc::new(RwLock::new(HashMap::new())),
             cache_ttl_hours: 1,
-            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY").ok().filter(|k| !k.is_empty()),
+            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty()),
             http_client: client,
         }
     }
@@ -74,7 +80,9 @@ impl PriceHydrationService {
             )),
             cache: Arc::new(RwLock::new(HashMap::new())),
             cache_ttl_hours: 1,
-            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY").ok().filter(|k| !k.is_empty()),
+            coinmarketcap_api_key: std::env::var("COINMARKETCAP_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty()),
             http_client: client,
         }
     }
@@ -159,7 +167,11 @@ impl PriceHydrationService {
                 results[*idx].value_usd = results[*idx].balance * price;
                 self.cache_price(&key, price).await;
                 stats.fetched_from_api += 1;
-                tracing::debug!("[PriceHydration] CoinMarketCap price for {}: ${}", symbol, price);
+                tracing::debug!(
+                    "[PriceHydration] CoinMarketCap price for {}: ${}",
+                    symbol,
+                    price
+                );
                 continue;
             }
 
@@ -301,7 +313,11 @@ impl PriceHydrationService {
             .ok()?;
 
         if !response.status().is_success() {
-            tracing::debug!("[PriceHydration] CoinMarketCap returned {} for {}", response.status(), symbol);
+            tracing::debug!(
+                "[PriceHydration] CoinMarketCap returned {} for {}",
+                response.status(),
+                symbol
+            );
             return None;
         }
 

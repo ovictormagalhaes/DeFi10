@@ -33,12 +33,16 @@ pub async fn start_worker(config: AppConfig) -> Result<()> {
                 break;
             }
             Err(e) => {
-                warn!("Worker: JobManager init attempt {}/5 failed: {}", attempt, e);
+                warn!(
+                    "Worker: JobManager init attempt {}/5 failed: {}",
+                    attempt, e
+                );
                 tokio::time::sleep(Duration::from_secs(3 * attempt)).await;
             }
         }
     }
-    let job_manager = job_manager.ok_or_else(|| anyhow::anyhow!("Failed to init JobManager after 5 attempts"))?;
+    let job_manager =
+        job_manager.ok_or_else(|| anyhow::anyhow!("Failed to init JobManager after 5 attempts"))?;
     info!("Worker: Job manager initialized");
 
     let processor = Arc::new(AggregationProcessor::new(config.clone()));
@@ -52,12 +56,16 @@ pub async fn start_worker(config: AppConfig) -> Result<()> {
                 break;
             }
             Err(e) => {
-                warn!("Worker: Redis cache init attempt {}/5 failed: {}", attempt, e);
+                warn!(
+                    "Worker: Redis cache init attempt {}/5 failed: {}",
+                    attempt, e
+                );
                 tokio::time::sleep(Duration::from_secs(3 * attempt)).await;
             }
         }
     }
-    let cache = cache.ok_or_else(|| anyhow::anyhow!("Failed to init Redis cache after 5 attempts"))?;
+    let cache =
+        cache.ok_or_else(|| anyhow::anyhow!("Failed to init Redis cache after 5 attempts"))?;
     let account_cache_ttl = Duration::from_secs(config.redis.account_cache_ttl_seconds);
     info!(
         "Worker: Account cache initialized (TTL={}s)",
@@ -67,15 +75,7 @@ pub async fn start_worker(config: AppConfig) -> Result<()> {
     let mut consecutive_failures: u32 = 0;
 
     loop {
-        match run_consumer(
-            &config,
-            &job_manager,
-            &processor,
-            &cache,
-            account_cache_ttl,
-        )
-        .await
-        {
+        match run_consumer(&config, &job_manager, &processor, &cache, account_cache_ttl).await {
             Ok(_) => {
                 warn!("Worker: Consumer stream ended, reconnecting...");
                 consecutive_failures = 0;
@@ -154,66 +154,64 @@ async fn run_consumer(
 
     while let Some(delivery) = consumer.next().await {
         match delivery {
-            Ok(delivery) => {
-                match serde_json::from_slice::<AggregationMessage>(&delivery.data) {
-                    Ok(message) => {
-                        let permit = semaphore.clone().acquire_owned().await.unwrap();
-                        let job_manager = Arc::clone(job_manager);
-                        let processor = Arc::clone(processor);
-                        let cache_clone = cache.clone();
+            Ok(delivery) => match serde_json::from_slice::<AggregationMessage>(&delivery.data) {
+                Ok(message) => {
+                    let permit = semaphore.clone().acquire_owned().await.unwrap();
+                    let job_manager = Arc::clone(job_manager);
+                    let processor = Arc::clone(processor);
+                    let cache_clone = cache.clone();
 
-                        tokio::spawn(async move {
-                            info!(
-                                "Worker: Processing job {} for account {} on chain {}",
-                                message.job_id, message.account, message.chain
-                            );
+                    tokio::spawn(async move {
+                        info!(
+                            "Worker: Processing job {} for account {} on chain {}",
+                            message.job_id, message.account, message.chain
+                        );
 
-                            match process_message(
-                                message,
-                                job_manager,
-                                processor,
-                                &cache_clone,
-                                account_cache_ttl,
-                            )
-                            .await
-                            {
-                                Ok(_) => {
-                                    info!("Worker: Message processed successfully");
-                                    if let Err(e) = delivery
-                                        .ack(lapin::options::BasicAckOptions::default())
-                                        .await
-                                    {
-                                        error!("Worker: Failed to ack message: {}", e);
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("Worker: Failed to process message: {}", e);
-                                    if let Err(e) = delivery
-                                        .nack(lapin::options::BasicNackOptions {
-                                            requeue: true,
-                                            ..Default::default()
-                                        })
-                                        .await
-                                    {
-                                        error!("Worker: Failed to nack message: {}", e);
-                                    }
+                        match process_message(
+                            message,
+                            job_manager,
+                            processor,
+                            &cache_clone,
+                            account_cache_ttl,
+                        )
+                        .await
+                        {
+                            Ok(_) => {
+                                info!("Worker: Message processed successfully");
+                                if let Err(e) = delivery
+                                    .ack(lapin::options::BasicAckOptions::default())
+                                    .await
+                                {
+                                    error!("Worker: Failed to ack message: {}", e);
                                 }
                             }
-
-                            drop(permit);
-                        });
-                    }
-                    Err(e) => {
-                        error!("Worker: Failed to parse message: {}", e);
-                        if let Err(e) = delivery
-                            .ack(lapin::options::BasicAckOptions::default())
-                            .await
-                        {
-                            error!("Worker: Failed to ack invalid message: {}", e);
+                            Err(e) => {
+                                error!("Worker: Failed to process message: {}", e);
+                                if let Err(e) = delivery
+                                    .nack(lapin::options::BasicNackOptions {
+                                        requeue: true,
+                                        ..Default::default()
+                                    })
+                                    .await
+                                {
+                                    error!("Worker: Failed to nack message: {}", e);
+                                }
+                            }
                         }
+
+                        drop(permit);
+                    });
+                }
+                Err(e) => {
+                    error!("Worker: Failed to parse message: {}", e);
+                    if let Err(e) = delivery
+                        .ack(lapin::options::BasicAckOptions::default())
+                        .await
+                    {
+                        error!("Worker: Failed to ack invalid message: {}", e);
                     }
                 }
-            }
+            },
             Err(e) => {
                 error!("Worker: Consumer error: {}", e);
                 return Err(anyhow::anyhow!("Consumer stream error: {}", e));
@@ -269,8 +267,12 @@ async fn process_message(
         for result in cached_results {
             job_manager.add_result(&message.job_id, &result).await?;
         }
-        job_manager.add_operations(&message.job_id, &operations).await?;
-        job_manager.increment_counters(&message.job_id, 1, 0, 0).await?;
+        job_manager
+            .add_operations(&message.job_id, &operations)
+            .await?;
+        job_manager
+            .increment_counters(&message.job_id, 1, 0, 0)
+            .await?;
 
         info!(
             "Worker: Job {}: Added {} results for {}/{} - total value: ${:.2}",
@@ -312,8 +314,12 @@ async fn process_message(
                     for result in output.results {
                         job_manager.add_result(&message.job_id, &result).await?;
                     }
-                    job_manager.add_operations(&message.job_id, &output.operations).await?;
-                    job_manager.increment_counters(&message.job_id, 1, 0, 0).await?;
+                    job_manager
+                        .add_operations(&message.job_id, &output.operations)
+                        .await?;
+                    job_manager
+                        .increment_counters(&message.job_id, 1, 0, 0)
+                        .await?;
 
                     info!(
                         "Worker: Job {}: Added {} results for {}/{} - total value: ${:.2}",
@@ -327,8 +333,13 @@ async fn process_message(
                         let delay = RETRY_BASE_DELAY_MS * attempt as u64;
                         warn!(
                             "Worker: Job {}: Attempt {}/{} failed for {}/{}: {} — retrying in {}ms",
-                            message.job_id, attempt, MAX_PROCESS_RETRIES,
-                            message.account, message.chain, e, delay
+                            message.job_id,
+                            attempt,
+                            MAX_PROCESS_RETRIES,
+                            message.account,
+                            message.chain,
+                            e,
+                            delay
                         );
                         tokio::time::sleep(Duration::from_millis(delay)).await;
                     }
@@ -340,11 +351,15 @@ async fn process_message(
         if !succeeded {
             warn!(
                 "Worker: Job {}: All {} attempts failed for {}/{}: {}",
-                message.job_id, MAX_PROCESS_RETRIES,
-                message.account, message.chain,
+                message.job_id,
+                MAX_PROCESS_RETRIES,
+                message.account,
+                message.chain,
                 last_err.as_ref().map(|e| e.to_string()).unwrap_or_default()
             );
-            job_manager.increment_counters(&message.job_id, 0, 1, 0).await?;
+            job_manager
+                .increment_counters(&message.job_id, 0, 1, 0)
+                .await?;
         }
     }
 
@@ -374,7 +389,9 @@ async fn check_job_completion(job_id: &Uuid, job_manager: &JobManager) -> Result
                 JobStatus::Failed
             };
 
-            job_manager.update_job_status(job_id, final_status.clone()).await?;
+            job_manager
+                .update_job_status(job_id, final_status.clone())
+                .await?;
             job_manager.mark_final(job_id).await?;
 
             info!(

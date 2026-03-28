@@ -96,7 +96,11 @@ impl DataAggregator {
         let mut all_positions: Vec<&ProtocolPosition> =
             portfolio.positions_by_protocol.values().flatten().collect();
 
-        all_positions.sort_by(|a, b| b.total_value_usd.partial_cmp(&a.total_value_usd).unwrap_or(std::cmp::Ordering::Equal));
+        all_positions.sort_by(|a, b| {
+            b.total_value_usd
+                .partial_cmp(&a.total_value_usd)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let top_positions: Vec<PositionSummary> = all_positions
             .iter()
