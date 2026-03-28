@@ -157,6 +157,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires Redis"]
     fn test_validate_hash_with_valid_nonce() {
         let service = ProofOfWorkService {
             cache: Arc::new(
@@ -186,6 +187,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires Redis"]
     fn test_validate_hash_with_invalid_nonce() {
         let service = make_service_for_hash_test();
         let service = ProofOfWorkService {
@@ -200,6 +202,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires Redis"]
     fn test_generate_random_challenge() {
         let service = make_service_for_hash_test();
 

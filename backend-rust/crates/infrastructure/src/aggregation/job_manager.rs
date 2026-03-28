@@ -657,6 +657,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "requires Redis"]
     async fn test_key_generation() {
         let job_id = Uuid::new_v4();
         let manager = JobManager::new("redis://localhost:6379").await.unwrap();
