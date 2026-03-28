@@ -416,6 +416,7 @@ mod tests {
             },
             moralis: None,
             graph: None,
+            newrelic: None,
         };
         let _processor = AggregationProcessor::new(config);
     }

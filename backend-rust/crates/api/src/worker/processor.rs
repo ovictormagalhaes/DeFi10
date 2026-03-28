@@ -1554,11 +1554,12 @@ mod tests {
             },
             moralis: None,
             graph: None,
+            newrelic: None,
         };
         let processor = AggregationProcessor::new(config);
 
         let job_id = Uuid::new_v4();
-        let results = processor
+        let output = processor
             .process(
                 "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
                 "ethereum",
@@ -1567,9 +1568,9 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(!results.is_empty());
-        assert_eq!(results[0].chain, "ethereum");
-        assert_eq!(results[0].value_usd, 1000.0);
+        assert!(!output.results.is_empty());
+        assert_eq!(output.results[0].chain, "ethereum");
+        assert_eq!(output.results[0].value_usd, 1000.0);
     }
 
     #[test]
