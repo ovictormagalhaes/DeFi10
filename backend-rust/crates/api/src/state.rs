@@ -4,7 +4,10 @@ use defi10_infrastructure::{
     aggregation::JobManager,
     cache::RedisCache,
     config::AppConfig,
-    database::{MongoDatabase, WalletGroupRepository, WalletGroupRepositoryTrait},
+    database::{
+        MongoDatabase, SnapshotRepository, SnapshotRepositoryTrait, WalletGroupRepository,
+        WalletGroupRepositoryTrait,
+    },
     messaging::RabbitMqConnection,
     retry::{retry_async, RetryConfig},
     ProofOfWorkService, StrategyService, TokenLogoService,
@@ -19,6 +22,7 @@ pub struct AppState {
     pub messaging: Arc<RabbitMqConnection>,
     pub config: Arc<AppConfig>,
     pub wallet_group_repo: Arc<dyn WalletGroupRepositoryTrait>,
+    pub snapshot_repo: Arc<dyn SnapshotRepositoryTrait>,
     pub job_manager: Arc<JobManager>,
     pub pow_service: Arc<ProofOfWorkService>,
     pub strategy_service: Arc<StrategyService>,
@@ -58,6 +62,7 @@ impl AppState {
         tracing::info!("RabbitMQ connected successfully");
 
         let wallet_group_repo = WalletGroupRepository::new(db.database());
+        let snapshot_repo = SnapshotRepository::new(db.database());
 
         let retry_cfg = RetryConfig::new("JobManager", 5).with_base_delay(Duration::from_secs(3));
         let job_manager = retry_async(&retry_cfg, || async {
@@ -91,6 +96,7 @@ impl AppState {
             messaging: Arc::new(messaging),
             config: Arc::new(config),
             wallet_group_repo: Arc::new(wallet_group_repo),
+            snapshot_repo: Arc::new(snapshot_repo),
             job_manager: Arc::new(job_manager),
             pow_service: Arc::new(pow_service),
             strategy_service: Arc::new(strategy_service),
