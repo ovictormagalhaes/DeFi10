@@ -41,6 +41,9 @@ export interface ConnectWalletGroupResponse {
 
 export interface ConnectWalletGroupRequest {
   password?: string;
+  challenge?: string;
+  nonce?: number;
+  hash?: string;
 }
 
 // Validation helpers

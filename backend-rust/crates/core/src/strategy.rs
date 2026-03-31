@@ -184,7 +184,7 @@ pub struct StrategyRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveStrategiesRequest {
-    pub wallet_group_id: Uuid,
+    pub wallet_group_id: String,
     pub strategies: Vec<StrategyRequest>,
 }
 

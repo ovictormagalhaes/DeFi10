@@ -639,7 +639,7 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
                         token1={tokens[1].symbol}
                         protocol={protocolName || undefined}
                         chain={tokens[0].chain || undefined}
-                        feeTier={enrichedPool.raw.additionalData?.tickSpacing != null ? String(enrichedPool.raw.additionalData.tickSpacing) : undefined}
+                        feeTier={enrichedPool.raw.additionalData?.tierPercent != null ? Math.round(Number(enrichedPool.raw.additionalData.tierPercent) * 10000) : undefined}
                       />
                     )}
                   </div>

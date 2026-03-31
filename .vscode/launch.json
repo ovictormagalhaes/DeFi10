@@ -1,0 +1,74 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Frontend: Dev",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/frontend",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Frontend: Build",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "build"],
+      "cwd": "${workspaceFolder}/frontend",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Backend Rust: Bacon Run",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "bacon",
+      "runtimeArgs": ["run"],
+      "cwd": "${workspaceFolder}/backend-rust",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Backend Rust: Bacon Test",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "bacon",
+      "runtimeArgs": ["test"],
+      "cwd": "${workspaceFolder}/backend-rust",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Backend Rust: Bacon Clippy",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "bacon",
+      "runtimeArgs": ["clippy"],
+      "cwd": "${workspaceFolder}/backend-rust",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "E2E: Playwright Tests",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["playwright", "test"],
+      "cwd": "${workspaceFolder}/e2e",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "E2E: Playwright UI",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["playwright", "test", "--ui"],
+      "cwd": "${workspaceFolder}/e2e",
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack (Frontend + Backend)",
+      "configurations": ["Frontend: Dev", "Backend Rust: Bacon Run"]
+    }
+  ]
+}

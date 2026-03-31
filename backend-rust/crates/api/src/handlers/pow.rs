@@ -1,5 +1,5 @@
 use axum::{extract::State, http::StatusCode, Json};
-use defi10_core::pow::{Challenge, ProofRequest, ProofResponse};
+use defi10_core::pow::Challenge;
 use std::sync::Arc;
 
 use crate::state::AppState;
@@ -19,44 +19,3 @@ pub async fn generate_challenge(
     }
 }
 
-pub async fn validate_proof(
-    State(state): State<Arc<AppState>>,
-    Json(request): Json<ProofRequest>,
-) -> Result<Json<ProofResponse>, (StatusCode, String)> {
-    if request.challenge.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Challenge is required".to_string()));
-    }
-
-    if request.nonce.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Nonce is required".to_string()));
-    }
-
-    match state
-        .pow_service
-        .validate_proof(&request.challenge, &request.nonce)
-        .await
-    {
-        Ok(valid) => {
-            if valid {
-                if let Err(e) = state
-                    .pow_service
-                    .invalidate_challenge(&request.challenge)
-                    .await
-                {
-                    tracing::warn!(
-                        "Failed to invalidate challenge after successful validation: {}",
-                        e
-                    );
-                }
-            }
-            Ok(Json(ProofResponse { valid }))
-        }
-        Err(e) => {
-            tracing::error!("Failed to validate PoW proof: {}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to validate proof: {}", e),
-            ))
-        }
-    }
-}

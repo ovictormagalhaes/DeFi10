@@ -223,7 +223,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWalletItemMapper<IEnumerable<TokenDetail>>, MoralisTokenMapper>();
         services.AddScoped<IWalletItemMapper<AaveGetUserSuppliesResponse>, AaveSuppliesMapper>();
         services.AddScoped<IWalletItemMapper<AaveGetUserBorrowsResponse>, AaveBorrowsMapper>();
-        services.AddScoped<IWalletItemMapper<AaveTransactionHistoryResponse>, AaveTransactionHistoryMapper>();
         services.AddScoped<IWalletItemMapper<UniswapV3GetActivePoolsResponse>, UniswapV3Mapper>();
         services.AddScoped<IWalletItemMapper<PendleVePositionsResponse>, PendleVeMapper>();
         services.AddScoped<IWalletItemMapper<PendleDepositsResponse>, PendleDepositsMapper>();

@@ -1538,7 +1538,8 @@ mod tests {
             },
             jwt: defi10_infrastructure::config::JwtConfig {
                 secret: "test".to_string(),
-                expiration_hours: 24,
+                expiration_hours: 168,
+                wallet_expiration_days: 7,
             },
             cors: defi10_infrastructure::config::CorsConfig {
                 allowed_origins: vec!["*".to_string()],

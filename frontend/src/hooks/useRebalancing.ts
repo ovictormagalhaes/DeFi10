@@ -48,7 +48,7 @@ export const useRebalancing = (
     if (raw == null) return 'unknown';
 
     const lower = String(raw).trim().toLowerCase();
-    return (CHAIN_MAPPINGS[lower] || 'unknown') as ChainKey;
+    return CHAIN_MAPPINGS[lower] || 'unknown';
   }, []);
 
   // Convert WalletItem to RebalanceToken
@@ -95,14 +95,12 @@ export const useRebalancing = (
       return sum + Number(value);
     }, 0);
 
-    const itemCounts: Record<RebalanceAssetType, number> = {
+    const itemCounts = {
       [RebalanceAssetType.Wallet]: walletTokens.length,
       [RebalanceAssetType.LiquidityPool]: liquidityPools.length,
       [RebalanceAssetType.LendingAndBorrowing]: lendingPositions.length,
       [RebalanceAssetType.Staking]: stakingPositions.length,
       [RebalanceAssetType.Group]: 0,
-      [RebalanceAssetType.LendingSupply]: 0,
-      [RebalanceAssetType.LendingBorrow]: 0,
     };
 
     const protocolDistribution: Record<string, number> = {};

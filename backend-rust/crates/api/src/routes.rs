@@ -69,11 +69,9 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
             auth_middleware,
         ));
 
-    // Optional auth routes (check ownership if wallet_group_id is used)
     let optional_auth_routes = Router::new()
         .route("/aggregations", post(handlers::start_aggregation))
         .route("/aggregations/:job_id", get(handlers::get_job_status))
-        .route("/aggregations/sync", post(handlers::get_aggregations))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             optional_auth_middleware,
@@ -88,9 +86,12 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
         )
         .merge(protected_routes)
         .merge(optional_auth_routes)
-        // PoW routes (public)
         .route("/pow/challenge", post(handlers::pow::generate_challenge))
-        .route("/pow/validate", post(handlers::pow::validate_proof))
+        // Wallet auth (public - uses PoW for authentication)
+        .route(
+            "/auth/wallet",
+            post(handlers::auth::authenticate_wallet),
+        )
         // Wallet Group public routes
         .route(
             "/wallet-groups",
@@ -100,42 +101,9 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
             "/wallet-groups/:id/connect",
             post(handlers::wallet_groups::connect_wallet_group),
         )
-        // Token Logo routes (public)
         .route(
             "/tokens/logos/:address",
             get(handlers::tokens::get_token_logo),
-        )
-        .route(
-            "/tokens/logos/:address",
-            post(handlers::tokens::set_token_logo),
-        )
-        .route("/tokens/logos", get(handlers::tokens::get_all_token_logos))
-        .route(
-            "/tokens/logos/batch",
-            post(handlers::tokens::get_token_logos_batch),
-        )
-        .route(
-            "/tokens/logos/batch/set",
-            post(handlers::tokens::set_token_logos_batch),
-        )
-        // Portfolio routes
-        .route("/portfolio/:wallet", get(handlers::get_portfolio))
-        .route(
-            "/portfolio/:wallet/summary",
-            get(handlers::get_portfolio_summary),
-        )
-        // Price routes
-        .route("/prices/:symbol", get(handlers::get_price))
-        .route("/prices/batch", get(handlers::get_batch_prices))
-        // Position routes
-        .route("/positions/:wallet", get(handlers::get_positions))
-        .route(
-            "/positions/:wallet/protocols",
-            get(handlers::get_positions_by_protocol),
-        )
-        .route(
-            "/positions/:wallet/chains",
-            get(handlers::get_positions_by_chain),
         )
         .with_state(state.clone());
 
@@ -177,7 +145,8 @@ mod tests {
             },
             jwt: JwtConfig {
                 secret: "test_secret".to_string(),
-                expiration_hours: 24,
+                expiration_hours: 168,
+                wallet_expiration_days: 7,
             },
             cors: CorsConfig {
                 allowed_origins: vec!["http://localhost:3000".to_string()],

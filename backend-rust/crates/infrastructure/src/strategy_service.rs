@@ -75,6 +75,66 @@ impl StrategyService {
         Ok(result)
     }
 
+    pub async fn get_strategies_by_key(
+        &self,
+        key: &str,
+    ) -> Result<Option<WalletGroupStrategies>> {
+        let result = self
+            .collection
+            .find_one(doc! { "_id": key })
+            .await?;
+
+        Ok(result)
+    }
+
+    pub async fn save_strategies_by_key(
+        &self,
+        key: &str,
+        wallets: Vec<String>,
+        strategies: Vec<StrategyRequest>,
+    ) -> Result<WalletGroupStrategies> {
+        for strategy in &strategies {
+            self.validate_strategy(strategy)?;
+        }
+
+        let now = Utc::now();
+
+        let strategy_docs: Vec<StrategyDocument> = strategies
+            .into_iter()
+            .map(|req| StrategyDocument {
+                id: req.id.unwrap_or_else(Uuid::new_v4),
+                strategy_type: req.strategy_type,
+                name: req.name,
+                description: req.description,
+                allocations: req.allocations,
+                targets: req.targets,
+                created_at: req.created_at.unwrap_or(now),
+                updated_at: now,
+            })
+            .collect();
+
+        let wallet_group_id = Uuid::nil();
+        let mut wallet_group_strategies =
+            WalletGroupStrategies::new(wallet_group_id, wallets, strategy_docs);
+        wallet_group_strategies.key = key.to_string();
+
+        self.collection
+            .replace_one(
+                doc! { "_id": key },
+                &wallet_group_strategies,
+            )
+            .upsert(true)
+            .await?;
+
+        tracing::info!(
+            "Saved {} strategies for key={}",
+            wallet_group_strategies.strategies.len(),
+            key
+        );
+
+        Ok(wallet_group_strategies)
+    }
+
     fn validate_strategy(&self, strategy: &StrategyRequest) -> Result<()> {
         match strategy.strategy_type {
             StrategyType::AllocationByWeight => {
