@@ -64,6 +64,27 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
             "/strategies/:wallet_group_id",
             get(handlers::strategies::get_strategies),
         )
+        // History & analytics routes (protected)
+        .route(
+            "/wallet-groups/:id/history",
+            get(handlers::history::get_history),
+        )
+        .route(
+            "/wallet-groups/:id/history/positions",
+            get(handlers::history::get_position_history),
+        )
+        .route(
+            "/wallet-groups/:id/history/:date",
+            get(handlers::history::get_snapshot_detail),
+        )
+        .route(
+            "/wallet-groups/:id/analytics/summary",
+            get(handlers::history::get_analytics_summary),
+        )
+        .route(
+            "/wallet-groups/:id/analytics/protocol-allocation",
+            get(handlers::history::get_protocol_allocation),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -88,10 +109,7 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
         .merge(optional_auth_routes)
         .route("/pow/challenge", post(handlers::pow::generate_challenge))
         // Wallet auth (public - uses PoW for authentication)
-        .route(
-            "/auth/wallet",
-            post(handlers::auth::authenticate_wallet),
-        )
+        .route("/auth/wallet", post(handlers::auth::authenticate_wallet))
         // Wallet Group public routes
         .route(
             "/wallet-groups",
