@@ -4,13 +4,15 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+
 import { useTheme } from '../../context/ThemeProvider';
-import { StrategyType } from '../../types/strategy';
-import { AllocationStrategySection } from './AllocationStrategySection';
-import { getAvailableStrategies } from '../../utils/strategies/strategyFactory';
 import { authenticateWallet, hasValidToken } from '../../services/apiClient';
 import { estimateSolveTime } from '../../services/proofOfWork';
+import { StrategyType } from '../../types/strategy';
 import type { WalletItem } from '../../types/wallet';
+import { getAvailableStrategies } from '../../utils/strategies/strategyFactory';
+
+import { AllocationStrategySection } from './AllocationStrategySection';
 
 interface StrategiesPageProps {
   walletGroupId: string;
@@ -19,10 +21,7 @@ interface StrategiesPageProps {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const StrategiesPage: React.FC<StrategiesPageProps> = ({
-  walletGroupId,
-  portfolio
-}) => {
+export const StrategiesPage: React.FC<StrategiesPageProps> = ({ walletGroupId, portfolio }) => {
   const { theme } = useTheme();
   const availableStrategies = getAvailableStrategies();
   const [activeTab, setActiveTab] = useState<StrategyType>(StrategyType.AllocationByWeight);
@@ -63,7 +62,7 @@ export const StrategiesPage: React.FC<StrategiesPageProps> = ({
   }, [walletGroupId]);
 
   // Filter only available strategies
-  const enabledStrategies = availableStrategies.filter(s => s.available);
+  const enabledStrategies = availableStrategies.filter((s) => s.available);
 
   // Responsive padding (matches main app pattern)
   const [viewportWidth, setViewportWidth] = React.useState(window.innerWidth);
@@ -84,28 +83,34 @@ export const StrategiesPage: React.FC<StrategiesPageProps> = ({
           : '12px';
 
   return (
-    <div style={{
-      maxWidth: '100%',
-      margin: '0 auto',
-      padding: `8px ${sidePadding} 16px ${sidePadding}`,
-      boxSizing: 'border-box'
-    }}>
+    <div
+      style={{
+        maxWidth: '100%',
+        margin: '0 auto',
+        padding: `8px ${sidePadding} 16px ${sidePadding}`,
+        boxSizing: 'border-box',
+      }}
+    >
       {/* Header */}
       <div style={{ marginBottom: '32px' }}>
         <div>
-          <h1 style={{
-            margin: '0 0 8px 0',
-            fontSize: '32px',
-            fontWeight: 600,
-            color: theme.textPrimary
-          }}>
+          <h1
+            style={{
+              margin: '0 0 8px 0',
+              fontSize: '32px',
+              fontWeight: 600,
+              color: theme.textPrimary,
+            }}
+          >
             📊 Strategies
           </h1>
-          <p style={{
-            margin: 0,
-            fontSize: '16px',
-            color: theme.textSecondary
-          }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '16px',
+              color: theme.textSecondary,
+            }}
+          >
             Create and manage portfolio strategies to optimize your DeFi positions
           </p>
         </div>
@@ -113,35 +118,40 @@ export const StrategiesPage: React.FC<StrategiesPageProps> = ({
 
       {/* Auth Gate for direct wallet users */}
       {!authenticated && !isWalletGroup && (
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '80px 20px',
-          textAlign: 'center'
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '80px 20px',
+            textAlign: 'center',
+          }}
+        >
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔐</div>
-          <h3 style={{
-            margin: '0 0 8px 0',
-            fontSize: '20px',
-            fontWeight: 600,
-            color: theme.textPrimary
-          }}>
+          <h3
+            style={{
+              margin: '0 0 8px 0',
+              fontSize: '20px',
+              fontWeight: 600,
+              color: theme.textPrimary,
+            }}
+          >
             Authentication Required
           </h3>
-          <p style={{
-            margin: '0 0 24px 0',
-            fontSize: '14px',
-            color: theme.textSecondary,
-            maxWidth: 400
-          }}>
-            Strategies require authentication. A short proof-of-work challenge will run in your browser ({estimateSolveTime(5)}).
+          <p
+            style={{
+              margin: '0 0 24px 0',
+              fontSize: '14px',
+              color: theme.textSecondary,
+              maxWidth: 400,
+            }}
+          >
+            Strategies require authentication. A short proof-of-work challenge will run in your
+            browser ({estimateSolveTime(5)}).
           </p>
           {authError && (
-            <p style={{ color: '#ef4444', margin: '0 0 16px 0', fontSize: '14px' }}>
-              {authError}
-            </p>
+            <p style={{ color: '#ef4444', margin: '0 0 16px 0', fontSize: '14px' }}>{authError}</p>
           )}
           <button
             onClick={handleAuthenticate}
@@ -166,48 +176,53 @@ export const StrategiesPage: React.FC<StrategiesPageProps> = ({
 
       {/* Strategy Content */}
       {authenticated && (
-      <div style={{ minHeight: '400px' }}>
-        {activeTab === StrategyType.AllocationByWeight && (
-          <AllocationStrategySection
-            walletGroupId={walletGroupId}
-            portfolio={portfolio}
-          />
-        )}
-        
-        {/* Placeholder for future types */}
-        {activeTab !== StrategyType.AllocationByWeight && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '80px 20px',
-            textAlign: 'center'
-          }}>
-            <div style={{
-              fontSize: '64px',
-              marginBottom: '16px'
-            }}>
-              🚧
+        <div style={{ minHeight: '400px' }}>
+          {activeTab === StrategyType.AllocationByWeight && (
+            <AllocationStrategySection walletGroupId={walletGroupId} portfolio={portfolio} />
+          )}
+
+          {/* Placeholder for future types */}
+          {activeTab !== StrategyType.AllocationByWeight && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '80px 20px',
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '64px',
+                  marginBottom: '16px',
+                }}
+              >
+                🚧
+              </div>
+              <h3
+                style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '24px',
+                  fontWeight: 600,
+                  color: theme.textPrimary,
+                }}
+              >
+                Coming Soon
+              </h3>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '16px',
+                  color: theme.textSecondary,
+                }}
+              >
+                This strategy type is under development.
+              </p>
             </div>
-            <h3 style={{
-              margin: '0 0 8px 0',
-              fontSize: '24px',
-              fontWeight: 600,
-              color: theme.textPrimary
-            }}>
-              Coming Soon
-            </h3>
-            <p style={{
-              margin: 0,
-              fontSize: '16px',
-              color: theme.textSecondary
-            }}>
-              This strategy type is under development.
-            </p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -14,7 +14,7 @@ export const RebalanceAssetType = {
   Other: 50,
 } as const;
 
-export type RebalanceAssetTypeValue = typeof RebalanceAssetType[keyof typeof RebalanceAssetType];
+export type RebalanceAssetTypeValue = (typeof RebalanceAssetType)[keyof typeof RebalanceAssetType];
 
 export const RebalanceReferenceTypeEnum = {
   Token: 0,
@@ -23,7 +23,8 @@ export const RebalanceReferenceTypeEnum = {
   TotalWallet: 3,
 } as const;
 
-export type RebalanceReferenceTypeValue = typeof RebalanceReferenceTypeEnum[keyof typeof RebalanceReferenceTypeEnum];
+export type RebalanceReferenceTypeValue =
+  (typeof RebalanceReferenceTypeEnum)[keyof typeof RebalanceReferenceTypeEnum];
 
 export const RebalanceAssetTypeLabel: Record<number, string> = {
   [RebalanceAssetType.Wallet]: 'Wallet',

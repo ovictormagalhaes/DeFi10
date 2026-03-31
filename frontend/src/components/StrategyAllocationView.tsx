@@ -4,11 +4,16 @@
  */
 
 import React, { useMemo } from 'react';
+
+import { useMaskValues } from '../context/MaskValuesContext';
+import { useTheme } from '../context/ThemeProvider';
 import type { Strategy, AllocationDelta } from '../types/strategy';
 import type { WalletItem } from '../types/wallet';
-import { calculateAllocationDeltas, getAllocationSummary, suggestRebalanceActions } from '../utils/allocationCalculations';
-import { useTheme } from '../context/ThemeProvider';
-import { useMaskValues } from '../context/MaskValuesContext';
+import {
+  calculateAllocationDeltas,
+  getAllocationSummary,
+  suggestRebalanceActions,
+} from '../utils/allocationCalculations';
 
 interface StrategyAllocationViewProps {
   strategy: Strategy;
@@ -19,27 +24,21 @@ interface StrategyAllocationViewProps {
 export const StrategyAllocationView: React.FC<StrategyAllocationViewProps> = ({
   strategy,
   portfolio,
-  onRebalance
+  onRebalance,
 }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   // Calculate deltas
-  const deltas = useMemo(() => 
-    calculateAllocationDeltas(strategy, portfolio),
+  const deltas = useMemo(
+    () => calculateAllocationDeltas(strategy, portfolio),
     [strategy, portfolio]
   );
 
   // Get summary
-  const summary = useMemo(() => 
-    getAllocationSummary(deltas),
-    [deltas]
-  );
+  const summary = useMemo(() => getAllocationSummary(deltas), [deltas]);
 
   // Get rebalance suggestions
-  const rebalanceActions = useMemo(() => 
-    suggestRebalanceActions(deltas),
-    [deltas]
-  );
+  const rebalanceActions = useMemo(() => suggestRebalanceActions(deltas), [deltas]);
 
   const needsRebalance = summary.assetsNeedingRebalance > 0;
 
@@ -49,7 +48,7 @@ export const StrategyAllocationView: React.FC<StrategyAllocationViewProps> = ({
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(value);
   };
 
@@ -71,13 +70,12 @@ export const StrategyAllocationView: React.FC<StrategyAllocationViewProps> = ({
       <div className="strategy-header">
         <div className="strategy-title">
           <h2>{strategy.name || 'Asset Allocation Strategy'}</h2>
-          {strategy.description && (
-            <p className="strategy-description">{strategy.description}</p>
-          )}
+          {strategy.description && <p className="strategy-description">{strategy.description}</p>}
         </div>
         {needsRebalance && (
           <span className="badge badge-warning">
-            Rebalance Needed ({summary.assetsNeedingRebalance} {summary.assetsNeedingRebalance === 1 ? 'asset' : 'assets'})
+            Rebalance Needed ({summary.assetsNeedingRebalance}{' '}
+            {summary.assetsNeedingRebalance === 1 ? 'asset' : 'assets'})
           </span>
         )}
       </div>
@@ -117,17 +115,16 @@ export const StrategyAllocationView: React.FC<StrategyAllocationViewProps> = ({
           <tbody>
             {deltas.map((delta, index) => {
               const action = rebalanceActions[index];
-              
+
               // Find logo from strategy items
-              const item = (strategy as any).items?.find((it: any) =>
-                it.metadata?.symbol === delta.assetKey || it.assets[0]?.key === delta.assetKey
+              const item = (strategy as any).items?.find(
+                (it: any) =>
+                  it.metadata?.symbol === delta.assetKey || it.assets[0]?.key === delta.assetKey
               );
               const logo = item?.metadata?.tokens?.[0]?.logo;
-              
+
               return (
-                <tr 
-                  key={`${delta.group}-${delta.assetKey}`}
-                >
+                <tr key={`${delta.group}-${delta.assetKey}`}>
                   <td>
                     <div className="asset-cell">
                       {logo && <img src={logo} alt={delta.assetKey} className="asset-logo" />}
@@ -137,21 +134,13 @@ export const StrategyAllocationView: React.FC<StrategyAllocationViewProps> = ({
                   <td>
                     <span className="group-badge">{delta.group}</span>
                   </td>
-                  <td className="text-right">
-                    {maskValue(`${delta.targetWeight.toFixed(2)}%`)}
-                  </td>
-                  <td className="text-right">
-                    {maskValue(`${delta.currentWeight.toFixed(2)}%`)}
-                  </td>
+                  <td className="text-right">{maskValue(`${delta.targetWeight.toFixed(2)}%`)}</td>
+                  <td className="text-right">{maskValue(`${delta.currentWeight.toFixed(2)}%`)}</td>
                   <td className={`text-right ${getDeltaColorClass(delta.deltaWeight)}`}>
                     {maskValue(formatPercent(delta.deltaWeight))}
                   </td>
-                  <td className="text-right">
-                    {maskValue(formatUSD(delta.targetValueUsd))}
-                  </td>
-                  <td className="text-right">
-                    {maskValue(formatUSD(delta.currentValueUsd))}
-                  </td>
+                  <td className="text-right">{maskValue(formatUSD(delta.targetValueUsd))}</td>
+                  <td className="text-right">{maskValue(formatUSD(delta.currentValueUsd))}</td>
                   <td className={`text-right ${getDeltaColorClass(delta.deltaValueUsd)}`}>
                     {maskValue(formatUSD(delta.deltaValueUsd))}
                   </td>

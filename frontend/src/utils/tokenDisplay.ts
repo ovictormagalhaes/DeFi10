@@ -49,7 +49,10 @@ function pickLogo(t: TokenLike | null | undefined): string {
   );
 }
 
-export function formatTokenDisplay(tokens: TokenLike | TokenLike[] = [], { showName = false }: FormatTokenDisplayOptions = {}): TokenDisplayResult {
+export function formatTokenDisplay(
+  tokens: TokenLike | TokenLike[] = [],
+  { showName = false }: FormatTokenDisplayOptions = {}
+): TokenDisplayResult {
   if (!Array.isArray(tokens)) tokens = tokens ? [tokens] : [];
   const slice = tokens.slice(0, 2);
   if (slice.length === 0) return { logos: [], text: '' };
@@ -87,6 +90,9 @@ export function formatTokenDisplay(tokens: TokenLike | TokenLike[] = [], { showN
 }
 
 // Convenience wrapper for a single token object (non-array callers)
-export function formatSingleToken(token: TokenLike, opts?: FormatTokenDisplayOptions): TokenDisplayResult {
+export function formatSingleToken(
+  token: TokenLike,
+  opts?: FormatTokenDisplayOptions
+): TokenDisplayResult {
   return formatTokenDisplay([token], opts);
 }

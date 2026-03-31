@@ -1,12 +1,13 @@
 import { useCardContext } from '../../hooks/useCardContext';
-import { formatPrice } from '../../utils/walletUtils';
+import type { WalletItem } from '../../types/wallet';
 import { capitalize } from '../../utils/format';
 import { normalizeTokenData } from '../../utils/tokenUtils';
+import { formatPrice } from '../../utils/walletUtils';
 import SafeImage from '../SafeImage';
-import EmptyStateCard from './EmptyStateCard';
+
 import CardContainer from './CardContainer';
+import EmptyStateCard from './EmptyStateCard';
 import SkeletonCardGrid from './SkeletonCardGrid';
-import type { WalletItem } from '../../types/wallet';
 
 interface WalletCardsProps {
   data: WalletItem[];
@@ -25,22 +26,43 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [], isLoading }) => {
   }
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))',
-      gap: 20,
-      padding: '8px 0',
-      maxWidth: '100%',
-    }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))',
+        gap: 20,
+        padding: '8px 0',
+        maxWidth: '100%',
+      }}
+    >
       {data.map((item, index) => {
         // Extract token from data structure
-        const token = (item.token || item) as { symbol?: string; name?: string; logo?: string; thumbnail?: string; chain?: string; network?: string; chainName?: string; financials?: Record<string, number | undefined>; priceUsd?: number; price?: number; priceUSD?: number; balance?: number; totalPrice?: number; [key: string]: unknown };
+        const token = (item.token || item) as {
+          symbol?: string;
+          name?: string;
+          logo?: string;
+          thumbnail?: string;
+          chain?: string;
+          network?: string;
+          chainName?: string;
+          financials?: Record<string, number | undefined>;
+          priceUsd?: number;
+          price?: number;
+          priceUSD?: number;
+          balance?: number;
+          totalPrice?: number;
+          [key: string]: unknown;
+        };
         const position = item.position || {};
-        
+
         const { symbol, name, logo, chain, price } = normalizeTokenData(token);
-        const amount = token.financials?.amountFormatted ?? token.financials?.balanceFormatted ?? token.balance ?? 0;
+        const amount =
+          token.financials?.amountFormatted ??
+          token.financials?.balanceFormatted ??
+          token.balance ??
+          0;
         const totalValue = token.financials?.totalPrice || token.totalPrice || 0;
-        
+
         return (
           <CardContainer
             key={index}
@@ -50,23 +72,27 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [], isLoading }) => {
             }}
           >
             {/* Header: Logo (left) + Chain (right) */}
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              marginBottom: 12,
-            }}>
-              {/* Token Logo */}
-              <div style={{ 
-                width: 36, 
-                height: 36,
-                borderRadius: '50%',
-                backgroundColor: theme.bgSecondary,
+            <div
+              style={{
                 display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-              }}>
+                marginBottom: 12,
+              }}
+            >
+              {/* Token Logo */}
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  backgroundColor: theme.bgSecondary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                }}
+              >
                 {logo ? (
                   <SafeImage
                     src={logo}
@@ -88,11 +114,13 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [], isLoading }) => {
 
               {/* Chain */}
               {chain && (
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 6,
-                }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
                   {getChainIcon(chain) && (
                     <SafeImage
                       src={getChainIcon(chain)}
@@ -109,20 +137,24 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [], isLoading }) => {
 
             {/* Token Name */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ 
-                fontSize: 16,
-                fontWeight: 700,
-                color: theme.textPrimary,
-              }}>
+              <div
+                style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: theme.textPrimary,
+                }}
+              >
                 {name}
               </div>
               {name !== symbol && (
-                <div style={{ 
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: theme.textSecondary,
-                  marginTop: 2,
-                }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: theme.textSecondary,
+                    marginTop: 2,
+                  }}
+                >
                   {symbol}
                 </div>
               )}
@@ -131,71 +163,90 @@ const WalletCards: React.FC<WalletCardsProps> = ({ data = [], isLoading }) => {
             {/* Metrics */}
             <div style={{ flex: 1 }}>
               {/* Value */}
-              <div style={{ 
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 10,
-              }}>
-                <span style={{ 
-                  fontSize: 13,
-                  color: theme.textSecondary,
-                }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 10,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: theme.textSecondary,
+                  }}
+                >
                   Value
                 </span>
-                <span style={{ 
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: theme.textPrimary,
-                }}>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: theme.textPrimary,
+                  }}
+                >
                   {maskValue(formatPrice(totalValue))}
                 </span>
               </div>
 
               {/* Amount */}
-              <div style={{ 
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 10,
-              }}>
-                <span style={{ 
-                  fontSize: 13,
-                  color: theme.textSecondary,
-                }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 10,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: theme.textSecondary,
+                  }}
+                >
                   Amount
                 </span>
-                <span style={{ 
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: theme.textPrimary,
-                }}>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: theme.textPrimary,
+                  }}
+                >
                   {maskValue(
                     amount.toLocaleString('en-US', {
                       minimumFractionDigits: 2,
-                      maximumFractionDigits: 6
+                      maximumFractionDigits: 6,
                     })
-                  )} {symbol}
+                  )}{' '}
+                  {symbol}
                 </span>
               </div>
 
               {/* Price */}
-              <div style={{ 
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}>
-                <span style={{ 
-                  fontSize: 13,
-                  color: theme.textSecondary,
-                }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: theme.textSecondary,
+                  }}
+                >
                   Price
                 </span>
-                <span style={{ 
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: theme.textPrimary,
-                }}>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: theme.textPrimary,
+                  }}
+                >
                   {maskValue(formatPrice(price))}
                 </span>
               </div>

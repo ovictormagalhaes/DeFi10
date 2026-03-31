@@ -3,7 +3,6 @@
  * List and manage all strategy types (Type 1: Allocation, Type 2: Health Factor)
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -21,17 +20,22 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 import { useTheme } from '../../context/ThemeProvider';
 import { useAllocationStrategy } from '../../hooks/strategies/useAllocationStrategy';
 import { useHealthFactorStrategy } from '../../hooks/useHealthFactorStrategy';
 import { clearStrategyCache, loadStrategyWithCache } from '../../hooks/useSharedStrategyCache';
 import { getStrategyByGroup, saveStrategies } from '../../services/apiClient';
-
+import type {
+  Strategy,
+  HealthFactorTargetConfig,
+  AllocationStrategy,
+  HealthFactorStrategy,
+} from '../../types/strategy';
 import type { WalletItem } from '../../types/wallet';
-import type { Strategy, HealthFactorTargetConfig, AllocationStrategy, HealthFactorStrategy } from '../../types/strategy';
-
 import { StrategyAllocationView } from '../StrategyAllocationView';
+
 import { AllocationStrategyCard } from './AllocationStrategyCard';
 import { AllocationStrategyForm } from './AllocationStrategyForm';
 import { HealthFactorCard } from './HealthFactorCard';
@@ -44,11 +48,12 @@ interface AllocationStrategySectionProps {
 
 type ViewMode = 'list' | 'select-type' | 'create' | 'edit' | 'detail';
 
-export const AllocationStrategySection: React.FC<
-  AllocationStrategySectionProps
-> = ({ walletGroupId, portfolio }) => {
+export const AllocationStrategySection: React.FC<AllocationStrategySectionProps> = ({
+  walletGroupId,
+  portfolio,
+}) => {
   const { theme } = useTheme();
-  
+
   // Type 1: Allocation by Weight
   const {
     strategy: allocationStrategy,
@@ -58,7 +63,7 @@ export const AllocationStrategySection: React.FC<
     loadStrategy: loadAllocationStrategy,
     saveAllocationStrategy,
     calculateDeltas,
-    clearStrategy: clearAllocationStrategy
+    clearStrategy: clearAllocationStrategy,
   } = useAllocationStrategy();
 
   // Type 2: Health Factor Target
@@ -69,7 +74,7 @@ export const AllocationStrategySection: React.FC<
     error: healthFactorError,
     loadStrategy: loadHealthFactorStrategy,
     saveHealthFactorStrategy,
-    monitorHealthFactor
+    monitorHealthFactor,
   } = useHealthFactorStrategy();
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -79,7 +84,7 @@ export const AllocationStrategySection: React.FC<
   const [allStrategies, setAllStrategies] = useState<Strategy[]>([]);
   const [isReorderMode, setIsReorderMode] = useState<boolean>(false);
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
-  
+
   // Ref to prevent duplicate loads
   const loadedWalletGroupRef = useRef<string | null>(null);
 
@@ -92,14 +97,14 @@ export const AllocationStrategySection: React.FC<
   );
 
   // Extract Type 1 strategies for backward compatibility
-  const allType1Strategies = useMemo(() => 
-    allStrategies.filter(s => s.strategyType === 1),
+  const allType1Strategies = useMemo(
+    () => allStrategies.filter((s) => s.strategyType === 1),
     [allStrategies]
   );
-  
+
   // Extract Type 2 strategy for backward compatibility
-  const healthFactorStrategy = useMemo(() => 
-    allStrategies.find(s => s.strategyType === 2),
+  const healthFactorStrategy = useMemo(
+    () => allStrategies.find((s) => s.strategyType === 2),
     [allStrategies]
   );
 
@@ -115,19 +120,19 @@ export const AllocationStrategySection: React.FC<
     if (walletGroupId && loadedWalletGroupRef.current !== walletGroupId) {
       loadedWalletGroupRef.current = walletGroupId;
       setIsInitialLoading(true);
-      
+
       // Clear cache first to ensure fresh data with IDs
       clearStrategyCache(walletGroupId);
-      
+
       // Single API call for both strategy types
       (async () => {
         try {
-                    const cachedData = await loadStrategyWithCache(walletGroupId);
-          
+          const cachedData = await loadStrategyWithCache(walletGroupId);
+
           // Keep ALL strategies in the order returned by backend
           const allStrategiesFromBackend = cachedData?.strategies || [];
           setAllStrategies(allStrategiesFromBackend as Strategy[]);
-          
+
           // Trigger hook states to update (they will use the cache, no new API call)
           loadAllocationStrategy(walletGroupId);
           loadHealthFactorStrategy(walletGroupId);
@@ -176,10 +181,10 @@ export const AllocationStrategySection: React.FC<
   const handleSaveSuccess = () => {
     setEditingStrategy(null);
     setViewMode('list');
-    
+
     // Reload all strategies to update the list
     (async () => {
-            clearStrategyCache(walletGroupId);
+      clearStrategyCache(walletGroupId);
       const data = await loadStrategyWithCache(walletGroupId);
       setAllStrategies((data?.strategies || []) as Strategy[]);
     })();
@@ -193,7 +198,16 @@ export const AllocationStrategySection: React.FC<
     positionCriticalThresholds?: Record<string, number>,
     strategyId?: string
   ) => {
-    await saveHealthFactorStrategy(walletGroupId, config, name, description, positionTargetHFs, positionCriticalThresholds, portfolio, strategyId);
+    await saveHealthFactorStrategy(
+      walletGroupId,
+      config,
+      name,
+      description,
+      positionTargetHFs,
+      positionCriticalThresholds,
+      portfolio,
+      strategyId
+    );
     handleSaveSuccess();
   };
 
@@ -215,14 +229,14 @@ export const AllocationStrategySection: React.FC<
   const handleDelete = async (strategyToDelete?: Strategy) => {
     // Use the passed strategy or fall back to the current strategy state
     const targetStrategy = strategyToDelete || strategy;
-    
+
     if (!targetStrategy) return;
 
     if (confirm('Are you sure you want to delete this strategy?')) {
       try {
         // Get all existing strategies
         const existingData = await getStrategyByGroup(walletGroupId);
-        
+
         if (!existingData || !existingData.strategies || existingData.strategies.length === 0) {
           // No data to delete
           if (targetStrategy.strategyType === 1) {
@@ -231,12 +245,12 @@ export const AllocationStrategySection: React.FC<
           setViewMode('list');
           return;
         }
-        
+
         // Remove the strategy we want to delete (by ID)
         const remainingStrategies = existingData.strategies.filter(
           (s: any) => s.id !== targetStrategy.id
         );
-        
+
         // Save remaining strategies (backend format with allocations/targets, not items)
         const savePayload = {
           walletGroupId,
@@ -245,39 +259,39 @@ export const AllocationStrategySection: React.FC<
               id: s.id,
               strategyType: s.strategyType,
               name: s.name,
-              description: s.description
+              description: s.description,
             };
-            
+
             // Include type-specific data
             if (s.strategyType === 1) {
               strategyPayload.allocations = s.allocations || [];
             } else if (s.strategyType === 2) {
               strategyPayload.targets = s.targets || [];
             }
-            
+
             return strategyPayload;
-          })
+          }),
         };
-        
+
         await saveStrategies(savePayload);
-        
+
         clearStrategyCache(walletGroupId);
-        
+
         // Clear local state
         if (targetStrategy.strategyType === 1) {
           clearAllocationStrategy();
         }
-        
+
         // Reload strategies and update the list
         loadAllocationStrategy(walletGroupId);
         loadHealthFactorStrategy(walletGroupId);
-        
+
         // Reload all strategies to update the list in backend order
         (async () => {
-                    const data = await loadStrategyWithCache(walletGroupId);
+          const data = await loadStrategyWithCache(walletGroupId);
           setAllStrategies((data?.strategies || []) as Strategy[]);
         })();
-        
+
         setViewMode('list');
       } catch (error) {
         console.error('Failed to delete strategy:', error);
@@ -296,7 +310,7 @@ export const AllocationStrategySection: React.FC<
 
       const newStrategies = arrayMove(allStrategies, oldIndex, newIndex);
       setAllStrategies(newStrategies);
-      
+
       // Save order immediately
       saveStrategyOrder(newStrategies);
     }
@@ -313,28 +327,30 @@ export const AllocationStrategySection: React.FC<
             strategyType: s.strategyType,
             name: s.name,
             description: s.description,
-            displayOrder: index
+            displayOrder: index,
           };
-          
+
           // Include type-specific data with displayOrder preserved
           if (s.strategyType === 1) {
             const allocStrategy = s as AllocationStrategy;
-            strategyPayload.allocations = allocStrategy.allocations?.map((alloc: any, i: number) => ({
-              ...alloc,
-              displayOrder: alloc.displayOrder ?? i
-            })) || [];
+            strategyPayload.allocations =
+              allocStrategy.allocations?.map((alloc: any, i: number) => ({
+                ...alloc,
+                displayOrder: alloc.displayOrder ?? i,
+              })) || [];
           } else if (s.strategyType === 2) {
             const hfStrategy = s as HealthFactorStrategy;
-            strategyPayload.targets = hfStrategy.targets?.map((target: any, i: number) => ({
-              ...target,
-              displayOrder: target.displayOrder ?? i
-            })) || [];
+            strategyPayload.targets =
+              hfStrategy.targets?.map((target: any, i: number) => ({
+                ...target,
+                displayOrder: target.displayOrder ?? i,
+              })) || [];
           }
-          
+
           return strategyPayload;
-        })
+        }),
       };
-      
+
       await saveStrategies(payload);
       clearStrategyCache(walletGroupId);
     } catch (error) {
@@ -349,14 +365,14 @@ export const AllocationStrategySection: React.FC<
     const hfStrategy = healthFactorStrategy as HealthFactorStrategy;
     const targets = hfStrategy.targets;
     if (!targets || targets.length === 0) return undefined;
-    
+
     const targetHFsMap: Record<string, number> = {};
     targets.forEach((target) => {
       if (target.assetKey && target.targetHealthFactor != null) {
         targetHFsMap[target.assetKey] = target.targetHealthFactor;
       }
     });
-    
+
     return Object.keys(targetHFsMap).length > 0 ? targetHFsMap : undefined;
   };
 
@@ -365,14 +381,14 @@ export const AllocationStrategySection: React.FC<
     const hfStrategy = healthFactorStrategy as HealthFactorStrategy;
     const targets = hfStrategy.targets;
     if (!targets || targets.length === 0) return undefined;
-    
+
     const criticalThresholdsMap: Record<string, number> = {};
     targets.forEach((target) => {
       if (target.assetKey && target.criticalThreshold != null) {
         criticalThresholdsMap[target.assetKey] = target.criticalThreshold;
       }
     });
-    
+
     return Object.keys(criticalThresholdsMap).length > 0 ? criticalThresholdsMap : undefined;
   };
 
@@ -381,32 +397,40 @@ export const AllocationStrategySection: React.FC<
     const hfStrategy = healthFactorStrategy as HealthFactorStrategy;
     const rawTargets = hfStrategy.targets;
     if (!rawTargets || rawTargets.length === 0) return null;
-    
+
     // Sort by displayOrder to maintain user's preferred order
     const targets = [...rawTargets].sort((a, b) => {
       const orderA = a.displayOrder ?? 999;
       const orderB = b.displayOrder ?? 999;
       return orderA - orderB;
     });
-    
+
     const protocols = targets.map((t) => t.assetKey).filter(Boolean) as string[];
-    
+
     // Calculate averages from targets
-    const avgTargetHF = targets.reduce((sum, t) => sum + (t.targetHealthFactor || 2.0), 0) / targets.length;
-    const avgCriticalThreshold = targets.reduce((sum, t) => sum + (t.criticalThreshold || 1.5), 0) / targets.length;
-    
+    const avgTargetHF =
+      targets.reduce((sum, t) => sum + (t.targetHealthFactor || 2.0), 0) / targets.length;
+    const avgCriticalThreshold =
+      targets.reduce((sum, t) => sum + (t.criticalThreshold || 1.5), 0) / targets.length;
+
     return {
       targetHealthFactor: avgTargetHF,
       warningThreshold: avgTargetHF - 0.2,
       criticalThreshold: avgCriticalThreshold,
       autoSuggest: true,
-      protocols
+      protocols,
     };
   };
 
-  const healthFactorStatuses = healthFactorStrategy && getConfig()
-    ? monitorHealthFactor(portfolio, getConfig()!, getPositionTargetHFs(), getPositionCriticalThresholds())
-    : [];
+  const healthFactorStatuses =
+    healthFactorStrategy && getConfig()
+      ? monitorHealthFactor(
+          portfolio,
+          getConfig()!,
+          getPositionTargetHFs(),
+          getPositionCriticalThresholds()
+        )
+      : [];
 
   // Sortable Strategy Card Component
   const SortableStrategyCard: React.FC<{
@@ -417,15 +441,19 @@ export const AllocationStrategySection: React.FC<
     onEdit: (s: Strategy) => void;
     onDelete: (s: Strategy) => void;
     reorderEnabled: boolean;
-  }> = ({ strategy, portfolio, healthFactorStatuses, config, onEdit, onDelete, reorderEnabled }) => {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id: strategy.id, disabled: !reorderEnabled });
+  }> = ({
+    strategy,
+    portfolio,
+    healthFactorStatuses,
+    config,
+    onEdit,
+    onDelete,
+    reorderEnabled,
+  }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+      id: strategy.id,
+      disabled: !reorderEnabled,
+    });
 
     const style = {
       transform: CSS.Transform.toString(transform),
@@ -799,7 +827,7 @@ export const AllocationStrategySection: React.FC<
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={allStrategies.map(s => s.id)}
+                items={allStrategies.map((s) => s.id)}
                 strategy={verticalListSortingStrategy}
               >
                 <div className="strategies-list">
@@ -833,23 +861,22 @@ export const AllocationStrategySection: React.FC<
           </div>
 
           <div className="strategy-types-grid">
-            <div
-              className="strategy-type-card"
-              onClick={() => handleSelectType(1)}
-            >
+            <div className="strategy-type-card" onClick={() => handleSelectType(1)}>
               <div className="type-icon">📊</div>
               <h3>Allocation by Weight</h3>
-              <p>Define target allocation percentages for your assets and get rebalancing recommendations.</p>
+              <p>
+                Define target allocation percentages for your assets and get rebalancing
+                recommendations.
+              </p>
               <div className="type-badge">Type 1</div>
             </div>
 
-            <div
-              className="strategy-type-card"
-              onClick={() => handleSelectType(2)}
-            >
+            <div className="strategy-type-card" onClick={() => handleSelectType(2)}>
               <div className="type-icon">🛡️</div>
               <h3>Health Factor Target</h3>
-              <p>Monitor lending health factor and receive alerts when approaching liquidation risk.</p>
+              <p>
+                Monitor lending health factor and receive alerts when approaching liquidation risk.
+              </p>
               <div className="type-badge">Type 2</div>
             </div>
           </div>
@@ -864,7 +891,7 @@ export const AllocationStrategySection: React.FC<
               ← Back
             </button>
             <h2 className="page-title">
-              {viewMode === 'edit' ? 'Edit Strategy' : 'Create Strategy'} 
+              {viewMode === 'edit' ? 'Edit Strategy' : 'Create Strategy'}
               {selectedStrategyType === 1 && ' - Allocation by Weight'}
               {selectedStrategyType === 2 && ' - Health Factor Target'}
             </h2>

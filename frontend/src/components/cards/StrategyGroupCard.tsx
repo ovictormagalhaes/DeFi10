@@ -157,9 +157,7 @@ const StrategyGroupCard: React.FC<StrategyGroupCardProps> = ({
               alignItems: 'flex-end',
             }}
           >
-            <span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 600 }}>
-              TOTAL
-            </span>
+            <span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 600 }}>TOTAL</span>
             <span
               style={{
                 fontSize: 20,

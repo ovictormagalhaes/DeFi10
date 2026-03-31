@@ -8,9 +8,18 @@ interface IconButtonProps {
   variant?: 'neutral' | 'danger';
 }
 
-export default function IconButton({ icon, label, onClick, size = 32, variant = 'neutral' }: IconButtonProps) {
+export default function IconButton({
+  icon,
+  label,
+  onClick,
+  size = 32,
+  variant = 'neutral',
+}: IconButtonProps) {
   const { theme } = useTheme();
-  const variants: Record<string, { bg: string; border: string; color: string; hoverBg: string; hoverBorder: string }> = {
+  const variants: Record<
+    string,
+    { bg: string; border: string; color: string; hoverBg: string; hoverBorder: string }
+  > = {
     neutral: {
       bg: theme.bgPanel,
       border: theme.border,

@@ -7,7 +7,12 @@ interface WalletSelectorDialogProps {
   availableWallets: Record<string, boolean>;
 }
 
-const WalletSelectorDialog = ({ isOpen, onClose, onSelectWallet, availableWallets }: WalletSelectorDialogProps) => {
+const WalletSelectorDialog = ({
+  isOpen,
+  onClose,
+  onSelectWallet,
+  availableWallets,
+}: WalletSelectorDialogProps) => {
   if (!isOpen) return null;
 
   const wallets = WALLETS.map((wallet) => ({
@@ -206,7 +211,11 @@ const WalletSelectorDialog = ({ isOpen, onClose, onSelectWallet, availableWallet
                       flexShrink: 0,
                     }}
                   >
-                    <img src={wallet.icon} alt={wallet.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <img
+                      src={wallet.icon}
+                      alt={wallet.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
                   </div>
                   <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
                     <div

@@ -5,12 +5,13 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useAllocationStrategy } from '../hooks/strategies/useAllocationStrategy';
-import { StrategyAllocationView } from '../components/StrategyAllocationView';
+
 import { AllocationChart } from '../components/charts/AllocationChart';
-import type { WalletItem } from '../types/wallet';
-import type { AllocationDelta } from '../types/strategy';
+import { StrategyAllocationView } from '../components/StrategyAllocationView';
+import { useAllocationStrategy } from '../hooks/strategies/useAllocationStrategy';
 import type { AllocationByWeightConfig } from '../types/strategies/allocationByWeight';
+import type { AllocationDelta } from '../types/strategy';
+import type { WalletItem } from '../types/wallet';
 
 interface StrategyManagementExampleProps {
   walletGroupId: string;
@@ -19,7 +20,7 @@ interface StrategyManagementExampleProps {
 
 export const StrategyManagementExample: React.FC<StrategyManagementExampleProps> = ({
   walletGroupId,
-  portfolio
+  portfolio,
 }) => {
   const {
     strategy,
@@ -28,7 +29,7 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
     saving,
     loadStrategy,
     saveAllocationStrategy,
-    calculateDeltas
+    calculateDeltas,
   } = useAllocationStrategy();
 
   const [showChart, setShowChart] = useState(true);
@@ -57,20 +58,18 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
         allocations: [
           { assetKey: 'cbBTC', group: 'Lending', weight: 50 },
           { assetKey: 'WETH', group: 'Lending', weight: 30 },
-          { assetKey: 'SOL', group: 'Lending', weight: 20 }
+          { assetKey: 'SOL', group: 'Lending', weight: 20 },
         ],
         name: 'Conservative DeFi',
-        description: '70% stable lending, 30% ETH/BTC pools'
+        description: '70% stable lending, 30% ETH/BTC pools',
       };
 
       // Save strategy with new API
-      const response = await saveAllocationStrategy(
-        walletGroupId,
-        config,
-        portfolio
-      );
+      const response = await saveAllocationStrategy(walletGroupId, config, portfolio);
 
-      alert(`Strategy saved successfully! Items: ${(response as any).itemsCount ?? response.count}`);
+      alert(
+        `Strategy saved successfully! Items: ${(response as any).itemsCount ?? response.count}`
+      );
     } catch (err) {
       console.error('Failed to create strategy:', err);
       alert(`Failed to create strategy: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -85,11 +84,11 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
     // 3. Prepare transaction(s)
     // 4. Show confirmation dialog
     // 5. Execute rebalance
-    
+
     alert(
       `Rebalance ${delta.assetKey} in ${delta.group}\n` +
-      `Action: ${delta.deltaWeight > 0 ? 'SELL' : 'BUY'}\n` +
-      `Amount: $${Math.abs(delta.deltaValueUsd).toFixed(2)}`
+        `Action: ${delta.deltaWeight > 0 ? 'SELL' : 'BUY'}\n` +
+        `Amount: $${Math.abs(delta.deltaValueUsd).toFixed(2)}`
     );
   };
 
@@ -112,7 +111,7 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
         <h1>Strategy Management</h1>
         <div className="actions">
           {!strategy && (
-            <button 
+            <button
               onClick={handleCreateStrategy}
               disabled={saving || portfolio.length === 0}
               className="button-primary"
@@ -120,10 +119,7 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
               {saving ? 'Creating...' : 'Create Example Strategy'}
             </button>
           )}
-          <button 
-            onClick={() => setShowChart(!showChart)}
-            className="button-secondary"
-          >
+          <button onClick={() => setShowChart(!showChart)} className="button-secondary">
             {showChart ? 'Hide Chart' : 'Show Chart'}
           </button>
         </div>
@@ -161,23 +157,23 @@ export const StrategyManagementExample: React.FC<StrategyManagementExampleProps>
             <dl>
               <dt>Type:</dt>
               <dd>Allocation by Weight (Type 1)</dd>
-              
+
               <dt>Wallet Group:</dt>
               <dd>{strategy.walletGroupId}</dd>
-              
+
               <dt>Wallets:</dt>
               <dd>{(strategy as any).wallets?.join(', ')}</dd>
 
               <dt>Items:</dt>
               <dd>{(strategy as any).count}</dd>
-              
+
               {strategy.createdAt && (
                 <>
                   <dt>Created:</dt>
                   <dd>{new Date(strategy.createdAt).toLocaleString()}</dd>
                 </>
               )}
-              
+
               {strategy.updatedAt && (
                 <>
                   <dt>Updated:</dt>

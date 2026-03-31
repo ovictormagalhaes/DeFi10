@@ -59,8 +59,16 @@ interface UseAggregationJobReturn {
   pollingAttempt: number;
   maxPollingAttempts: number;
   nextPollInterval: number;
-  start: (accountOrGroupId: string, chains?: string[] | null, options?: StartOptions) => Promise<string | null>;
-  ensure: (accountOrGroupId: string, _unusedChain?: string | null, options?: EnsureOptions) => Promise<string | null>;
+  start: (
+    accountOrGroupId: string,
+    chains?: string[] | null,
+    options?: StartOptions
+  ) => Promise<string | null>;
+  ensure: (
+    accountOrGroupId: string,
+    _unusedChain?: string | null,
+    options?: EnsureOptions
+  ) => Promise<string | null>;
   reset: () => void;
 }
 
@@ -115,7 +123,11 @@ export function useAggregationJob(): UseAggregationJobReturn {
   }, []);
 
   const start = useCallback(
-    async (accountOrGroupId: string, chains: string[] | null = null, { isGroup = false }: StartOptions = {}): Promise<string | null> => {
+    async (
+      accountOrGroupId: string,
+      chains: string[] | null = null,
+      { isGroup = false }: StartOptions = {}
+    ): Promise<string | null> => {
       if (ensureInFlightRef.current) return null;
       ensureInFlightRef.current = true;
       try {
@@ -173,7 +185,11 @@ export function useAggregationJob(): UseAggregationJobReturn {
   );
 
   const ensure = useCallback(
-    async (accountOrGroupId: string, _unusedChain: string | null = null, { force = false, isGroup = false }: EnsureOptions = {}): Promise<string | null> => {
+    async (
+      accountOrGroupId: string,
+      _unusedChain: string | null = null,
+      { force = false, isGroup = false }: EnsureOptions = {}
+    ): Promise<string | null> => {
       if (!accountOrGroupId) return null;
       const now = Date.now();
       if (!force && now - lastEnsureTsRef.current < 500) return jobId;

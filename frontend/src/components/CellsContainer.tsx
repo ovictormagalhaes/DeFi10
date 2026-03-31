@@ -5,7 +5,10 @@ interface CellsContainerProps {
   style?: React.CSSProperties;
 }
 
-export default function CellsContainer({ children, style }: CellsContainerProps): React.ReactElement {
+export default function CellsContainer({
+  children,
+  style,
+}: CellsContainerProps): React.ReactElement {
   const baseStyle: React.CSSProperties = {
     backgroundColor: colors.bgPanelAlt,
     padding: '8px 12px',

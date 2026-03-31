@@ -1,10 +1,12 @@
 // src/components/charts/ChainDistributionChart.tsx
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { ChartContainer } from './ChartContainer';
-import { useChartTheme } from './hooks/useChartTheme';
+
 import { useChainIcons } from '../../context/ChainIconsProvider';
 import { capitalize } from '../../utils/format';
+
+import { ChartContainer } from './ChartContainer';
+import { useChartTheme } from './hooks/useChartTheme';
 
 interface ChainData {
   chain: string;
@@ -19,11 +21,11 @@ interface Props {
   formatPrice: (value: number) => string;
 }
 
-export const ChainDistributionChart: React.FC<Props> = ({ 
-  chains, 
+export const ChainDistributionChart: React.FC<Props> = ({
+  chains,
   totalValue,
   maskValue,
-  formatPrice
+  formatPrice,
 }) => {
   const { theme } = useChartTheme();
   const { getIcon: getChainIcon } = useChainIcons();
@@ -35,32 +37,36 @@ export const ChainDistributionChart: React.FC<Props> = ({
     const chainName = data.chain || 'Unknown';
     const formattedChain = capitalize(chainName.toLowerCase());
     const chainIcon = getChainIcon(chainName.toLowerCase());
-    
+
     return (
-      <div style={{
-        background: 'rgba(0, 0, 0, 0.95)',
-        padding: '12px 16px',
-        borderRadius: 8,
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
-      }}>
-        <div style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          color: data.color, 
-          fontWeight: 600, 
-          marginBottom: 4,
-          fontSize: 13
-        }}>
+      <div
+        style={{
+          background: 'rgba(0, 0, 0, 0.95)',
+          padding: '12px 16px',
+          borderRadius: 8,
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            color: data.color,
+            fontWeight: 600,
+            marginBottom: 4,
+            fontSize: 13,
+          }}
+        >
           {chainIcon && (
-            <img 
-              src={chainIcon} 
+            <img
+              src={chainIcon}
               alt={chainName}
               style={{
                 width: 16,
                 height: 16,
-                borderRadius: '50%'
+                borderRadius: '50%',
               }}
             />
           )}
@@ -85,9 +91,9 @@ export const ChainDistributionChart: React.FC<Props> = ({
     if (percent < 0.05) return null;
 
     return (
-      <text 
-        x={x} 
-        y={y} 
+      <text
+        x={x}
+        y={y}
         fill="white"
         stroke="#000000"
         strokeWidth="4"
@@ -102,10 +108,7 @@ export const ChainDistributionChart: React.FC<Props> = ({
   };
 
   return (
-    <ChartContainer
-      title="Chain Distribution"
-      subtitle={`${chains.length} chains`}
-    >
+    <ChartContainer title="Chain Distribution" subtitle={`${chains.length} chains`}>
       <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Pie
@@ -122,8 +125,8 @@ export const ChainDistributionChart: React.FC<Props> = ({
             animationDuration={800}
           >
             {chains.map((entry, index) => (
-              <Cell 
-                key={`cell-${index}`} 
+              <Cell
+                key={`cell-${index}`}
                 fill={entry.color}
                 stroke={theme.bgPanel}
                 strokeWidth={2}
@@ -131,31 +134,33 @@ export const ChainDistributionChart: React.FC<Props> = ({
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            verticalAlign="bottom" 
+          <Legend
+            verticalAlign="bottom"
             height={36}
             iconType="circle"
             formatter={(value, entry: any) => {
               const chainName = entry.payload?.chain || value;
               const formattedName = capitalize(chainName.toLowerCase());
               const chainIcon = getChainIcon(chainName.toLowerCase());
-              
+
               return (
-                <span style={{ 
-                  color: theme.textPrimary, 
-                  fontSize: 12,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}>
+                <span
+                  style={{
+                    color: theme.textPrimary,
+                    fontSize: 12,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
                   {chainIcon && (
-                    <img 
-                      src={chainIcon} 
+                    <img
+                      src={chainIcon}
                       alt={chainName}
                       style={{
                         width: 14,
                         height: 14,
-                        borderRadius: '50%'
+                        borderRadius: '50%',
                       }}
                     />
                   )}

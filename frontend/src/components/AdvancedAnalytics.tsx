@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 
+import type { ThemeTokens } from '../theme/tokens';
+
 import {
   PortfolioCompositionChart,
   AssetAllocationChart,
@@ -9,9 +11,8 @@ import {
   RiskMetricsChart,
   PositionTypeChart,
   ProjectionsChart,
-  useChartData
+  useChartData,
 } from './charts';
-import type { ThemeTokens } from '../theme/tokens';
 
 interface AdvancedAnalyticsProps {
   walletTokens: any[];
@@ -56,7 +57,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
     lockingData,
     groupDefiByProtocol,
     filterLendingDefiTokens,
-    showLendingDefiTokens
+    showLendingDefiTokens,
   });
 
   const {
@@ -65,13 +66,15 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
     protocolDistribution,
     chainDistribution,
     lendingPositions,
-    projectionData
+    projectionData,
   } = chartData;
 
   // Calculate health factor from lending data
   const healthFactor = useMemo<number | null>(() => {
     for (const item of lendingData) {
-      const hf = (item as Record<string, any>).additionalData?.healthFactor || (item as Record<string, any>).additionalInfo?.healthFactor;
+      const hf =
+        (item as Record<string, any>).additionalData?.healthFactor ||
+        (item as Record<string, any>).additionalInfo?.healthFactor;
       if (hf && hf > 0) return hf;
     }
     return null;
@@ -81,23 +84,24 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({
   const diversificationScore = useMemo<number>(() => {
     const numProtocols = protocolDistribution.length;
     const numChains = chainDistribution.length;
-    const topTokenPercentage = topTokens.length > 0 && portfolioData.totalValue > 0
-      ? (topTokens[0].value / portfolioData.totalValue) * 100
-      : 0;
-    
+    const topTokenPercentage =
+      topTokens.length > 0 && portfolioData.totalValue > 0
+        ? (topTokens[0].value / portfolioData.totalValue) * 100
+        : 0;
+
     // Score formula: more protocols/chains = better, less concentration in top token = better
     const protocolScore = Math.min(numProtocols * 8, 40);
     const chainScore = Math.min(numChains * 12, 30);
     const concentrationScore = Math.max(30 - topTokenPercentage, 0);
-    
+
     return Math.min(Math.round(protocolScore + chainScore + concentrationScore), 100);
   }, [protocolDistribution, chainDistribution, topTokens, portfolioData]);
 
   return (
-    <div 
-      className="panel" 
-      style={{ 
-        padding: 24, 
+    <div
+      className="panel"
+      style={{
+        padding: 24,
         marginTop: 16,
       }}
     >

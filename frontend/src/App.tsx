@@ -1,32 +1,46 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 
+import {
+  LendingGroupedView,
+  LockingCards,
+  PoolCards,
+  StakingCards,
+  WalletCards,
+} from './components/cards';
+import {
+  WalletSectionHeader,
+  LendingSectionHeader,
+  PoolsSectionHeader,
+  LockingSectionHeader,
+} from './components/cards/SectionHeaders';
+import {
+  LendingSubSectionHeader,
+  LiquiditySubSectionHeader,
+} from './components/cards/SubSectionHeaders';
 import ChainSelector from './components/ChainSelector';
+import CollapsibleSection from './components/CollapsibleSection';
 import ConnectWalletScreen from './components/ConnectWalletScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 import ErrorScreen from './components/ErrorScreen';
 import FadeTransition from './components/FadeTransition';
 import HeaderBar from './components/HeaderBar';
+import LendingDetailView from './components/LendingDetailView';
 import LoadingScreen from './components/LoadingScreen';
-import SkeletonDashboard from './components/SkeletonDashboard';
 import PoolsView from './components/PoolsView';
+import PositionSearchBar from './components/PositionSearchBar';
 import ProtocolsSection from './components/ProtocolsSection';
 import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
-import { StrategiesPage } from './components/strategies';
 import SectionTable from './components/SectionTable';
-import CollapsibleSection from './components/CollapsibleSection';
-import SummaryView from './components/SummaryView';
-import PositionSearchBar from './components/PositionSearchBar';
+import SkeletonDashboard from './components/SkeletonDashboard';
 import SortDropdown, { sortItems, sortWalletTokens } from './components/SortDropdown';
 import type { SortOption } from './components/SortDropdown';
-import ViewModeSelector from './components/ViewModeSelector';
-import { LendingGroupedView, LockingCards, PoolCards, StakingCards, WalletCards } from './components/cards';
-import LendingDetailView from './components/LendingDetailView';
-import { WalletSectionHeader, LendingSectionHeader, PoolsSectionHeader, LockingSectionHeader } from './components/cards/SectionHeaders';
-import { LendingSubSectionHeader, LiquiditySubSectionHeader } from './components/cards/SubSectionHeaders';
+import { StrategiesPage } from './components/strategies';
+import SummaryView from './components/SummaryView';
 import { WalletTokensTable } from './components/tables';
+import ViewModeSelector from './components/ViewModeSelector';
+import WalletConnectionPending from './components/WalletConnectionPending';
 import WalletGroupModal from './components/WalletGroupModal';
 import WalletSelectorDialog from './components/WalletSelectorDialog';
-import WalletConnectionPending from './components/WalletConnectionPending';
 import { api } from './config/api';
 import {
   DEFAULT_COLUMN_VISIBILITY,
@@ -48,6 +62,7 @@ import {
   getLockingItems,
   getDepositingItems,
 } from './types/filters';
+import type { WalletItem } from './types/wallet';
 import {
   formatBalance,
   formatNativeBalance,
@@ -63,7 +78,6 @@ import {
   calculatePercentage,
 } from './utils/walletUtils';
 import type { WalletItemLike } from './utils/walletUtils';
-import type { WalletItem } from './types/wallet';
 
 function App(): JSX.Element {
   const { theme, mode, toggleTheme } = useTheme();
@@ -138,7 +152,11 @@ function App(): JSX.Element {
   const [pendingWalletGroupId, setPendingWalletGroupId] = useState<string | null>(null);
 
   const [showStatusDialog, setShowStatusDialog] = useState<boolean>(false);
-  const [statusData, setStatusData] = useState<{ protocols?: any[]; availableChains?: string[]; [key: string]: unknown } | null>(null);
+  const [statusData, setStatusData] = useState<{
+    protocols?: any[];
+    availableChains?: string[];
+    [key: string]: unknown;
+  } | null>(null);
   const [loadingStatus, setLoadingStatus] = useState<boolean>(false);
 
   // Handle disconnect - clears both wallet and group
@@ -173,23 +191,25 @@ function App(): JSX.Element {
   useEffect(() => {
     const pathname = window.location.pathname;
     // Check for /portfolio/{guid} pattern
-    const portfolioMatch = pathname.match(/^\/portfolio\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i);
-    
+    const portfolioMatch = pathname.match(
+      /^\/portfolio\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i
+    );
+
     if (portfolioMatch) {
       const groupId = portfolioMatch[1];
-      
+
       // Check if we have the group locally AND have a valid token
       try {
         const storedGroups = localStorage.getItem('defi10_wallet_groups');
         const groups = storedGroups ? JSON.parse(storedGroups) : [];
-        const existingGroup = groups.find(g => g.id === groupId);
-        
+        const existingGroup = groups.find((g) => g.id === groupId);
+
         // Also check if we have a valid token for this group
         const tokenStorage = localStorage.getItem('defi10_wallet_group_tokens');
         const tokens = tokenStorage ? JSON.parse(tokenStorage) : [];
-        const tokenEntry = tokens.find(t => t.walletGroupId === groupId);
+        const tokenEntry = tokens.find((t) => t.walletGroupId === groupId);
         const hasValidToken = tokenEntry && new Date(tokenEntry.expiresAt) > new Date();
-        
+
         if (existingGroup && hasValidToken) {
           // Group exists locally with valid token, use it
           setSelectedWalletGroupId(groupId);
@@ -247,16 +267,17 @@ function App(): JSX.Element {
   const clearWalletData = (): void => {};
   const [aggregationError, setAggregationError] = useState<string | null>(null);
   const [rebalanceInfo, setRebalanceInfo] = useState<Record<string, unknown> | null>(null);
-  const fetchRebalancesFor = async (addr: string | null, groupId: string | null = null): Promise<void> => {
+  const fetchRebalancesFor = async (
+    addr: string | null,
+    groupId: string | null = null
+  ): Promise<void> => {
     if (!addr && !groupId) {
       setRebalanceInfo(null);
       return;
     }
     try {
-      const url = groupId 
-        ? api.getStrategiesByGroup(groupId)
-        : api.getStrategies(addr);
-      
+      const url = groupId ? api.getStrategiesByGroup(groupId) : api.getStrategies(addr);
+
       const res = await fetch(url);
       if (!res.ok) {
         setRebalanceInfo(null);
@@ -693,19 +714,26 @@ function App(): JSX.Element {
     return String(v).trim().toLowerCase();
   };
 
-  const isAllChainsSelected = selectedChains === null ||
-    (selectedChains && supportedChains && 
-     selectedChains.size === supportedChains.length &&
-     supportedChains.every(sc => {
-       const key = normalizeChainKey(
-         sc.displayName || sc.name || sc.shortName || sc.id || 
-         sc.chainId || sc.chain || sc.network || sc.networkId
-       );
-       return selectedChains.has(key);
-     }));
+  const isAllChainsSelected =
+    selectedChains === null ||
+    (selectedChains &&
+      supportedChains &&
+      selectedChains.size === supportedChains.length &&
+      supportedChains.every((sc) => {
+        const key = normalizeChainKey(
+          sc.displayName ||
+            sc.name ||
+            sc.shortName ||
+            sc.id ||
+            sc.chainId ||
+            sc.chain ||
+            sc.network ||
+            sc.networkId
+        );
+        return selectedChains.has(key);
+      }));
 
   const toggleChainSelection = (chainCanonicalKey) => {
-
     setSelectedChains((prev) => {
       if (!prev) return new Set([chainCanonicalKey]);
       const next = new Set(prev);
@@ -788,29 +816,38 @@ function App(): JSX.Element {
     return chainAliasToCanonical[norm] || norm;
   };
 
-  const matchesPositionSearch = useCallback((item: any): boolean => {
-    if (!positionSearch) return true;
-    const q = positionSearch.toLowerCase();
-    const pos = item?.position || item;
-    const name = (pos?.name || pos?.label || '').toLowerCase();
-    const protocol = (pos?.protocol?.name || item?.protocol?.name || item?.protocolName || '').toLowerCase();
-    const chain = (pos?.chain || pos?.blockchain || item?.chain || '').toLowerCase();
-    const tokens = Array.isArray(pos?.tokens) ? pos.tokens : [];
-    const tokenMatch = tokens.some((t: any) =>
-      (t.symbol || '').toLowerCase().includes(q) || (t.name || '').toLowerCase().includes(q)
-    );
-    return name.includes(q) || protocol.includes(q) || chain.includes(q) || tokenMatch;
-  }, [positionSearch]);
+  const matchesPositionSearch = useCallback(
+    (item: any): boolean => {
+      if (!positionSearch) return true;
+      const q = positionSearch.toLowerCase();
+      const pos = item?.position || item;
+      const name = (pos?.name || pos?.label || '').toLowerCase();
+      const protocol = (
+        pos?.protocol?.name ||
+        item?.protocol?.name ||
+        item?.protocolName ||
+        ''
+      ).toLowerCase();
+      const chain = (pos?.chain || pos?.blockchain || item?.chain || '').toLowerCase();
+      const tokens = Array.isArray(pos?.tokens) ? pos.tokens : [];
+      const tokenMatch = tokens.some(
+        (t: any) =>
+          (t.symbol || '').toLowerCase().includes(q) || (t.name || '').toLowerCase().includes(q)
+      );
+      return name.includes(q) || protocol.includes(q) || chain.includes(q) || tokenMatch;
+    },
+    [positionSearch]
+  );
 
-  const matchesWalletSearch = useCallback((tokenData: any): boolean => {
-    if (!positionSearch) return true;
-    const q = positionSearch.toLowerCase();
-    const t = tokenData?.token || tokenData;
-    return (
-      (t.symbol || '').toLowerCase().includes(q) ||
-      (t.name || '').toLowerCase().includes(q)
-    );
-  }, [positionSearch]);
+  const matchesWalletSearch = useCallback(
+    (tokenData: any): boolean => {
+      if (!positionSearch) return true;
+      const q = positionSearch.toLowerCase();
+      const t = tokenData?.token || tokenData;
+      return (t.symbol || '').toLowerCase().includes(q) || (t.name || '').toLowerCase().includes(q);
+    },
+    [positionSearch]
+  );
 
   const defiItemMatchesSelection = (item) => {
     if (!selectedChains || isAllChainsSelected) return true;
@@ -1161,7 +1198,6 @@ function App(): JSX.Element {
 
     if (unmatchedDebug.liquidity + unmatchedDebug.lending + unmatchedDebug.staking > 0) {
       try {
-
       } catch {}
     }
 
@@ -1195,9 +1231,8 @@ function App(): JSX.Element {
   // Map viewType to viewMode for backwards compatibility
   // chart -> summary, table -> overview, cards -> overview (card view), strategies -> strategies
   // Note: additional full-screen views (like pools or lending) are driven by other UI state flags.
-  const viewMode = viewType === 'chart' ? 'summary' 
-    : viewType === 'strategies' ? 'strategies'
-    : 'overview'; // both 'table' and 'cards' use overview data
+  const viewMode =
+    viewType === 'chart' ? 'summary' : viewType === 'strategies' ? 'strategies' : 'overview'; // both 'table' and 'cards' use overview data
 
   // Redirect from Strategies if no wallet group or wallet is connected
   useEffect(() => {
@@ -1244,7 +1279,6 @@ function App(): JSX.Element {
   }, [viewMode, account, selectedWalletGroupId, aggCompleted]);
   */
 
-
   // UI
   return (
     <MaskValuesProvider value={{ maskValues, toggleMaskValues, setMaskValues, maskValue }}>
@@ -1285,7 +1319,11 @@ function App(): JSX.Element {
             >
               <SkeletonDashboard
                 progress={aggProgress}
-                message={aggStatus === 'polling' ? 'Synchronizing your portfolio...' : 'Loading your portfolio...'}
+                message={
+                  aggStatus === 'polling'
+                    ? 'Synchronizing your portfolio...'
+                    : 'Loading your portfolio...'
+                }
               />
             </div>
           </>
@@ -1349,12 +1387,15 @@ function App(): JSX.Element {
               >
                 {/* View Type & Chain Filter Selectors */}
                 {isAggregationReady && supportedChains && supportedChains.length > 0 && (
-                  <div className="mb-16" style={{ 
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto 1fr',
-                    alignItems: 'center',
-                    gap: 12,
-                  }}>
+                  <div
+                    className="mb-16"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto 1fr',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
                     {/* Left: Search + Sort (cards/table views only) */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {viewMode === 'overview' && (
@@ -1371,25 +1412,30 @@ function App(): JSX.Element {
                             }
                             filteredCount={
                               walletTokens.filter(matchesWalletSearch).length +
-                              getLendingAndBorrowingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch).length +
-                              getLiquidityPoolsData().filter(defiItemMatchesSelection).filter(matchesPositionSearch).length +
-                              getStakingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch).length +
-                              getLockingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch).length
+                              getLendingAndBorrowingData()
+                                .filter(defiItemMatchesSelection)
+                                .filter(matchesPositionSearch).length +
+                              getLiquidityPoolsData()
+                                .filter(defiItemMatchesSelection)
+                                .filter(matchesPositionSearch).length +
+                              getStakingData()
+                                .filter(defiItemMatchesSelection)
+                                .filter(matchesPositionSearch).length +
+                              getLockingData()
+                                .filter(defiItemMatchesSelection)
+                                .filter(matchesPositionSearch).length
                             }
                           />
                           <SortDropdown value={positionSort} onChange={setPositionSort} />
                         </>
                       )}
                     </div>
-                    
+
                     {/* Center: ViewModeSelector */}
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
-                      <ViewModeSelector
-                        value={viewType as any}
-                        onChange={setViewType}
-                      />
+                      <ViewModeSelector value={viewType as any} onChange={setViewType} />
                     </div>
-                    
+
                     {/* Right: ChainSelector */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                       <ChainSelector
@@ -1450,7 +1496,8 @@ function App(): JSX.Element {
                               chainTotals[canonicalKey.toLowerCase()] ??
                               0;
                             // When selectedChains is null, all chains are selected
-                            const isSelected = selectedChains === null || selectedChains.has(canonicalKeyNormalized);
+                            const isSelected =
+                              selectedChains === null || selectedChains.has(canonicalKeyNormalized);
                             const percent = calculatePercentage(value, totalAllChains);
                             return (
                               <div
@@ -1958,49 +2005,78 @@ function App(): JSX.Element {
                               <>
                                 {/* Wallet Tokens Cards */}
                                 {(() => {
-                                  const filtered = sortWalletTokens(walletTokens.filter(matchesWalletSearch), positionSort);
-                                  return filtered.length > 0 && (
-                                    <CollapsibleSection title="Wallet">
-                                      <WalletSectionHeader data={filtered} />
-                                      <WalletCards data={filtered} isLoading={!aggCompleted} />
-                                    </CollapsibleSection>
+                                  const filtered = sortWalletTokens(
+                                    walletTokens.filter(matchesWalletSearch),
+                                    positionSort
+                                  );
+                                  return (
+                                    filtered.length > 0 && (
+                                      <CollapsibleSection title="Wallet">
+                                        <WalletSectionHeader data={filtered} />
+                                        <WalletCards data={filtered} isLoading={!aggCompleted} />
+                                      </CollapsibleSection>
+                                    )
                                   );
                                 })()}
 
                                 {/* Lending Positions Cards */}
                                 {(() => {
-                                  const filtered = sortItems(getLendingAndBorrowingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch), positionSort);
-                                  return filtered.length > 0 && (
-                                    <CollapsibleSection title="Lending & Borrowing">
-                                      <LendingSectionHeader data={filtered} />
-                                      <LendingSubSectionHeader data={filtered} groupByProtocol={true} />
-                                      <LendingGroupedView
-                                        data={filtered}
-                                        onOpenDetail={setSelectedLendingGroup}
-                                      />
-                                    </CollapsibleSection>
+                                  const filtered = sortItems(
+                                    getLendingAndBorrowingData()
+                                      .filter(defiItemMatchesSelection)
+                                      .filter(matchesPositionSearch),
+                                    positionSort
+                                  );
+                                  return (
+                                    filtered.length > 0 && (
+                                      <CollapsibleSection title="Lending & Borrowing">
+                                        <LendingSectionHeader data={filtered} />
+                                        <LendingSubSectionHeader
+                                          data={filtered}
+                                          groupByProtocol={true}
+                                        />
+                                        <LendingGroupedView
+                                          data={filtered}
+                                          onOpenDetail={setSelectedLendingGroup}
+                                        />
+                                      </CollapsibleSection>
+                                    )
                                   );
                                 })()}
 
                                 {/* Liquidity Pool Cards */}
                                 {(() => {
-                                  const filtered = sortItems(getLiquidityPoolsData().filter(defiItemMatchesSelection).filter(matchesPositionSearch), positionSort);
-                                  return filtered.length > 0 && (
-                                    <CollapsibleSection title="Liquidity Pools">
-                                      <PoolsSectionHeader data={filtered} />
-                                      <LiquiditySubSectionHeader data={filtered} />
-                                      <PoolCards data={filtered} isLoading={!aggCompleted} />
-                                    </CollapsibleSection>
+                                  const filtered = sortItems(
+                                    getLiquidityPoolsData()
+                                      .filter(defiItemMatchesSelection)
+                                      .filter(matchesPositionSearch),
+                                    positionSort
+                                  );
+                                  return (
+                                    filtered.length > 0 && (
+                                      <CollapsibleSection title="Liquidity Pools">
+                                        <PoolsSectionHeader data={filtered} />
+                                        <LiquiditySubSectionHeader data={filtered} />
+                                        <PoolCards data={filtered} isLoading={!aggCompleted} />
+                                      </CollapsibleSection>
+                                    )
                                   );
                                 })()}
 
                                 {/* Staking Cards */}
                                 {(() => {
-                                  const filtered = sortItems(getStakingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch), positionSort);
-                                  return filtered.length > 0 && (
-                                    <CollapsibleSection title="Staking">
-                                      <StakingCards data={filtered} isLoading={!aggCompleted} />
-                                    </CollapsibleSection>
+                                  const filtered = sortItems(
+                                    getStakingData()
+                                      .filter(defiItemMatchesSelection)
+                                      .filter(matchesPositionSearch),
+                                    positionSort
+                                  );
+                                  return (
+                                    filtered.length > 0 && (
+                                      <CollapsibleSection title="Staking">
+                                        <StakingCards data={filtered} isLoading={!aggCompleted} />
+                                      </CollapsibleSection>
+                                    )
                                   );
                                 })()}
 
@@ -2008,12 +2084,19 @@ function App(): JSX.Element {
                               </>
                             )}
                             {(() => {
-                              const filtered = sortItems(getLockingData().filter(defiItemMatchesSelection).filter(matchesPositionSearch), positionSort);
-                              return filtered.length > 0 && (
-                                <CollapsibleSection title="Locked Tokens">
-                                  <LockingSectionHeader data={filtered} />
-                                  <LockingCards data={filtered} isLoading={!aggCompleted} />
-                                </CollapsibleSection>
+                              const filtered = sortItems(
+                                getLockingData()
+                                  .filter(defiItemMatchesSelection)
+                                  .filter(matchesPositionSearch),
+                                positionSort
+                              );
+                              return (
+                                filtered.length > 0 && (
+                                  <CollapsibleSection title="Locked Tokens">
+                                    <LockingSectionHeader data={filtered} />
+                                    <LockingCards data={filtered} isLoading={!aggCompleted} />
+                                  </CollapsibleSection>
+                                )
                               );
                             })()}
                           </div>
@@ -2133,7 +2216,7 @@ function App(): JSX.Element {
             setIsWalletGroupModalOpen(false);
             setPendingWalletGroupId(null);
             if (isReconnect) {
-              setRefreshNonce(prev => prev + 1);
+              setRefreshNonce((prev) => prev + 1);
             }
           }}
           onDisconnectGroup={(groupId) => {
@@ -2216,210 +2299,285 @@ function App(): JSX.Element {
                     borderRadius: 8,
                     transition: 'background 0.2s',
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)')
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)')
+                  }
                 >
                   ×
                 </button>
               </div>
               {loadingStatus ? (
-                <div style={{ 
-                  textAlign: 'center', 
-                  padding: 40, 
-                  color: theme.textSecondary,
-                  fontSize: 16,
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 40,
+                    color: theme.textSecondary,
+                    fontSize: 16,
+                  }}
+                >
                   Loading protocol status...
                 </div>
               ) : statusData && statusData.protocols ? (
                 <div style={{ flex: 1, overflow: 'auto' }}>
-                  <table style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    backgroundColor: theme.bgCard,
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                  }}>
+                  <table
+                    style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      backgroundColor: theme.bgCard,
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                    }}
+                  >
                     <thead>
-                      <tr style={{
-                        backgroundColor: theme.bgPanel,
-                        borderBottom: `2px solid ${theme.border}`,
-                      }}>
-                        <th style={{
-                          padding: '16px 20px',
-                          textAlign: 'left',
-                          color: theme.textPrimary,
-                          fontWeight: 600,
-                          fontSize: 14,
-                          letterSpacing: '0.5px',
-                          position: 'sticky',
-                          top: 0,
+                      <tr
+                        style={{
                           backgroundColor: theme.bgPanel,
-                          zIndex: 10,
-                        }}>
+                          borderBottom: `2px solid ${theme.border}`,
+                        }}
+                      >
+                        <th
+                          style={{
+                            padding: '16px 20px',
+                            textAlign: 'left',
+                            color: theme.textPrimary,
+                            fontWeight: 600,
+                            fontSize: 14,
+                            letterSpacing: '0.5px',
+                            position: 'sticky',
+                            top: 0,
+                            backgroundColor: theme.bgPanel,
+                            zIndex: 10,
+                          }}
+                        >
                           Protocol
                         </th>
-                        {statusData.availableChains && statusData.availableChains.map(chain => {
-                          // Find chain icon from supportedChains
-                          let chainIcon = null;
-                          if (supportedChains && supportedChains.length > 0) {
-                            const chainData = supportedChains.find(sc => 
-                              sc.name === chain || 
-                              sc.displayName === chain || 
-                              sc.shortName === chain ||
-                              String(sc.name || '').toLowerCase() === String(chain).toLowerCase()
-                            );
-                            if (chainData) {
-                              chainIcon = chainData.iconUrl || chainData.icon || chainData.logo || chainData.image;
+                        {statusData.availableChains &&
+                          statusData.availableChains.map((chain) => {
+                            // Find chain icon from supportedChains
+                            let chainIcon = null;
+                            if (supportedChains && supportedChains.length > 0) {
+                              const chainData = supportedChains.find(
+                                (sc) =>
+                                  sc.name === chain ||
+                                  sc.displayName === chain ||
+                                  sc.shortName === chain ||
+                                  String(sc.name || '').toLowerCase() ===
+                                    String(chain).toLowerCase()
+                              );
+                              if (chainData) {
+                                chainIcon =
+                                  chainData.iconUrl ||
+                                  chainData.icon ||
+                                  chainData.logo ||
+                                  chainData.image;
+                              }
                             }
-                          }
-                          
-                          return (
-                            <th key={chain} style={{
-                              padding: '16px 12px',
-                              textAlign: 'center',
-                              color: theme.textPrimary,
-                              fontWeight: 600,
-                              fontSize: 14,
-                              letterSpacing: '0.5px',
-                              position: 'sticky',
-                              top: 0,
-                              backgroundColor: theme.bgPanel,
-                              zIndex: 10,
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                                {chainIcon && (
-                                  <img 
-                                    src={chainIcon} 
-                                    alt={chain}
-                                    style={{
-                                      width: 20,
-                                      height: 20,
-                                      borderRadius: '50%',
-                                    }}
-                                    onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
-                                  />
-                                )}
-                                <span>{chain}</span>
-                              </div>
-                            </th>
-                          );
-                        })}
+
+                            return (
+                              <th
+                                key={chain}
+                                style={{
+                                  padding: '16px 12px',
+                                  textAlign: 'center',
+                                  color: theme.textPrimary,
+                                  fontWeight: 600,
+                                  fontSize: 14,
+                                  letterSpacing: '0.5px',
+                                  position: 'sticky',
+                                  top: 0,
+                                  backgroundColor: theme.bgPanel,
+                                  zIndex: 10,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 8,
+                                  }}
+                                >
+                                  {chainIcon && (
+                                    <img
+                                      src={chainIcon}
+                                      alt={chain}
+                                      style={{
+                                        width: 20,
+                                        height: 20,
+                                        borderRadius: '50%',
+                                      }}
+                                      onError={(e) =>
+                                        ((e.target as HTMLImageElement).style.display = 'none')
+                                      }
+                                    />
+                                  )}
+                                  <span>{chain}</span>
+                                </div>
+                              </th>
+                            );
+                          })}
                       </tr>
                     </thead>
                     <tbody>
                       {statusData.protocols
                         .sort((a, b) => (a.blockchainGroup || 0) - (b.blockchainGroup || 0))
                         .map((protocol, index) => (
-                        <tr key={protocol.protocolId} style={{
-                          backgroundColor: index % 2 === 0 ? theme.bgCard : theme.bgPanel,
-                          borderBottom: `1px solid ${theme.border}`,
-                          transition: 'background-color 0.2s',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = theme.bgHover}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? theme.bgCard : theme.bgPanel}
-                        >
-                          <td style={{
-                            padding: '16px 20px',
-                            color: theme.textSecondary,
-                            fontSize: 14,
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                              <img 
-                                src={protocol.iconUrl} 
-                                alt={protocol.protocolName}
-                                style={{
-                                  width: 32,
-                                  height: 32,
-                                  borderRadius: 6,
-                                  flexShrink: 0,
-                                }}
-                                onError={(e) => (e.target as HTMLImageElement).style.display = 'none'}
-                              />
-                              <div>
-                                <div style={{ fontWeight: 500, color: theme.textPrimary, marginBottom: 4 }}>
-                                  {protocol.protocolName}
-                                </div>
-                                {protocol.website && (
-                                  <a 
-                                    href={protocol.website}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      fontSize: 12,
-                                      color: theme.textSecondary,
-                                      textDecoration: 'none',
-                                      opacity: 0.7,
-                                      transition: 'opacity 0.2s',
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
-                                  >
-                                    {protocol.website.replace(/^https?:\/\//, '')}
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          {statusData.availableChains && statusData.availableChains.map(chain => {
-                            const chainSupport = protocol.chainSupport && protocol.chainSupport[chain];
-                            const hasChain = chainSupport !== undefined && chainSupport !== null;
-                            const isActive = chainSupport === true;
-                            
-                            return (
-                              <td key={chain} style={{
-                                padding: '16px 12px',
-                                textAlign: 'center',
-                              }}>
-                                {hasChain && (
+                          <tr
+                            key={protocol.protocolId}
+                            style={{
+                              backgroundColor: index % 2 === 0 ? theme.bgCard : theme.bgPanel,
+                              borderBottom: `1px solid ${theme.border}`,
+                              transition: 'background-color 0.2s',
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.backgroundColor = theme.bgHover)
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.backgroundColor =
+                                index % 2 === 0 ? theme.bgCard : theme.bgPanel)
+                            }
+                          >
+                            <td
+                              style={{
+                                padding: '16px 20px',
+                                color: theme.textSecondary,
+                                fontSize: 14,
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <img
+                                  src={protocol.iconUrl}
+                                  alt={protocol.protocolName}
+                                  style={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: 6,
+                                    flexShrink: 0,
+                                  }}
+                                  onError={(e) =>
+                                    ((e.target as HTMLImageElement).style.display = 'none')
+                                  }
+                                />
+                                <div>
                                   <div
                                     style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      width: 24,
-                                      height: 24,
-                                      borderRadius: '50%',
-                                      backgroundColor: isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                      border: `2px solid ${isActive ? theme.success : theme.danger}`,
+                                      fontWeight: 500,
+                                      color: theme.textPrimary,
+                                      marginBottom: 4,
                                     }}
-                                    aria-label={isActive ? 'Supported' : 'Not supported'}
-                                    role="img"
                                   >
-                                    {isActive ? (
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={theme.success} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="20 6 9 17 4 12" />
-                                      </svg>
-                                    ) : (
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={theme.danger} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="18" y1="6" x2="6" y2="18" />
-                                        <line x1="6" y1="6" x2="18" y2="18" />
-                                      </svg>
-                                    )}
+                                    {protocol.protocolName}
                                   </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
+                                  {protocol.website && (
+                                    <a
+                                      href={protocol.website}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        fontSize: 12,
+                                        color: theme.textSecondary,
+                                        textDecoration: 'none',
+                                        opacity: 0.7,
+                                        transition: 'opacity 0.2s',
+                                      }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                                      onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.7')}
+                                    >
+                                      {protocol.website.replace(/^https?:\/\//, '')}
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            {statusData.availableChains &&
+                              statusData.availableChains.map((chain) => {
+                                const chainSupport =
+                                  protocol.chainSupport && protocol.chainSupport[chain];
+                                const hasChain =
+                                  chainSupport !== undefined && chainSupport !== null;
+                                const isActive = chainSupport === true;
+
+                                return (
+                                  <td
+                                    key={chain}
+                                    style={{
+                                      padding: '16px 12px',
+                                      textAlign: 'center',
+                                    }}
+                                  >
+                                    {hasChain && (
+                                      <div
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          width: 24,
+                                          height: 24,
+                                          borderRadius: '50%',
+                                          backgroundColor: isActive
+                                            ? 'rgba(34, 197, 94, 0.15)'
+                                            : 'rgba(239, 68, 68, 0.15)',
+                                          border: `2px solid ${isActive ? theme.success : theme.danger}`,
+                                        }}
+                                        aria-label={isActive ? 'Supported' : 'Not supported'}
+                                        role="img"
+                                      >
+                                        {isActive ? (
+                                          <svg
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke={theme.success}
+                                            strokeWidth="3"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          >
+                                            <polyline points="20 6 9 17 4 12" />
+                                          </svg>
+                                        ) : (
+                                          <svg
+                                            width="10"
+                                            height="10"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke={theme.danger}
+                                            strokeWidth="3"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          >
+                                            <line x1="18" y1="6" x2="6" y2="18" />
+                                            <line x1="6" y1="6" x2="18" y2="18" />
+                                          </svg>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <div style={{ 
-                  textAlign: 'center', 
-                  padding: 40, 
-                  color: theme.textSecondary,
-                  fontSize: 16,
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 40,
+                    color: theme.textSecondary,
+                    fontSize: 16,
+                  }}
+                >
                   No data available
                 </div>
               )}
             </div>
           </div>
         )}
-
       </ChainIconsProvider>
     </MaskValuesProvider>
   );

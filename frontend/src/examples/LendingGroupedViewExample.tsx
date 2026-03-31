@@ -2,11 +2,12 @@
 // Este arquivo demonstra como implementar a nova visualização agrupada
 
 import { useState } from 'react';
+
 import {
   LendingGroupedView,
   LendingCards,
   LendingSectionHeader,
-  LendingSubSectionHeader
+  LendingSubSectionHeader,
 } from '../components/cards';
 
 interface LendingDataItem {
@@ -71,14 +72,16 @@ export const ExemploComToggle: React.FC<LendingDataProps> = ({ lendingData }) =>
     <div>
       {/* Header */}
       <LendingSectionHeader data={lendingData} />
-      
+
       {/* Toggle Button */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'flex-end', 
-        marginBottom: 16,
-        gap: 8 
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginBottom: 16,
+          gap: 8,
+        }}
+      >
         <button
           onClick={() => setViewMode('grouped')}
           style={{
@@ -108,10 +111,7 @@ export const ExemploComToggle: React.FC<LendingDataProps> = ({ lendingData }) =>
       </div>
 
       {/* SubSection Header - passa groupByProtocol baseado no modo */}
-      <LendingSubSectionHeader 
-        data={lendingData} 
-        groupByProtocol={viewMode === 'grouped'} 
-      />
+      <LendingSubSectionHeader data={lendingData} groupByProtocol={viewMode === 'grouped'} />
 
       {/* Conteúdo */}
       {viewMode === 'grouped' ? (
@@ -133,11 +133,9 @@ export const ExemploComFiltros: React.FC<LendingDataProps> = ({ lendingData }) =
   const [filterHealthFactor, setFilterHealthFactor] = useState<HealthFactorFilter>('all');
 
   // Filtrar por Health Factor
-  const filteredData = lendingData.filter(item => {
-    const hf = item.additionalData?.healthFactor || 
-               item.additionalInfo?.healthFactor || 
-               null;
-    
+  const filteredData = lendingData.filter((item) => {
+    const hf = item.additionalData?.healthFactor || item.additionalInfo?.healthFactor || null;
+
     if (filterHealthFactor === 'all') return true;
     if (filterHealthFactor === 'risk' && hf !== null && hf < 1.5) return true;
     if (filterHealthFactor === 'warning' && hf !== null && hf >= 1.5 && hf < 2) return true;
@@ -152,23 +150,25 @@ export const ExemploComFiltros: React.FC<LendingDataProps> = ({ lendingData }) =
       const protocolB = (b.position?.protocol?.name || b.protocol?.name || '').toLowerCase();
       return protocolA.localeCompare(protocolB);
     }
-    
+
     if (sortBy === 'healthFactor') {
       const hfA = a.additionalData?.healthFactor || a.additionalInfo?.healthFactor || 0;
       const hfB = b.additionalData?.healthFactor || b.additionalInfo?.healthFactor || 0;
       return hfA - hfB; // Menor primeiro (mais risco)
     }
-    
+
     if (sortBy === 'value') {
       const getPositionValue = (item: LendingDataItem): number => {
         const tokens = item.position?.tokens || item.tokens || [];
         return tokens.reduce((sum, token) => {
-          return sum + Math.abs((token as any).financials?.totalPrice || (token as any).totalPrice || 0);
+          return (
+            sum + Math.abs((token as any).financials?.totalPrice || (token as any).totalPrice || 0)
+          );
         }, 0);
       };
       return getPositionValue(b) - getPositionValue(a); // Maior primeiro
     }
-    
+
     return 0;
   });
 
@@ -178,14 +178,16 @@ export const ExemploComFiltros: React.FC<LendingDataProps> = ({ lendingData }) =
       <LendingSectionHeader data={sortedData} />
 
       {/* Controls */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-        flexWrap: 'wrap',
-        gap: 16,
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+          flexWrap: 'wrap',
+          gap: 16,
+        }}
+      >
         {/* View Mode Toggle */}
         <div style={{ display: 'flex', gap: 8 }}>
           <button
@@ -257,19 +259,18 @@ export const ExemploComFiltros: React.FC<LendingDataProps> = ({ lendingData }) =
       </div>
 
       {/* Results Count */}
-      <div style={{ 
-        fontSize: 13, 
-        color: '#6b7280', 
-        marginBottom: 12 
-      }}>
+      <div
+        style={{
+          fontSize: 13,
+          color: '#6b7280',
+          marginBottom: 12,
+        }}
+      >
         Showing {sortedData.length} of {lendingData.length} positions
       </div>
 
       {/* SubSection Header */}
-      <LendingSubSectionHeader 
-        data={sortedData} 
-        groupByProtocol={viewMode === 'grouped'} 
-      />
+      <LendingSubSectionHeader data={sortedData} groupByProtocol={viewMode === 'grouped'} />
 
       {/* Content */}
       {sortedData.length > 0 ? (
@@ -279,11 +280,13 @@ export const ExemploComFiltros: React.FC<LendingDataProps> = ({ lendingData }) =
           <LendingCards data={sortedData} />
         )
       ) : (
-        <div style={{
-          textAlign: 'center',
-          padding: '60px 20px',
-          color: '#9ca3af',
-        }}>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '60px 20px',
+            color: '#9ca3af',
+          }}
+        >
           No positions match your filters
         </div>
       )}
@@ -298,9 +301,9 @@ export const SAMPLE_LENDING_DATA = [
   // AAVE - Base (3 positions, HF: 2.35)
   {
     position: {
-      protocol: { 
-        name: 'Aave', 
-        logo: 'https://cryptologos.cc/logos/aave-aave-logo.png' 
+      protocol: {
+        name: 'Aave',
+        logo: 'https://cryptologos.cc/logos/aave-aave-logo.png',
       },
       label: 'USDC Supply',
       tokens: [
@@ -314,7 +317,7 @@ export const SAMPLE_LENDING_DATA = [
             totalPrice: 15000,
             balanceFormatted: 15000,
           },
-        }
+        },
       ],
       supplyRate: 4.5,
     },
@@ -327,18 +330,18 @@ export const SAMPLE_LENDING_DATA = [
           projection: {
             oneDay: 1.85,
             oneWeek: 12.95,
-            oneMonth: 55.50,
-            oneYear: 675.00
-          }
-        }
-      ]
-    }
+            oneMonth: 55.5,
+            oneYear: 675.0,
+          },
+        },
+      ],
+    },
   },
   {
     position: {
-      protocol: { 
-        name: 'Aave', 
-        logo: 'https://cryptologos.cc/logos/aave-aave-logo.png' 
+      protocol: {
+        name: 'Aave',
+        logo: 'https://cryptologos.cc/logos/aave-aave-logo.png',
       },
       label: 'ETH Supply',
       tokens: [
@@ -352,7 +355,7 @@ export const SAMPLE_LENDING_DATA = [
             totalPrice: 10000,
             balanceFormatted: 5.2,
           },
-        }
+        },
       ],
       supplyRate: 3.2,
     },
@@ -365,18 +368,18 @@ export const SAMPLE_LENDING_DATA = [
           projection: {
             oneDay: 0.88,
             oneWeek: 6.16,
-            oneMonth: 26.40,
-            oneYear: 320.00
-          }
-        }
-      ]
-    }
+            oneMonth: 26.4,
+            oneYear: 320.0,
+          },
+        },
+      ],
+    },
   },
   {
     position: {
-      protocol: { 
-        name: 'Aave', 
-        logo: 'https://cryptologos.cc/logos/aave-aave-logo.png' 
+      protocol: {
+        name: 'Aave',
+        logo: 'https://cryptologos.cc/logos/aave-aave-logo.png',
       },
       label: 'USDT Borrow',
       tokens: [
@@ -390,7 +393,7 @@ export const SAMPLE_LENDING_DATA = [
             totalPrice: -10000,
             balanceFormatted: 10000,
           },
-        }
+        },
       ],
       borrowRate: 5.8,
     },
@@ -403,19 +406,19 @@ export const SAMPLE_LENDING_DATA = [
             oneDay: -1.59,
             oneWeek: -11.13,
             oneMonth: -47.67,
-            oneYear: -580.00
-          }
-        }
-      ]
-    }
+            oneYear: -580.0,
+          },
+        },
+      ],
+    },
   },
 
   // Kamino - Solana (2 positions, HF: 1.85)
   {
     position: {
-      protocol: { 
-        name: 'Kamino', 
-        logo: 'https://kamino.finance/logo.png' 
+      protocol: {
+        name: 'Kamino',
+        logo: 'https://kamino.finance/logo.png',
       },
       label: 'SOL Supply',
       tokens: [
@@ -429,7 +432,7 @@ export const SAMPLE_LENDING_DATA = [
             totalPrice: 25000,
             balanceFormatted: 125,
           },
-        }
+        },
       ],
       supplyRate: 12.5,
     },
@@ -443,17 +446,17 @@ export const SAMPLE_LENDING_DATA = [
             oneDay: 8.56,
             oneWeek: 59.92,
             oneMonth: 256.85,
-            oneYear: 3125.00
-          }
-        }
-      ]
-    }
+            oneYear: 3125.0,
+          },
+        },
+      ],
+    },
   },
   {
     position: {
-      protocol: { 
-        name: 'Kamino', 
-        logo: 'https://kamino.finance/logo.png' 
+      protocol: {
+        name: 'Kamino',
+        logo: 'https://kamino.finance/logo.png',
       },
       label: 'USDC Borrow',
       tokens: [
@@ -467,7 +470,7 @@ export const SAMPLE_LENDING_DATA = [
             totalPrice: -10000,
             balanceFormatted: 10000,
           },
-        }
+        },
       ],
       borrowRate: 7.2,
     },
@@ -480,19 +483,19 @@ export const SAMPLE_LENDING_DATA = [
             oneDay: -1.97,
             oneWeek: -13.79,
             oneMonth: -59.07,
-            oneYear: -720.00
-          }
-        }
-      ]
-    }
+            oneYear: -720.0,
+          },
+        },
+      ],
+    },
   },
 
   // Compound - Ethereum (1 position, HF: 3.15)
   {
     position: {
-      protocol: { 
-        name: 'Compound', 
-        logo: 'https://cryptologos.cc/logos/compound-comp-logo.png' 
+      protocol: {
+        name: 'Compound',
+        logo: 'https://cryptologos.cc/logos/compound-comp-logo.png',
       },
       label: 'DAI Supply',
       tokens: [
@@ -506,7 +509,7 @@ export const SAMPLE_LENDING_DATA = [
             totalPrice: 20000,
             balanceFormatted: 20000,
           },
-        }
+        },
       ],
       supplyRate: 5.5,
     },
@@ -519,12 +522,12 @@ export const SAMPLE_LENDING_DATA = [
           projection: {
             oneDay: 3.01,
             oneWeek: 21.07,
-            oneMonth: 90.30,
-            oneYear: 1100.00
-          }
-        }
-      ]
-    }
+            oneMonth: 90.3,
+            oneYear: 1100.0,
+          },
+        },
+      ],
+    },
   },
 ];
 

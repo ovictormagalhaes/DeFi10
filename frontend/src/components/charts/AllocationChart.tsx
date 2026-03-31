@@ -13,8 +13,9 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  Cell
+  Cell,
 } from 'recharts';
+
 import type { AllocationDelta } from '../../types/strategy';
 
 interface AllocationChartProps {
@@ -26,17 +27,17 @@ interface AllocationChartProps {
 export const AllocationChart: React.FC<AllocationChartProps> = ({
   deltas,
   height = 400,
-  showDelta = false
+  showDelta = false,
 }) => {
   // Prepare chart data
   const chartData = useMemo(() => {
-    return deltas.map(d => ({
+    return deltas.map((d) => ({
       name: d.assetKey,
       group: d.group,
       target: d.targetWeight,
       current: d.currentWeight,
       delta: d.deltaWeight,
-      needsRebalance: d.needsRebalance
+      needsRebalance: d.needsRebalance,
     }));
   }, [deltas]);
 
@@ -63,30 +64,31 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({
         </div>
         <div className="tooltip-content">
           <div className="tooltip-row">
-            <span className="tooltip-label" style={{ color: targetColor }}>Target:</span>
+            <span className="tooltip-label" style={{ color: targetColor }}>
+              Target:
+            </span>
             <span className="tooltip-value">{data.target.toFixed(2)}%</span>
           </div>
           <div className="tooltip-row">
-            <span className="tooltip-label" style={{ color: currentColor }}>Current:</span>
+            <span className="tooltip-label" style={{ color: currentColor }}>
+              Current:
+            </span>
             <span className="tooltip-value">{data.current.toFixed(2)}%</span>
           </div>
           <div className="tooltip-row">
             <span className="tooltip-label">Delta:</span>
-            <span 
+            <span
               className="tooltip-value"
-              style={{ 
+              style={{
                 color: data.delta > 0 ? deltaPositiveColor : deltaNegativeColor,
-                fontWeight: 'bold'
+                fontWeight: 'bold',
               }}
             >
-              {data.delta > 0 ? '+' : ''}{data.delta.toFixed(2)}%
+              {data.delta > 0 ? '+' : ''}
+              {data.delta.toFixed(2)}%
             </span>
           </div>
-          {data.needsRebalance && (
-            <div className="tooltip-warning">
-              ⚠️ Rebalance needed
-            </div>
-          )}
+          {data.needsRebalance && <div className="tooltip-warning">⚠️ Rebalance needed</div>}
         </div>
         <style>{`
           .allocation-chart-tooltip {
@@ -170,52 +172,30 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({
   return (
     <div className="allocation-chart-container">
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart
-          data={chartData}
-          margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-        >
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-          <XAxis 
-            dataKey="name" 
-            angle={-45}
-            textAnchor="end"
-            height={80}
-            tick={{ fontSize: 12 }}
-          />
-          <YAxis 
+          <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} tick={{ fontSize: 12 }} />
+          <YAxis
             label={{ value: 'Weight (%)', angle: -90, position: 'insideLeft' }}
             tick={{ fontSize: 12 }}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            wrapperStyle={{ paddingTop: '20px' }}
-            iconType="square"
-          />
-          
+          <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="square" />
+
           {!showDelta ? (
             <>
-              <Bar 
-                dataKey="target" 
-                fill={targetColor} 
-                name="Target %" 
-                radius={[4, 4, 0, 0]}
-              >
+              <Bar dataKey="target" fill={targetColor} name="Target %" radius={[4, 4, 0, 0]}>
                 {chartData.map((entry, index) => (
-                  <Cell 
+                  <Cell
                     key={`cell-target-${index}`}
                     fill={entry.needsRebalance ? rebalanceHighlight : targetColor}
                     opacity={entry.needsRebalance ? 0.8 : 1}
                   />
                 ))}
               </Bar>
-              <Bar 
-                dataKey="current" 
-                fill={currentColor} 
-                name="Current %" 
-                radius={[4, 4, 0, 0]}
-              >
+              <Bar dataKey="current" fill={currentColor} name="Current %" radius={[4, 4, 0, 0]}>
                 {chartData.map((entry, index) => (
-                  <Cell 
+                  <Cell
                     key={`cell-current-${index}`}
                     fill={entry.needsRebalance ? rebalanceHighlight : currentColor}
                     opacity={entry.needsRebalance ? 0.8 : 1}
@@ -224,13 +204,9 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({
               </Bar>
             </>
           ) : (
-            <Bar 
-              dataKey="delta" 
-              name="Delta %" 
-              radius={[4, 4, 0, 0]}
-            >
+            <Bar dataKey="delta" name="Delta %" radius={[4, 4, 0, 0]}>
               {chartData.map((entry, index) => (
-                <Cell 
+                <Cell
                   key={`cell-delta-${index}`}
                   fill={entry.delta > 0 ? deltaPositiveColor : deltaNegativeColor}
                 />

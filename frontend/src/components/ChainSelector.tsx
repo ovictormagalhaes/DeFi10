@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+
 import { useTheme } from '../context/ThemeProvider';
 
 interface ChainOption {
@@ -19,13 +20,19 @@ interface ChainSelectorProps {
   onSelectionChange: (selection: Set<string> | null) => void;
 }
 
-const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange }: ChainSelectorProps): React.ReactElement | null => {
+const ChainSelector = ({
+  supportedChains = [],
+  selectedChains,
+  onSelectionChange,
+}: ChainSelectorProps): React.ReactElement | null => {
   const { theme } = useTheme();
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200);
-  
+  const [windowWidth, setWindowWidth] = useState<number>(
+    typeof window !== 'undefined' ? window.innerWidth : 1200
+  );
+
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -55,15 +62,23 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
   };
 
   const getChainKey = (chain: ChainOption): string | undefined => {
-    const raw = chain.displayName || chain.name || chain.shortName || 
-                chain.id || chain.chainId || chain.chain || chain.network || chain.networkId;
+    const raw =
+      chain.displayName ||
+      chain.name ||
+      chain.shortName ||
+      chain.id ||
+      chain.chainId ||
+      chain.chain ||
+      chain.network ||
+      chain.networkId;
     return normalizeChainKey(raw);
   };
 
   // Helper to check if all chains are selected
-  const isAllSelected = selectedChains === null || 
-    (selectedChains.size === supportedChains.length && 
-     supportedChains.every(chain => selectedChains.has(getChainKey(chain))));
+  const isAllSelected =
+    selectedChains === null ||
+    (selectedChains.size === supportedChains.length &&
+      supportedChains.every((chain) => selectedChains.has(getChainKey(chain))));
 
   const handleToggleAll = (): void => {
     if (isAllSelected) {
@@ -77,9 +92,8 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
 
   const handleToggleChain = (chain: ChainOption): void => {
     const key = getChainKey(chain);
-    const currentSelection = selectedChains === null 
-      ? new Set(supportedChains.map(getChainKey))
-      : new Set(selectedChains);
+    const currentSelection =
+      selectedChains === null ? new Set(supportedChains.map(getChainKey)) : new Set(selectedChains);
 
     if (currentSelection.has(key)) {
       currentSelection.delete(key);
@@ -88,8 +102,10 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
     }
 
     // If all chains are now selected, set to null (optimization)
-    if (currentSelection.size === supportedChains.length &&
-        supportedChains.every(c => currentSelection.has(getChainKey(c)))) {
+    if (
+      currentSelection.size === supportedChains.length &&
+      supportedChains.every((c) => currentSelection.has(getChainKey(c)))
+    ) {
       onSelectionChange(null);
     } else {
       onSelectionChange(currentSelection);
@@ -109,7 +125,7 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
     if (count === 0) return 'No networks';
     if (count === 1) {
       const selectedKey: string = Array.from(selectedChains)[0];
-      const chain = supportedChains.find(c => getChainKey(c) === selectedKey);
+      const chain = supportedChains.find((c) => getChainKey(c) === selectedKey);
       return chain?.displayName || chain?.name || 'Selected network';
     }
     return `${count} networks`;
@@ -118,20 +134,24 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
   const getAllNetworksIcon = (): React.ReactElement => {
     const firstFour = supportedChains.slice(0, 4);
     return (
-      <div style={{
-        position: 'relative',
-        width: 24,
-        height: 24,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '12px 12px',
-          gridTemplateRows: '12px 12px',
-          gap: 2,
-        }}>
+      <div
+        style={{
+          position: 'relative',
+          width: 24,
+          height: 24,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '12px 12px',
+            gridTemplateRows: '12px 12px',
+            gap: 2,
+          }}
+        >
           {firstFour.map((chain, idx) => (
             <div
               key={idx}
@@ -164,19 +184,28 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
   const getButtonIcon = (): React.ReactElement => {
     if (isAllSelected) {
       return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={theme.textPrimary}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <circle cx="12" cy="12" r="10" />
           <path d="M2 12h20" />
           <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
         </svg>
       );
     }
-    
+
     // Single network - show its icon
     const count = selectedChains.size;
     if (count === 1) {
       const selectedKey = Array.from(selectedChains)[0];
-      const chain = supportedChains.find(c => getChainKey(c) === selectedKey);
+      const chain = supportedChains.find((c) => getChainKey(c) === selectedKey);
       if (chain?.iconUrl) {
         return (
           <img
@@ -192,10 +221,19 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
         );
       }
     }
-    
+
     // Multiple networks - layers icon
     return (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={theme.textPrimary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={theme.textPrimary}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <polygon points="12 2 2 7 12 12 22 7 12 2" />
         <polyline points="2 17 12 22 22 17" />
         <polyline points="2 12 12 17 22 12" />
@@ -246,7 +284,7 @@ const ChainSelector = ({ supportedChains = [], selectedChains, onSelectionChange
         <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
           {getButtonIcon()}
         </span>
-        
+
         {/* Desktop: show text + dropdown arrow */}
         {!isMobile && (
           <>

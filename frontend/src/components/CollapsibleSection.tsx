@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+
 import { useTheme } from '../context/ThemeProvider';
 
 interface CollapsibleSectionProps {
@@ -89,9 +90,7 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           transition: height === 'auto' ? 'none' : 'height 0.25s ease',
         }}
       >
-        <div style={{ padding: '0 20px 20px' }}>
-          {children}
-        </div>
+        <div style={{ padding: '0 20px 20px' }}>{children}</div>
       </div>
     </div>
   );

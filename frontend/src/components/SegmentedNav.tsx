@@ -20,7 +20,12 @@ const TABS: Tab[] = [
   { key: 'strategies', label: 'Strategies' }, // maps to previous rebalancing view
 ];
 
-export default function SegmentedNav({ value, onChange, disabled, selectedWalletGroupId }: SegmentedNavProps) {
+export default function SegmentedNav({
+  value,
+  onChange,
+  disabled,
+  selectedWalletGroupId,
+}: SegmentedNavProps) {
   const { theme } = useTheme() as { theme: Record<string, string> };
 
   const baseBtn: React.CSSProperties = {

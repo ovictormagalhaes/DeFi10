@@ -1,13 +1,12 @@
 /**
  * Allocation Strategy Form
  * Form to create/edit Allocation by Weight strategies
- * 
+ *
  * New Flow:
  * 1. Add Group (by Asset Type) - creates empty group
  * 2. Dialog appears to add tokens with weights to that group
  */
 
-import React, { useState, useMemo } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -25,15 +24,17 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useTheme } from '../../context/ThemeProvider';
+import React, { useState, useMemo } from 'react';
+
+import { getProtocolConfig } from '../../constants/protocols';
+import { WalletItemType } from '../../constants/walletItemTypes';
 import { useChainIcons } from '../../context/ChainIconsProvider';
-import { capitalize } from '../../utils/format';
+import { useTheme } from '../../context/ThemeProvider';
 import { RebalanceAssetType, ASSET_TYPE_OPTIONS } from '../../types/rebalancing';
 import type { AllocationByWeightConfig } from '../../types/strategies/allocationByWeight';
 import type { SaveStrategiesResponse } from '../../types/strategy';
 import type { WalletItem } from '../../types/wallet';
-import { WalletItemType } from '../../constants/walletItemTypes';
-import { getProtocolConfig } from '../../constants/protocols';
+import { capitalize } from '../../utils/format';
 
 // Helper to map WalletItemType to RebalanceAssetType
 const mapWalletTypeToRebalanceType = (type: WalletItemType): RebalanceAssetType => {
@@ -87,11 +88,11 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
   onSave,
   onCancel,
   onSuccess,
-  saving
+  saving,
 }) => {
   const { theme } = useTheme();
   const { getIcon: getChainIcon } = useChainIcons();
-  
+
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -99,24 +100,25 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-  
+
   // Initialize state from existing strategy if editing
   const initializeFromStrategy = () => {
-    if (!initialStrategy) return { assetType: null, assetTypeLabel: '', name: '', description: '', allocations: [] };
-    
+    if (!initialStrategy)
+      return { assetType: null, assetTypeLabel: '', name: '', description: '', allocations: [] };
+
     // Check for new structure (allocations) or old structure (items/targetAllocations)
     const hasNewStructure = !!(initialStrategy as any).allocations;
-    const allocationsData = hasNewStructure 
-      ? (initialStrategy as any).allocations 
+    const allocationsData = hasNewStructure
+      ? (initialStrategy as any).allocations
       : initialStrategy.targetAllocations || [];
-    
+
     // Determine asset type from first allocation
     let detectedType: RebalanceAssetType | null = null;
     let detectedLabel = '';
-    
+
     if (allocationsData.length > 0) {
       const firstAlloc = allocationsData[0];
-      
+
       if (hasNewStructure) {
         // New structure has groupType directly in allocation
         detectedType = firstAlloc.groupType as RebalanceAssetType;
@@ -127,53 +129,58 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           detectedType = firstItem.groupType as RebalanceAssetType;
         }
       }
-      
-      const typeOption = ASSET_TYPE_OPTIONS.find(opt => opt.value === detectedType);
+
+      const typeOption = ASSET_TYPE_OPTIONS.find((opt) => opt.value === detectedType);
       if (typeOption) {
         detectedLabel = typeOption.label;
       }
     }
-    
+
     // Map allocations to form items
     const existingAllocations: AllocationItem[] = allocationsData.map((alloc: any, idx: number) => {
       if (hasNewStructure) {
         // NEW structure: data is already in the allocation object
         const protocol = alloc.protocol?.id || alloc.protocol;
         const protocolName = alloc.protocol?.name || '';
-        const protocolLogo = getProtocolConfig(alloc.protocol?.id || alloc.protocol?.name || '').logo;
+        const protocolLogo = getProtocolConfig(
+          alloc.protocol?.id || alloc.protocol?.name || ''
+        ).logo;
         const chain = alloc.chain?.id || alloc.chain;
         const symbol = alloc.token?.symbol || alloc.assetKey;
         const tokenLogo = alloc.token?.logo || '';
-        
+
         // Find current value in portfolio
-        const portfolioItem = portfolio.find(p => 
-          p.protocol.id === protocol && 
-          p.protocol.chain === chain &&
-          p.position?.tokens?.some((t: any) => t.symbol === symbol)
+        const portfolioItem = portfolio.find(
+          (p) =>
+            p.protocol.id === protocol &&
+            p.protocol.chain === chain &&
+            p.position?.tokens?.some((t: any) => t.symbol === symbol)
         );
-        
+
         // Get token with correct type (supply/borrow) from current portfolio
         let currentValue = 0;
         if (portfolioItem) {
           const tokens = portfolioItem.position?.tokens || [];
           let targetToken = tokens.find((t: any) => t.symbol === symbol);
-          
+
           // For lending, filter by positionType
-          if (alloc.positionType === 1) { // Supplied
+          if (alloc.positionType === 1) {
+            // Supplied
             targetToken = tokens.find((t: any) => {
               const tokenType = t.type?.toLowerCase() || '';
               return t.symbol === symbol && (tokenType === 'supplied' || tokenType === 'supply');
             });
-          } else if (alloc.positionType === 2) { // Borrowed
+          } else if (alloc.positionType === 2) {
+            // Borrowed
             targetToken = tokens.find((t: any) => {
               const tokenType = t.type?.toLowerCase() || '';
               return t.symbol === symbol && (tokenType === 'borrowed' || tokenType === 'borrow');
             });
           }
-          
+
           currentValue = targetToken?.financials?.totalPrice || 0;
         }
-        
+
         return {
           id: `existing-${idx}`,
           assetKey: `${protocol || ''}-${chain || ''}-${symbol}`,
@@ -186,49 +193,54 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           tokenLogo,
           weight: alloc.targetWeight,
           value: currentValue,
-          group: alloc.group
+          group: alloc.group,
         };
       } else {
         // OLD structure: need to match with items array
         let item = initialStrategy.items?.[idx];
-        
+
         // Verify the item matches the symbol
         if (item && item.metadata?.symbol !== alloc.symbol) {
-          console.warn('[initializeFromStrategy] Item index mismatch, falling back to find by symbol+protocol');
-          
+          console.warn(
+            '[initializeFromStrategy] Item index mismatch, falling back to find by symbol+protocol'
+          );
+
           // Fallback: Find corresponding item matching symbol AND protocol/chain if available
           item = initialStrategy.items?.find((i: any) => {
             const symbolMatch = i.metadata?.symbol === alloc.symbol;
             if (!symbolMatch) return false;
-            
+
             // If backend provides protocol/chain in targetAllocation, use it for matching
             if (alloc.protocol && alloc.chain && i.metadata?.protocol) {
-              return i.metadata.protocol.id === alloc.protocol && 
-                     i.metadata.protocol.chain === alloc.chain;
+              return (
+                i.metadata.protocol.id === alloc.protocol &&
+                i.metadata.protocol.chain === alloc.chain
+              );
             }
-            
+
             // Otherwise just match by symbol (legacy behavior, will find first match)
             return true;
           });
         }
-        
+
         if (item?.metadata) {
           const protocol = item.metadata.protocol;
           const symbol = alloc.symbol || alloc.assetKey;
-          
+
           // Find current value in portfolio
-          const portfolioItem = portfolio.find(p => 
-            p.protocol.id === protocol?.id && 
-            p.protocol.chain === protocol?.chain &&
-            p.position?.tokens?.some((t: any) => t.symbol === symbol)
+          const portfolioItem = portfolio.find(
+            (p) =>
+              p.protocol.id === protocol?.id &&
+              p.protocol.chain === protocol?.chain &&
+              p.position?.tokens?.some((t: any) => t.symbol === symbol)
           );
-          
+
           // Get token with correct type (supply/borrow) from current portfolio
           let currentValue = 0;
           if (portfolioItem) {
             const tokens = portfolioItem.position?.tokens || [];
             let targetToken = tokens.find((t: any) => t.symbol === symbol);
-            
+
             // For lending, filter by type
             if (detectedType === RebalanceAssetType.LendingSupply) {
               targetToken = tokens.find((t: any) => {
@@ -241,10 +253,10 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                 return t.symbol === symbol && (tokenType === 'borrowed' || tokenType === 'borrow');
               });
             }
-            
+
             currentValue = targetToken?.financials?.totalPrice || 0;
           }
-          
+
           return {
             id: `existing-${idx}`,
             assetKey: `${protocol?.id || ''}-${protocol?.chain || ''}-${symbol}`,
@@ -256,41 +268,41 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
             chainLogo: protocol?.chain ? getChainIcon(protocol.chain) : undefined,
             tokenLogo: item.metadata.tokens?.[0]?.logo,
             weight: alloc.targetWeight,
-            value: currentValue
+            value: currentValue,
           };
         }
-        
+
         // Fallback if metadata not found
         return {
           id: `existing-${idx}`,
           assetKey: alloc.symbol || alloc.assetKey,
           symbol: alloc.symbol || alloc.assetKey,
           weight: alloc.targetWeight,
-          value: 0
+          value: 0,
         };
       }
     });
-    
+
     return {
       assetType: detectedType,
       assetTypeLabel: detectedLabel,
       name: initialStrategy.name || '',
       description: initialStrategy.description || '',
-      allocations: existingAllocations
+      allocations: existingAllocations,
     };
   };
-  
+
   const initialState = initializeFromStrategy();
-  
+
   // Step 1: Select Asset Type
   const [assetType, setAssetType] = useState<RebalanceAssetType | null>(initialState.assetType);
   const [assetTypeLabel, setAssetTypeLabel] = useState<string>(initialState.assetTypeLabel);
-  
+
   // Step 2: Configure strategy
   const [name, setName] = useState(initialState.name);
   const [description, setDescription] = useState(initialState.description);
   const [allocations, setAllocations] = useState<AllocationItem[]>(initialState.allocations);
-  
+
   // Dialog state for adding tokens
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<string>('');
@@ -300,10 +312,10 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
   // Get portfolio grouped by asset type
   const portfolioByAssetType = useMemo(() => {
     const grouped = new Map<RebalanceAssetType, WalletItem[]>();
-    
-    portfolio.forEach(item => {
+
+    portfolio.forEach((item) => {
       const type = mapWalletTypeToRebalanceType(item.type);
-      
+
       // For lending items, add to both Supply and Borrow groups
       // The filtering will happen later in assetsInType
       if (type === RebalanceAssetType.LendingAndBorrowing) {
@@ -316,34 +328,32 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         grouped.get(RebalanceAssetType.LendingSupply)!.push(item);
         grouped.get(RebalanceAssetType.LendingBorrow)!.push(item);
       }
-      
+
       // Add to original group
       if (!grouped.has(type)) {
         grouped.set(type, []);
       }
       grouped.get(type)!.push(item);
     });
-    
+
     return grouped;
   }, [portfolio]);
 
   // Get available asset types (that have portfolio items)
   const availableAssetTypes = useMemo(() => {
-    return ASSET_TYPE_OPTIONS.filter(opt => 
-      portfolioByAssetType.has(opt.value)
-    );
+    return ASSET_TYPE_OPTIONS.filter((opt) => portfolioByAssetType.has(opt.value));
   }, [portfolioByAssetType]);
 
   // Get assets for selected asset type
   const assetsInType = useMemo(() => {
     if (!assetType) return [];
     const items = portfolioByAssetType.get(assetType) || [];
-    
+
     // For Lending Supply, only show supply positions
     if (assetType === RebalanceAssetType.LendingSupply) {
-      return items.filter(item => {
+      return items.filter((item) => {
         const tokens = item.position?.tokens || [];
-        return tokens.some(t => {
+        return tokens.some((t) => {
           const tokenType = t.type?.toLowerCase() || '';
           return tokenType === 'supplied' || tokenType === 'supply';
         });
@@ -352,15 +362,15 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
 
     // For Lending Borrow, only show borrow positions
     if (assetType === RebalanceAssetType.LendingBorrow) {
-      return items.filter(item => {
+      return items.filter((item) => {
         const tokens = item.position?.tokens || [];
-        return tokens.some(t => {
+        return tokens.some((t) => {
           const tokenType = t.type?.toLowerCase() || '';
           return tokenType === 'borrowed' || tokenType === 'borrow';
         });
       });
     }
-    
+
     return items;
   }, [assetType, portfolioByAssetType]);
 
@@ -380,13 +390,13 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
     }
 
     // Check for duplicate assets
-    const assetKeys = allocations.map(a => a.assetKey);
+    const assetKeys = allocations.map((a) => a.assetKey);
     const duplicates = assetKeys.filter((key, index) => assetKeys.indexOf(key) !== index);
     if (duplicates.length > 0) {
       return {
         valid: false,
         errors: [`Duplicate tokens found: ${[...new Set(duplicates)].join(', ')}`],
-        warnings: []
+        warnings: [],
       };
     }
 
@@ -395,7 +405,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
       return {
         valid: false,
         errors: [`Total must be 100% (currently ${totalWeight.toFixed(1)}%)`],
-        warnings: []
+        warnings: [],
       };
     }
 
@@ -403,12 +413,12 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
   }, [assetType, allocations, totalWeight]);
 
   const handleSelectAssetType = (type: RebalanceAssetType) => {
-    const typeOption = ASSET_TYPE_OPTIONS.find(opt => opt.value === type);
+    const typeOption = ASSET_TYPE_OPTIONS.find((opt) => opt.value === type);
     if (!typeOption) return;
 
     setAssetType(type);
     setAssetTypeLabel(typeOption.label);
-    
+
     // Set default name
     setName(`Allocation - ${typeOption.label}`);
   };
@@ -426,14 +436,14 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
     }
 
     // Check if asset already exists
-    const exists = allocations.some(a => a.assetKey === selectedAsset);
+    const exists = allocations.some((a) => a.assetKey === selectedAsset);
     if (exists) {
       alert('This token is already added');
       return;
     }
 
     // Get symbol from portfolio
-    const portfolioItem = assetsInType.find(item => {
+    const portfolioItem = assetsInType.find((item) => {
       const key = `${item.protocol.id}-${item.protocol.chain}-${item.position.tokens?.[0]?.symbol || ''}`;
       return key === selectedAsset;
     });
@@ -445,28 +455,32 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
 
     // Get the correct token based on asset type
     let targetToken = portfolioItem.position.tokens?.[0];
-    
+
     if (assetType === RebalanceAssetType.LendingSupply) {
-      targetToken = portfolioItem.position.tokens?.find(t => {
-        const tokenType = t.type?.toLowerCase() || '';
-        return tokenType === 'supplied' || tokenType === 'supply';
-      }) || portfolioItem.position.tokens?.[0];
+      targetToken =
+        portfolioItem.position.tokens?.find((t) => {
+          const tokenType = t.type?.toLowerCase() || '';
+          return tokenType === 'supplied' || tokenType === 'supply';
+        }) || portfolioItem.position.tokens?.[0];
     } else if (assetType === RebalanceAssetType.LendingBorrow) {
-      targetToken = portfolioItem.position.tokens?.find(t => {
-        const tokenType = t.type?.toLowerCase() || '';
-        return tokenType === 'borrowed' || tokenType === 'borrow';
-      }) || portfolioItem.position.tokens?.[0];
+      targetToken =
+        portfolioItem.position.tokens?.find((t) => {
+          const tokenType = t.type?.toLowerCase() || '';
+          return tokenType === 'borrowed' || tokenType === 'borrow';
+        }) || portfolioItem.position.tokens?.[0];
     }
 
     const symbol = targetToken?.symbol || '';
     const value = targetToken?.financials?.totalPrice || 0;
-    
+
     if (!symbol) {
       alert('Asset symbol not found');
       return;
     }
 
-    const chainLogo = portfolioItem.protocol.chain ? getChainIcon(portfolioItem.protocol.chain) : undefined;
+    const chainLogo = portfolioItem.protocol.chain
+      ? getChainIcon(portfolioItem.protocol.chain)
+      : undefined;
 
     const newAllocation: AllocationItem = {
       id: `${selectedAsset}-${Date.now()}`,
@@ -479,7 +493,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
       chainLogo: chainLogo,
       tokenLogo: targetToken?.logo,
       weight,
-      value
+      value,
     };
 
     setAllocations([...allocations, newAllocation]);
@@ -489,14 +503,12 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
   };
 
   const handleRemoveToken = (allocationId: string) => {
-    setAllocations(allocations.filter(a => a.id !== allocationId));
+    setAllocations(allocations.filter((a) => a.id !== allocationId));
   };
 
   const handleUpdateWeight = (allocationId: string, newWeight: number) => {
     setAllocations(
-      allocations.map(a =>
-        a.id === allocationId ? { ...a, weight: newWeight } : a
-      )
+      allocations.map((a) => (a.id === allocationId ? { ...a, weight: newWeight } : a))
     );
   };
 
@@ -526,10 +538,10 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           protocol: a.protocol, // Protocol ID (e.g., 'aave-v3', 'kamino')
           protocolName: a.protocolName, // Protocol display name (e.g., 'Aave V3', 'Kamino')
           chain: a.chain, // Chain name (e.g., 'base', 'solana')
-          displayOrder: index // Preserve order
+          displayOrder: index, // Preserve order
         })),
         name: name.trim() || undefined,
-        description: description.trim() || undefined
+        description: description.trim() || undefined,
       };
 
       await onSave(walletGroupId, config, portfolio, initialStrategy?.id);
@@ -548,14 +560,9 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
     onRemove: (id: string) => void;
     onUpdateWeight: (id: string, weight: number) => void;
   }> = ({ allocation, logo, assetValue, isLending, onRemove, onUpdateWeight }) => {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id: allocation.id });
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+      id: allocation.id,
+    });
 
     const style = {
       transform: CSS.Transform.toString(transform),
@@ -599,23 +606,27 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           >
             ×
           </button>
-          
+
           <div className="card-header">
             {logo && <img src={logo} alt={allocation.symbol} className="card-token-logo" />}
             <div className="card-token-info">
               <span className="card-token-symbol">{allocation.symbol}</span>
               {(allocation.protocol || allocation.chain) && (
                 <div className="card-protocol-chain">
-                  {allocation.protocolLogo && <img src={allocation.protocolLogo} alt="protocol" className="card-small-logo" />}
+                  {allocation.protocolLogo && (
+                    <img src={allocation.protocolLogo} alt="protocol" className="card-small-logo" />
+                  )}
                   {allocation.protocolName && <span>{allocation.protocolName}</span>}
-                  {allocation.chainLogo && <img src={allocation.chainLogo} alt="chain" className="card-small-logo" />}
+                  {allocation.chainLogo && (
+                    <img src={allocation.chainLogo} alt="chain" className="card-small-logo" />
+                  )}
                   {allocation.chain && <span>{capitalize(allocation.chain)}</span>}
                 </div>
               )}
               <span className="card-asset-value">${assetValue.toFixed(2)}</span>
             </div>
           </div>
-          
+
           <div className="card-weight">
             <div className="card-weight-input-group">
               <input
@@ -649,13 +660,16 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
       {/* Step 1: Select Asset Type */}
       {!assetType ? (
         <div className="form-section">
-          <h3 className="section-title">{initialStrategy ? 'Edit Allocation Strategy' : 'Create Allocation Strategy'}</h3>
+          <h3 className="section-title">
+            {initialStrategy ? 'Edit Allocation Strategy' : 'Create Allocation Strategy'}
+          </h3>
           <p className="section-description">
-            Select the asset type for this strategy. Each strategy manages allocations for one asset type.
+            Select the asset type for this strategy. Each strategy manages allocations for one asset
+            type.
           </p>
-          
+
           <div className="asset-type-grid">
-            {availableAssetTypes.map(type => (
+            {availableAssetTypes.map((type) => (
               <button
                 key={type.value}
                 onClick={() => handleSelectAssetType(type.value)}
@@ -672,7 +686,6 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         </div>
       ) : (
         <>
-
           {/* Step 2: Configure Strategy */}
           <div className="form-section">
             <div className="section-header">
@@ -696,7 +709,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                 </p>
               </div>
             </div>
-            
+
             <div className="form-group">
               <label htmlFor="name" className="form-label">
                 Strategy Name <span className="optional">(optional)</span>
@@ -731,9 +744,10 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
             <div className="section-header">
               <div className="header-info">
                 <h3 className="section-title">Token Allocations</h3>
-                <span className={`total-badge ${Math.abs(totalWeight - 100) < 0.01 ? 'valid' : 'invalid'}`}>
-                  Total: {totalWeight.toFixed(1)}%
-                  {Math.abs(totalWeight - 100) < 0.01 ? ' ✓' : ''}
+                <span
+                  className={`total-badge ${Math.abs(totalWeight - 100) < 0.01 ? 'valid' : 'invalid'}`}
+                >
+                  Total: {totalWeight.toFixed(1)}%{Math.abs(totalWeight - 100) < 0.01 ? ' ✓' : ''}
                 </span>
               </div>
               <button
@@ -756,23 +770,27 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={allocations.map(a => a.id)}
+                  items={allocations.map((a) => a.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="allocations-grid">
                     {allocations.map((allocation) => {
                       // Get logo from allocation or try to find in portfolio
-                      const logo = allocation.tokenLogo || (() => {
-                        const portfolioItem = assetsInType.find(item => {
-                          const key = `${item.protocol.id}-${item.protocol.chain}-${item.position.tokens?.[0]?.symbol || ''}`;
-                          return key === allocation.assetKey;
-                        });
-                        return portfolioItem?.position.tokens?.[0]?.logo;
-                      })();
-                      
+                      const logo =
+                        allocation.tokenLogo ||
+                        (() => {
+                          const portfolioItem = assetsInType.find((item) => {
+                            const key = `${item.protocol.id}-${item.protocol.chain}-${item.position.tokens?.[0]?.symbol || ''}`;
+                            return key === allocation.assetKey;
+                          });
+                          return portfolioItem?.position.tokens?.[0]?.logo;
+                        })();
+
                       const assetValue = allocation.value || 0;
-                      const isLending = assetType === RebalanceAssetType.LendingSupply || assetType === RebalanceAssetType.LendingBorrow;
-                      
+                      const isLending =
+                        assetType === RebalanceAssetType.LendingSupply ||
+                        assetType === RebalanceAssetType.LendingBorrow;
+
                       return (
                         <SortableAllocationCard
                           key={allocation.id}
@@ -805,14 +823,14 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           className="btn-primary"
           disabled={!validation.valid || saving}
         >
-          {saving ? 'Saving...' : (initialStrategy ? 'Update Strategy' : 'Create Strategy')}
+          {saving ? 'Saving...' : initialStrategy ? 'Update Strategy' : 'Create Strategy'}
         </button>
       </div>
 
       {/* Token Dialog */}
       {showTokenDialog && assetType && (
-        <div 
-          className="dialog-overlay" 
+        <div
+          className="dialog-overlay"
           onClick={() => {
             setShowTokenDialog(false);
             setDropdownOpen(false);
@@ -821,10 +839,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
             <div className="dialog-header">
               <h3>Add Token - {assetTypeLabel}</h3>
-              <button
-                onClick={() => setShowTokenDialog(false)}
-                className="dialog-close"
-              >
+              <button onClick={() => setShowTokenDialog(false)} className="dialog-close">
                 ×
               </button>
             </div>
@@ -841,52 +856,72 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                     onClick={() => setDropdownOpen(!dropdownOpen)}
                     style={{ position: 'relative' }}
                   >
-                    {selectedAsset ? (() => {
-                      const asset = assetsInType.find(a => 
-                        `${a.protocol.id}-${a.protocol.chain}-${a.position.tokens?.[0]?.symbol || ''}` === selectedAsset
-                      );
-                      if (!asset) return null;
-                      
-                      const tokenLogo = asset.position.tokens?.[0]?.logo;
-                      const symbol = asset.position.tokens?.[0]?.symbol || '';
-                      const value = asset.position.tokens?.[0]?.financials?.totalPrice || 0;
-                      const protocolLogo = asset.protocol.logo;
-                      const protocolName = asset.protocol.name;
-                      const chain = asset.protocol.chain;
-                      const chainLogo = chain ? getChainIcon(chain) : null;
-                      const isLending = assetType === RebalanceAssetType.LendingSupply || assetType === RebalanceAssetType.LendingBorrow;
-                      
-                      return (
-                        <>
-                          <div className="dropdown-card-left">
-                            {tokenLogo && <img src={tokenLogo} alt={symbol} className="dropdown-card-logo" />}
-                            <div className="dropdown-card-info">
-                              <span className="dropdown-card-symbol">{symbol}</span>
-                              {(protocolName || chain) && (
-                                <div className="dropdown-card-meta">
-                                  {protocolLogo && <img src={protocolLogo} alt="protocol" className="dropdown-meta-logo" />}
-                                  {protocolName && <span>{protocolName}</span>}
-                                  {chainLogo && <img src={chainLogo} alt="chain" className="dropdown-meta-logo" />}
-                                  {chain && <span>{chain}</span>}
-                                </div>
+                    {selectedAsset ? (
+                      (() => {
+                        const asset = assetsInType.find(
+                          (a) =>
+                            `${a.protocol.id}-${a.protocol.chain}-${a.position.tokens?.[0]?.symbol || ''}` ===
+                            selectedAsset
+                        );
+                        if (!asset) return null;
+
+                        const tokenLogo = asset.position.tokens?.[0]?.logo;
+                        const symbol = asset.position.tokens?.[0]?.symbol || '';
+                        const value = asset.position.tokens?.[0]?.financials?.totalPrice || 0;
+                        const protocolLogo = asset.protocol.logo;
+                        const protocolName = asset.protocol.name;
+                        const chain = asset.protocol.chain;
+                        const chainLogo = chain ? getChainIcon(chain) : null;
+                        const isLending =
+                          assetType === RebalanceAssetType.LendingSupply ||
+                          assetType === RebalanceAssetType.LendingBorrow;
+
+                        return (
+                          <>
+                            <div className="dropdown-card-left">
+                              {tokenLogo && (
+                                <img src={tokenLogo} alt={symbol} className="dropdown-card-logo" />
                               )}
+                              <div className="dropdown-card-info">
+                                <span className="dropdown-card-symbol">{symbol}</span>
+                                {(protocolName || chain) && (
+                                  <div className="dropdown-card-meta">
+                                    {protocolLogo && (
+                                      <img
+                                        src={protocolLogo}
+                                        alt="protocol"
+                                        className="dropdown-meta-logo"
+                                      />
+                                    )}
+                                    {protocolName && <span>{protocolName}</span>}
+                                    {chainLogo && (
+                                      <img
+                                        src={chainLogo}
+                                        alt="chain"
+                                        className="dropdown-meta-logo"
+                                      />
+                                    )}
+                                    {chain && <span>{chain}</span>}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <span className="dropdown-card-value">${value.toFixed(2)}</span>
-                          <span className="trigger-card-arrow">{dropdownOpen ? '▲' : '▼'}</span>
-                        </>
-                      );
-                    })() : (
+                            <span className="dropdown-card-value">${value.toFixed(2)}</span>
+                            <span className="trigger-card-arrow">{dropdownOpen ? '▲' : '▼'}</span>
+                          </>
+                        );
+                      })()
+                    ) : (
                       <>
                         <span className="trigger-card-placeholder">Choose a token...</span>
                         <span className="trigger-card-arrow">{dropdownOpen ? '▲' : '▼'}</span>
                       </>
                     )}
                   </button>
-                  
+
                   {dropdownOpen && (
                     <div className="dropdown-menu-enhanced">
-                      {assetsInType.map(asset => {
+                      {assetsInType.map((asset) => {
                         const key = `${asset.protocol.id}-${asset.protocol.chain}-${asset.position.tokens?.[0]?.symbol || ''}`;
                         const symbol = asset.position.tokens?.[0]?.symbol || 'Unknown';
                         const tokenLogo = asset.position.tokens?.[0]?.logo;
@@ -895,8 +930,10 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                         const protocolName = asset.protocol.name;
                         const chain = asset.protocol.chain;
                         const chainLogo = chain ? getChainIcon(chain) : null;
-                        const isLending = assetType === RebalanceAssetType.LendingSupply || assetType === RebalanceAssetType.LendingBorrow;
-                        
+                        const isLending =
+                          assetType === RebalanceAssetType.LendingSupply ||
+                          assetType === RebalanceAssetType.LendingBorrow;
+
                         return (
                           <button
                             key={key}
@@ -908,14 +945,28 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                             }}
                           >
                             <div className="dropdown-card-left">
-                              {tokenLogo && <img src={tokenLogo} alt={symbol} className="dropdown-card-logo" />}
+                              {tokenLogo && (
+                                <img src={tokenLogo} alt={symbol} className="dropdown-card-logo" />
+                              )}
                               <div className="dropdown-card-info">
                                 <span className="dropdown-card-symbol">{symbol}</span>
                                 {(protocolName || chain) && (
                                   <div className="dropdown-card-meta">
-                                    {protocolLogo && <img src={protocolLogo} alt="protocol" className="dropdown-meta-logo" />}
+                                    {protocolLogo && (
+                                      <img
+                                        src={protocolLogo}
+                                        alt="protocol"
+                                        className="dropdown-meta-logo"
+                                      />
+                                    )}
                                     {protocolName && <span>{protocolName}</span>}
-                                    {chainLogo && <img src={chainLogo} alt="chain" className="dropdown-meta-logo" />}
+                                    {chainLogo && (
+                                      <img
+                                        src={chainLogo}
+                                        alt="chain"
+                                        className="dropdown-meta-logo"
+                                      />
+                                    )}
                                     {chain && <span>{chain}</span>}
                                   </div>
                                 )}
@@ -962,10 +1013,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
             </div>
 
             <div className="dialog-actions">
-              <button
-                onClick={() => setShowTokenDialog(false)}
-                className="btn-flat"
-              >
+              <button onClick={() => setShowTokenDialog(false)} className="btn-flat">
                 Cancel
               </button>
               <button

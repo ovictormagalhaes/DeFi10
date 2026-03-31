@@ -22,7 +22,14 @@ interface DynamicCellProps {
   className?: string;
 }
 
-const DynamicCell = ({ data, columns, onMouseEnter, onMouseLeave, style = {}, className = '' }: DynamicCellProps) => {
+const DynamicCell = ({
+  data,
+  columns,
+  onMouseEnter,
+  onMouseLeave,
+  style = {},
+  className = '',
+}: DynamicCellProps) => {
   const { theme } = useTheme();
   const totalFlex = Object.values(columns).reduce((sum, col) => sum + (col.flex || 1), 0);
 
@@ -55,7 +62,10 @@ const DynamicCell = ({ data, columns, onMouseEnter, onMouseLeave, style = {}, cl
     >
       {Object.entries(columns).map(([key, column], index) => {
         const flexValue = ((column.flex || 1) / totalFlex) * 100;
-        const value = typeof column.getValue === 'function' ? column.getValue(data) : (data[key] as React.ReactNode);
+        const value =
+          typeof column.getValue === 'function'
+            ? column.getValue(data)
+            : (data[key] as React.ReactNode);
 
         return (
           <div
@@ -139,7 +149,9 @@ const TokenCell = ({
                 borderRadius: '50%',
                 border: `1px solid ${theme.border}`,
               }}
-              onError={(e: React.SyntheticEvent<HTMLImageElement>) => (e.currentTarget.style.display = 'none')}
+              onError={(e: React.SyntheticEvent<HTMLImageElement>) =>
+                (e.currentTarget.style.display = 'none')
+              }
             />
           )}
           <span
@@ -188,7 +200,8 @@ const TokenCell = ({
     fontSize: '14px',
     fontWeight: '600',
     highlight: true,
-    getValue: (data: Record<string, unknown>) => (data as TokenData).formattedPrice || (data as TokenData).totalPrice || '0.00',
+    getValue: (data: Record<string, unknown>) =>
+      (data as TokenData).formattedPrice || (data as TokenData).totalPrice || '0.00',
   };
 
   return (

@@ -35,7 +35,13 @@ export default function StandardHeader({
   const merged = { ...defaultLabels, ...labels };
 
   let sequence: ColumnKey[] | null = null;
-  let advanced: Array<{ key: string; label: string; align: string; className: string; thProps: React.ThHTMLAttributes<HTMLTableCellElement> }> | null = null;
+  let advanced: Array<{
+    key: string;
+    label: string;
+    align: string;
+    className: string;
+    thProps: React.ThHTMLAttributes<HTMLTableCellElement>;
+  }> | null = null;
   if (Array.isArray(columnDefs) && columnDefs.length) {
     advanced = columnDefs.map((d) => {
       // Preserve intentionally empty string labels (e.g., blank placeholder column header)
@@ -53,7 +59,9 @@ export default function StandardHeader({
     sequence = columns && Array.isArray(columns) && columns.length ? columns : null;
     if (!sequence) {
       // Legacy fallback
-      sequence = [showRange ? 'range' : null, 'amount', 'rewards', 'value'].filter(Boolean) as ColumnKey[];
+      sequence = [showRange ? 'range' : null, 'amount', 'rewards', 'value'].filter(
+        Boolean
+      ) as ColumnKey[];
     }
   }
 

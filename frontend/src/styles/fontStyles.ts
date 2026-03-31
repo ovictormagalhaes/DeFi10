@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+
 import type { ThemePalette } from './colors';
 
 // Unified font styles for the application

@@ -185,17 +185,16 @@ export const api = {
   getSupportedChains: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.SUPPORTED_CHAINS}`,
 
   // Strategies (Rebalancing)
-  getStrategies: (accountId: string) => 
+  getStrategies: (accountId: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${accountId}`,
-  getStrategiesByGroup: (walletGroupId: string) => 
+  getStrategiesByGroup: (walletGroupId: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${walletGroupId}`,
-  saveStrategy: () =>
-    `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}`,
-  
+  saveStrategy: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}`,
+
   // Legacy aliases (deprecated)
-  getRebalances: (accountId: string) => 
+  getRebalances: (accountId: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${accountId}`,
-  getRebalancesByGroup: (walletGroupId: string) => 
+  getRebalancesByGroup: (walletGroupId: string) =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.STRATEGIES}/${walletGroupId}`,
 
   // Wallet Groups CRUD

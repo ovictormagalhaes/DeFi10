@@ -4,6 +4,7 @@ import { useMaskValues } from '../context/MaskValuesContext';
 import { useTheme } from '../context/ThemeProvider';
 import { useWalletGroups } from '../hooks/useWalletGroups';
 import { formatAddress } from '../types/wallet-groups';
+
 import DataFreshness from './DataFreshness';
 
 interface HeaderBarProps {
@@ -55,8 +56,10 @@ export default function HeaderBar({
 
   const ACCOUNT_CHIP_WIDTH = 172;
 
-  const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200);
-  
+  const [windowWidth, setWindowWidth] = useState<number>(
+    typeof window !== 'undefined' ? window.innerWidth : 1200
+  );
+
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
@@ -251,7 +254,7 @@ export default function HeaderBar({
               <rect x="2" y="5" width="20" height="14" rx="2" />
               <path d="M2 10h20" />
             </svg>
-            
+
             {/* Desktop: show text + status indicator + dropdown arrow */}
             {!isMobile && (
               <>
@@ -796,7 +799,9 @@ function DropdownItem({ label, onClick, danger, icon, disabled }: DropdownItemPr
         opacity: disabled ? 0.4 : 1,
         transition: 'background-color 120ms, color 140ms, opacity 120ms',
       }}
-      onMouseEnter={(e) => !disabled && (e.currentTarget.style.backgroundColor = theme.bgPanelHover)}
+      onMouseEnter={(e) =>
+        !disabled && (e.currentTarget.style.backgroundColor = theme.bgPanelHover)
+      }
       onMouseLeave={(e) => !disabled && (e.currentTarget.style.backgroundColor = 'transparent')}
     >
       <span

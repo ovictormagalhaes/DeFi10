@@ -42,15 +42,7 @@ const ViewModeSelector = ({ value = 'cards', onChange }: ViewModeSelectorProps) 
       label: 'Cards',
       icon: (
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect
-            x="2"
-            y="2"
-            width="6"
-            height="6"
-            rx="1.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
+          <rect x="2" y="2" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
           <rect
             x="10"
             y="2"
@@ -86,20 +78,8 @@ const ViewModeSelector = ({ value = 'cards', onChange }: ViewModeSelectorProps) 
       label: 'Strategies',
       icon: (
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle
-            cx="9"
-            cy="9"
-            r="6"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <circle
-            cx="9"
-            cy="9"
-            r="2.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
+          <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
+          <circle cx="9" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.5" />
           <path
             d="M9 3V6M9 12V15M3 9H6M12 9H15"
             stroke="currentColor"

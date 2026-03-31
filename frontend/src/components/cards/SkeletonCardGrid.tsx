@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+
 import { useTheme } from '../../context/ThemeProvider';
 import { Skeleton } from '../Skeleton';
 
@@ -76,7 +77,11 @@ function useGridColumns(minCardWidth: number, gap: number) {
   return { probeRef, cols };
 }
 
-const SkeletonCardGrid: React.FC<SkeletonCardGridProps> = ({ itemCount, minCardWidth, gap = 20 }) => {
+const SkeletonCardGrid: React.FC<SkeletonCardGridProps> = ({
+  itemCount,
+  minCardWidth,
+  gap = 20,
+}) => {
   const { probeRef, cols } = useGridColumns(minCardWidth, gap);
 
   const remainder = itemCount % cols;

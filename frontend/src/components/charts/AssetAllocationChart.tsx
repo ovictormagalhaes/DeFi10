@@ -1,6 +1,7 @@
 // src/components/charts/AssetAllocationChart.tsx
 import React from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
+
 import { ChartContainer } from './ChartContainer';
 import { useChartTheme } from './hooks/useChartTheme';
 
@@ -18,11 +19,11 @@ interface Props {
   formatPrice: (value: number) => string;
 }
 
-export const AssetAllocationChart: React.FC<Props> = ({ 
-  tokens, 
+export const AssetAllocationChart: React.FC<Props> = ({
+  tokens,
   totalValue,
   maskValue,
-  formatPrice
+  formatPrice,
 }) => {
   const { theme, chartColors } = useChartTheme();
 
@@ -37,21 +38,22 @@ export const AssetAllocationChart: React.FC<Props> = ({
         name: token.symbol,
         size: token.value,
         logo: token.logo,
-        color: chartColors.palette[index % chartColors.palette.length]
-      }))
-    }
+        color: chartColors.palette[index % chartColors.palette.length],
+      })),
+    },
   ];
 
   const CustomizedContent = (props: any) => {
     const { x, y, width, height, name, size, logo, color, depth } = props;
-    
+
     // Don't render the root "Portfolio" node
     if (depth === 1 || width < 35 || height < 25) return null;
 
     const calculatedPercentage = (size / top5Total) * 100;
-    const percentage = (!isNaN(calculatedPercentage) && isFinite(calculatedPercentage)) 
-      ? calculatedPercentage.toFixed(1) 
-      : '0.0';
+    const percentage =
+      !isNaN(calculatedPercentage) && isFinite(calculatedPercentage)
+        ? calculatedPercentage.toFixed(1)
+        : '0.0';
 
     return (
       <g>
@@ -64,10 +66,10 @@ export const AssetAllocationChart: React.FC<Props> = ({
             fill: color,
             stroke: theme.bgPanel,
             strokeWidth: 2,
-            opacity: 0.9
+            opacity: 0.9,
           }}
         />
-        
+
         {width > 50 && (
           <text
             x={x + width / 2}
@@ -108,36 +110,43 @@ export const AssetAllocationChart: React.FC<Props> = ({
 
     const data = payload[0].payload;
     const calculatedPercentage = (data.size / top5Total) * 100;
-    const percentage = (!isNaN(calculatedPercentage) && isFinite(calculatedPercentage))
-      ? calculatedPercentage.toFixed(2)
-      : '0.00';
+    const percentage =
+      !isNaN(calculatedPercentage) && isFinite(calculatedPercentage)
+        ? calculatedPercentage.toFixed(2)
+        : '0.00';
 
     return (
-      <div style={{
-        background: 'rgba(0, 0, 0, 0.95)',
-        padding: '12px 16px',
-        borderRadius: 8,
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
-      }}>
-        <div style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 6
-        }}>
+      <div
+        style={{
+          background: 'rgba(0, 0, 0, 0.95)',
+          padding: '12px 16px',
+          borderRadius: 8,
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 6,
+          }}
+        >
           {data.logo && (
-            <img 
-              src={data.logo} 
+            <img
+              src={data.logo}
               alt={data.name}
               style={{ width: 20, height: 20, borderRadius: '50%' }}
             />
           )}
-          <div style={{ 
-            color: data.color,
-            fontWeight: 600,
-            fontSize: 13
-          }}>
+          <div
+            style={{
+              color: data.color,
+              fontWeight: 600,
+              fontSize: 13,
+            }}
+          >
             {data.name}
           </div>
         </div>
@@ -152,10 +161,7 @@ export const AssetAllocationChart: React.FC<Props> = ({
   };
 
   return (
-    <ChartContainer
-      title="Asset Allocation"
-      subtitle="Hierarchical view of top assets"
-    >
+    <ChartContainer title="Asset Allocation" subtitle="Hierarchical view of top assets">
       <ResponsiveContainer width="100%" height={300}>
         <Treemap
           data={data}

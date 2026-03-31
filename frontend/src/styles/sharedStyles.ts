@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+
 import type { ThemePalette } from './colors';
 
 // Centralized shared style helpers to reduce repetition across tables/panels.

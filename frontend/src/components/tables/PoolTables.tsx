@@ -179,9 +179,7 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
   const hidePrice = vw < 768;
   const hideAmount = vw < 950;
 
-  if (!items || items.length === 0) return null;
-
-  const processedItems = useMemo(() => processPoolItems(items), [items]);
+  const processedItems = useMemo(() => processPoolItems(items || []), [items]);
   const totalValue = sum(processedItems.map((p) => p.value));
   const rewardsValue = sum(
     processedItems.flatMap((p) =>
@@ -272,6 +270,8 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
     return predominantProtocol;
   }, [processedItems]);
 
+  if (!items || items.length === 0) return null;
+
   return (
     <div className="pool-tables-wrapper flex-col gap-12">
       {showMetrics && (
@@ -317,211 +317,213 @@ const PoolTables: React.FC<PoolTablesProps> = ({ items = [], showMetrics = true 
       <div className="table-wrapper">
         <table className="table-unified text-primary">
           <StandardHeader
-          columns={
-            [
-              'token',
-              !hideRange && 'range',
-              !hidePrice && 'price',
-              !hideAmount && 'amount',
-              'value',
-            ].filter(Boolean) as any
-          }
-          columnDefs={[
-            !hideRange && { key: 'range', label: 'Range', align: 'center' as const },
-            !hidePrice && { key: 'price', label: 'Price', align: 'right' as const },
-            !hideAmount && { key: 'amount', label: 'Amount', align: 'right' as const },
-            { key: 'value', label: 'Value', align: 'right' as const },
-          ].filter(Boolean) as any}
-          labels={{ token: 'Pools' }}
-        />
-        <tbody>
-          {processedItems.map((processedItem, idx) => {
-            const { item, tokens, value, rewards } = processedItem;
-            const key = derivePoolKey(item, idx);
-            const isOpen = !!openPools[key];
+            columns={
+              [
+                'token',
+                !hideRange && 'range',
+                !hidePrice && 'price',
+                !hideAmount && 'amount',
+                'value',
+              ].filter(Boolean) as any
+            }
+            columnDefs={
+              [
+                !hideRange && { key: 'range', label: 'Range', align: 'center' as const },
+                !hidePrice && { key: 'price', label: 'Price', align: 'right' as const },
+                !hideAmount && { key: 'amount', label: 'Amount', align: 'right' as const },
+                { key: 'value', label: 'Value', align: 'right' as const },
+              ].filter(Boolean) as any
+            }
+            labels={{ token: 'Pools' }}
+          />
+          <tbody>
+            {processedItems.map((processedItem, idx) => {
+              const { item, tokens, value, rewards } = processedItem;
+              const key = derivePoolKey(item, idx);
+              const isOpen = !!openPools[key];
 
-            // Extract range from WalletItem structure
-            const poolRange = extractRangeFromItem(item);
+              // Extract range from WalletItem structure
+              const poolRange = extractRangeFromItem(item);
 
-            // Filtrar APENAS LiquidityUncollectedFee tokens para uncollected fees
-            const uncollectedFeeTokens = (rewards || []).filter(
-              (r: any) => r.type === 'LiquidityUncollectedFee'
-            );
+              // Filtrar APENAS LiquidityUncollectedFee tokens para uncollected fees
+              const uncollectedFeeTokens = (rewards || []).filter(
+                (r: any) => r.type === 'LiquidityUncollectedFee'
+              );
 
-            // Calcular valor total dos uncollected fees
-            const totalRewardsValue = uncollectedFeeTokens.reduce(
-              (s: number, t: any) =>
-                s +
-                (parseFloat(
-                  t.totalPrice ||
-                    t.totalValueUsd ||
-                    t.totalValueUSD ||
-                    t.totalValue ||
-                    t.valueUsd ||
-                    t.valueUSD ||
-                    t.value ||
-                    t.financials?.totalPrice ||
-                    0
-                ) || 0),
-              0
-            );
+              // Calcular valor total dos uncollected fees
+              const totalRewardsValue = uncollectedFeeTokens.reduce(
+                (s: number, t: any) =>
+                  s +
+                  (parseFloat(
+                    t.totalPrice ||
+                      t.totalValueUsd ||
+                      t.totalValueUSD ||
+                      t.totalValue ||
+                      t.valueUsd ||
+                      t.valueUSD ||
+                      t.value ||
+                      t.financials?.totalPrice ||
+                      0
+                  ) || 0),
+                0
+              );
 
-            return (
-              <React.Fragment key={key}>
-                <tr
-                  className="table-row table-row-hover tbody-divider cursor-pointer"
-                  onClick={() => togglePool(key)}
-                >
-                  <td className="td text-primary col-name">
-                    <span className="flex align-center gap-8">
-                      <span
-                        className="collapse-toggle"
-                        aria-label={isOpen ? 'Collapse pool' : 'Expand pool'}
-                      >
-                        {isOpen ? '−' : '+'}
-                      </span>
-                      {Array.isArray(tokens) && tokens.length > 0 && (
-                        <TokenDisplay
-                          tokens={
-                            tokens
-                              .filter(
-                                (t: any) => t.type === 'Supplied' || !t.type || t.type === 'LP'
-                              )
-                              .slice(0, 2) as never[]
-                          }
-                          size={24}
-                          showChain={false}
-                          getChainIcon={(chainKey: string) => undefined}
-                        />
-                      )}
-                    </span>
-                  </td>
-
-                  {!hideRange && (
-                    <td className="td td-center col-range">
-                      {poolRange ? (
-                        <RangeChip range={poolRange as any} />
-                      ) : (
-                        // Try to show "Full Range" for standard pools without specific range
+              return (
+                <React.Fragment key={key}>
+                  <tr
+                    className="table-row table-row-hover tbody-divider cursor-pointer"
+                    onClick={() => togglePool(key)}
+                  >
+                    <td className="td text-primary col-name">
+                      <span className="flex align-center gap-8">
                         <span
-                          className="td-placeholder"
-                          style={{ fontSize: '11px', color: '#888' }}
+                          className="collapse-toggle"
+                          aria-label={isOpen ? 'Collapse pool' : 'Expand pool'}
                         >
-                          Full Range
+                          {isOpen ? '−' : '+'}
                         </span>
-                      )}
+                        {Array.isArray(tokens) && tokens.length > 0 && (
+                          <TokenDisplay
+                            tokens={
+                              tokens
+                                .filter(
+                                  (t: any) => t.type === 'Supplied' || !t.type || t.type === 'LP'
+                                )
+                                .slice(0, 2) as never[]
+                            }
+                            size={24}
+                            showChain={false}
+                            getChainIcon={(chainKey: string) => undefined}
+                          />
+                        )}
+                      </span>
                     </td>
-                  )}
 
-                  {!hidePrice && (
-                    <td className="td td-right td-mono text-primary col-price">
-                      <span className="td-placeholder">-</span>
-                    </td>
-                  )}
-
-                  {!hideAmount && (
-                    <td className="td td-right td-mono text-primary col-amount">
-                      <span className="td-placeholder">-</span>
-                    </td>
-                  )}
-
-                  <td className="td td-right td-mono td-mono-strong text-primary col-value">
-                    {maskValue(formatPrice(value))}
-                  </td>
-                </tr>
-
-                {isOpen && tokens && (
-                  <>
-                    {tokens
-                      .filter((t: any) => t.type === 'Supplied' || !t.type || t.type === 'LP')
-                      .map((t: any, tIdx: number) => {
-                        const tokenValue =
-                          parseFloat(
-                            String(
-                              t.financials?.totalPrice ||
-                                t.totalPrice ||
-                                t.totalValueUsd ||
-                                t.totalValueUSD ||
-                                t.totalValue ||
-                                t.valueUsd ||
-                                t.valueUSD ||
-                                t.value ||
-                                0
-                            )
-                          ) || 0;
-
-                        // Filtrar APENAS LiquidityUncollectedFee tokens para este token específico
-                        const tokenUncollectedFees = (rewards || []).filter(
-                          (r: any) =>
-                            r.type === 'LiquidityUncollectedFee' &&
-                            (r.symbol || '').toLowerCase() === (t.symbol || '').toLowerCase()
-                        );
-
-                        // Calcular valor dos uncollected fees para este token específico
-                        const tokenRewardsValue = tokenUncollectedFees.reduce(
-                          (s: number, r: any) =>
-                            s + (parseFloat(r.financials?.totalPrice || r.totalPrice || 0) || 0),
-                          0
-                        );
-
-                        return (
-                          <tr
-                            key={`${key}-tok-${tIdx}`}
-                            className="table-row tbody-divider pool-token-rows-enter"
+                    {!hideRange && (
+                      <td className="td td-center col-range">
+                        {poolRange ? (
+                          <RangeChip range={poolRange as any} />
+                        ) : (
+                          // Try to show "Full Range" for standard pools without specific range
+                          <span
+                            className="td-placeholder"
+                            style={{ fontSize: '11px', color: '#888' }}
                           >
-                            <td
-                              className="td-small text-secondary col-name"
-                              style={{ paddingLeft: 34 }}
+                            Full Range
+                          </span>
+                        )}
+                      </td>
+                    )}
+
+                    {!hidePrice && (
+                      <td className="td td-right td-mono text-primary col-price">
+                        <span className="td-placeholder">-</span>
+                      </td>
+                    )}
+
+                    {!hideAmount && (
+                      <td className="td td-right td-mono text-primary col-amount">
+                        <span className="td-placeholder">-</span>
+                      </td>
+                    )}
+
+                    <td className="td td-right td-mono td-mono-strong text-primary col-value">
+                      {maskValue(formatPrice(value))}
+                    </td>
+                  </tr>
+
+                  {isOpen && tokens && (
+                    <>
+                      {tokens
+                        .filter((t: any) => t.type === 'Supplied' || !t.type || t.type === 'LP')
+                        .map((t: any, tIdx: number) => {
+                          const tokenValue =
+                            parseFloat(
+                              String(
+                                t.financials?.totalPrice ||
+                                  t.totalPrice ||
+                                  t.totalValueUsd ||
+                                  t.totalValueUSD ||
+                                  t.totalValue ||
+                                  t.valueUsd ||
+                                  t.valueUSD ||
+                                  t.value ||
+                                  0
+                              )
+                            ) || 0;
+
+                          // Filtrar APENAS LiquidityUncollectedFee tokens para este token específico
+                          const tokenUncollectedFees = (rewards || []).filter(
+                            (r: any) =>
+                              r.type === 'LiquidityUncollectedFee' &&
+                              (r.symbol || '').toLowerCase() === (t.symbol || '').toLowerCase()
+                          );
+
+                          // Calcular valor dos uncollected fees para este token específico
+                          const tokenRewardsValue = tokenUncollectedFees.reduce(
+                            (s: number, r: any) =>
+                              s + (parseFloat(r.financials?.totalPrice || r.totalPrice || 0) || 0),
+                            0
+                          );
+
+                          return (
+                            <tr
+                              key={`${key}-tok-${tIdx}`}
+                              className="table-row tbody-divider pool-token-rows-enter"
                             >
-                              <span className="flex align-center">
-                                <TokenDisplay
-                                  tokens={[t] as never[]}
-                                  size={18}
-                                  showChain={false}
-                                  getChainIcon={(chainKey: string) => undefined}
-                                />
-                              </span>
-                            </td>
-
-                            {!hideRange && <td className="td-small td-center col-range" />}
-
-                            {!hidePrice && (
-                              <td className="td-small td-right td-mono text-primary col-price">
-                                {maskValue(formatPrice(t.price || 0))}
+                              <td
+                                className="td-small text-secondary col-name"
+                                style={{ paddingLeft: 34 }}
+                              >
+                                <span className="flex align-center">
+                                  <TokenDisplay
+                                    tokens={[t] as never[]}
+                                    size={18}
+                                    showChain={false}
+                                    getChainIcon={(chainKey: string) => undefined}
+                                  />
+                                </span>
                               </td>
-                            )}
 
-                            {!hideAmount && (
-                              <td className="td-small td-right td-mono text-primary col-amount">
-                                {maskValue(formatTokenAmount(t, 4))}
+                              {!hideRange && <td className="td-small td-center col-range" />}
+
+                              {!hidePrice && (
+                                <td className="td-small td-right td-mono text-primary col-price">
+                                  {maskValue(formatPrice(t.price || 0))}
+                                </td>
+                              )}
+
+                              {!hideAmount && (
+                                <td className="td-small td-right td-mono text-primary col-amount">
+                                  {maskValue(formatTokenAmount(t, 4))}
+                                </td>
+                              )}
+
+                              <td className="td-small td-right td-mono td-mono-strong text-primary col-value">
+                                {maskValue(formatPrice(tokenValue))}
                               </td>
-                            )}
-
-                            <td className="td-small td-right td-mono td-mono-strong text-primary col-value">
-                              {maskValue(formatPrice(tokenValue))}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </tbody>
-        <TableFooter
-          totalValue={totalValue}
-          itemsCount={positionsCount}
-          columns={
-            [
-              !hideRange && 'range',
-              !hidePrice && 'price',
-              !hideAmount && 'amount',
-              'value',
-            ].filter(Boolean) as string[]
-          }
-        />
-      </table>
+                            </tr>
+                          );
+                        })}
+                    </>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+          <TableFooter
+            totalValue={totalValue}
+            itemsCount={positionsCount}
+            columns={
+              [
+                !hideRange && 'range',
+                !hidePrice && 'price',
+                !hideAmount && 'amount',
+                'value',
+              ].filter(Boolean) as string[]
+            }
+          />
+        </table>
       </div>
     </div>
   );

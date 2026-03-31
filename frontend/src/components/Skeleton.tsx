@@ -13,7 +13,13 @@ interface SkeletonProps {
  *  - circle: renders as a circle (uses min of width/height)
  *  - inline: inline-block instead of block
  */
-export function Skeleton({ width, height, circle = false, inline = false, className = '' }: SkeletonProps) {
+export function Skeleton({
+  width,
+  height,
+  circle = false,
+  inline = false,
+  className = '',
+}: SkeletonProps) {
   const style: React.CSSProperties = {};
   if (width) style.width = typeof width === 'number' ? width + 'px' : width;
   if (height) style.height = typeof height === 'number' ? height + 'px' : height;
@@ -29,7 +35,12 @@ interface TextSkeletonProps {
   className?: string;
 }
 
-export function TextSkeleton({ lines = 1, lineHeight = 13, gap = 6, className = '' }: TextSkeletonProps) {
+export function TextSkeleton({
+  lines = 1,
+  lineHeight = 13,
+  gap = 6,
+  className = '',
+}: TextSkeletonProps) {
   const arr = Array.from({ length: lines });
   return (
     <span

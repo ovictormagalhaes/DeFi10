@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+
 import { useTheme } from '../context/ThemeProvider';
 
 export type SortOption = 'value-desc' | 'value-asc' | 'apy-desc' | 'protocol-asc' | 'chain-asc';
@@ -70,13 +71,19 @@ export function sortWalletTokens<T = any>(items: T[], sort: SortOption): T[] {
       return sorted.sort((a: any, b: any) => {
         const va = (a.token || a).totalPrice ?? (a.token || a).value ?? 0;
         const vb = (b.token || b).totalPrice ?? (b.token || b).value ?? 0;
-        return (typeof vb === 'number' ? vb : parseFloat(vb) || 0) - (typeof va === 'number' ? va : parseFloat(va) || 0);
+        return (
+          (typeof vb === 'number' ? vb : parseFloat(vb) || 0) -
+          (typeof va === 'number' ? va : parseFloat(va) || 0)
+        );
       });
     case 'value-asc':
       return sorted.sort((a: any, b: any) => {
         const va = (a.token || a).totalPrice ?? (a.token || a).value ?? 0;
         const vb = (b.token || b).totalPrice ?? (b.token || b).value ?? 0;
-        return (typeof va === 'number' ? va : parseFloat(va) || 0) - (typeof vb === 'number' ? vb : parseFloat(vb) || 0);
+        return (
+          (typeof va === 'number' ? va : parseFloat(va) || 0) -
+          (typeof vb === 'number' ? vb : parseFloat(vb) || 0)
+        );
       });
     default:
       return sorted;
@@ -189,7 +196,8 @@ export default function SortDropdown({ value, onChange }: SortDropdownProps) {
                 if (value !== opt.id) e.currentTarget.style.background = theme.bgHover;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = value === opt.id ? theme.bgAccentSoft : 'transparent';
+                e.currentTarget.style.background =
+                  value === opt.id ? theme.bgAccentSoft : 'transparent';
               }}
             >
               {opt.label}

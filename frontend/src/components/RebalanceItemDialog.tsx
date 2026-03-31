@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+
 import type { ThemeTokens } from '../theme/tokens';
 
 interface AssetIdEntry {
@@ -113,7 +114,9 @@ export default function RebalanceItemDialog({
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
         if (!focusable || focusable.length === 0) return;
-        const list = Array.from(focusable).filter((el) => !el.hasAttribute('disabled')) as HTMLElement[];
+        const list = Array.from(focusable).filter(
+          (el) => !el.hasAttribute('disabled')
+        ) as HTMLElement[];
         if (list.length === 0) return;
         const first = list[0];
         const last = list[list.length - 1];
@@ -209,7 +212,9 @@ export default function RebalanceItemDialog({
             <select
               ref={firstFieldRef}
               value={assetType}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAssetType(e.target.value === '' ? '' : Number(e.target.value))}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setAssetType(e.target.value === '' ? '' : Number(e.target.value))
+              }
               className="input-base"
               title="Choose the category of asset you want to rebalance"
             >
@@ -221,8 +226,16 @@ export default function RebalanceItemDialog({
               ))}
             </select>
             {assetType === '' && (
-              <div style={{ marginTop: 4, fontSize: 11, color: 'var(--mw-text-secondary,var(--app-text-secondary))', opacity: 0.7 }}>
-                💡 Wallet = tokens, Liquidity = LP positions, Lending = lend/borrow, Staking = staked assets
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 11,
+                  color: 'var(--mw-text-secondary,var(--app-text-secondary))',
+                  opacity: 0.7,
+                }}
+              >
+                💡 Wallet = tokens, Liquidity = LP positions, Lending = lend/borrow, Staking =
+                staked assets
               </div>
             )}
           </div>
@@ -248,7 +261,10 @@ export default function RebalanceItemDialog({
                 <button
                   type="button"
                   onClick={() => {
-                    if (assetId && !assetIds.some(a => a.type === assetType && a.id === assetId)) {
+                    if (
+                      assetId &&
+                      !assetIds.some((a) => a.type === assetType && a.id === assetId)
+                    ) {
                       setAssetIds([...assetIds, { type: assetType, id: assetId }]);
                       setAssetId('');
                     }
@@ -281,58 +297,76 @@ export default function RebalanceItemDialog({
 
                   let tokens: Record<string, any>[] = [];
                   let lendingType: 'supply' | 'borrow' | null = null;
-                  
+
                   // Use numeric comparison for asset type
-                  const assetTypeNum = typeof asset.type === 'number' ? asset.type : parseInt(asset.type);
-                  
-                  if (assetTypeNum === 1) { // RebalanceAssetType.Wallet
+                  const assetTypeNum =
+                    typeof asset.type === 'number' ? asset.type : parseInt(asset.type);
+
+                  if (assetTypeNum === 1) {
+                    // RebalanceAssetType.Wallet
                     // For wallet, the option.raw IS the token directly
                     tokens = [raw];
-                  } else if (assetTypeNum === 3) { // Lending
+                  } else if (assetTypeNum === 3) {
+                    // Lending
                     const pos = raw.position || raw;
-                    
+
                     if (Array.isArray(pos.tokens) && pos.tokens.length > 0) {
-                      tokens = pos.tokens.slice(0, 2).map(t => t?.token || t).filter(Boolean);
-                      
+                      tokens = pos.tokens
+                        .slice(0, 2)
+                        .map((t) => t?.token || t)
+                        .filter(Boolean);
+
                       // Check position label/key first
-                      const positionLabel = pos.label?.toLowerCase() || pos.key?.toLowerCase() || pos.name?.toLowerCase() || '';
-                      const isBorrowPosition = positionLabel.includes('borrow') || positionLabel.includes('debt');
+                      const positionLabel =
+                        pos.label?.toLowerCase() ||
+                        pos.key?.toLowerCase() ||
+                        pos.name?.toLowerCase() ||
+                        '';
+                      const isBorrowPosition =
+                        positionLabel.includes('borrow') || positionLabel.includes('debt');
 
                       // Check all tokens to find if any is borrowed
-                      const hasBorrowedToken = pos.tokens.some(t => {
+                      const hasBorrowedToken = pos.tokens.some((t) => {
                         const tokenType = t?.type?.toLowerCase();
                         const tokenLabel = t?.label?.toLowerCase() || t?.name?.toLowerCase() || '';
                         const hasDebt = t?.debt === true || t?.debt > 0;
                         const negativeBalance = t?.balance && t.balance < 0;
                         const negativePrice = (t?.totalPrice || t?.financials?.totalPrice || 0) < 0;
-                        
-                        const isBorrowed = tokenType === 'borrowed' ||
-                               tokenType === 'borrow' ||
-                               tokenType === 'debt' ||
-                               tokenLabel.includes('borrow') ||
-                               tokenLabel.includes('debt') ||
-                               hasDebt ||
-                               negativeBalance ||
-                               negativePrice;
+
+                        const isBorrowed =
+                          tokenType === 'borrowed' ||
+                          tokenType === 'borrow' ||
+                          tokenType === 'debt' ||
+                          tokenLabel.includes('borrow') ||
+                          tokenLabel.includes('debt') ||
+                          hasDebt ||
+                          negativeBalance ||
+                          negativePrice;
 
                         return isBorrowed;
                       });
-                      
+
                       if (isBorrowPosition || hasBorrowedToken) {
                         lendingType = 'borrow';
                       } else {
                         lendingType = 'supply';
                       }
-                      
                     }
-                  } else if (assetTypeNum === 2 || assetTypeNum === 4) { // LP, Staking
+                  } else if (assetTypeNum === 2 || assetTypeNum === 4) {
+                    // LP, Staking
                     // For LP/Staking, extract tokens
                     const pos = raw.position || raw;
-                    
+
                     if (Array.isArray(pos.tokens) && pos.tokens.length > 0) {
-                      tokens = pos.tokens.slice(0, 2).map(t => t?.token || t).filter(Boolean);
+                      tokens = pos.tokens
+                        .slice(0, 2)
+                        .map((t) => t?.token || t)
+                        .filter(Boolean);
                     } else if (Array.isArray(pos.pool?.tokens) && pos.pool.tokens.length > 0) {
-                      tokens = pos.pool.tokens.slice(0, 2).map(t => t?.token || t).filter(Boolean);
+                      tokens = pos.pool.tokens
+                        .slice(0, 2)
+                        .map((t) => t?.token || t)
+                        .filter(Boolean);
                     } else {
                       const t0 = pos.token0 || pos.tokenA || pos.baseToken || pos.primaryToken;
                       const t1 = pos.token1 || pos.tokenB || pos.quoteToken || pos.secondaryToken;
@@ -341,7 +375,7 @@ export default function RebalanceItemDialog({
                       tokens = tokens.filter(Boolean);
                     }
                   }
-                  
+
                   return (
                     <div
                       key={`${asset.type}-${asset.id}-${idx}`}
@@ -370,42 +404,61 @@ export default function RebalanceItemDialog({
                       <span style={{ flex: 1 }}>{label}</span>
                       {/* Lending type badge */}
                       {lendingType && (
-                        <span style={{
-                          fontSize: 10,
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          fontWeight: 600,
-                          background: lendingType === 'borrow' 
-                            ? 'rgba(239, 68, 68, 0.15)' 
-                            : 'rgba(34, 197, 94, 0.15)',
-                          color: lendingType === 'borrow' 
-                            ? 'rgb(239, 68, 68)' 
-                            : 'rgb(34, 197, 94)',
-                        }}>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            fontWeight: 600,
+                            background:
+                              lendingType === 'borrow'
+                                ? 'rgba(239, 68, 68, 0.15)'
+                                : 'rgba(34, 197, 94, 0.15)',
+                            color:
+                              lendingType === 'borrow' ? 'rgb(239, 68, 68)' : 'rgb(34, 197, 94)',
+                          }}
+                        >
                           {lendingType === 'borrow' ? 'BORROW' : 'SUPPLY'}
                         </span>
                       )}
                       {/* Type icon - monocromático e à direita */}
-                      <span style={{ 
-                        fontSize: 14, 
-                        opacity: 0.5,
-                        filter: 'grayscale(1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                      }} title={
-                        assetTypeNum === 1 ? 'Wallet' :
-                        assetTypeNum === 2 ? 'Liquidity Pool' :
-                        assetTypeNum === 3 ? 'Lending Position' :
-                        assetTypeNum === 4 ? 'Staking Position' : 'Asset'
-                      }>
-                        {assetTypeNum === 1 ? '💼' : 
-                         assetTypeNum === 2 ? '💧' : 
-                         assetTypeNum === 3 ? '🏦' : 
-                         assetTypeNum === 4 ? '🔒' : '📦'}
+                      <span
+                        style={{
+                          fontSize: 14,
+                          opacity: 0.5,
+                          filter: 'grayscale(1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                        title={
+                          assetTypeNum === 1
+                            ? 'Wallet'
+                            : assetTypeNum === 2
+                              ? 'Liquidity Pool'
+                              : assetTypeNum === 3
+                                ? 'Lending Position'
+                                : assetTypeNum === 4
+                                  ? 'Staking Position'
+                                  : 'Asset'
+                        }
+                      >
+                        {assetTypeNum === 1
+                          ? '💼'
+                          : assetTypeNum === 2
+                            ? '💧'
+                            : assetTypeNum === 3
+                              ? '🏦'
+                              : assetTypeNum === 4
+                                ? '🔒'
+                                : '📦'}
                       </span>
                       <button
                         type="button"
-                        onClick={() => setAssetIds(assetIds.filter((a) => !(a.type === asset.type && a.id === asset.id)))}
+                        onClick={() =>
+                          setAssetIds(
+                            assetIds.filter((a) => !(a.type === asset.type && a.id === asset.id))
+                          )
+                        }
                         style={{
                           background: 'transparent',
                           border: 'none',
@@ -436,7 +489,9 @@ export default function RebalanceItemDialog({
             <div className="text-secondary label-sm">Reference Type</div>
             <select
               value={referenceType}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setReferenceType(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setReferenceType(e.target.value)
+              }
               className="input-base"
             >
               <option value="">Select reference type…</option>
@@ -475,7 +530,9 @@ export default function RebalanceItemDialog({
             ) : (
               <select
                 value={referenceValue}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setReferenceValue(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setReferenceValue(e.target.value)
+                }
                 className="input-base"
               >
                 <option value="">Select value…</option>
@@ -493,7 +550,9 @@ export default function RebalanceItemDialog({
             <div className="text-secondary label-sm">Note</div>
             <select
               value={note}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setNote(Number(e.target.value))}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                setNote(Number(e.target.value))
+              }
               className="input-base"
             >
               {Array.from({ length: 101 }, (_, n) => n).map((n) => (

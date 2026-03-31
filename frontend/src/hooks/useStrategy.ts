@@ -5,20 +5,26 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { WalletItem } from '../types/wallet';
+
+import { saveStrategy as saveStrategyApi, saveStrategies } from '../services/apiClient';
 import type {
   Strategy,
   StrategyType,
   SaveStrategyResponse,
-  SaveStrategiesResponse
+  SaveStrategiesResponse,
 } from '../types/strategy';
-import { saveStrategy as saveStrategyApi, saveStrategies } from '../services/apiClient';
-import { loadStrategyWithCache, clearStrategyCache, getStrategyByType } from './useSharedStrategyCache';
-import { 
-  validateStrategy, 
-  buildStrategyRequest, 
-  calculateStrategyResult 
+import type { WalletItem } from '../types/wallet';
+import {
+  validateStrategy,
+  buildStrategyRequest,
+  calculateStrategyResult,
 } from '../utils/strategies/strategyFactory';
+
+import {
+  loadStrategyWithCache,
+  clearStrategyCache,
+  getStrategyByType,
+} from './useSharedStrategyCache';
 
 export interface UseStrategyResult<TConfig = unknown, TResult = unknown> {
   // State
@@ -26,7 +32,7 @@ export interface UseStrategyResult<TConfig = unknown, TResult = unknown> {
   loading: boolean;
   error: string | null;
   saving: boolean;
-  
+
   // Actions
   loadStrategy: (walletGroupId: string) => Promise<void>;
   saveStrategy: (
@@ -37,12 +43,15 @@ export interface UseStrategyResult<TConfig = unknown, TResult = unknown> {
     strategyId?: string
   ) => Promise<SaveStrategiesResponse>;
   clearStrategy: () => void;
-  
+
   // Calculations
   calculate: (portfolio: WalletItem[]) => TResult | null;
 }
 
-export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategyResult<TConfig, TResult> {
+export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategyResult<
+  TConfig,
+  TResult
+> {
   const [strategy, setStrategy] = useState<Strategy | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,7 +63,7 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
   const loadStrategy = useCallback(async (walletGroupId: string) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const data = await loadStrategyWithCache(walletGroupId);
       const type1Strategy = getStrategyByType(data, 1);
@@ -72,74 +81,83 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
   /**
    * Save strategy using factory pattern
    * Works with any strategy type
-   * 
+   *
    * 🚨 CRITICAL: Backend overwrites ALL strategies, so we must merge manually
    */
-  const saveStrategy = useCallback(async (
-    strategyType: StrategyType,
-    walletGroupId: string,
-    config: TConfig,
-    portfolio: WalletItem[],
-    strategyId?: string
-  ): Promise<SaveStrategiesResponse> => {
-    setSaving(true);
-    setError(null);
+  const saveStrategy = useCallback(
+    async (
+      strategyType: StrategyType,
+      walletGroupId: string,
+      config: TConfig,
+      portfolio: WalletItem[],
+      strategyId?: string
+    ): Promise<SaveStrategiesResponse> => {
+      setSaving(true);
+      setError(null);
 
-    try {
-      // Validate using factory
-      const validation = validateStrategy(strategyType, config, portfolio);
-      if (!validation.valid) {
-        throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
-      }
-
-      // Log warnings if any
-      if (validation.warnings && validation.warnings.length > 0) {
-        console.warn('Strategy warnings:', validation.warnings);
-      }
-
-      // Build request for current strategy type
-      const request = buildStrategyRequest(strategyType, walletGroupId, config, portfolio, strategyId);
-
-      // Get all existing strategies to preserve them
-      const existingData = await loadStrategyWithCache(walletGroupId);
-      const strategies: any[] = [];
-      
-      // Preserve ALL existing strategies EXCEPT the one being updated
-      const existingStrategies = existingData?.strategies || [];
-      
-      existingStrategies.forEach((s: any, index: number) => {
-        // Replace the strategy being updated at the same position
-        if (strategyId && s.id === strategyId) {
-          strategies.push(request);
-          return;
+      try {
+        // Validate using factory
+        const validation = validateStrategy(strategyType, config, portfolio);
+        if (!validation.valid) {
+          throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
         }
-        strategies.push(s); // Keep as-is
-      });
-      
-      // If it's a new strategy (not updating), add at the end
-      if (!strategyId) {
-        strategies.push(request);
+
+        // Log warnings if any
+        if (validation.warnings && validation.warnings.length > 0) {
+          console.warn('Strategy warnings:', validation.warnings);
+        }
+
+        // Build request for current strategy type
+        const request = buildStrategyRequest(
+          strategyType,
+          walletGroupId,
+          config,
+          portfolio,
+          strategyId
+        );
+
+        // Get all existing strategies to preserve them
+        const existingData = await loadStrategyWithCache(walletGroupId);
+        const strategies: any[] = [];
+
+        // Preserve ALL existing strategies EXCEPT the one being updated
+        const existingStrategies = existingData?.strategies || [];
+
+        existingStrategies.forEach((s: any, index: number) => {
+          // Replace the strategy being updated at the same position
+          if (strategyId && s.id === strategyId) {
+            strategies.push(request);
+            return;
+          }
+          strategies.push(s); // Keep as-is
+        });
+
+        // If it's a new strategy (not updating), add at the end
+        if (!strategyId) {
+          strategies.push(request);
+        }
+
+        // Save all strategies in single request
+        const response = await saveStrategies({
+          walletGroupId,
+          strategies,
+        });
+
+        // Clear cache and reload strategy to get updated data
+        clearStrategyCache(walletGroupId);
+        await loadStrategy(walletGroupId);
+
+        return response;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to save strategy';
+        setError(message);
+        throw err;
+      } finally {
+        setSaving(false);
       }
-
-      // Save all strategies in single request
-      const response = await saveStrategies({
-        walletGroupId,
-        strategies
-      });
-
-      // Clear cache and reload strategy to get updated data
-      clearStrategyCache(walletGroupId);
-      await loadStrategy(walletGroupId);
-
-      return response;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save strategy';
-      setError(message);
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  }, [loadStrategy]);
+    },
+    [loadStrategy]
+  );
 
   /**
    * Clear current strategy
@@ -152,19 +170,22 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
   /**
    * Calculate strategy results using factory pattern
    */
-  const calculate = useCallback((portfolio: WalletItem[]): TResult | null => {
-    if (!strategy) {
-      return null;
-    }
-    
-    try {
-      return calculateStrategyResult<TResult>(strategy, portfolio);
-    } catch (err) {
-      console.error('Error calculating strategy:', err);
-      setError(err instanceof Error ? err.message : 'Failed to calculate strategy');
-      return null;
-    }
-  }, [strategy]);
+  const calculate = useCallback(
+    (portfolio: WalletItem[]): TResult | null => {
+      if (!strategy) {
+        return null;
+      }
+
+      try {
+        return calculateStrategyResult<TResult>(strategy, portfolio);
+      } catch (err) {
+        console.error('Error calculating strategy:', err);
+        setError(err instanceof Error ? err.message : 'Failed to calculate strategy');
+        return null;
+      }
+    },
+    [strategy]
+  );
 
   return {
     strategy,
@@ -174,7 +195,7 @@ export function useStrategy<TConfig = unknown, TResult = unknown>(): UseStrategy
     loadStrategy,
     saveStrategy,
     clearStrategy,
-    calculate
+    calculate,
   };
 }
 

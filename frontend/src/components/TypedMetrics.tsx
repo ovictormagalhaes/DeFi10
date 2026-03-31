@@ -1,10 +1,10 @@
 import React from 'react';
 
+import { WalletItemType } from '../constants/walletItemTypes';
 import { useMaskValues } from '../context/MaskValuesContext';
 import { useTheme } from '../context/ThemeProvider';
 import type { WalletItem, Range } from '../types/wallet';
 import { extractHealthFactor, extractPoolFees24h, extractPoolRange } from '../types/wallet';
-import { WalletItemType } from '../constants/walletItemTypes';
 import { formatPrice } from '../utils/walletUtils.js';
 
 import MiniMetric from './MiniMetric';

@@ -5,13 +5,19 @@
  */
 
 import { useMemo } from 'react';
-import { useStrategy } from '../useStrategy';
-import type { WalletItem } from '../../types/wallet';
-import type { AllocationDelta, SaveStrategyResponse, SaveStrategiesResponse, Strategy } from '../../types/strategy';
-import type { 
-  AllocationByWeightConfig, 
-  AllocationByWeightResult 
+
+import type {
+  AllocationByWeightConfig,
+  AllocationByWeightResult,
 } from '../../types/strategies/allocationByWeight';
+import type {
+  AllocationDelta,
+  SaveStrategyResponse,
+  SaveStrategiesResponse,
+  Strategy,
+} from '../../types/strategy';
+import type { WalletItem } from '../../types/wallet';
+import { useStrategy } from '../useStrategy';
 
 export interface UseAllocationStrategyResult {
   // State
@@ -19,7 +25,7 @@ export interface UseAllocationStrategyResult {
   loading: boolean;
   error: string | null;
   saving: boolean;
-  
+
   // Actions
   loadStrategy: (walletGroupId: string) => Promise<void>;
   saveAllocationStrategy: (
@@ -29,7 +35,7 @@ export interface UseAllocationStrategyResult {
     strategyId?: string
   ) => Promise<SaveStrategiesResponse>;
   clearStrategy: () => void;
-  
+
   // Calculations
   calculateResult: (portfolio: WalletItem[]) => AllocationByWeightResult | null;
   calculateDeltas: (portfolio: WalletItem[]) => AllocationDelta[];
@@ -39,16 +45,8 @@ export interface UseAllocationStrategyResult {
  * Hook specialized for Allocation by Weight strategies
  */
 export function useAllocationStrategy(): UseAllocationStrategyResult {
-  const {
-    strategy,
-    loading,
-    error,
-    saving,
-    loadStrategy,
-    saveStrategy,
-    clearStrategy,
-    calculate
-  } = useStrategy<AllocationByWeightConfig, AllocationByWeightResult>();
+  const { strategy, loading, error, saving, loadStrategy, saveStrategy, clearStrategy, calculate } =
+    useStrategy<AllocationByWeightConfig, AllocationByWeightResult>();
 
   /**
    * Save allocation strategy (simplified API)
@@ -86,7 +84,7 @@ export function useAllocationStrategy(): UseAllocationStrategyResult {
     saveAllocationStrategy,
     clearStrategy,
     calculateResult,
-    calculateDeltas
+    calculateDeltas,
   };
 }
 
