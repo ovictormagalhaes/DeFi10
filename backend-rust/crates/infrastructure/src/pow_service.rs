@@ -72,9 +72,13 @@ impl ProofOfWorkService {
             return Ok(false);
         }
 
-        let stored: Option<String> = self.cache.get(POW_PREFIX, challenge).await.unwrap_or(None);
+        let exists = self
+            .cache
+            .exists(POW_PREFIX, challenge)
+            .await
+            .unwrap_or(false);
 
-        if stored.is_none() {
+        if !exists {
             tracing::warn!(
                 "PoW validation failed: challenge {} not found or expired",
                 challenge

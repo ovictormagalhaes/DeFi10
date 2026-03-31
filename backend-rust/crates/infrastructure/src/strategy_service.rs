@@ -75,14 +75,8 @@ impl StrategyService {
         Ok(result)
     }
 
-    pub async fn get_strategies_by_key(
-        &self,
-        key: &str,
-    ) -> Result<Option<WalletGroupStrategies>> {
-        let result = self
-            .collection
-            .find_one(doc! { "_id": key })
-            .await?;
+    pub async fn get_strategies_by_key(&self, key: &str) -> Result<Option<WalletGroupStrategies>> {
+        let result = self.collection.find_one(doc! { "_id": key }).await?;
 
         Ok(result)
     }
@@ -119,10 +113,7 @@ impl StrategyService {
         wallet_group_strategies.key = key.to_string();
 
         self.collection
-            .replace_one(
-                doc! { "_id": key },
-                &wallet_group_strategies,
-            )
+            .replace_one(doc! { "_id": key }, &wallet_group_strategies)
             .upsert(true)
             .await?;
 

@@ -50,7 +50,10 @@ pub async fn authenticate_wallet(
         })?;
 
     if !valid {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid proof of work".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid proof of work".to_string(),
+        ));
     }
 
     if let Err(e) = state

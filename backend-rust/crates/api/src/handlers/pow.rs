@@ -18,4 +18,3 @@ pub async fn generate_challenge(
         }
     }
 }
-

@@ -143,7 +143,10 @@ pub struct JwtConfig {
     pub secret: String,
     #[serde(alias = "expirationhours")]
     pub expiration_hours: i64,
-    #[serde(alias = "walletexpirationdays", default = "default_wallet_expiration_days")]
+    #[serde(
+        alias = "walletexpirationdays",
+        default = "default_wallet_expiration_days"
+    )]
     pub wallet_expiration_days: i64,
 }
 
