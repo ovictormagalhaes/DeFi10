@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { useTheme } from '../context/ThemeProvider';
+import { useTheme } from '../context/ThemeProvider.tsx';
 import { useWalletGroups } from '../hooks/useWalletGroups';
 import {
   validateSingleAddress,
@@ -8,10 +8,19 @@ import {
   formatAddress,
   validateWalletGroup,
 } from '../types/wallet-groups';
-import type { WalletGroup } from '../types/wallet-groups';
 import * as apiClient from '../services/apiClient';
+import { solveChallenge, estimateSolveTime } from '../services/proofOfWork';
 import { detectAvailableWallets, getWalletById } from '../constants/wallets';
 import WalletSelectorDialog from './WalletSelectorDialog';
+
+// Extend Window interface for wallet providers
+declare global {
+  interface Window {
+    ethereum?: any;
+    rabby?: any;
+    solana?: any;
+  }
+}
 
 interface WalletGroupModalProps {
   isOpen: boolean;
@@ -19,9 +28,8 @@ interface WalletGroupModalProps {
   onGroupCreated?: (groupId: string) => void;
   onGroupSelected?: (groupId: string, isReconnect?: boolean) => void;
   currentWalletAddress?: string | null; // Current connected wallet to add to group
-  onConnectToGroup?: (groupId: string) => void;
-  onDisconnectGroup?: (groupId: string) => void;
-  initialGroupId?: string | null;
+  onConnectToGroup?: (groupId: string) => void; // Callback when wallet is connected to group
+  initialGroupId?: string | null; // Pre-fill connect form with this group ID
 }
 
 const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
@@ -31,11 +39,10 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   onGroupSelected,
   currentWalletAddress,
   onConnectToGroup,
-  onDisconnectGroup,
   initialGroupId,
 }) => {
   const { theme } = useTheme();
-  const { groups, loading, error, createGroup, updateGroup, deleteGroup, disconnectGroup, clearError } = useWalletGroups();
+  const { groups, loading, error, createGroup, updateGroup, deleteGroup, clearError } = useWalletGroups();
 
   const [viewportWidth, setViewportWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'addWallet' | 'connect'>('list');
@@ -52,6 +59,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   const [walletInputs, setWalletInputs] = useState(['', '', '']);
   const [validationErrors, setValidationErrors] = useState<(string | null)[]>([null, null, null]);
   const [groupError, setGroupError] = useState<string | null>(null);
+  const [powStatus, setPowStatus] = useState<'idle' | 'solving' | 'solved' | 'error'>('idle');
+  const [powProgress, setPowProgress] = useState<string>('');
   const [showWalletSelector, setShowWalletSelector] = useState(false);
   const [walletSelectorIndex, setWalletSelectorIndex] = useState<number | null>(null);
   const [connectedWallets, setConnectedWallets] = useState<boolean[]>([false, false, false]);
@@ -80,6 +89,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       setWalletInputs(['', '', '']);
       setValidationErrors([null, null, null]);
       setGroupError(null);
+      setPowStatus('idle');
+      setPowProgress('');
       setConnectedWallets([false, false, false]);
       setIsConnecting(false);
       clearError();
@@ -89,6 +100,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   // Handle initialGroupId - auto-open connect mode with pre-filled ID
   useEffect(() => {
     if (isOpen && initialGroupId) {
+      console.log('[WalletGroupModal] Opening in connect mode with ID:', initialGroupId);
       setMode('connect');
       setConnectGroupId(initialGroupId);
     }
@@ -111,6 +123,12 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       
       setPasswordRequired(true);
       setGroupIsPublic(false);
+      
+      console.log('[WalletGroup] Group check (default):', { 
+        groupId: groupId.trim(), 
+        requiresPassword: true,
+        isPublic: false
+      });
     } catch (err: any) {
       console.error('[WalletGroup] Error checking group:', err);
       setGroupError(err.message || 'Group not found');
@@ -213,28 +231,81 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       return;
     }
 
+    // Validate password only if user wants to use one
     if (!noPassword && (!password || password.length < 8)) {
       setGroupError('Password must be at least 8 characters or check "Create without password"');
       return;
     }
 
     try {
-      const result = await createGroup({
-        wallets,
-        displayName: displayName.trim() || undefined,
-        password: noPassword ? undefined : password,
-      });
+      let result;
+
+      // If no password, create group directly without PoW
+      if (noPassword) {
+        console.log('[WalletGroup] Creating group without password...');
+        result = await createGroup({
+          wallets,
+          displayName: displayName.trim() || undefined,
+        });
+      } else {
+        // Step 1: Get challenge from backend
+        setPowStatus('solving');
+        setPowProgress('Initializing secure connection...');
+        
+        console.log('[WalletGroup] Requesting challenge from server...');
+        const challengeData = await apiClient.getChallenge();
+        console.log('[WalletGroup] Challenge received:', {
+          challenge: challengeData.challenge.substring(0, 16) + '...',
+          difficulty: challengeData.difficulty,
+          expiresAt: challengeData.expiresAt
+        });
+        
+        setPowProgress('Creating wallet group securely...');
+
+        // Step 2: Solve Proof-of-Work challenge with progress callback
+        const { nonce, hash } = await solveChallenge(
+          challengeData.challenge, 
+          challengeData.difficulty,
+          (currentNonce, currentHash) => {
+            // Update progress message without percentage details
+            setPowProgress('Processing wallet group...');
+          }
+        );
+        
+        console.log('[WalletGroup] Challenge solved, creating group...');
+        setPowStatus('solved');
+        setPowProgress('Finalizing wallet group...');
+
+        // Step 3: Create group with PoW solution
+        result = await createGroup({
+          wallets,
+          displayName: displayName.trim() || undefined,
+          password,
+          challenge: challengeData.challenge,
+          nonce: nonce.toString(), // Convert to string for backend
+        });
+      }
 
       if (result) {
+        console.log('[WalletGroup] Group created successfully:', result.id);
+        // Success - reset form and notify parent
         resetForm();
+        setPowStatus('idle');
+        setPowProgress('');
+
         if (onGroupCreated) {
           onGroupCreated(result.id);
         }
         setMode('list');
       } else {
-        setGroupError('Failed to create group');
+        console.error('[WalletGroup] Failed to create group - no result returned');
+        setPowStatus('error');
+        setPowProgress('Failed to create group');
       }
     } catch (err: any) {
+      console.error('[WalletGroup] Error creating group:', err);
+      setPowStatus('error');
+      setPowProgress('');
       setGroupError(err.message || 'Failed to create group');
     }
   };
@@ -334,6 +405,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
   const handleCopyGroupId = (groupId: string) => {
     navigator.clipboard.writeText(groupId).then(() => {
+      // Could add a toast notification here in the future
+      console.log('[WalletGroup] Group ID copied to clipboard:', groupId);
     }).catch(err => {
       console.error('[WalletGroup] Failed to copy group ID:', err);
     });
@@ -345,8 +418,17 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     }
 
     try {
-      disconnectGroup(groupId);
-      onDisconnectGroup?.(groupId);
+      // Remove token
+      apiClient.removeToken(groupId);
+      
+      // Remove from local storage
+      const updatedGroups = groups.filter(g => g.id !== groupId);
+      localStorage.setItem('defi10_wallet_groups', JSON.stringify(updatedGroups));
+      
+      console.log('[WalletGroup] Disconnected from group:', groupId);
+      
+      // Force refresh by triggering a re-render
+      window.location.reload();
     } catch (err) {
       console.error('[WalletGroup] Failed to disconnect:', err);
     }
@@ -400,9 +482,12 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     try {
       setIsConnecting(true);
       setGroupError(null);
+      console.log('[WalletGroup] Connecting to group:', trimmedId);
+
       // Authenticate with the wallet group - response includes all group data
       const authData = connectPassword ? { password: connectPassword } : {};
       const response = await apiClient.connectWalletGroup(trimmedId, authData);
+      console.log('[WalletGroup] Authentication successful, group data received');
 
       // Convert response to WalletGroup format
       const group: WalletGroup = {
@@ -419,6 +504,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       if (existingGroup) {
         // If reconnecting (initialGroupId present), update existing group data
         if (initialGroupId) {
+          console.log('[WalletGroup] Reconnected - updating existing group');
           updatedGroups = groups.map(g => g.id === group.id ? group : g);
         } else {
           // If not reconnecting, show error (group already exists)
@@ -433,6 +519,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
       // Save to local storage
       localStorage.setItem('defi10_wallet_groups', JSON.stringify(updatedGroups));
       
+      console.log('[WalletGroup] Group connected and saved to local storage');
+
       // Trigger selection if callback provided
       if (onGroupSelected) {
         // Pass isReconnect flag if it's a reconnection
@@ -1418,9 +1506,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                           placeholder="Enter a secure password"
                           value={password}
                           onChange={(e) => {
-                            setPassword(e.target.value);
-                            if (groupError?.includes('Password')) {
-                              setGroupError(null);
+                            const newPassword = e.target.value;
+                            setPassword(newPassword);
+                            // Validate password in real-time
+                            if (newPassword.length > 0 && newPassword.length < 8) {
+                              setGroupError('Password must be at least 8 characters');
+                            } else {
+                              // Clear password error if it was a password error
+                              if (groupError?.includes('Password')) {
+                                setGroupError(null);
+                              }
                             }
                           }}
                           minLength={8}
@@ -1440,12 +1535,21 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                           onBlur={(e) => (e.currentTarget.style.borderColor = password.length > 0 && password.length < 8 ? theme.danger || '#ef4444' : theme.border)}
                         />
                         {password.length > 0 && password.length < 8 && (
-                          <p style={{
-                            margin: '6px 0 0',
-                            fontSize: 12,
-                            color: theme.danger || '#ef4444'
+                          <p style={{ 
+                            margin: '6px 0 0', 
+                            fontSize: 12, 
+                            color: theme.danger || '#ef4444' 
                           }}>
                             Password must be at least 8 characters
+                          </p>
+                        )}
+                        {groupError && groupError.includes('Password') && (
+                          <p style={{ 
+                            margin: '6px 0 0', 
+                            fontSize: 12, 
+                            color: theme.danger || '#ef4444' 
+                          }}>
+                            {groupError}
                           </p>
                         )}
                         <p style={{ 
@@ -1802,8 +1906,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                   </div>
                 </div>
 
-                {/* Errors (exclude password validation shown inline) */}
-                {(groupError && !groupError.includes('Password must be at least 8') || error) && (
+                {/* Errors */}
+                {(groupError || error) && (
                   <div
                     style={{
                       padding: '12px 16px',
@@ -1814,7 +1918,71 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       fontSize: 13,
                     }}
                   >
-                    {(groupError && !groupError.includes('Password must be at least 8')) ? groupError : error}
+                    {groupError || error}
+                  </div>
+                )}
+
+                {/* Proof-of-Work Progress */}
+                {mode === 'create' && powStatus !== 'idle' && (
+                  <div
+                    style={{
+                      padding: '12px 16px',
+                      background: powStatus === 'error' 
+                        ? (theme.danger || '#ef4444') + '15' 
+                        : powStatus === 'solved'
+                        ? (theme.primary || '#45b773') + '15'
+                        : theme.primarySubtle,
+                      border: `1px solid ${
+                        powStatus === 'error' 
+                          ? theme.danger || '#ef4444'
+                          : powStatus === 'solved'
+                          ? theme.primary
+                          : theme.border
+                      }`,
+                      borderRadius: 10,
+                      color: powStatus === 'error' 
+                        ? theme.danger || '#ef4444'
+                        : powStatus === 'solved'
+                        ? theme.primary
+                        : theme.textPrimary,
+                      fontSize: 13,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    {powStatus === 'solving' && (
+                      <div
+                        style={{
+                          width: 16,
+                          height: 16,
+                          border: `2px solid ${theme.primary}`,
+                          borderTopColor: 'transparent',
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite',
+                        }}
+                      />
+                    )}
+                    {powStatus === 'solved' && (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    )}
+                    <span>{powProgress}</span>
+                    {powStatus === 'solving' && (
+                      <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 'auto' }}>
+                        This may take a moment...
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -1876,11 +2044,11 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       ? handleConnectToExistingGroup
                       : handleCreateGroup
               }
-              disabled={loading || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)}
+              disabled={loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)}
               style={{
                 padding: '10px 24px',
                 background:
-                  loading || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)
+                  loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)
                     ? theme.textMuted
                     : `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
                 border: 'none',
@@ -1888,26 +2056,26 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 color: '#fff',
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: loading || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 'not-allowed' : 'pointer',
-                opacity: loading || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 0.5 : 1,
+                cursor: loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 'not-allowed' : 'pointer',
+                opacity: loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 0.5 : 1,
                 transition: 'all 0.15s',
                 width: viewportWidth < 640 ? '100%' : 'auto',
               }}
               onMouseEnter={(e) => {
-                if (!loading && !isConnecting && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
+                if (!loading && powStatus !== 'solving' && !isConnecting && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
                   e.currentTarget.style.transform = 'translateY(-1px)';
                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
                 }
               }}
               onMouseLeave={(e) => {
-                if (!loading && !isConnecting && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
+                if (!loading && powStatus !== 'solving' && !isConnecting && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = 'none';
                 }
               }}
             >
-              {loading || isConnecting
-                ? 'Connecting...'
+              {loading || powStatus === 'solving' || isConnecting
+                ? powStatus === 'solving' ? 'Solving Challenge...' : 'Connecting...'
                 : mode === 'edit'
                   ? 'Update Group'
                   : mode === 'addWallet'

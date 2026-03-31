@@ -143,6 +143,12 @@ pub struct JwtConfig {
     pub secret: String,
     #[serde(alias = "expirationhours")]
     pub expiration_hours: i64,
+    #[serde(alias = "walletexpirationdays", default = "default_wallet_expiration_days")]
+    pub wallet_expiration_days: i64,
+}
+
+fn default_wallet_expiration_days() -> i64 {
+    7
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -293,7 +299,8 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
         .set_default("rate_limiting.window_seconds", 60)?
         .set_default("rabbitmq.prefetch_count", 10)?
         .set_default("rabbitmq.worker_concurrency", 10)?
-        .set_default("jwt.expiration_hours", 24)?;
+        .set_default("jwt.expiration_hours", 168)?
+        .set_default("jwt.wallet_expiration_days", 7)?;
 
     if env != "production" {
         builder = builder

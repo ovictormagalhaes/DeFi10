@@ -18,7 +18,8 @@ worker_concurrency = 10
 
 [jwt]
 secret = "dev_secret_change_in_production"
-expiration_hours = 24
+expiration_hours = 168
+wallet_expiration_days = 7
 
 [cors]
 allowed_origins = ["http://localhost:3000", "http://localhost:8080", "http://localhost:10002"]

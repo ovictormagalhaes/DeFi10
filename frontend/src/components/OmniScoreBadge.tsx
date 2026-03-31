@@ -74,7 +74,7 @@ interface PoolParams {
   token1: string;
   protocol?: string;
   chain?: string;
-  feeTier?: string;
+  feeTier?: number;
 }
 
 interface LendingParams {
@@ -257,7 +257,7 @@ const ScoreDrawer: React.FC<{
     : capitalize(lendingResult?.yourPosition?.protocol || 'Lending');
 
   const subtitleChain = props.type === 'pool'
-    ? poolResult?.yourPool?.chain || ''
+    ? poolResult?.current?.chain || ''
     : lendingResult?.yourPosition?.chain || '';
 
   const subtitleExtra = props.type === 'pool'
@@ -267,7 +267,7 @@ const ScoreDrawer: React.FC<{
       : '';
 
   const headerProtocol = props.type === 'pool'
-    ? poolResult?.yourPool?.protocol || ''
+    ? poolResult?.current?.protocol || ''
     : lendingResult?.yourPosition?.protocol || '';
 
   return ReactDOM.createPortal(
@@ -552,64 +552,108 @@ const ProjectionChart: React.FC<{ lines: ProjectionLine[]; totalValue: number }>
 const PoolScoreDrawerContent: React.FC<{ result: PoolScoreResponse }> = ({ result }) => {
   const { theme } = useTheme();
   const hasSuggestions = result.suggestions.length > 0;
-  const pool = result.yourPool;
+  const pool = result.current;
 
   return (
     <div>
       <SectionTitle first>Your Pool</SectionTitle>
 
       {pool ? (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: theme.textPrimary, fontFamily: 'monospace' }}>
-              {pool.pair}
-            </span>
-            <span style={{
-              fontSize: 10,
-              fontWeight: 600,
-              padding: '2px 8px',
-              borderRadius: 6,
-              backgroundColor: 'rgba(139, 92, 246, 0.12)',
-              color: '#a78bfa',
-              border: '1px solid rgba(139, 92, 246, 0.25)',
+        <div style={{
+          padding: '14px 16px',
+          borderRadius: 12,
+          backgroundColor: theme.bgSecondary,
+          border: `1px solid ${theme.border}`,
+          marginBottom: 10,
+          fontSize: 12,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                {result.score != null && (
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: '#a78bfa',
+                    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                    padding: '2px 7px',
+                    borderRadius: 4,
+                  }}>
+                    #{result.score}
+                  </span>
+                )}
+                <span style={{ fontWeight: 700, color: theme.textPrimary, fontSize: 14 }}>
+                  {pool.pair}
+                </span>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                  color: '#a78bfa',
+                  border: '1px solid rgba(139, 92, 246, 0.25)',
+                }}>
+                  {pool.poolType || 'Pool'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ProtocolBadge protocol={pool.protocol} size={12} />
+                <span style={{ color: theme.textSecondary, fontSize: 10 }}>·</span>
+                <ChainBadge chain={pool.chain} size={12} />
+                <span style={{ color: theme.textSecondary, fontSize: 10 }}>·</span>
+                <span style={{ color: theme.textSecondary, fontSize: 11 }}>{pool.feeTier}</span>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: 700, fontSize: 18, color: apyColor(pool.totalApr), fontFamily: 'monospace' }}>
+                {pool.totalApr.toFixed(2)}%
+              </div>
+              <div style={{ fontSize: 10, color: theme.textSecondary }}>APR</div>
+              {result.totalComparable > 0 && (
+                <div style={{ fontSize: 10, color: theme.textSecondary, marginTop: 2 }}>
+                  of {result.totalComparable} pools
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <div style={{
+              padding: '6px 8px',
+              borderRadius: 8,
+              backgroundColor: theme.bgPanel,
+              textAlign: 'center',
             }}>
-              {pool.poolType || 'Pool'}
-            </span>
+              <div style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}>TVL</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, fontFamily: 'monospace' }}>
+                {formatUsd(pool.tvlUsd)}
+              </div>
+            </div>
+            <div style={{
+              padding: '6px 8px',
+              borderRadius: 8,
+              backgroundColor: theme.bgPanel,
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}>Vol 24h</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, fontFamily: 'monospace' }}>
+                {formatUsd(pool.volume24h)}
+              </div>
+            </div>
+            <div style={{
+              padding: '6px 8px',
+              borderRadius: 8,
+              backgroundColor: theme.bgPanel,
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}>Turnover</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, fontFamily: 'monospace' }}>
+                {pool.turnoverRatio24h.toFixed(2)}x
+              </div>
+            </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <ProtocolBadge protocol={pool.protocol} />
-            <span style={{ color: theme.textSecondary }}>·</span>
-            <ChainBadge chain={pool.chain} />
-            <span style={{ color: theme.textSecondary }}>·</span>
-            <span style={{ color: theme.textSecondary, fontSize: 11 }}>{pool.feeTier}</span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <MetricCard
-              label="Total APR"
-              value={`${pool.totalApr.toFixed(2)}%`}
-              valueColor={apyColor(pool.totalApr)}
-            />
-            <MetricCard
-              label="Rank"
-              value={result.score != null ? `#${result.score}` : '—'}
-              valueColor="#a78bfa"
-              sub={`of ${result.totalComparable} pools`}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10 }}>
-            <MetricCard label="TVL" value={formatUsd(pool.tvlUsd)} />
-            <MetricCard label="Volume 24h" value={formatUsd(pool.volume24h)} />
-            <MetricCard label="Turnover" value={`${pool.turnoverRatio24h.toFixed(2)}x`} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
-            <MetricCard label="Fee APR (24h)" value={`${pool.feeApr24h.toFixed(2)}%`} valueColor={apyColor(pool.feeApr24h)} />
-            <MetricCard label="Fee APR (7d)" value={`${pool.feeApr7d.toFixed(2)}%`} valueColor={apyColor(pool.feeApr7d)} />
-          </div>
-        </>
+        </div>
       ) : (
         <div style={{
           padding: '14px 16px',
@@ -694,7 +738,7 @@ const PoolProjectionSection: React.FC<{
 
   return (
     <>
-      <SectionTitle>Projected Earnings ($10K)</SectionTitle>
+      <SectionTitle>Projected Earnings</SectionTitle>
       <ProjectionChart lines={lines} totalValue={10000} />
     </>
   );
@@ -710,53 +754,54 @@ const LendingScoreDrawerContent: React.FC<{ result: LendingScoreResponse }> = ({
       <SectionTitle first>Your Position</SectionTitle>
 
       {pos ? (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <ProtocolBadge protocol={pos.protocol} size={16} />
-            <span style={{ color: theme.textSecondary }}>·</span>
-            <ChainBadge chain={pos.chain} size={14} />
-            <span style={{ color: theme.textSecondary }}>·</span>
-            <span style={{ color: theme.textSecondary, fontSize: 11 }}>
-              {pos.assetsMatched}/{pos.assetsTotal} assets
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <MetricCard
-              label="Net APY"
-              value={`${pos.combinedNetApy.toFixed(2)}%`}
-              valueColor={apyColor(pos.combinedNetApy)}
-            />
-            <MetricCard
-              label="Rank"
-              value={result.score != null ? `#${result.score}` : '—'}
-              valueColor="#a78bfa"
-              sub={`of ${result.totalComparable} protocols`}
-            />
-          </div>
-
-          {pos.supplyRates.length > 0 && (
-            <>
-              <SectionTitle>Supply Rates</SectionTitle>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {pos.supplyRates.map((r, i) => (
-                  <RateRow key={i} rate={r} />
-                ))}
+        <div style={{
+          padding: '14px 16px',
+          borderRadius: 12,
+          backgroundColor: theme.bgSecondary,
+          border: `1px solid ${theme.border}`,
+          marginBottom: 10,
+          fontSize: 12,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                {result.score != null && (
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: '#a78bfa',
+                    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                    padding: '2px 7px',
+                    borderRadius: 4,
+                  }}>
+                    #{result.score}
+                  </span>
+                )}
+                <ProtocolBadge protocol={pos.protocol} size={14} />
               </div>
-            </>
-          )}
-
-          {pos.borrowRates.length > 0 && (
-            <>
-              <SectionTitle>Borrow Rates</SectionTitle>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {pos.borrowRates.map((r, i) => (
-                  <RateRow key={i} rate={r} />
-                ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ChainBadge chain={pos.chain} size={12} />
+                <span style={{ color: theme.textSecondary, fontSize: 10 }}>·</span>
+                <span style={{ color: theme.textSecondary, fontSize: 11 }}>
+                  {pos.assetsMatched}/{pos.assetsTotal} assets
+                </span>
               </div>
-            </>
-          )}
-        </>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: 700, fontSize: 18, color: apyColor(pos.combinedNetApy), fontFamily: 'monospace' }}>
+                {pos.combinedNetApy.toFixed(2)}%
+              </div>
+              <div style={{ fontSize: 10, color: theme.textSecondary }}>Net APY</div>
+              {result.totalComparable > 0 && (
+                <div style={{ fontSize: 10, color: theme.textSecondary, marginTop: 2 }}>
+                  of {result.totalComparable} protocols
+                </div>
+              )}
+            </div>
+          </div>
+          <LendingRatesTable rates={pos.supplyRates} label="Supply" />
+          <LendingRatesTable rates={pos.borrowRates} label="Borrow" />
+        </div>
       ) : (
         <div style={{
           padding: '14px 16px',
@@ -827,9 +872,7 @@ const LendingProjectionSection: React.FC<{
 
   if (lines.length === 0) return null;
 
-  const label = totalValue > 0
-    ? `Projected Earnings (${formatUsd(displayValue)})`
-    : 'Projected Earnings ($10K)';
+  const label = 'Projected Earnings';
 
   return (
     <>
@@ -839,92 +882,75 @@ const LendingProjectionSection: React.FC<{
   );
 };
 
-const RateRow: React.FC<{ rate: LendingAssetRate }> = ({ rate }) => {
-  const { theme } = useTheme();
-  return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '10px 14px',
-      borderRadius: 10,
-      backgroundColor: theme.bgSecondary,
-      border: `1px solid ${theme.border}`,
-      fontSize: 12,
-    }}>
-      <div>
-        <div style={{ fontWeight: 600, color: theme.textPrimary }}>{rate.asset}</div>
-        {rate.liquidity > 0 && (
-          <div style={{ fontSize: 10, color: theme.textSecondary, marginTop: 2 }}>
-            Liq: {formatUsd(rate.liquidity)}
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 10, color: theme.textSecondary }}>Base</div>
-          <div style={{ fontWeight: 500, color: theme.textPrimary }}>{rate.apy.toFixed(2)}%</div>
-        </div>
-        {rate.rewards > 0 && (
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: theme.textSecondary }}>Rewards</div>
-            <div style={{ fontWeight: 500, color: '#a78bfa' }}>+{rate.rewards.toFixed(2)}%</div>
-          </div>
-        )}
-        <div style={{ textAlign: 'right', minWidth: 56 }}>
-          <div style={{ fontSize: 10, color: theme.textSecondary }}>Net</div>
-          <div style={{ fontWeight: 700, color: apyColor(rate.netApy), fontSize: 14 }}>
-            {rate.netApy.toFixed(2)}%
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const apyColor = (v: number) => v > 0 ? '#10b981' : v < 0 ? '#ef4444' : '#a2a9b5';
 
 const LendingRatesTable: React.FC<{ rates: LendingAssetRate[]; label: string }> = ({ rates, label }) => {
+  const isBorrow = label === 'Borrow';
+  const rateColor = isBorrow ? ((_v: number) => '#ef4444') : apyColor;
   const { theme } = useTheme();
   if (rates.length === 0) return null;
+
+  const totalValue = rates.reduce((sum, r) => sum + (r.valueUsd || 0), 0);
 
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{
-        fontSize: 10,
-        fontWeight: 700,
-        textTransform: 'uppercase' as const,
-        letterSpacing: 0.5,
-        color: theme.textSecondary,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: 4,
       }}>
-        {label}
-      </div>
-      {rates.map((r, i) => (
-        <div key={i} style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '3px 0',
-          fontSize: 11,
-          borderBottom: i < rates.length - 1 ? `1px solid ${theme.border}` : 'none',
+        <span style={{
+          fontSize: 10,
+          fontWeight: 700,
+          textTransform: 'uppercase' as const,
+          letterSpacing: 0.5,
+          color: theme.textSecondary,
         }}>
-          <span style={{ color: theme.textPrimary, fontWeight: 500 }}>{r.asset}</span>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <span style={{ color: theme.textSecondary }}>
-              {r.apy.toFixed(2)}%
-            </span>
-            {r.rewards > 0 && (
-              <span style={{ color: '#a78bfa', fontSize: 10 }}>
-                +{r.rewards.toFixed(2)}%
-              </span>
-            )}
-            <span style={{ color: apyColor(r.netApy), fontWeight: 600, minWidth: 52, textAlign: 'right' }}>
-              {r.netApy.toFixed(2)}%
-            </span>
-          </div>
+          {label}
+        </span>
+        <div style={{ display: 'flex', gap: 16, fontSize: 9, color: theme.textSecondary, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ width: 36, textAlign: 'right' }}>%</span>
+          <span style={{ width: 42, textAlign: 'right' }}>APY</span>
+          <span style={{ width: 50, textAlign: 'right' }}>Effective</span>
         </div>
-      ))}
+      </div>
+      {rates.map((r, i) => {
+        const weight = totalValue > 0 ? (r.valueUsd || 0) / totalValue : 0;
+        const effectiveApy = r.effectiveApy ?? r.netApy * weight;
+        return (
+          <div key={i} style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '3px 0',
+            fontSize: 11,
+            borderBottom: i < rates.length - 1 ? `1px solid ${theme.border}` : 'none',
+          }}>
+            {r.url ? (
+              <a href={r.url} target="_blank" rel="noopener noreferrer"
+                style={{ color: theme.accent, fontWeight: 500, textDecoration: 'none', flex: 1 }}
+                onClick={(e) => e.stopPropagation()}>
+                {r.asset} ↗
+              </a>
+            ) : (
+              <span style={{ color: theme.textPrimary, fontWeight: 500, flex: 1 }}>{r.asset}</span>
+            )}
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+              <span style={{ width: 36, textAlign: 'right', color: theme.textSecondary, fontWeight: 500 }}>
+                {(weight * 100).toFixed(0)}%
+              </span>
+              <span style={{ width: 42, textAlign: 'right', color: rateColor(r.netApy), fontWeight: 600 }}>
+                {r.netApy.toFixed(2)}%
+              </span>
+              <span style={{ width: 50, textAlign: 'right', color: rateColor(effectiveApy), fontWeight: 600 }}>
+                {effectiveApy.toFixed(2)}%
+              </span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -1044,7 +1070,7 @@ const LendingSuggestionRow: React.FC<{ suggestion: LendingScoreSuggestion; yourA
   const { theme } = useTheme();
   const diff = yourApy != null ? suggestion.combinedNetApy - yourApy : null;
 
-  const content = (
+  return (
     <div style={{
       padding: '14px 16px',
       borderRadius: 12,
@@ -1052,12 +1078,7 @@ const LendingSuggestionRow: React.FC<{ suggestion: LendingScoreSuggestion; yourA
       border: `1px solid ${theme.border}`,
       marginBottom: 10,
       fontSize: 12,
-      cursor: suggestion.url ? 'pointer' : 'default',
-      transition: 'border-color 0.2s ease',
-    }}
-      onMouseEnter={(e) => { if (suggestion.url) e.currentTarget.style.borderColor = theme.accent; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; }}
-    >
+    }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -1095,23 +1116,8 @@ const LendingSuggestionRow: React.FC<{ suggestion: LendingScoreSuggestion; yourA
       </div>
       <LendingRatesTable rates={suggestion.supplyRates} label="Supply" />
       <LendingRatesTable rates={suggestion.borrowRates} label="Borrow" />
-      {suggestion.url && (
-        <div style={{ marginTop: 8, fontSize: 11, color: theme.accent, textAlign: 'right', fontWeight: 500 }}>
-          Open on {capitalize(suggestion.protocol)} ↗
-        </div>
-      )}
     </div>
   );
-
-  if (suggestion.url) {
-    return (
-      <a href={suggestion.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}
-        onClick={(e) => e.stopPropagation()}>
-        {content}
-      </a>
-    );
-  }
-  return content;
 };
 
 export default OmniScoreBadge;

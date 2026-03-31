@@ -45,7 +45,7 @@ export interface PoolScoreRequest {
   token1: string;
   protocol?: string;
   chain?: string;
-  fee_tier?: string;
+  fee_tier?: number;
   min_tvl?: number;
 }
 
@@ -73,7 +73,7 @@ export interface PoolScoreSuggestion {
 export interface PoolScoreResponse {
   success: boolean;
   timestamp: string;
-  yourPool: PoolScoreSuggestion | null;
+  current: PoolScoreSuggestion | null;
   score: number | null;
   totalComparable: number;
   normalizedPair: string;
@@ -102,8 +102,10 @@ export interface LendingAssetRate {
   apy: number;
   rewards: number;
   netApy: number;
+  effectiveApy?: number;
   liquidity: number;
   valueUsd?: number;
+  url?: string;
 }
 
 export interface LendingScoreSuggestion {
@@ -115,7 +117,6 @@ export interface LendingScoreSuggestion {
   combinedNetApy: number;
   assetsMatched: number;
   assetsTotal: number;
-  url: string;
 }
 
 export interface LendingScoreResponse {
@@ -129,7 +130,7 @@ export interface LendingScoreResponse {
 }
 
 export async function scorePool(req: PoolScoreRequest): Promise<PoolScoreResponse> {
-  const res = await axios.post(`${OMNI_BASE}/api/v1/score/pool`, {
+  const res = await axios.post(`${OMNI_BASE}/api/v1/pools/score`, {
     ...req,
     protocol: normalizeProtocol(req.protocol),
   });
@@ -137,7 +138,7 @@ export async function scorePool(req: PoolScoreRequest): Promise<PoolScoreRespons
 }
 
 export async function scoreLending(req: LendingScoreRequest): Promise<LendingScoreResponse> {
-  const res = await axios.post(`${OMNI_BASE}/api/v1/score/lending`, {
+  const res = await axios.post(`${OMNI_BASE}/api/v1/lending/score`, {
     ...req,
     protocol: normalizeProtocol(req.protocol),
   });

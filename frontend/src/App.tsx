@@ -1199,12 +1199,12 @@ function App(): JSX.Element {
     : viewType === 'strategies' ? 'strategies'
     : 'overview'; // both 'table' and 'cards' use overview data
 
-  // Redirect from Strategies if no wallet group is selected
+  // Redirect from Strategies if no wallet group or wallet is connected
   useEffect(() => {
-    if (viewMode === 'strategies' && !selectedWalletGroupId) {
+    if (viewMode === 'strategies' && !selectedWalletGroupId && !account) {
       setViewType('table');
     }
-  }, [viewMode, selectedWalletGroupId]);
+  }, [viewMode, selectedWalletGroupId, account]);
 
   // DEPRECATED: This useEffect is no longer needed
   // Strategy data is now loaded via useSharedStrategyCache in AllocationStrategySection
@@ -1698,7 +1698,7 @@ function App(): JSX.Element {
                     )}
                     {viewMode === 'strategies' && (
                       <StrategiesPage
-                        walletGroupId={selectedWalletGroupId || ''}
+                        walletGroupId={selectedWalletGroupId || account || ''}
                         portfolio={walletData?.items || []}
                       />
                     )}

@@ -361,6 +361,17 @@ fn transform_results_to_items(
                 "{}:{}:{}:{}",
                 result.protocol, result.chain, result.position_type, result.token_address
             )
+        } else if is_lp_protocol(&result.protocol) {
+            let pool_id = result
+                .metadata
+                .as_ref()
+                .and_then(|m| m.get("poolId"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            format!(
+                "{}:{}:{}:{}",
+                result.protocol, result.chain, result.position_type, pool_id
+            )
         } else {
             format!(
                 "{}:{}:{}",
@@ -512,6 +523,10 @@ fn string_to_token_type(s: &str) -> Option<TokenType> {
 
 fn is_lending_protocol(protocol: &str) -> bool {
     matches!(protocol.to_lowercase().as_str(), "aave-v3" | "kamino")
+}
+
+fn is_lp_protocol(protocol: &str) -> bool {
+    matches!(protocol.to_lowercase().as_str(), "uniswap-v3" | "raydium")
 }
 
 fn update_summary(summary: &mut AggregationSummary, protocol: &str, position_type: &str) {
@@ -874,52 +889,6 @@ fn extract_transaction_history(result: &AggregationResult) -> Option<AdditionalD
         repays_tokens,
         ..Default::default()
     })
-}
-
-#[allow(dead_code)]
-fn token_symbol_to_name(symbol: &str) -> String {
-    match symbol.to_uppercase().as_str() {
-        "ETH" => "Ether".to_string(),
-        "WETH" => "Wrapped Ether".to_string(),
-        "BTC" | "WBTC" => "Wrapped Bitcoin".to_string(),
-        "CBBTC" => "Coinbase Wrapped BTC".to_string(),
-        "USDC" => "USD Coin".to_string(),
-        "USDT" => "Tether USD".to_string(),
-        "DAI" => "Dai Stablecoin".to_string(),
-        "SOL" => "Solana".to_string(),
-        "WSOL" => "Wrapped SOL".to_string(),
-        _ => symbol.to_string(),
-    }
-}
-
-// Keep old endpoint for backward compatibility (returns immediately with mock data)
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OldAggregationResponse {
-    pub wallet_group_id: String,
-    pub total_value_usd: f64,
-    pub positions: Vec<serde_json::Value>,
-    pub chains: Vec<String>,
-    pub protocols: Vec<String>,
-}
-
-pub async fn get_aggregations(
-    State(_state): State<Arc<AppState>>,
-    Json(request): Json<serde_json::Value>,
-) -> ApiResult<Json<OldAggregationResponse>> {
-    let wallet_group_id = request
-        .get("walletGroupId")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
-
-    Ok(Json(OldAggregationResponse {
-        wallet_group_id,
-        total_value_usd: 0.0,
-        positions: vec![],
-        chains: vec![],
-        protocols: vec![],
-    }))
 }
 
 #[cfg(test)]

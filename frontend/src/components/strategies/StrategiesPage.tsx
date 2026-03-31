@@ -3,17 +3,21 @@
  * Menu with tabs for each strategy type
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeProvider';
 import { StrategyType } from '../../types/strategy';
 import { AllocationStrategySection } from './AllocationStrategySection';
 import { getAvailableStrategies } from '../../utils/strategies/strategyFactory';
+import { authenticateWallet, hasValidToken } from '../../services/apiClient';
+import { estimateSolveTime } from '../../services/proofOfWork';
 import type { WalletItem } from '../../types/wallet';
 
 interface StrategiesPageProps {
   walletGroupId: string;
   portfolio: WalletItem[];
 }
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const StrategiesPage: React.FC<StrategiesPageProps> = ({
   walletGroupId,
@@ -22,6 +26,41 @@ export const StrategiesPage: React.FC<StrategiesPageProps> = ({
   const { theme } = useTheme();
   const availableStrategies = getAvailableStrategies();
   const [activeTab, setActiveTab] = useState<StrategyType>(StrategyType.AllocationByWeight);
+  const [authenticating, setAuthenticating] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [powProgress, setPowProgress] = useState(0);
+
+  const isWalletGroup = UUID_REGEX.test(walletGroupId);
+  const needsAuth = !isWalletGroup && walletGroupId && !hasValidToken(walletGroupId);
+
+  useEffect(() => {
+    if (isWalletGroup || !walletGroupId) {
+      setAuthenticated(true);
+      return;
+    }
+    if (hasValidToken(walletGroupId)) {
+      setAuthenticated(true);
+    } else {
+      setAuthenticated(false);
+    }
+  }, [walletGroupId, isWalletGroup]);
+
+  const handleAuthenticate = useCallback(async () => {
+    setAuthenticating(true);
+    setAuthError(null);
+    setPowProgress(0);
+    try {
+      await authenticateWallet(walletGroupId, (nonce) => {
+        setPowProgress(nonce);
+      });
+      setAuthenticated(true);
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Authentication failed');
+    } finally {
+      setAuthenticating(false);
+    }
+  }, [walletGroupId]);
 
   // Filter only available strategies
   const enabledStrategies = availableStrategies.filter(s => s.available);
@@ -72,7 +111,61 @@ export const StrategiesPage: React.FC<StrategiesPageProps> = ({
         </div>
       </div>
 
+      {/* Auth Gate for direct wallet users */}
+      {!authenticated && !isWalletGroup && (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '80px 20px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔐</div>
+          <h3 style={{
+            margin: '0 0 8px 0',
+            fontSize: '20px',
+            fontWeight: 600,
+            color: theme.textPrimary
+          }}>
+            Authentication Required
+          </h3>
+          <p style={{
+            margin: '0 0 24px 0',
+            fontSize: '14px',
+            color: theme.textSecondary,
+            maxWidth: 400
+          }}>
+            Strategies require authentication. A short proof-of-work challenge will run in your browser ({estimateSolveTime(5)}).
+          </p>
+          {authError && (
+            <p style={{ color: '#ef4444', margin: '0 0 16px 0', fontSize: '14px' }}>
+              {authError}
+            </p>
+          )}
+          <button
+            onClick={handleAuthenticate}
+            disabled={authenticating}
+            style={{
+              padding: '12px 32px',
+              borderRadius: 8,
+              border: 'none',
+              background: authenticating ? theme.border : theme.accent,
+              color: '#fff',
+              fontSize: '15px',
+              fontWeight: 600,
+              cursor: authenticating ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {authenticating
+              ? `Solving challenge... (${powProgress.toLocaleString()} hashes)`
+              : 'Authenticate'}
+          </button>
+        </div>
+      )}
+
       {/* Strategy Content */}
+      {authenticated && (
       <div style={{ minHeight: '400px' }}>
         {activeTab === StrategyType.AllocationByWeight && (
           <AllocationStrategySection
@@ -115,6 +208,7 @@ export const StrategiesPage: React.FC<StrategiesPageProps> = ({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

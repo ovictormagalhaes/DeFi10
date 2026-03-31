@@ -394,7 +394,11 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [], isLoading }) => {
                   token1={token1?.symbol || ''}
                   protocol={protocol.name}
                   chain={displayToken0?.chain}
-                  feeTier={additionalInfo.feeTier || additionalData?.feeTier}
+                  feeTier={(() => {
+                    const tp = additionalData?.tierPercent ?? additionalInfo?.tierPercent;
+                    if (tp != null) return Math.round(Number(tp) * 10000);
+                    return undefined;
+                  })()}
                 />
               </div>
             </div>

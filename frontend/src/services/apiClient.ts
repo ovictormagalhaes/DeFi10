@@ -17,6 +17,8 @@ import type {
   SaveStrategiesResponse,
   StrategyData
 } from '../types/strategy';
+import type { Challenge } from './proofOfWork';
+import { solveChallenge } from './proofOfWork';
 
 const TOKEN_STORAGE_KEY = 'defi10_wallet_group_tokens';
 
@@ -91,7 +93,7 @@ export { getToken, storeToken, removeToken, notifyTokenExpired };
 axios.interceptors.request.use((config) => {
   // Match wallet-groups routes: /wallet-groups/{id}
   let match = config.url?.match(/\/wallet-groups\/([^\/]+)/);
-  if (match && match[1]) {
+  if (match && match[1] && match[1] !== 'challenge') {
     const walletGroupId = decodeURIComponent(match[1]);
     const token = getToken(walletGroupId);
     
@@ -135,7 +137,7 @@ axios.interceptors.response.use(
     if (error.response?.status === 401) {
       // Check wallet-groups routes
       let match = error.config?.url?.match(/\/wallet-groups\/([^\/]+)/);
-      if (match && match[1] && match[1] !== 'connect') {
+      if (match && match[1] && match[1] !== 'challenge' && match[1] !== 'connect') {
         const walletGroupId = decodeURIComponent(match[1]);
         removeToken(walletGroupId);
         notifyTokenExpired(walletGroupId);
@@ -181,6 +183,11 @@ export async function getHealth(): Promise<HealthStatus> {
 export async function getSupportedChains(): Promise<SupportedChain[]> {
   const data = await getJSON<{ chains?: SupportedChain[] }>(api.getSupportedChains());
   return data.chains || [];
+}
+
+export async function getChallenge(): Promise<Challenge> {
+  const res = await axios.get(api.getChallenge());
+  return res.data;
 }
 
 export async function createWalletGroup(data: CreateWalletGroupRequest): Promise<WalletGroup> {
@@ -271,4 +278,25 @@ export async function getStrategyByGroup(walletGroupId: string): Promise<SaveStr
     }
     throw error;
   }
+}
+
+export function hasValidToken(walletGroupId: string): boolean {
+  return getToken(walletGroupId) !== null;
+}
+
+export async function authenticateWallet(
+  walletGroupId: string,
+  onProgress?: (nonce: number) => void
+): Promise<void> {
+  const challenge = await getChallenge();
+  const result = await solveChallenge(
+    challenge.challenge,
+    challenge.difficulty,
+    onProgress ? (nonce) => onProgress(nonce) : undefined
+  );
+  await connectWalletGroup(walletGroupId, {
+    challenge: challenge.challenge,
+    nonce: result.nonce,
+    hash: result.hash,
+  });
 }
