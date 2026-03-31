@@ -15,7 +15,7 @@ where
     D: serde::Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    Uuid::parse_str(&s).map_err(serde::de::Error::custom)
+    Ok(Uuid::parse_str(&s).unwrap_or(Uuid::nil()))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize_repr, Deserialize_repr)]

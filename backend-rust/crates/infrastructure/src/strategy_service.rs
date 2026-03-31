@@ -3,17 +3,23 @@ use chrono::Utc;
 use defi10_core::strategy::{
     StrategyDocument, StrategyRequest, StrategyType, WalletGroupStrategies,
 };
-use mongodb::{bson::doc, Collection, Database};
+use mongodb::{
+    bson::{doc, to_document, Document},
+    options::ReplaceOptions,
+    Collection, Database,
+};
 use uuid::Uuid;
 
 pub struct StrategyService {
     collection: Collection<WalletGroupStrategies>,
+    raw_collection: Collection<Document>,
 }
 
 impl StrategyService {
     pub fn new(database: &Database) -> Self {
         Self {
             collection: database.collection("strategies"),
+            raw_collection: database.collection("strategies"),
         }
     }
 
@@ -76,9 +82,19 @@ impl StrategyService {
     }
 
     pub async fn get_strategies_by_key(&self, key: &str) -> Result<Option<WalletGroupStrategies>> {
-        let result = self.collection.find_one(doc! { "_id": key }).await?;
+        let doc = self.raw_collection.find_one(doc! { "_id": key }).await?;
 
-        Ok(result)
+        match doc {
+            Some(d) => {
+                let mut wgs: WalletGroupStrategies =
+                    mongodb::bson::from_document(d).unwrap_or_else(|_| {
+                        WalletGroupStrategies::new(Uuid::nil(), vec![key.to_string()], vec![])
+                    });
+                wgs.key = key.to_string();
+                Ok(Some(wgs))
+            }
+            None => Ok(None),
+        }
     }
 
     pub async fn save_strategies_by_key(
@@ -112,9 +128,13 @@ impl StrategyService {
             WalletGroupStrategies::new(wallet_group_id, wallets, strategy_docs);
         wallet_group_strategies.key = key.to_string();
 
-        self.collection
-            .replace_one(doc! { "_id": key }, &wallet_group_strategies)
-            .upsert(true)
+        let mut doc = to_document(&wallet_group_strategies)?;
+        doc.insert("_id", key);
+
+        let options = ReplaceOptions::builder().upsert(true).build();
+        self.raw_collection
+            .replace_one(doc! { "_id": key }, doc)
+            .with_options(options)
             .await?;
 
         tracing::info!(
