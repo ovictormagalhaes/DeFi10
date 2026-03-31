@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { useTheme } from '../context/ThemeProvider.tsx';
+import { useTheme } from '../context/ThemeProvider';
 import { useWalletGroups } from '../hooks/useWalletGroups';
 import {
   WalletGroup,
@@ -14,23 +14,16 @@ import { solveChallenge, estimateSolveTime } from '../services/proofOfWork';
 import { detectAvailableWallets, getWalletById } from '../constants/wallets';
 import WalletSelectorDialog from './WalletSelectorDialog';
 
-// Extend Window interface for wallet providers
-declare global {
-  interface Window {
-    ethereum?: any;
-    rabby?: any;
-    solana?: any;
-  }
-}
 
 interface WalletGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGroupCreated?: (groupId: string) => void;
   onGroupSelected?: (groupId: string, isReconnect?: boolean) => void;
-  currentWalletAddress?: string | null; // Current connected wallet to add to group
-  onConnectToGroup?: (groupId: string) => void; // Callback when wallet is connected to group
-  initialGroupId?: string | null; // Pre-fill connect form with this group ID
+  onDisconnectGroup?: (groupId: string) => void;
+  currentWalletAddress?: string | null;
+  onConnectToGroup?: (groupId: string) => void;
+  initialGroupId?: string | null;
 }
 
 const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
