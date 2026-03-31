@@ -14,6 +14,8 @@ export interface CreateWalletGroupRequest {
   wallets: string[];
   displayName?: string;
   password?: string;
+  challenge?: string;
+  nonce?: string;
 }
 
 export interface UpdateWalletGroupRequest {

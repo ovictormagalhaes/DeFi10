@@ -87,7 +87,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend-rust
-      - run: cargo build --manifest-path backend-rust/Cargo.toml --release --bin defi10-worker
+      - run: cargo build --manifest-path backend-rust/Cargo.toml --release -p defi10-worker
 
   # ── Frontend pipeline ───────────────────────────────────────────────
   frontend:

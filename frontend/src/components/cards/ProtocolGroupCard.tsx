@@ -78,8 +78,8 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
   positions.forEach(item => {
     const position = item.position || item;
     const allTokens = position.tokens || [];
-    const tokens = allTokens.filter(t => {
-      const k: string = t.key || `${t.symbol}-${t.type}-${t.contractAddress || ''}`;
+    const tokens = allTokens.filter((t: any) => {
+      const k = String(t.key || `${t.symbol}-${t.type}-${t.contractAddress || ''}`);
       if (globalSeenKeys.has(k)) return false;
       globalSeenKeys.add(k);
       return true;
@@ -451,8 +451,8 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({ protocolName, cha
               ].some((v) => v === true);
 
               const seen = new Set<string>();
-              const uniqueTokens = tokens.filter(t => {
-                const k: string = t.key || `${t.symbol}-${t.type}-${t.contractAddress || ''}`;
+              const uniqueTokens = tokens.filter((t: any) => {
+                const k = String(t.key || `${t.symbol}-${t.type}-${t.contractAddress || ''}`);
                 if (seen.has(k)) return false;
                 seen.add(k);
                 return true;
