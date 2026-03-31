@@ -76,20 +76,13 @@ export const createAllocationStrategyExample = () => {
 /**
  * Helper to format allocation deltas for display
  */
-export function formatAllocationDelta(delta: {
-  deltaWeight: number;
-  deltaValueUsd: number;
-}): {
+export function formatAllocationDelta(delta: { deltaWeight: number; deltaValueUsd: number }): {
   weightFormatted: string;
   valueFormatted: string;
   status: 'over' | 'under' | 'balanced';
 } {
   const status =
-    Math.abs(delta.deltaWeight) < 1
-      ? 'balanced'
-      : delta.deltaWeight > 0
-        ? 'over'
-        : 'under';
+    Math.abs(delta.deltaWeight) < 1 ? 'balanced' : delta.deltaWeight > 0 ? 'over' : 'under';
 
   const weightSign = delta.deltaWeight > 0 ? '+' : '';
   const valueSign = delta.deltaValueUsd > 0 ? '+' : '';
@@ -141,7 +134,7 @@ export function calculateRequiredAction(delta: {
  */
 export function needsAttention(
   deltas: Array<{ needsRebalance: boolean }>,
-  threshold = 0.1,
+  threshold = 0.1
 ): boolean {
   const needsRebalanceCount = deltas.filter((d) => d.needsRebalance).length;
   const totalAssets = deltas.length;

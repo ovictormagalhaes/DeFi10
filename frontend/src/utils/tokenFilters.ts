@@ -139,7 +139,10 @@ export function filterGovernanceTokens(tokens: TokenBase[]): TokenBase[] {
   return tokens.filter((token) => isGovernanceToken(token));
 }
 
-export function calculateTokensValue(tokens: TokenBase[], valueField: string = 'totalPrice'): number {
+export function calculateTokensValue(
+  tokens: TokenBase[],
+  valueField: string = 'totalPrice'
+): number {
   if (!Array.isArray(tokens)) return 0;
 
   return tokens.reduce((sum: number, token: TokenBase) => {
@@ -171,7 +174,8 @@ export function extractAllRewards(position: PositionLike | null | undefined): To
   uncollectedSources.forEach((source) => {
     if (Array.isArray(source)) {
       const uncollectedRewards = source.filter(
-        (item) => item && (isUncollectedFeeToken(item) || (item as Record<string, unknown>).financials)
+        (item) =>
+          item && (isUncollectedFeeToken(item) || (item as Record<string, unknown>).financials)
       );
       rewards.push(...uncollectedRewards);
     }
@@ -180,7 +184,9 @@ export function extractAllRewards(position: PositionLike | null | undefined): To
   return rewards;
 }
 
-export function normalizeTokenPrice(token: TokenBase | null | undefined): NormalizedToken | null | undefined {
+export function normalizeTokenPrice(
+  token: TokenBase | null | undefined
+): NormalizedToken | null | undefined {
   if (!token) return token as null | undefined;
 
   const priceFields: string[] = [
@@ -195,7 +201,10 @@ export function normalizeTokenPrice(token: TokenBase | null | undefined): Normal
   let totalPrice = 0;
 
   for (const field of priceFields) {
-    if ((token as Record<string, unknown>)[field] !== undefined && (token as Record<string, unknown>)[field] !== null) {
+    if (
+      (token as Record<string, unknown>)[field] !== undefined &&
+      (token as Record<string, unknown>)[field] !== null
+    ) {
       totalPrice = parseFloat((token as Record<string, unknown>)[field] as string) || 0;
       break;
     }

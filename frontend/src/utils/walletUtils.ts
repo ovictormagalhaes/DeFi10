@@ -1,4 +1,5 @@
 // Utility functions for wallet data processing and formatting
+import { capitalize } from './format';
 import {
   filterSuppliedTokens,
   filterBorrowedTokens,
@@ -7,7 +8,6 @@ import {
   isCollectedFeeToken,
   normalizeTokenPrice,
 } from './tokenFilters';
-import { capitalize } from './format';
 
 export interface TokenFinancials {
   amount?: number;
@@ -135,7 +135,9 @@ interface PercentageOptions {
 }
 
 // Normalize financials block into flat token fields (mutates the object for convenience)
-export function normalizeFinancials(token: TokenLike | null | undefined): TokenLike | null | undefined {
+export function normalizeFinancials(
+  token: TokenLike | null | undefined
+): TokenLike | null | undefined {
   if (!token || typeof token !== 'object') return token;
   const fin = token.financials;
   if (fin && typeof fin === 'object') {
@@ -163,7 +165,10 @@ export const ITEM_TYPES = {
 } as const;
 
 // Filter items by type from a unified data array
-export function filterItemsByType(items: WalletItemLike[], type: string | number): WalletItemLike[] {
+export function filterItemsByType(
+  items: WalletItemLike[],
+  type: string | number
+): WalletItemLike[] {
   if (!items || !Array.isArray(items)) return [];
   return items.filter((item) => item.type === type);
 }
@@ -188,8 +193,6 @@ export function getWalletTokens(data: WalletItemLike[]): WalletItemLike[] {
   });
   return collected;
 }
-
-
 
 // Format balance (use default decimals since not provided in response)
 export function formatBalance(balance: number | string, isNative: boolean = false): string {
@@ -272,7 +275,10 @@ export function formatPrice(price: number | string | null | undefined): string {
 }
 
 // Format raw token amount (prioritizing provided formatted fields) with maxDecimals (truncate, not round)
-export function formatTokenAmount(token: TokenLike | null | undefined, maxDecimals: number = 4): string {
+export function formatTokenAmount(
+  token: TokenLike | null | undefined,
+  maxDecimals: number = 4
+): string {
   if (!token) return '-';
   // Normalize first so financials.* are promoted
   normalizeFinancials(token);
@@ -399,7 +405,9 @@ export function groupDefiByProtocol(defiData: WalletItemLike[]): ProtocolGroup[]
       const chainCandidate =
         resolveChain(position as unknown as Record<string, unknown>) ||
         (Array.isArray(position.tokens) &&
-          position.tokens.map((t) => resolveChain(t as unknown as Record<string, unknown>)).find(Boolean));
+          position.tokens
+            .map((t) => resolveChain(t as unknown as Record<string, unknown>))
+            .find(Boolean));
       if (chainCandidate) {
         const chainStr = chainCandidate.toString();
         const chainClean = chainStr.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -442,7 +450,9 @@ export function groupDefiByProtocol(defiData: WalletItemLike[]): ProtocolGroup[]
 }
 
 // Group data by protocol name for table display
-export function groupByProtocolName(data: Array<{ protocol: string; [key: string]: unknown }>): Record<string, Array<{ protocol: string; [key: string]: unknown }>> {
+export function groupByProtocolName(
+  data: Array<{ protocol: string; [key: string]: unknown }>
+): Record<string, Array<{ protocol: string; [key: string]: unknown }>> {
   if (!data || !Array.isArray(data)) return {};
 
   const grouped: Record<string, Array<{ protocol: string; [key: string]: unknown }>> = {};
@@ -459,7 +469,10 @@ export function groupByProtocolName(data: Array<{ protocol: string; [key: string
 }
 
 // Separate DeFi into Liquidity and Other types
-export function separateDefiByType(defiData: WalletItemLike[]): { liquidity: WalletItemLike[]; other: WalletItemLike[] } {
+export function separateDefiByType(defiData: WalletItemLike[]): {
+  liquidity: WalletItemLike[];
+  other: WalletItemLike[];
+} {
   if (!defiData || !Array.isArray(defiData)) return { liquidity: [], other: [] };
 
   const liquidity: WalletItemLike[] = [];
@@ -477,14 +490,18 @@ export function separateDefiByType(defiData: WalletItemLike[]): { liquidity: Wal
 }
 
 // Filter tokens based on positive balance setting
-export function getFilteredTokens(tokens: WalletItemLike[], showOnlyPositiveBalance: boolean = true): WalletItemLike[] {
+export function getFilteredTokens(
+  tokens: WalletItemLike[],
+  showOnlyPositiveBalance: boolean = true
+): WalletItemLike[] {
   // When showOnlyPositiveBalance is TRUE we now hide very small dust positions (< $0.05)
   // "Show Assets with no balance" disabled => only show tokens with total value >= 5 cents
   const MIN_VISIBLE_VALUE_USD = 0.05;
   if (showOnlyPositiveBalance) {
     return (tokens || []).filter((tokenData) => {
       const token = (tokenData as Record<string, unknown>).token || tokenData;
-      const totalPriceRaw = (token as TokenLike).totalPrice ?? (token as TokenLike).financials?.totalPrice;
+      const totalPriceRaw =
+        (token as TokenLike).totalPrice ?? (token as TokenLike).financials?.totalPrice;
       const totalPrice = parseFloat(totalPriceRaw as string);
       if (isNaN(totalPrice)) return false;
       return totalPrice >= MIN_VISIBLE_VALUE_USD;
@@ -723,7 +740,10 @@ export function groupTokensByPool(positions: PositionObj[]): Record<string, Pool
 
     // Calcula valores totais
     grouped[finalPoolKey].totalValue =
-      grouped[finalPoolKey].tokens?.reduce((sum, token) => sum + (parseFloat(token.totalPrice as string) || 0), 0) || 0;
+      grouped[finalPoolKey].tokens?.reduce(
+        (sum, token) => sum + (parseFloat(token.totalPrice as string) || 0),
+        0
+      ) || 0;
     grouped[finalPoolKey].totalRewards =
       grouped[finalPoolKey].rewards?.reduce(
         (sum, reward) => sum + (parseFloat(reward.totalPrice as string) || 0),
@@ -760,13 +780,12 @@ export function computePortfolioBreakdown({
       group.positions.reduce(
         (sum, pos) =>
           sum +
-          (pos.tokens?.reduce(
-            (tokenSum: number, t) => {
-              if (isCollectedFeeToken(t)) return tokenSum;
-              return tokenSum + (parseFloat((t.financials?.totalPrice || t.totalPrice) as string) || 0);
-            },
-            0
-          ) || 0),
+          (pos.tokens?.reduce((tokenSum: number, t) => {
+            if (isCollectedFeeToken(t)) return tokenSum;
+            return (
+              tokenSum + (parseFloat((t.financials?.totalPrice || t.totalPrice) as string) || 0)
+            );
+          }, 0) || 0),
         0
       )
     );
@@ -815,13 +834,12 @@ export function computePortfolioBreakdown({
       group.positions.reduce(
         (sum, pos) =>
           sum +
-          (pos.tokens?.reduce(
-            (tokenSum: number, t) => {
-              if (isCollectedFeeToken(t)) return tokenSum;
-              return tokenSum + (parseFloat((t.financials?.totalPrice || t.totalPrice) as string) || 0);
-            },
-            0
-          ) || 0),
+          (pos.tokens?.reduce((tokenSum: number, t) => {
+            if (isCollectedFeeToken(t)) return tokenSum;
+            return (
+              tokenSum + (parseFloat((t.financials?.totalPrice || t.totalPrice) as string) || 0)
+            );
+          }, 0) || 0),
         0
       )
     );
@@ -851,8 +869,13 @@ export function computePortfolioBreakdown({
  * de um objeto de posição heterogêneo (evita duplicar lógica em múltiplas views como PoolsView).
  * Retorna array (não deduplica) mantendo referência original dos objetos.
  */
-export function extractRewards(positionLike: Record<string, unknown> | null | undefined): TokenLike[] {
-  const pos = (positionLike?.position || positionLike) as Record<string, unknown> | null | undefined;
+export function extractRewards(
+  positionLike: Record<string, unknown> | null | undefined
+): TokenLike[] {
+  const pos = (positionLike?.position || positionLike) as
+    | Record<string, unknown>
+    | null
+    | undefined;
   if (!pos || typeof pos !== 'object') return [];
   const rewards: TokenLike[] = [];
   const candidateArrays = [
@@ -878,7 +901,9 @@ export function extractRewards(positionLike: Record<string, unknown> | null | un
         if (r) rewards.push((r?.token || r) as TokenLike);
       });
   });
-  const nested = [pos.meta, pos.extra, pos.additionalData, pos.additionalInfo] as Array<Record<string, unknown> | undefined>;
+  const nested = [pos.meta, pos.extra, pos.additionalData, pos.additionalInfo] as Array<
+    Record<string, unknown> | undefined
+  >;
   const keys = [
     'rewards',
     'incentives',
@@ -920,7 +945,11 @@ export function getTotalPortfolioValue(): number {
   return __portfolioTotalValue;
 }
 
-export function calculatePercentage(value: number | string, total: number | string, options: PercentageOptions = {}): string {
+export function calculatePercentage(
+  value: number | string,
+  total: number | string,
+  options: PercentageOptions = {}
+): string {
   const { decimals = 2, minDisplay = 0.01 } = options;
   const v = Number(value);
   const t = Number(total);
@@ -935,11 +964,16 @@ export function calculatePercentage(value: number | string, total: number | stri
  * @deprecated Use extractPoolRange from types/wallet.ts instead
  * TODO: Remover esta versão JavaScript - migrado para TypeScript
  */
-export function extractPoolRange(positionLike: Record<string, unknown> | null | undefined): Range | null {
+export function extractPoolRange(
+  positionLike: Record<string, unknown> | null | undefined
+): Range | null {
   console.warn('⚠️ DEPRECATED: Use extractPoolRange from types/wallet.ts instead');
   if (!(positionLike?.additionalData as Record<string, unknown> | undefined)?.range) return null;
 
-  const range = (positionLike!.additionalData as Record<string, unknown>).range as Record<string, unknown>;
+  const range = (positionLike!.additionalData as Record<string, unknown>).range as Record<
+    string,
+    unknown
+  >;
 
   if (range.lower != null && range.upper != null && range.current != null) {
     return {
@@ -957,10 +991,14 @@ export function extractPoolRange(positionLike: Record<string, unknown> | null | 
  * extractPoolFees24h
  * Extrai fees 24h de pools Uniswap V3 do additionalData
  */
-export function extractPoolFees24h(positionLike: Record<string, unknown> | null | undefined): number | null {
+export function extractPoolFees24h(
+  positionLike: Record<string, unknown> | null | undefined
+): number | null {
   if (!(positionLike?.additionalData as Record<string, unknown> | undefined)?.fees24h) return null;
 
-  const fees = parseFloat((positionLike!.additionalData as Record<string, unknown>).fees24h as string);
+  const fees = parseFloat(
+    (positionLike!.additionalData as Record<string, unknown>).fees24h as string
+  );
   return isFinite(fees) ? fees : null;
 }
 
@@ -992,7 +1030,9 @@ export function sum(values: (number | string)[]): number {
 export function derivePositionKey(p: Record<string, unknown>, index = 0): string {
   const pos = (p.position || p) as Record<string, unknown>;
   const token = (pos.token || pos.asset || {}) as Record<string, unknown>;
-  const addr = ((token.address || token.contract || token.contractAddress || '') as string).toLowerCase();
+  const addr = (
+    (token.address || token.contract || token.contractAddress || '') as string
+  ).toLowerCase();
   const symbol = ((token.symbol || '') as string).toLowerCase();
   if (addr) return `${addr}-${index}`;
   return `${symbol || 'asset'}-${index}`;
@@ -1003,10 +1043,15 @@ export function derivePositionKey(p: Record<string, unknown>, index = 0): string
  * @deprecated Use extractHealthFactor from types/wallet.ts instead
  * TODO: Remover esta versão JavaScript - migrado para TypeScript
  */
-export function extractHealthFactor(positionLike: Record<string, unknown> | null | undefined): number | null {
+export function extractHealthFactor(
+  positionLike: Record<string, unknown> | null | undefined
+): number | null {
   console.warn('⚠️ DEPRECATED: Use extractHealthFactor from types/wallet.ts instead');
-  if (!(positionLike?.additionalData as Record<string, unknown> | undefined)?.healthFactor) return null;
+  if (!(positionLike?.additionalData as Record<string, unknown> | undefined)?.healthFactor)
+    return null;
 
-  const healthFactor = parseFloat((positionLike!.additionalData as Record<string, unknown>).healthFactor as string);
+  const healthFactor = parseFloat(
+    (positionLike!.additionalData as Record<string, unknown>).healthFactor as string
+  );
   return isFinite(healthFactor) ? healthFactor : null;
 }

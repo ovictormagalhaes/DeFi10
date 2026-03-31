@@ -27,7 +27,11 @@ function computeNet(summary: AggregationSummary | null): number | null {
   return sup - bor;
 }
 
-export default function AggregationPanel({ account, chain = 'Base', auto = true }: AggregationPanelProps): React.ReactElement {
+export default function AggregationPanel({
+  account,
+  chain = 'Base',
+  auto = true,
+}: AggregationPanelProps): React.ReactElement {
   const {
     ensure,
     start,

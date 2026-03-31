@@ -243,10 +243,12 @@ export const useRebalancing = (
   // REMOVED: calculate - /api/rebalance/calculate endpoint does not exist in backend
   // TODO: Implement when backend supports rebalancing API
   const calculate = useCallback(async (): Promise<RebalanceCalculation | null> => {
-    console.warn('[useRebalancing] calculate() called but /api/rebalance/calculate endpoint does not exist');
+    console.warn(
+      '[useRebalancing] calculate() called but /api/rebalance/calculate endpoint does not exist'
+    );
     setError('Rebalancing calculation is not yet implemented in the backend');
     return null;
-    
+
     /* ORIGINAL IMPLEMENTATION (commented out):
     if (!account) {
       setError('Account is required for calculation');
@@ -326,10 +328,12 @@ export const useRebalancing = (
   // TODO: Implement when backend supports rebalancing API
   const save = useCallback(
     async (key: string, name: string): Promise<boolean> => {
-      console.warn('[useRebalancing] save() called but /api/rebalance/save endpoint does not exist');
+      console.warn(
+        '[useRebalancing] save() called but /api/rebalance/save endpoint does not exist'
+      );
       setError('Rebalancing save is not yet implemented in the backend');
       return false;
-      
+
       /* ORIGINAL IMPLEMENTATION (commented out):
       if (!account) {
         setError('Account is required for saving');
@@ -385,10 +389,12 @@ export const useRebalancing = (
   // TODO: Implement when backend supports rebalancing API
   const load = useCallback(
     async (key: string): Promise<boolean> => {
-      console.warn('[useRebalancing] load() called but /api/rebalance/load endpoint does not exist');
+      console.warn(
+        '[useRebalancing] load() called but /api/rebalance/load endpoint does not exist'
+      );
       setError('Rebalancing load is not yet implemented in the backend');
       return false;
-      
+
       /* ORIGINAL IMPLEMENTATION (commented out):
       if (!account) {
         setError('Account is required for loading');

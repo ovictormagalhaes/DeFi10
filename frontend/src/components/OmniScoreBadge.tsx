@@ -1,6 +1,16 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
+
 import { useTheme } from '../context/ThemeProvider';
 import type {
   PoolScoreResponse,
@@ -11,7 +21,6 @@ import type {
   ScoreAsset,
 } from '../services/omniClient';
 import { scorePool, scoreLending } from '../services/omniClient';
-
 import { capitalize } from '../utils/format';
 
 const CHAIN_ICONS: Record<string, string> = {
@@ -51,7 +60,9 @@ const ChainBadge: React.FC<{ chain: string; size?: number }> = ({ chain, size = 
   const icon = getChainIcon(chain);
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      {icon && <img src={icon} alt={chain} style={{ width: size, height: size, borderRadius: '50%' }} />}
+      {icon && (
+        <img src={icon} alt={chain} style={{ width: size, height: size, borderRadius: '50%' }} />
+      )}
       <span style={{ color: theme.textSecondary, fontSize: 11 }}>{capitalize(chain)}</span>
     </span>
   );
@@ -62,8 +73,12 @@ const ProtocolBadge: React.FC<{ protocol: string; size?: number }> = ({ protocol
   const icon = getProtocolIcon(protocol);
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      {icon && <img src={icon} alt={protocol} style={{ width: size, height: size, borderRadius: '50%' }} />}
-      <span style={{ color: theme.textPrimary, fontWeight: 600, fontSize: 12 }}>{capitalize(protocol)}</span>
+      {icon && (
+        <img src={icon} alt={protocol} style={{ width: size, height: size, borderRadius: '50%' }} />
+      )}
+      <span style={{ color: theme.textPrimary, fontWeight: 600, fontSize: 12 }}>
+        {capitalize(protocol)}
+      </span>
     </span>
   );
 };
@@ -97,70 +112,92 @@ const OmniScoreBadge: React.FC<OmniScoreBadgeProps> = (props) => {
   const [expanded, setExpanded] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const fetchScore = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const fetchScore = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
 
-    if (status === 'done' || status === 'loading') {
-      if (status === 'done') setExpanded(!expanded);
-      return;
-    }
-
-    setStatus('loading');
-    setErrorMsg('');
-
-    try {
-      if (props.type === 'pool') {
-        const res = await scorePool({
-          token0: props.token0,
-          token1: props.token1,
-          protocol: props.protocol,
-          chain: props.chain,
-          fee_tier: props.feeTier,
-        });
-        setPoolResult(res);
-      } else {
-        const res = await scoreLending({
-          supplies: props.supplies,
-          borrows: props.borrows,
-          protocol: props.protocol,
-          chain: props.chain,
-        });
-        setLendingResult(res);
+      if (status === 'done' || status === 'loading') {
+        if (status === 'done') setExpanded(!expanded);
+        return;
       }
-      setStatus('done');
-      setExpanded(true);
-    } catch (err: any) {
-      setStatus('error');
-      const raw = err?.response?.data?.error;
-      setErrorMsg(typeof raw === 'string' ? raw : raw?.message || err?.message || 'Failed to fetch');
-    }
-  }, [props, status, expanded]);
+
+      setStatus('loading');
+      setErrorMsg('');
+
+      try {
+        if (props.type === 'pool') {
+          const res = await scorePool({
+            token0: props.token0,
+            token1: props.token1,
+            protocol: props.protocol,
+            chain: props.chain,
+            fee_tier: props.feeTier,
+          });
+          setPoolResult(res);
+        } else {
+          const res = await scoreLending({
+            supplies: props.supplies,
+            borrows: props.borrows,
+            protocol: props.protocol,
+            chain: props.chain,
+          });
+          setLendingResult(res);
+        }
+        setStatus('done');
+        setExpanded(true);
+      } catch (err: any) {
+        setStatus('error');
+        const raw = err?.response?.data?.error;
+        setErrorMsg(
+          typeof raw === 'string' ? raw : raw?.message || err?.message || 'Failed to fetch'
+        );
+      }
+    },
+    [props, status, expanded]
+  );
 
   const isOptimal =
     status === 'done' &&
     ((props.type === 'pool' && poolResult && poolResult.suggestions.length === 0) ||
-     (props.type === 'lending' && lendingResult && lendingResult.suggestions.length === 0));
+      (props.type === 'lending' && lendingResult && lendingResult.suggestions.length === 0));
 
-  const svgFilter = status === 'done'
-    ? isOptimal
-      ? 'brightness(0) saturate(100%) invert(67%) sepia(52%) saturate(525%) hue-rotate(107deg) brightness(95%) contrast(92%)'
-      : 'brightness(0) saturate(100%) invert(80%) sepia(45%) saturate(600%) hue-rotate(5deg) brightness(105%) contrast(97%)'
-    : status === 'error'
-      ? 'brightness(0) saturate(100%) invert(39%) sepia(95%) saturate(1500%) hue-rotate(342deg) brightness(95%) contrast(95%)'
-      : 'none';
+  const svgFilter =
+    status === 'done'
+      ? isOptimal
+        ? 'brightness(0) saturate(100%) invert(67%) sepia(52%) saturate(525%) hue-rotate(107deg) brightness(95%) contrast(92%)'
+        : 'brightness(0) saturate(100%) invert(80%) sepia(45%) saturate(600%) hue-rotate(5deg) brightness(105%) contrast(97%)'
+      : status === 'error'
+        ? 'brightness(0) saturate(100%) invert(39%) sepia(95%) saturate(1500%) hue-rotate(342deg) brightness(95%) contrast(95%)'
+        : 'none';
 
-  const badgeBg = status === 'done'
-    ? isOptimal ? 'rgba(16, 185, 129, 0.15)' : 'rgba(251, 191, 36, 0.15)'
-    : status === 'error' ? 'rgba(239, 68, 68, 0.15)'
-    : 'transparent';
+  const badgeBg =
+    status === 'done'
+      ? isOptimal
+        ? 'rgba(16, 185, 129, 0.15)'
+        : 'rgba(251, 191, 36, 0.15)'
+      : status === 'error'
+        ? 'rgba(239, 68, 68, 0.15)'
+        : 'transparent';
 
-  const badgeBorder = status === 'done'
-    ? isOptimal ? 'rgba(16, 185, 129, 0.4)' : 'rgba(251, 191, 36, 0.4)'
-    : status === 'error' ? 'rgba(239, 68, 68, 0.4)'
-    : theme.border;
+  const badgeBorder =
+    status === 'done'
+      ? isOptimal
+        ? 'rgba(16, 185, 129, 0.4)'
+        : 'rgba(251, 191, 36, 0.4)'
+      : status === 'error'
+        ? 'rgba(239, 68, 68, 0.4)'
+        : theme.border;
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block', marginLeft: 'auto', alignSelf: 'flex-start' }} onClick={(e) => e.stopPropagation()}>
+    <div
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        marginLeft: 'auto',
+        alignSelf: 'flex-start',
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
       <button
         type="button"
         onClick={fetchScore}
@@ -181,8 +218,12 @@ const OmniScoreBadge: React.FC<OmniScoreBadgeProps> = (props) => {
           minWidth: 90,
           justifyContent: 'center',
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = theme.accent; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = badgeBorder; }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = theme.accent;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = badgeBorder;
+        }}
       >
         <img
           src="/resources/protocols/omni.svg"
@@ -196,12 +237,14 @@ const OmniScoreBadge: React.FC<OmniScoreBadgeProps> = (props) => {
         />
         <span style={{ color: theme.textSecondary }}>Score</span>
         {status === 'done' && (
-          <span style={{
-            transform: `rotate(${expanded ? 180 : 0}deg)`,
-            transition: 'transform 0.2s ease',
-            fontSize: 10,
-            color: theme.textSecondary,
-          }}>
+          <span
+            style={{
+              transform: `rotate(${expanded ? 180 : 0}deg)`,
+              transition: 'transform 0.2s ease',
+              fontSize: 10,
+              color: theme.textSecondary,
+            }}
+          >
             ▼
           </span>
         )}
@@ -215,7 +258,6 @@ const OmniScoreBadge: React.FC<OmniScoreBadgeProps> = (props) => {
           lendingResult={lendingResult}
         />
       )}
-
 
       <style>{`
         @keyframes omni-spin {
@@ -238,7 +280,9 @@ const ScoreDrawer: React.FC<{
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true));
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
@@ -252,31 +296,41 @@ const ScoreDrawer: React.FC<{
     setTimeout(onClose, 300);
   };
 
-  const title = props.type === 'pool'
-    ? poolResult?.normalizedPair || 'Pool Score'
-    : capitalize(lendingResult?.yourPosition?.protocol || 'Lending');
+  const title =
+    props.type === 'pool'
+      ? poolResult?.normalizedPair || 'Pool Score'
+      : capitalize(lendingResult?.yourPosition?.protocol || 'Lending');
 
-  const subtitleChain = props.type === 'pool'
-    ? poolResult?.current?.chain || ''
-    : lendingResult?.yourPosition?.chain || '';
+  const subtitleChain =
+    props.type === 'pool'
+      ? poolResult?.current?.chain || ''
+      : lendingResult?.yourPosition?.chain || '';
 
-  const subtitleExtra = props.type === 'pool'
-    ? `${poolResult?.token0Category || ''} / ${poolResult?.token1Category || ''}`
-    : lendingResult?.yourPosition
-      ? `${lendingResult.yourPosition.assetsMatched} assets`
-      : '';
+  const subtitleExtra =
+    props.type === 'pool'
+      ? `${poolResult?.token0Category || ''} / ${poolResult?.token1Category || ''}`
+      : lendingResult?.yourPosition
+        ? `${lendingResult.yourPosition.assetsMatched} assets`
+        : '';
 
-  const headerProtocol = props.type === 'pool'
-    ? poolResult?.current?.protocol || ''
-    : lendingResult?.yourPosition?.protocol || '';
+  const headerProtocol =
+    props.type === 'pool'
+      ? poolResult?.current?.protocol || ''
+      : lendingResult?.yourPosition?.protocol || '';
 
   return ReactDOM.createPortal(
     <>
       <div
-        onClick={(e) => { e.stopPropagation(); handleClose(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleClose();
+        }}
         style={{
           position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           backgroundColor: visible ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0)',
           backdropFilter: visible ? 'blur(4px)' : 'none',
           zIndex: 9998,
@@ -304,33 +358,53 @@ const ScoreDrawer: React.FC<{
           overflow: 'hidden',
         }}
       >
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '16px 20px',
-          borderBottom: `1px solid ${theme.border}`,
-          flexShrink: 0,
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: `1px solid ${theme.border}`,
+            flexShrink: 0,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              backgroundColor: theme.bgSecondary,
-              border: `1px solid ${theme.border}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              {getProtocolIcon(headerProtocol)
-                ? <img src={getProtocolIcon(headerProtocol)!} alt={headerProtocol} style={{ width: 22, height: 22, borderRadius: '50%' }} />
-                : <img src="/resources/protocols/omni.svg" alt="Omni" style={{ width: 20, height: 20 }} />
-              }
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                backgroundColor: theme.bgSecondary,
+                border: `1px solid ${theme.border}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {getProtocolIcon(headerProtocol) ? (
+                <img
+                  src={getProtocolIcon(headerProtocol)!}
+                  alt={headerProtocol}
+                  style={{ width: 22, height: 22, borderRadius: '50%' }}
+                />
+              ) : (
+                <img
+                  src="/resources/protocols/omni.svg"
+                  alt="Omni"
+                  style={{ width: 20, height: 20 }}
+                />
+              )}
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: theme.textPrimary, lineHeight: 1.2 }}>
+                <span
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: theme.textPrimary,
+                    lineHeight: 1.2,
+                  }}
+                >
                   {title}
                 </span>
                 {subtitleChain && <ChainBadge chain={subtitleChain} />}
@@ -356,31 +430,46 @@ const ScoreDrawer: React.FC<{
               justifyContent: 'center',
               transition: 'all 0.2s',
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = theme.textPrimary; e.currentTarget.style.backgroundColor = theme.bgSecondary; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = theme.textSecondary; e.currentTarget.style.backgroundColor = 'transparent'; }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = theme.textPrimary;
+              e.currentTarget.style.backgroundColor = theme.bgSecondary;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = theme.textSecondary;
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
             </svg>
           </button>
         </div>
 
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '20px 20px',
-        }}>
-          {props.type === 'pool' && poolResult && (
-            <PoolScoreDrawerContent result={poolResult} />
-          )}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '20px 20px',
+          }}
+        >
+          {props.type === 'pool' && poolResult && <PoolScoreDrawerContent result={poolResult} />}
           {props.type === 'lending' && lendingResult && (
             <LendingScoreDrawerContent result={lendingResult} />
           )}
         </div>
-
       </aside>
     </>,
-    document.body,
+    document.body
   );
 };
 
@@ -398,17 +487,27 @@ const MetricCard: React.FC<{
 }> = ({ label, value, sub, valueColor }) => {
   const { theme } = useTheme();
   return (
-    <div style={{
-      backgroundColor: theme.bgSecondary,
-      border: `1px solid ${theme.border}`,
-      borderRadius: 12,
-      padding: '12px 14px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 4,
-    }}>
+    <div
+      style={{
+        backgroundColor: theme.bgSecondary,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 12,
+        padding: '12px 14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+      }}
+    >
       <div style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 500 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: valueColor || theme.textPrimary, fontFamily: 'monospace', lineHeight: 1.2 }}>
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 700,
+          color: valueColor || theme.textPrimary,
+          fontFamily: 'monospace',
+          lineHeight: 1.2,
+        }}
+      >
         {value}
       </div>
       {sub && <div style={{ fontSize: 10, color: theme.textSecondary }}>{sub}</div>}
@@ -416,19 +515,24 @@ const MetricCard: React.FC<{
   );
 };
 
-const SectionTitle: React.FC<{ children: React.ReactNode; first?: boolean }> = ({ children, first }) => {
+const SectionTitle: React.FC<{ children: React.ReactNode; first?: boolean }> = ({
+  children,
+  first,
+}) => {
   const { theme } = useTheme();
   return (
-    <div style={{
-      fontSize: 13,
-      fontWeight: 600,
-      color: theme.textPrimary,
-      marginBottom: 10,
-      marginTop: first ? 0 : 20,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-    }}>
+    <div
+      style={{
+        fontSize: 13,
+        fontWeight: 600,
+        color: theme.textPrimary,
+        marginBottom: 10,
+        marginTop: first ? 0 : 20,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+      }}
+    >
       {children}
     </div>
   );
@@ -452,13 +556,16 @@ const TIMEPOINTS = [
 
 const LINE_COLORS = ['#a2a9b5', '#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
 
-const ProjectionChart: React.FC<{ lines: ProjectionLine[]; totalValue: number }> = ({ lines, totalValue }) => {
+const ProjectionChart: React.FC<{ lines: ProjectionLine[]; totalValue: number }> = ({
+  lines,
+  totalValue,
+}) => {
   const { theme } = useTheme();
 
   const data = useMemo(() => {
-    return TIMEPOINTS.map(tp => {
+    return TIMEPOINTS.map((tp) => {
       const point: Record<string, string | number> = { name: tp.label };
-      lines.forEach(l => {
+      lines.forEach((l) => {
         const rate = l.apy / 100;
         const earned = totalValue * rate * (tp.days / 365);
         point[l.label] = Math.round(earned * 100) / 100;
@@ -467,9 +574,7 @@ const ProjectionChart: React.FC<{ lines: ProjectionLine[]; totalValue: number }>
     });
   }, [lines, totalValue]);
 
-  const allValues = data.flatMap(d =>
-    lines.map(l => (d[l.label] as number) || 0)
-  );
+  const allValues = data.flatMap((d) => lines.map((l) => (d[l.label] as number) || 0));
   const minVal = Math.min(...allValues);
   const maxVal = Math.max(...allValues);
   const padding = Math.max(Math.abs(maxVal - minVal) * 0.1, 10);
@@ -480,13 +585,15 @@ const ProjectionChart: React.FC<{ lines: ProjectionLine[]; totalValue: number }>
   };
 
   return (
-    <div style={{
-      backgroundColor: theme.bgSecondary,
-      border: `1px solid ${theme.border}`,
-      borderRadius: 12,
-      padding: '16px 8px 8px 0',
-      marginTop: 10,
-    }}>
+    <div
+      style={{
+        backgroundColor: theme.bgSecondary,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 12,
+        padding: '16px 8px 8px 0',
+        marginTop: 10,
+      }}
+    >
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 5, right: 16, left: 8, bottom: 5 }}>
           <CartesianGrid
@@ -521,16 +628,14 @@ const ProjectionChart: React.FC<{ lines: ProjectionLine[]; totalValue: number }>
             itemStyle={{ padding: '1px 0' }}
             formatter={(value: number, name: string) => {
               const prefix = value >= 0 ? '+' : '';
-              const formatted = Math.abs(value) >= 1000
-                ? `${prefix}$${(value / 1000).toFixed(2)}K`
-                : `${prefix}$${value.toFixed(2)}`;
+              const formatted =
+                Math.abs(value) >= 1000
+                  ? `${prefix}$${(value / 1000).toFixed(2)}K`
+                  : `${prefix}$${value.toFixed(2)}`;
               return [formatted, name];
             }}
           />
-          <Legend
-            iconType="line"
-            wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-          />
+          <Legend iconType="line" wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
           {lines.map((l, i) => (
             <Line
               key={l.label}
@@ -559,41 +664,54 @@ const PoolScoreDrawerContent: React.FC<{ result: PoolScoreResponse }> = ({ resul
       <SectionTitle first>Your Pool</SectionTitle>
 
       {pool ? (
-        <div style={{
-          padding: '14px 16px',
-          borderRadius: 12,
-          backgroundColor: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          marginBottom: 10,
-          fontSize: 12,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <div
+          style={{
+            padding: '14px 16px',
+            borderRadius: 12,
+            backgroundColor: theme.bgSecondary,
+            border: `1px solid ${theme.border}`,
+            marginBottom: 10,
+            fontSize: 12,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              marginBottom: 10,
+            }}
+          >
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                 {result.score != null && (
-                  <span style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: '#a78bfa',
-                    backgroundColor: 'rgba(139, 92, 246, 0.12)',
-                    padding: '2px 7px',
-                    borderRadius: 4,
-                  }}>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: '#a78bfa',
+                      backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                      padding: '2px 7px',
+                      borderRadius: 4,
+                    }}
+                  >
                     #{result.score}
                   </span>
                 )}
                 <span style={{ fontWeight: 700, color: theme.textPrimary, fontSize: 14 }}>
                   {pool.pair}
                 </span>
-                <span style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  borderRadius: 6,
-                  backgroundColor: 'rgba(139, 92, 246, 0.12)',
-                  color: '#a78bfa',
-                  border: '1px solid rgba(139, 92, 246, 0.25)',
-                }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                    color: '#a78bfa',
+                    border: '1px solid rgba(139, 92, 246, 0.25)',
+                  }}
+                >
                   {pool.poolType || 'Pool'}
                 </span>
               </div>
@@ -606,7 +724,14 @@ const PoolScoreDrawerContent: React.FC<{ result: PoolScoreResponse }> = ({ resul
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700, fontSize: 18, color: apyColor(pool.totalApr), fontFamily: 'monospace' }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: 18,
+                  color: apyColor(pool.totalApr),
+                  fontFamily: 'monospace',
+                }}
+              >
                 {pool.totalApr.toFixed(2)}%
               </div>
               <div style={{ fontSize: 10, color: theme.textSecondary }}>APR</div>
@@ -619,51 +744,114 @@ const PoolScoreDrawerContent: React.FC<{ result: PoolScoreResponse }> = ({ resul
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            <div style={{
-              padding: '6px 8px',
-              borderRadius: 8,
-              backgroundColor: theme.bgPanel,
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}>TVL</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, fontFamily: 'monospace' }}>
+            <div
+              style={{
+                padding: '6px 8px',
+                borderRadius: 8,
+                backgroundColor: theme.bgPanel,
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  color: theme.textSecondary,
+                  fontWeight: 500,
+                  marginBottom: 2,
+                }}
+              >
+                TVL
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: theme.textPrimary,
+                  fontFamily: 'monospace',
+                }}
+              >
                 {formatUsd(pool.tvlUsd)}
               </div>
             </div>
-            <div style={{
-              padding: '6px 8px',
-              borderRadius: 8,
-              backgroundColor: theme.bgPanel,
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}>Vol 24h</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, fontFamily: 'monospace' }}>
+            <div
+              style={{
+                padding: '6px 8px',
+                borderRadius: 8,
+                backgroundColor: theme.bgPanel,
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  color: theme.textSecondary,
+                  fontWeight: 500,
+                  marginBottom: 2,
+                }}
+              >
+                Vol 24h
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: theme.textPrimary,
+                  fontFamily: 'monospace',
+                }}
+              >
                 {formatUsd(pool.volume24h)}
               </div>
             </div>
-            <div style={{
-              padding: '6px 8px',
-              borderRadius: 8,
-              backgroundColor: theme.bgPanel,
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}>Turnover</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, fontFamily: 'monospace' }}>
+            <div
+              style={{
+                padding: '6px 8px',
+                borderRadius: 8,
+                backgroundColor: theme.bgPanel,
+                textAlign: 'center',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  color: theme.textSecondary,
+                  fontWeight: 500,
+                  marginBottom: 2,
+                }}
+              >
+                Turnover
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: theme.textPrimary,
+                  fontFamily: 'monospace',
+                }}
+              >
                 {pool.turnoverRatio24h.toFixed(2)}x
               </div>
             </div>
           </div>
         </div>
       ) : (
-        <div style={{
-          padding: '14px 16px',
-          borderRadius: 12,
-          backgroundColor: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          marginBottom: 10,
-        }}>
+        <div
+          style={{
+            padding: '14px 16px',
+            borderRadius: 12,
+            backgroundColor: theme.bgSecondary,
+            border: `1px solid ${theme.border}`,
+            marginBottom: 10,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 18, fontWeight: 800, color: theme.textPrimary, fontFamily: 'monospace' }}>
+            <span
+              style={{
+                fontSize: 18,
+                fontWeight: 800,
+                color: theme.textPrimary,
+                fontFamily: 'monospace',
+              }}
+            >
               {result.normalizedPair}
             </span>
           </div>
@@ -674,23 +862,23 @@ const PoolScoreDrawerContent: React.FC<{ result: PoolScoreResponse }> = ({ resul
               valueColor="#a78bfa"
               sub={`of ${result.totalComparable} pools`}
             />
-            <MetricCard
-              label="Status"
-              value="Not ranked"
-              sub="Pool not found in index"
-            />
+            <MetricCard label="Status" value="Not ranked" sub="Pool not found in index" />
           </div>
         </div>
       )}
 
       {!hasSuggestions ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '24px 0',
-          fontSize: 14,
-          fontWeight: 600,
-        }}>
-          <div style={{ color: '#10b981', marginBottom: 4 }}>Your pool is already the best option!</div>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '24px 0',
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          <div style={{ color: '#10b981', marginBottom: 4 }}>
+            Your pool is already the best option!
+          </div>
           <div style={{ color: theme.textSecondary, fontSize: 12, fontWeight: 400 }}>
             No better alternatives across {result.totalComparable} pools
           </div>
@@ -754,26 +942,37 @@ const LendingScoreDrawerContent: React.FC<{ result: LendingScoreResponse }> = ({
       <SectionTitle first>Your Position</SectionTitle>
 
       {pos ? (
-        <div style={{
-          padding: '14px 16px',
-          borderRadius: 12,
-          backgroundColor: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          marginBottom: 10,
-          fontSize: 12,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div
+          style={{
+            padding: '14px 16px',
+            borderRadius: 12,
+            backgroundColor: theme.bgSecondary,
+            border: `1px solid ${theme.border}`,
+            marginBottom: 10,
+            fontSize: 12,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              marginBottom: 8,
+            }}
+          >
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                 {result.score != null && (
-                  <span style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: '#a78bfa',
-                    backgroundColor: 'rgba(139, 92, 246, 0.12)',
-                    padding: '2px 7px',
-                    borderRadius: 4,
-                  }}>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: '#a78bfa',
+                      backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                      padding: '2px 7px',
+                      borderRadius: 4,
+                    }}
+                  >
                     #{result.score}
                   </span>
                 )}
@@ -788,7 +987,14 @@ const LendingScoreDrawerContent: React.FC<{ result: LendingScoreResponse }> = ({
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700, fontSize: 18, color: apyColor(pos.combinedNetApy), fontFamily: 'monospace' }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: 18,
+                  color: apyColor(pos.combinedNetApy),
+                  fontFamily: 'monospace',
+                }}
+              >
                 {pos.combinedNetApy.toFixed(2)}%
               </div>
               <div style={{ fontSize: 10, color: theme.textSecondary }}>Net APY</div>
@@ -803,26 +1009,30 @@ const LendingScoreDrawerContent: React.FC<{ result: LendingScoreResponse }> = ({
           <LendingRatesTable rates={pos.borrowRates} label="Borrow" />
         </div>
       ) : (
-        <div style={{
-          padding: '14px 16px',
-          borderRadius: 12,
-          backgroundColor: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          fontSize: 12,
-          color: theme.textSecondary,
-          textAlign: 'center',
-        }}>
+        <div
+          style={{
+            padding: '14px 16px',
+            borderRadius: 12,
+            backgroundColor: theme.bgSecondary,
+            border: `1px solid ${theme.border}`,
+            fontSize: 12,
+            color: theme.textSecondary,
+            textAlign: 'center',
+          }}
+        >
           Position not found in index
         </div>
       )}
 
       {!hasSuggestions ? (
-        <div style={{
-          textAlign: 'center',
-          padding: '24px 0',
-          fontSize: 14,
-          fontWeight: 600,
-        }}>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '24px 0',
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
           <div style={{ color: '#10b981', marginBottom: 4 }}>Your position is already optimal!</div>
           <div style={{ color: theme.textSecondary, fontSize: 12, fontWeight: 400 }}>
             No better alternatives across {result.totalComparable} protocols
@@ -847,7 +1057,10 @@ const LendingProjectionSection: React.FC<{
   suggestions: LendingScoreSuggestion[];
 }> = ({ position, suggestions }) => {
   const totalValue = position
-    ? [...position.supplyRates, ...position.borrowRates].reduce((sum, r) => sum + (r.valueUsd || 0), 0)
+    ? [...position.supplyRates, ...position.borrowRates].reduce(
+        (sum, r) => sum + (r.valueUsd || 0),
+        0
+      )
     : 10000;
   const displayValue = totalValue > 0 ? totalValue : 10000;
 
@@ -882,12 +1095,14 @@ const LendingProjectionSection: React.FC<{
   );
 };
 
+const apyColor = (v: number) => (v > 0 ? '#10b981' : v < 0 ? '#ef4444' : '#a2a9b5');
 
-const apyColor = (v: number) => v > 0 ? '#10b981' : v < 0 ? '#ef4444' : '#a2a9b5';
-
-const LendingRatesTable: React.FC<{ rates: LendingAssetRate[]; label: string }> = ({ rates, label }) => {
+const LendingRatesTable: React.FC<{ rates: LendingAssetRate[]; label: string }> = ({
+  rates,
+  label,
+}) => {
   const isBorrow = label === 'Borrow';
-  const rateColor = isBorrow ? ((_v: number) => '#ef4444') : apyColor;
+  const rateColor = isBorrow ? (_v: number) => '#ef4444' : apyColor;
   const { theme } = useTheme();
   if (rates.length === 0) return null;
 
@@ -895,22 +1110,36 @@ const LendingRatesTable: React.FC<{ rates: LendingAssetRate[]; label: string }> 
 
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 4,
-      }}>
-        <span style={{
-          fontSize: 10,
-          fontWeight: 700,
-          textTransform: 'uppercase' as const,
-          letterSpacing: 0.5,
-          color: theme.textSecondary,
-        }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 4,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            textTransform: 'uppercase' as const,
+            letterSpacing: 0.5,
+            color: theme.textSecondary,
+          }}
+        >
           {label}
         </span>
-        <div style={{ display: 'flex', gap: 16, fontSize: 9, color: theme.textSecondary, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 16,
+            fontSize: 9,
+            color: theme.textSecondary,
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: 0.3,
+          }}
+        >
           <span style={{ width: 36, textAlign: 'right' }}>%</span>
           <span style={{ width: 42, textAlign: 'right' }}>APY</span>
           <span style={{ width: 50, textAlign: 'right' }}>Effective</span>
@@ -920,31 +1149,59 @@ const LendingRatesTable: React.FC<{ rates: LendingAssetRate[]; label: string }> 
         const weight = totalValue > 0 ? (r.valueUsd || 0) / totalValue : 0;
         const effectiveApy = r.effectiveApy ?? r.netApy * weight;
         return (
-          <div key={i} style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '3px 0',
-            fontSize: 11,
-            borderBottom: i < rates.length - 1 ? `1px solid ${theme.border}` : 'none',
-          }}>
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '3px 0',
+              fontSize: 11,
+              borderBottom: i < rates.length - 1 ? `1px solid ${theme.border}` : 'none',
+            }}
+          >
             {r.url ? (
-              <a href={r.url} target="_blank" rel="noopener noreferrer"
+              <a
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{ color: theme.accent, fontWeight: 500, textDecoration: 'none', flex: 1 }}
-                onClick={(e) => e.stopPropagation()}>
+                onClick={(e) => e.stopPropagation()}
+              >
                 {r.asset} ↗
               </a>
             ) : (
               <span style={{ color: theme.textPrimary, fontWeight: 500, flex: 1 }}>{r.asset}</span>
             )}
             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-              <span style={{ width: 36, textAlign: 'right', color: theme.textSecondary, fontWeight: 500 }}>
+              <span
+                style={{
+                  width: 36,
+                  textAlign: 'right',
+                  color: theme.textSecondary,
+                  fontWeight: 500,
+                }}
+              >
                 {(weight * 100).toFixed(0)}%
               </span>
-              <span style={{ width: 42, textAlign: 'right', color: rateColor(r.netApy), fontWeight: 600 }}>
+              <span
+                style={{
+                  width: 42,
+                  textAlign: 'right',
+                  color: rateColor(r.netApy),
+                  fontWeight: 600,
+                }}
+              >
                 {r.netApy.toFixed(2)}%
               </span>
-              <span style={{ width: 50, textAlign: 'right', color: rateColor(effectiveApy), fontWeight: 600 }}>
+              <span
+                style={{
+                  width: 50,
+                  textAlign: 'right',
+                  color: rateColor(effectiveApy),
+                  fontWeight: 600,
+                }}
+              >
                 {effectiveApy.toFixed(2)}%
               </span>
             </div>
@@ -955,35 +1212,52 @@ const LendingRatesTable: React.FC<{ rates: LendingAssetRate[]; label: string }> 
   );
 };
 
-const PoolSuggestionRow: React.FC<{ suggestion: PoolScoreSuggestion; yourApr?: number }> = ({ suggestion, yourApr }) => {
+const PoolSuggestionRow: React.FC<{ suggestion: PoolScoreSuggestion; yourApr?: number }> = ({
+  suggestion,
+  yourApr,
+}) => {
   const { theme } = useTheme();
   const diff = yourApr != null ? suggestion.totalApr - yourApr : null;
 
   const content = (
-    <div style={{
-      padding: '14px 16px',
-      borderRadius: 12,
-      backgroundColor: theme.bgSecondary,
-      border: `1px solid ${theme.border}`,
-      marginBottom: 10,
-      fontSize: 12,
-      cursor: suggestion.url ? 'pointer' : 'default',
-      transition: 'border-color 0.2s ease',
-    }}
-      onMouseEnter={(e) => { if (suggestion.url) e.currentTarget.style.borderColor = theme.accent; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = theme.border; }}
+    <div
+      style={{
+        padding: '14px 16px',
+        borderRadius: 12,
+        backgroundColor: theme.bgSecondary,
+        border: `1px solid ${theme.border}`,
+        marginBottom: 10,
+        fontSize: 12,
+        cursor: suggestion.url ? 'pointer' : 'default',
+        transition: 'border-color 0.2s ease',
+      }}
+      onMouseEnter={(e) => {
+        if (suggestion.url) e.currentTarget.style.borderColor = theme.accent;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = theme.border;
+      }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: 10,
+        }}
+      >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <span style={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#a78bfa',
-              backgroundColor: 'rgba(139, 92, 246, 0.12)',
-              padding: '2px 7px',
-              borderRadius: 4,
-            }}>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#a78bfa',
+                backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                padding: '2px 7px',
+                borderRadius: 4,
+              }}
+            >
               #{suggestion.rank}
             </span>
             <span style={{ fontWeight: 700, color: theme.textPrimary, fontSize: 14 }}>
@@ -999,7 +1273,14 @@ const PoolSuggestionRow: React.FC<{ suggestion: PoolScoreSuggestion; yourApr?: n
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontWeight: 700, fontSize: 18, color: apyColor(suggestion.totalApr), fontFamily: 'monospace' }}>
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: 18,
+              color: apyColor(suggestion.totalApr),
+              fontFamily: 'monospace',
+            }}
+          >
             {suggestion.totalApr.toFixed(2)}%
           </div>
           <div style={{ fontSize: 10, color: theme.textSecondary }}>APR</div>
@@ -1012,43 +1293,90 @@ const PoolSuggestionRow: React.FC<{ suggestion: PoolScoreSuggestion; yourApr?: n
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        <div style={{
-          padding: '6px 8px',
-          borderRadius: 8,
-          backgroundColor: theme.bgPanel,
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}>TVL</div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, fontFamily: 'monospace' }}>
+        <div
+          style={{
+            padding: '6px 8px',
+            borderRadius: 8,
+            backgroundColor: theme.bgPanel,
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}
+          >
+            TVL
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: theme.textPrimary,
+              fontFamily: 'monospace',
+            }}
+          >
             {formatUsd(suggestion.tvlUsd)}
           </div>
         </div>
-        <div style={{
-          padding: '6px 8px',
-          borderRadius: 8,
-          backgroundColor: theme.bgPanel,
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}>Vol 24h</div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, fontFamily: 'monospace' }}>
+        <div
+          style={{
+            padding: '6px 8px',
+            borderRadius: 8,
+            backgroundColor: theme.bgPanel,
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}
+          >
+            Vol 24h
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: theme.textPrimary,
+              fontFamily: 'monospace',
+            }}
+          >
             {formatUsd(suggestion.volume24h)}
           </div>
         </div>
-        <div style={{
-          padding: '6px 8px',
-          borderRadius: 8,
-          backgroundColor: theme.bgPanel,
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}>Turnover</div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textPrimary, fontFamily: 'monospace' }}>
+        <div
+          style={{
+            padding: '6px 8px',
+            borderRadius: 8,
+            backgroundColor: theme.bgPanel,
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{ fontSize: 9, color: theme.textSecondary, fontWeight: 500, marginBottom: 2 }}
+          >
+            Turnover
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: theme.textPrimary,
+              fontFamily: 'monospace',
+            }}
+          >
             {suggestion.turnoverRatio24h.toFixed(2)}x
           </div>
         </div>
       </div>
 
       {suggestion.url && (
-        <div style={{ marginTop: 10, fontSize: 11, color: theme.accent, textAlign: 'right', fontWeight: 500 }}>
+        <div
+          style={{
+            marginTop: 10,
+            fontSize: 11,
+            color: theme.accent,
+            textAlign: 'right',
+            fontWeight: 500,
+          }}
+        >
           Open on {capitalize(suggestion.protocol)} ↗
         </div>
       )}
@@ -1057,8 +1385,13 @@ const PoolSuggestionRow: React.FC<{ suggestion: PoolScoreSuggestion; yourApr?: n
 
   if (suggestion.url) {
     return (
-      <a href={suggestion.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}
-        onClick={(e) => e.stopPropagation()}>
+      <a
+        href={suggestion.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ textDecoration: 'none' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {content}
       </a>
     );
@@ -1066,30 +1399,44 @@ const PoolSuggestionRow: React.FC<{ suggestion: PoolScoreSuggestion; yourApr?: n
   return content;
 };
 
-const LendingSuggestionRow: React.FC<{ suggestion: LendingScoreSuggestion; yourApy?: number }> = ({ suggestion, yourApy }) => {
+const LendingSuggestionRow: React.FC<{ suggestion: LendingScoreSuggestion; yourApy?: number }> = ({
+  suggestion,
+  yourApy,
+}) => {
   const { theme } = useTheme();
   const diff = yourApy != null ? suggestion.combinedNetApy - yourApy : null;
 
   return (
-    <div style={{
-      padding: '14px 16px',
-      borderRadius: 12,
-      backgroundColor: theme.bgSecondary,
-      border: `1px solid ${theme.border}`,
-      marginBottom: 10,
-      fontSize: 12,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+    <div
+      style={{
+        padding: '14px 16px',
+        borderRadius: 12,
+        backgroundColor: theme.bgSecondary,
+        border: `1px solid ${theme.border}`,
+        marginBottom: 10,
+        fontSize: 12,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: 8,
+        }}
+      >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <span style={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#a78bfa',
-              backgroundColor: 'rgba(139, 92, 246, 0.12)',
-              padding: '2px 7px',
-              borderRadius: 4,
-            }}>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#a78bfa',
+                backgroundColor: 'rgba(139, 92, 246, 0.12)',
+                padding: '2px 7px',
+                borderRadius: 4,
+              }}
+            >
               #{suggestion.rank}
             </span>
             <ProtocolBadge protocol={suggestion.protocol} size={14} />
@@ -1103,7 +1450,14 @@ const LendingSuggestionRow: React.FC<{ suggestion: LendingScoreSuggestion; yourA
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontWeight: 700, fontSize: 18, color: apyColor(suggestion.combinedNetApy), fontFamily: 'monospace' }}>
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: 18,
+              color: apyColor(suggestion.combinedNetApy),
+              fontFamily: 'monospace',
+            }}
+          >
             {suggestion.combinedNetApy.toFixed(2)}%
           </div>
           <div style={{ fontSize: 10, color: theme.textSecondary }}>Net APY</div>

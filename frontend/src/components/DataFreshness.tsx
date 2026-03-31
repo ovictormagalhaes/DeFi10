@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+
 import { useTheme } from '../context/ThemeProvider';
 
 interface DataFreshnessProps {
@@ -34,16 +35,16 @@ export default function DataFreshness({ lastUpdatedAt, onRefresh }: DataFreshnes
   const isStale = ageMs > 5 * 60_000;
   const isVeryStale = ageMs > 15 * 60_000;
 
-  const color = isVeryStale
-    ? theme.danger
-    : isStale
-      ? theme.warning
-      : theme.textMuted;
+  const color = isVeryStale ? theme.danger : isStale ? theme.warning : theme.textMuted;
 
   return (
     <button
       onClick={onRefresh}
-      title={isStale ? 'Data may be outdated — click to refresh' : `Last updated: ${lastUpdatedAt.toLocaleTimeString()}`}
+      title={
+        isStale
+          ? 'Data may be outdated — click to refresh'
+          : `Last updated: ${lastUpdatedAt.toLocaleTimeString()}`
+      }
       aria-label={`Data updated ${formatRelativeTime(lastUpdatedAt)}. Click to refresh.`}
       style={{
         display: 'flex',
@@ -60,8 +61,12 @@ export default function DataFreshness({ lastUpdatedAt, onRefresh }: DataFreshnes
         transition: 'opacity 0.2s',
         whiteSpace: 'nowrap',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.opacity = '0.7';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.opacity = '1';
+      }}
     >
       <svg
         width="12"

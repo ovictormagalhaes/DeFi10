@@ -95,7 +95,13 @@ interface CircleAlertIconProps {
   onClick?: () => void;
 }
 
-const CircleAlertIcon: React.FC<CircleAlertIconProps> = ({ color, width = 14, height = 14, style = {}, onClick = undefined }) => (
+const CircleAlertIcon: React.FC<CircleAlertIconProps> = ({
+  color,
+  width = 14,
+  height = 14,
+  style = {},
+  onClick = undefined,
+}) => (
   <svg
     width={width}
     height={height}
@@ -124,9 +130,20 @@ interface MetricsDescriptor {
 interface MetricsHelpers {
   createFlexRow: (gap?: number, additionalProps?: React.CSSProperties) => React.CSSProperties;
   createFlexCenter: (gap?: number, additionalProps?: React.CSSProperties) => React.CSSProperties;
-  createBadgeStyle: (fontStyle: React.CSSProperties, theme: ThemeShape, additionalProps?: React.CSSProperties) => React.CSSProperties;
-  createCondensedBadgeStyle: (fontStyle: React.CSSProperties, theme: ThemeShape, additionalProps?: React.CSSProperties) => React.CSSProperties;
-  createCellStyle: (fontStyle: React.CSSProperties, additionalProps?: React.CSSProperties) => React.CSSProperties;
+  createBadgeStyle: (
+    fontStyle: React.CSSProperties,
+    theme: ThemeShape,
+    additionalProps?: React.CSSProperties
+  ) => React.CSSProperties;
+  createCondensedBadgeStyle: (
+    fontStyle: React.CSSProperties,
+    theme: ThemeShape,
+    additionalProps?: React.CSSProperties
+  ) => React.CSSProperties;
+  createCellStyle: (
+    fontStyle: React.CSSProperties,
+    additionalProps?: React.CSSProperties
+  ) => React.CSSProperties;
   createTableStyle: (additionalProps?: React.CSSProperties) => React.CSSProperties;
   ratioToColGroup: (ratio: number[]) => React.ReactNode;
 }

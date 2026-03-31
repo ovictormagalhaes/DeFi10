@@ -3,9 +3,9 @@
  * Reusable wrapper for drag and drop sortable items
  */
 
-import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import React from 'react';
 
 interface SortableItemProps {
   id: string;
@@ -14,14 +14,10 @@ interface SortableItemProps {
 }
 
 export const SortableItem: React.FC<SortableItemProps> = ({ id, children, disabled = false }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id, disabled });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),

@@ -4,11 +4,7 @@
  */
 
 import { WalletItemType } from '../constants/walletItemTypes';
-import type {
-  StrategyAssetMetadata,
-  TokenMetadata,
-  ProtocolMetadata,
-} from '../types/strategy';
+import type { StrategyAssetMetadata, TokenMetadata, ProtocolMetadata } from '../types/strategy';
 import type { WalletItem, Token, Protocol } from '../types/wallet';
 
 /**
@@ -41,7 +37,7 @@ export function getAssetType(type: string): number {
  */
 export function getTokenTypeNumber(type: string | null): number | null {
   if (!type) return null;
-  
+
   // Map known token types to numbers
   // This may need to be expanded based on backend requirements
   switch (type) {
@@ -65,13 +61,13 @@ export function getTokenTypeNumber(type: string | null): number | null {
  */
 export function mapGroupToType(group: string): string | null {
   const mapping: Record<string, string> = {
-    'Lending': WalletItemType.LENDING_AND_BORROWING,
-    'Liquidity': WalletItemType.LIQUIDITY_POOL,
-    'Staking': WalletItemType.STAKING,
-    'Wallet': WalletItemType.WALLET,
-    'All': ''
+    Lending: WalletItemType.LENDING_AND_BORROWING,
+    Liquidity: WalletItemType.LIQUIDITY_POOL,
+    Staking: WalletItemType.STAKING,
+    Wallet: WalletItemType.WALLET,
+    All: '',
   };
-  
+
   return mapping[group] || null;
 }
 
@@ -81,16 +77,16 @@ export function mapGroupToType(group: string): string | null {
  */
 export function getChainId(chain: string): string | null {
   const chainIds: Record<string, string> = {
-    'Ethereum': '1',
-    'Base': '8453',
-    'Arbitrum': '42161',
-    'Optimism': '10',
-    'Polygon': '137',
-    'Avalanche': '43114',
-    'BSC': '56',
-    'Solana': 'solana'
+    Ethereum: '1',
+    Base: '8453',
+    Arbitrum: '42161',
+    Optimism: '10',
+    Polygon: '137',
+    Avalanche: '43114',
+    BSC: '56',
+    Solana: 'solana',
   };
-  
+
   return chainIds[chain] || null;
 }
 
@@ -99,13 +95,13 @@ export function getChainId(chain: string): string | null {
  */
 function extractProtocolMetadata(protocol: Protocol | null): ProtocolMetadata | null {
   if (!protocol) return null;
-  
+
   return {
     id: protocol.id,
     name: protocol.name,
     chain: protocol.chain,
     url: protocol.url || null,
-    logo: protocol.logo || null
+    logo: protocol.logo || null,
   };
 }
 
@@ -113,13 +109,13 @@ function extractProtocolMetadata(protocol: Protocol | null): ProtocolMetadata | 
  * Extract token metadata from Token array
  */
 function extractTokensMetadata(tokens: Token[], chain: string): TokenMetadata[] {
-  return tokens.map(token => ({
+  return tokens.map((token) => ({
     type: getTokenTypeNumber(token.type),
     symbol: token.symbol || '',
     name: token.name || '',
     address: token.contractAddress || null,
     logo: token.logo || null,
-    chain: chain
+    chain: chain,
   }));
 }
 
@@ -139,16 +135,16 @@ export function extractMetadata(item: WalletItem): StrategyAssetMetadata {
     address: firstToken?.contractAddress || null,
     chainId: chain ? getChainId(chain) : null,
     chain: chain || null,
-    
+
     // Protocol
     protocol: extractProtocolMetadata(item.protocol),
-    
+
     // Position
     positionLabel: item.position?.label || null,
     positionType: getPositionTypeNumber(item.type),
-    
+
     // Tokens involved
-    tokens: extractTokensMetadata(tokens, chain)
+    tokens: extractTokensMetadata(tokens, chain),
   };
 }
 
@@ -159,10 +155,10 @@ export function extractMetadata(item: WalletItem): StrategyAssetMetadata {
 export function matchesAsset(item: WalletItem, assetKey: string): boolean {
   const tokens = item.position?.tokens || [];
   const lowerKey = assetKey.toLowerCase();
-  
-  return tokens.some(token => 
-    token.symbol?.toLowerCase() === lowerKey ||
-    token.contractAddress?.toLowerCase() === lowerKey
+
+  return tokens.some(
+    (token) =>
+      token.symbol?.toLowerCase() === lowerKey || token.contractAddress?.toLowerCase() === lowerKey
   );
 }
 
@@ -170,18 +166,18 @@ export function matchesAsset(item: WalletItem, assetKey: string): boolean {
  * Find an asset in the portfolio by key and group
  */
 export function findAssetInPortfolio(
-  items: WalletItem[], 
-  assetKey: string, 
+  items: WalletItem[],
+  assetKey: string,
   group: string
 ): WalletItem | undefined {
   const groupType = mapGroupToType(group);
-  
-  return items.find(item => {
+
+  return items.find((item) => {
     // Filter by type if specified
     if (groupType && item.type !== groupType) {
       return false;
     }
-    
+
     // Match by asset key
     return matchesAsset(item, assetKey);
   });
@@ -190,11 +186,8 @@ export function findAssetInPortfolio(
 /**
  * Get symbol from portfolio for a given asset key
  */
-export function getSymbolFromPortfolio(
-  items: WalletItem[], 
-  assetKey: string
-): string | null {
-  const item = items.find(i => matchesAsset(i, assetKey));
+export function getSymbolFromPortfolio(items: WalletItem[], assetKey: string): string | null {
+  const item = items.find((i) => matchesAsset(i, assetKey));
   const firstToken = item?.position?.tokens?.[0];
   return firstToken?.symbol || null;
 }
@@ -202,11 +195,8 @@ export function getSymbolFromPortfolio(
 /**
  * Get name from portfolio for a given asset key
  */
-export function getNameFromPortfolio(
-  items: WalletItem[], 
-  assetKey: string
-): string | null {
-  const item = items.find(i => matchesAsset(i, assetKey));
+export function getNameFromPortfolio(items: WalletItem[], assetKey: string): string | null {
+  const item = items.find((i) => matchesAsset(i, assetKey));
   const firstToken = item?.position?.tokens?.[0];
   return firstToken?.name || item?.position?.label || null;
 }
@@ -240,39 +230,43 @@ export function getTierPercent(item: WalletItem): number | null {
  * Get total value in USD for a WalletItem
  */
 export function getTotalValueUsd(item: WalletItem): number {
-  return item.position?.tokens?.reduce((sum, token) => 
-    sum + (token.financials?.totalPrice || 0), 
-    0
-  ) || 0;
+  return (
+    item.position?.tokens?.reduce((sum, token) => sum + (token.financials?.totalPrice || 0), 0) || 0
+  );
 }
 
 /**
  * Validate that all allocations in a group sum to 100%
  */
-export function validateGroupAllocation(
-  allocations: Array<{ group: string; weight: number }>
-): { valid: boolean; errors: string[] } {
+export function validateGroupAllocation(allocations: Array<{ group: string; weight: number }>): {
+  valid: boolean;
+  errors: string[];
+} {
   const errors: string[] = [];
-  
+
   // Group by group type
-  const byGroup = allocations.reduce((acc, alloc) => {
-    if (!acc[alloc.group]) {
-      acc[alloc.group] = 0;
-    }
-    acc[alloc.group] += alloc.weight;
-    return acc;
-  }, {} as Record<string, number>);
-  
+  const byGroup = allocations.reduce(
+    (acc, alloc) => {
+      if (!acc[alloc.group]) {
+        acc[alloc.group] = 0;
+      }
+      acc[alloc.group] += alloc.weight;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
   // Check each group sums to 100
   Object.entries(byGroup).forEach(([group, total]) => {
-    if (Math.abs(total - 100) > 0.01) { // Allow small floating point errors
+    if (Math.abs(total - 100) > 0.01) {
+      // Allow small floating point errors
       errors.push(`Group "${group}" allocations sum to ${total}%, expected 100%`);
     }
   });
-  
+
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   };
 }
 
@@ -284,16 +278,16 @@ export function validateAssetsExist(
   portfolio: WalletItem[]
 ): { valid: boolean; missingAssets: string[] } {
   const missingAssets: string[] = [];
-  
-  allocations.forEach(alloc => {
+
+  allocations.forEach((alloc) => {
     const found = findAssetInPortfolio(portfolio, alloc.assetKey, alloc.group);
     if (!found) {
       missingAssets.push(`${alloc.assetKey} in ${alloc.group}`);
     }
   });
-  
+
   return {
     valid: missingAssets.length === 0,
-    missingAssets
+    missingAssets,
   };
 }

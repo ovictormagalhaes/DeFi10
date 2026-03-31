@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react';
-import { useTheme } from '../context/ThemeProvider';
+
 import { useMaskValues } from '../context/MaskValuesContext';
-import { formatPrice } from '../utils/walletUtils';
+import { useTheme } from '../context/ThemeProvider';
 import { capitalize } from '../utils/format';
+import { formatPrice } from '../utils/walletUtils';
+
 import PeriodDropdown from './PeriodDropdown';
 
 interface ProjectionData {
@@ -67,9 +69,8 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
     transition: 'none',
   };
 
-  const finalButtonStyle = Object.keys(dropdownButtonStyle).length > 0 
-    ? dropdownButtonStyle 
-    : defaultDropdownStyle;
+  const finalButtonStyle =
+    Object.keys(dropdownButtonStyle).length > 0 ? dropdownButtonStyle : defaultDropdownStyle;
 
   // Normalize projections array (support both new and legacy format)
   const normalizedProjections = useMemo(() => {
@@ -101,9 +102,7 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
           label = 'APY';
           break;
         default:
-          label = rawType
-            ? capitalize(rawType)
-            : 'APR';
+          label = rawType ? capitalize(rawType) : 'APR';
       }
 
       if (!seen.has(label)) {
@@ -134,10 +133,10 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
 
   // Map periods to projection values
   const periodMap: Record<string, number | undefined> = {
-    'Day': currentProjection?.projection?.oneDay,
-    'Week': currentProjection?.projection?.oneWeek,
-    'Month': currentProjection?.projection?.oneMonth,
-    'Year': currentProjection?.projection?.oneYear,
+    Day: currentProjection?.projection?.oneDay,
+    Week: currentProjection?.projection?.oneWeek,
+    Month: currentProjection?.projection?.oneMonth,
+    Year: currentProjection?.projection?.oneYear,
   };
 
   const currentValue = periodMap[selectedPeriod];
@@ -154,9 +153,9 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
   // Handler for type change
   const handleTypeChange = (displayType: string): void => {
     const typeMapping: Record<string, string> = {
-      'APR': 'apr',
-      'Historical': 'aprHistorical',
-      'APY': 'apy',
+      APR: 'apr',
+      Historical: 'aprHistorical',
+      APY: 'apy',
     };
     setSelectedType(typeMapping[displayType] || displayType.toLowerCase());
   };
@@ -170,24 +169,29 @@ const ProjectionSelector: React.FC<ProjectionSelectorProps> = ({
   const showTypeDropdown = normalizedProjections.length > 1 || showTypeWhenSingle;
 
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 0,
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 0,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 13, color: theme.textSecondary }}>Projection</span>
-        
+
         {/* Type Selector Dropdown */}
         {showTypeDropdown && (
           <PeriodDropdown
             periods={typeOptions}
-            selectedPeriod={typeOptions.find(t => 
-              t.toLowerCase() === selectedType.toLowerCase() || 
-              (t === 'Historical' && selectedType.toLowerCase() === 'createdat') ||
-              (t === 'APR' && selectedType.toLowerCase() === 'apr')
-            ) || typeOptions[0]}
+            selectedPeriod={
+              typeOptions.find(
+                (t) =>
+                  t.toLowerCase() === selectedType.toLowerCase() ||
+                  (t === 'Historical' && selectedType.toLowerCase() === 'createdat') ||
+                  (t === 'APR' && selectedType.toLowerCase() === 'apr')
+              ) || typeOptions[0]
+            }
             onPeriodChange={handleTypeChange}
             compact={true}
             disableHoverEffects={disableDropdownHoverEffects}

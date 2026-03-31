@@ -2,7 +2,7 @@
  * Types for Backend Strategy API
  * Version: 4.0 - Clean Structure with Multiple Strategy Types
  * Date: 02/03/2026
- * 
+ *
  * Type 1: Allocation by Weight ✅
  * Type 2: Health Factor Target ✅
  * Type 3: Liquidity Range Monitor (Future)
@@ -12,13 +12,13 @@
  * Strategy Type enum matching backend implementation
  */
 export enum StrategyType {
-  AllocationByWeight = 1,        // ✅ Implemented
-  HealthFactorTarget = 2,        // ✅ Implemented
-  LiquidityRangeMonitor = 3,     // 🔜 Future
-  YieldThreshold = 4,            // 🔜 Future
-  ProtocolDiversification = 5,   // 🔜 Future
-  ChainAllocation = 6,           // 🔜 Future
-  AssetTypeAllocation = 7        // 🔜 Future
+  AllocationByWeight = 1, // ✅ Implemented
+  HealthFactorTarget = 2, // ✅ Implemented
+  LiquidityRangeMonitor = 3, // 🔜 Future
+  YieldThreshold = 4, // 🔜 Future
+  ProtocolDiversification = 5, // 🔜 Future
+  ChainAllocation = 6, // 🔜 Future
+  AssetTypeAllocation = 7, // 🔜 Future
 }
 
 /**
@@ -55,11 +55,11 @@ export interface AllocationItem {
   protocol: ProtocolInfo;
   chain: ChainInfo;
   token: TokenInfo;
-  group: string;                 // "Lending Supply", "Lending Borrow", etc.
-  groupType: number;             // 10, 11, etc.
-  targetWeight: number;          // 0-100 (STATIC: user defined)
-  positionType: number;          // 3 = Supplied, 4 = Borrowed
-  displayOrder?: number;         // Display order in UI
+  group: string; // "Lending Supply", "Lending Borrow", etc.
+  groupType: number; // 10, 11, etc.
+  targetWeight: number; // 0-100 (STATIC: user defined)
+  positionType: number; // 3 = Supplied, 4 = Borrowed
+  displayOrder?: number; // Display order in UI
 }
 
 /**
@@ -69,9 +69,9 @@ export interface HealthFactorTarget {
   assetKey: string;
   protocol: ProtocolInfo;
   chain: ChainInfo;
-  targetHealthFactor: number;    // STATIC: user defined (e.g., 2.5)
-  criticalThreshold: number;     // STATIC: user defined (e.g., 1.5)
-  displayOrder?: number;         // Display order in UI
+  targetHealthFactor: number; // STATIC: user defined (e.g., 2.5)
+  criticalThreshold: number; // STATIC: user defined (e.g., 1.5)
+  displayOrder?: number; // Display order in UI
 }
 
 /**
@@ -83,7 +83,7 @@ export interface BaseStrategy {
   strategyType: number;
   name: string;
   description?: string | null;
-  displayOrder?: number;         // Display order in UI
+  displayOrder?: number; // Display order in UI
   createdAt: string;
   updatedAt: string;
 }
@@ -154,11 +154,11 @@ export interface AllocationDelta {
   group: string;
   targetWeight: number;
   currentWeight: number;
-  deltaWeight: number;           // currentWeight - targetWeight
+  deltaWeight: number; // currentWeight - targetWeight
   targetValueUsd: number;
   currentValueUsd: number;
-  deltaValueUsd: number;         // currentValueUsd - targetValueUsd
-  needsRebalance: boolean;       // true if |deltaWeight| > threshold (e.g., 5%)
+  deltaValueUsd: number; // currentValueUsd - targetValueUsd
+  needsRebalance: boolean; // true if |deltaWeight| > threshold (e.g., 5%)
 }
 
 /**
@@ -169,7 +169,7 @@ export const GroupTypeMapping = {
   Liquidity: 'LiquidityPool',
   Staking: 'Staking',
   Wallet: 'Wallet',
-  All: null
+  All: null,
 } as const;
 
 export type GroupType = keyof typeof GroupTypeMapping;
@@ -182,11 +182,11 @@ export type GroupType = keyof typeof GroupTypeMapping;
  * Configuration for Health Factor Target strategy (Type 2)
  */
 export interface HealthFactorTargetConfig {
-  targetHealthFactor: number;      // Desired HF (e.g., 2.0)
-  warningThreshold: number;        // Warning level (e.g., 1.8)
-  criticalThreshold: number;       // Critical level (e.g., 1.5)
-  autoSuggest: boolean;            // Generate action suggestions
-  protocols: string[];             // Protocol IDs to monitor
+  targetHealthFactor: number; // Desired HF (e.g., 2.0)
+  warningThreshold: number; // Warning level (e.g., 1.8)
+  criticalThreshold: number; // Critical level (e.g., 1.5)
+  autoSuggest: boolean; // Generate action suggestions
+  protocols: string[]; // Protocol IDs to monitor
 }
 
 /**
@@ -204,26 +204,26 @@ export interface HealthFactorAction {
  * Current health factor status
  */
 export interface HealthFactorStatus {
-  current: number;                 // Current HF value
-  target: number;                  // Target HF value
-  criticalThreshold?: number;      // Critical threshold (alert level) for this position
+  current: number; // Current HF value
+  target: number; // Target HF value
+  criticalThreshold?: number; // Critical threshold (alert level) for this position
   status: 'safe' | 'warning' | 'critical' | 'danger';
   needsAction: boolean;
-  collateralValue: number;         // Total collateral in USD
-  debtValue: number;               // Total debt in USD
-  totalValue: number;              // Total value (collateral + debt) in USD
+  collateralValue: number; // Total collateral in USD
+  debtValue: number; // Total debt in USD
+  totalValue: number; // Total value (collateral + debt) in USD
   suggestions: HealthFactorAction[];
-  protocol: string;                // Protocol ID
-  protocolName: string;            // Protocol display name
-  protocolLogo?: string;           // Protocol logo URL
-  chain: string;                   // Chain name
-  chainLogo?: string;              // Chain logo URL
+  protocol: string; // Protocol ID
+  protocolName: string; // Protocol display name
+  protocolLogo?: string; // Protocol logo URL
+  chain: string; // Chain name
+  chainLogo?: string; // Chain logo URL
 }
 
 /**save Type 1: Allocation Strategy
  */
 export interface SaveAllocationStrategyRequest {
-  id?: string;                   // For updates (if present, backend updates; if absent, creates)
+  id?: string; // For updates (if present, backend updates; if absent, creates)
   strategyType: 1;
   name: string;
   description?: string | null;
@@ -245,10 +245,10 @@ export interface SaveAllocationStrategyRequest {
       address: string;
       logo: string;
     };
-    group: string;               // "Lending Supply"
-    groupType: number;           // 10 = Lending, 20 = Liquidity, etc.
+    group: string; // "Lending Supply"
+    groupType: number; // 10 = Lending, 20 = Liquidity, etc.
     targetWeight: number;
-    positionType: number;        // 0 = Default, 1 = Supplied, 2 = Borrowed
+    positionType: number; // 0 = Default, 1 = Supplied, 2 = Borrowed
   }>;
 }
 

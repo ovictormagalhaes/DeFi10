@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { useChainIcons } from '../context/ChainIconsProvider';
 import type { ThemeShape } from '../context/ThemeProvider';
 import type { WalletItem } from '../types/wallet';
@@ -71,7 +72,9 @@ const ProtocolsSection = ({
   const initialWidth: number = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const [vw, setVw] = React.useState<number>(initialWidth);
   React.useEffect(() => {
-    const onResize = (): void => { setVw(typeof window !== 'undefined' ? window.innerWidth : initialWidth); };
+    const onResize = (): void => {
+      setVw(typeof window !== 'undefined' ? window.innerWidth : initialWidth);
+    };
     if (typeof window !== 'undefined') window.addEventListener('resize', onResize);
     return () => {
       if (typeof window !== 'undefined') window.removeEventListener('resize', onResize);
@@ -340,16 +343,18 @@ const ProtocolsSection = ({
 
           lendingPositions.forEach((pos) => {
             // Get APY from position's additionalData (not per token)
-            const positionApy = (pos.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
-            
+            const positionApy = (pos.additionalData?.projections as any[])?.find(
+              (p: any) => p.type === 'apy'
+            )?.metadata?.value;
+
             // Iterate through each token to get values
             (pos.tokens || []).forEach((token) => {
               const tokenValue = parseFloat(
-                token.totalPrice || 
-                token.financials?.totalPrice || 
-                token.totalValueUsd || 
-                token.totalValue || 
-                0
+                token.totalPrice ||
+                  token.financials?.totalPrice ||
+                  token.totalValueUsd ||
+                  token.totalValue ||
+                  0
               );
 
               // Only count Supplied and Borrowed types
@@ -665,7 +670,7 @@ const ProtocolsSection = ({
               const isLendingProtocol = hasLending && !hasPools;
               const shouldShowNetApy = isLendingProtocol && lendingNetApy != null;
               const shouldShowHealthFactor = isLendingProtocol && lendingHealthFactor != null;
-              
+
               // Coluna 1: percent + info badges agrupadas
               cells.push(
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -698,14 +703,11 @@ const ProtocolsSection = ({
                 cells.push(
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
                     {shouldShowHealthFactor && (
-                      <MiniMetric 
-                        label="Health Factor" 
-                        value={lendingHealthFactor.toFixed(2)}
-                      />
+                      <MiniMetric label="Health Factor" value={lendingHealthFactor.toFixed(2)} />
                     )}
                     {shouldShowNetApy && (
-                      <MiniMetric 
-                        label="NET APY %" 
+                      <MiniMetric
+                        label="NET APY %"
                         value={`${lendingNetApy >= 0 ? '+' : ''}${lendingNetApy.toFixed(2)}%`}
                       />
                     )}
@@ -741,9 +743,7 @@ const ProtocolsSection = ({
                       netApy={lendingNetApy}
                     />
                   )}
-                {stakingPositions.length > 0 && (
-                    <DepositTables items={stakingPositions} />
-                  )}
+                {stakingPositions.length > 0 && <DepositTables items={stakingPositions} />}
                 {hasLocking && <LockingTables items={lockingPositions} />}
                 {hasDepositing && <DepositTables items={depositingPositions} />}
                 {tables.length > 0 && (

@@ -85,53 +85,53 @@ const DepositTables: React.FC<DepositTablesProps> = ({ items = [], showMetrics =
         <div className="table-section">
           <div className="table-wrapper">
             <table className="table-unified text-primary">
-            <StandardHeader
-              columns={['amount', 'value']}
-              columnDefs={null}
-              labels={{ token: 'Deposited', amount: 'Amount', value: 'Value' }}
-            />
-            <tbody>
-              {depositedTokens.map((token, idx) => {
-                const tokenValue =
-                  parseFloat(
-                    String(
-                      token.financials?.totalPrice || token.totalPrice || token.totalValueUsd || 0
-                    )
-                  ) || 0;
+              <StandardHeader
+                columns={['amount', 'value']}
+                columnDefs={null}
+                labels={{ token: 'Deposited', amount: 'Amount', value: 'Value' }}
+              />
+              <tbody>
+                {depositedTokens.map((token, idx) => {
+                  const tokenValue =
+                    parseFloat(
+                      String(
+                        token.financials?.totalPrice || token.totalPrice || token.totalValueUsd || 0
+                      )
+                    ) || 0;
 
-                return (
-                  <tr key={`deposit-${idx}`} className="table-row table-row-hover tbody-divider">
-                    <td className="td text-primary col-token">
-                      <span className="flex align-center gap-8">
-                        <TokenDisplay
-                          tokens={[token] as never[]}
-                          size={24}
-                          showChain={false}
-                          showName={true}
-                          getChainIcon={(chainKey: string) => undefined}
-                        />
-                      </span>
-                    </td>
+                  return (
+                    <tr key={`deposit-${idx}`} className="table-row table-row-hover tbody-divider">
+                      <td className="td text-primary col-token">
+                        <span className="flex align-center gap-8">
+                          <TokenDisplay
+                            tokens={[token] as never[]}
+                            size={24}
+                            showChain={false}
+                            showName={true}
+                            getChainIcon={(chainKey: string) => undefined}
+                          />
+                        </span>
+                      </td>
 
-                    <td className="td td-right td-mono text-primary col-amount">
-                      {formatTokenAmount(token)}
-                    </td>
+                      <td className="td td-right td-mono text-primary col-amount">
+                        {formatTokenAmount(token)}
+                      </td>
 
-                    <td className="td td-right td-mono td-mono-strong text-primary col-value">
-                      {maskValue(formatPrice(tokenValue))}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+                      <td className="td td-right td-mono td-mono-strong text-primary col-value">
+                        {maskValue(formatPrice(tokenValue))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
 
-            <TableFooter
-              totalValue={depositValue}
-              itemsCount={depositedTokens.length}
-              columns={['amount', 'value']}
-            />
-          </table>
-        </div>
+              <TableFooter
+                totalValue={depositValue}
+                itemsCount={depositedTokens.length}
+                columns={['amount', 'value']}
+              />
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 // src/components/charts/ChartContainer.tsx
 import React, { ReactNode } from 'react';
+
 import { useTheme } from '../../context/ThemeProvider';
 
 interface ChartContainerProps {
@@ -19,7 +20,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   controls,
   children,
   height = 'auto',
-  className = ''
+  className = '',
 }) => {
   const { theme } = useTheme();
 
@@ -71,7 +72,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           }
         }
       `}</style>
-      <div 
+      <div
         className={`panel-alt panel ${className}`}
         style={{
           background: theme.bgPanel,
@@ -80,75 +81,96 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           border: `1px solid ${theme.border}`,
           transition: 'all 0.3s ease',
           position: 'relative',
-          minHeight: height === 'auto' ? undefined : height
+          minHeight: height === 'auto' ? undefined : height,
         }}
       >
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 16,
-        gap: 12,
-        flexWrap: 'wrap'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
-          {icon && (
-            <div style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            marginBottom: 16,
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div
+            style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              {icon}
+              gap: 12,
+              minWidth: 0,
+              flex: '1 1 auto',
+            }}
+          >
+            {icon && (
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {icon}
+              </div>
+            )}
+            <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+              <h4
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: theme.textPrimary,
+                  margin: 0,
+                  marginBottom: subtitle ? 4 : 0,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {title}
+              </h4>
+              {subtitle && (
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: theme.textSecondary,
+                    margin: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {subtitle}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {controls && (
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                flexShrink: 0,
+                width: (controls as any).props?.style?.width || 'auto',
+              }}
+            >
+              {controls}
             </div>
           )}
-          <div style={{ minWidth: 0, flex: '1 1 auto' }}>
-            <h4 style={{
-              fontSize: 14,
-              fontWeight: 600,
-              color: theme.textPrimary,
-              margin: 0,
-              marginBottom: subtitle ? 4 : 0,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {title}
-            </h4>
-            {subtitle && (
-              <p style={{
-                fontSize: 12,
-                color: theme.textSecondary,
-                margin: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}>
-                {subtitle}
-              </p>
-            )}
-          </div>
         </div>
 
-        {controls && (
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0, width: (controls as any).props?.style?.width || 'auto' }}>
-            {controls}
-          </div>
-        )}
+        {/* Chart Content */}
+        <div style={{ position: 'relative' }}>{children}</div>
       </div>
-
-      {/* Chart Content */}
-      <div style={{ position: 'relative' }}>
-        {children}
-      </div>
-    </div>
     </>
   );
 };

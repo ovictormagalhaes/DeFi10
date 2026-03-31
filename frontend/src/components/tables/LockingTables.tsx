@@ -159,63 +159,63 @@ const LockingTables: React.FC<LockingTablesProps> = ({ items = [], showMetrics =
         <div className="table-section">
           <div className="table-wrapper">
             <table className="table-unified text-primary">
-            <StandardHeader
-              columns={['amount', 'unlock', 'value']}
-              columnDefs={null}
-              labels={{ token: 'Supply', amount: 'Amount', unlock: 'Unlock At', value: 'Value' }}
-            />
-            <tbody>
-              {suppliedTokens.map((token, idx) => {
-                const tokenValue =
-                  parseFloat(
-                    String(
-                      token.financials?.totalPrice || token.totalPrice || token.totalValueUsd || 0
-                    )
-                  ) || 0;
+              <StandardHeader
+                columns={['amount', 'unlock', 'value']}
+                columnDefs={null}
+                labels={{ token: 'Supply', amount: 'Amount', unlock: 'Unlock At', value: 'Value' }}
+              />
+              <tbody>
+                {suppliedTokens.map((token, idx) => {
+                  const tokenValue =
+                    parseFloat(
+                      String(
+                        token.financials?.totalPrice || token.totalPrice || token.totalValueUsd || 0
+                      )
+                    ) || 0;
 
-                return (
-                  <tr key={`supply-${idx}`} className="table-row table-row-hover tbody-divider">
-                    <td className="td text-primary col-token">
-                      <span className="flex align-center gap-8">
-                        <TokenDisplay
-                          tokens={[token] as never[]}
-                          size={24}
-                          showChain={false}
-                          getChainIcon={(chainKey: string) => undefined}
-                        />
-                      </span>
-                    </td>
+                  return (
+                    <tr key={`supply-${idx}`} className="table-row table-row-hover tbody-divider">
+                      <td className="td text-primary col-token">
+                        <span className="flex align-center gap-8">
+                          <TokenDisplay
+                            tokens={[token] as never[]}
+                            size={24}
+                            showChain={false}
+                            getChainIcon={(chainKey: string) => undefined}
+                          />
+                        </span>
+                      </td>
 
-                    <td className="td td-right td-mono text-primary col-amount">
-                      {formatTokenAmount(token)}
-                    </td>
+                      <td className="td td-right td-mono text-primary col-amount">
+                        {formatTokenAmount(token)}
+                      </td>
 
-                    <td className="td td-right td-mono text-primary col-unlock">
-                      <span className="flex align-center justify-end gap-4">
-                        <span>{formatUnlockDate(token.unlockDate)}</span>
-                        <InfoIconWithTooltip
-                          content={getDaysUntilUnlock(token.unlockDate)}
-                          align="center"
-                          maxWidth={120}
-                        />
-                      </span>
-                    </td>
+                      <td className="td td-right td-mono text-primary col-unlock">
+                        <span className="flex align-center justify-end gap-4">
+                          <span>{formatUnlockDate(token.unlockDate)}</span>
+                          <InfoIconWithTooltip
+                            content={getDaysUntilUnlock(token.unlockDate)}
+                            align="center"
+                            maxWidth={120}
+                          />
+                        </span>
+                      </td>
 
-                    <td className="td td-right td-mono td-mono-strong text-primary col-value">
-                      {maskValue(formatPrice(tokenValue))}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+                      <td className="td td-right td-mono td-mono-strong text-primary col-value">
+                        {maskValue(formatPrice(tokenValue))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
 
-            <TableFooter
-              totalValue={suppliedValue}
-              itemsCount={suppliedTokens.length}
-              columns={['amount', 'unlock', 'value']}
-            />
-          </table>
-        </div>
+              <TableFooter
+                totalValue={suppliedValue}
+                itemsCount={suppliedTokens.length}
+                columns={['amount', 'unlock', 'value']}
+              />
+            </table>
+          </div>
         </div>
       )}
 
@@ -224,41 +224,46 @@ const LockingTables: React.FC<LockingTablesProps> = ({ items = [], showMetrics =
         <div className="table-section">
           <div className="table-wrapper">
             <table className="table-unified text-primary">
-            <StandardHeader
-              columns={['amount']}
-              columnDefs={null}
-              labels={{ token: 'Governance', amount: 'Amount' }}
-            />
-            <tbody>
-              {governanceTokens.map((token, idx) => {
-                return (
-                  <tr key={`governance-${idx}`} className="table-row table-row-hover tbody-divider">
-                    <td className="td text-primary col-token">
-                      <span className="flex align-center gap-8">
-                        <TokenDisplay
-                          tokens={[token] as never[]}
-                          size={24}
-                          showChain={false}
-                          getChainIcon={(chainKey: string) => undefined}
-                        />
-                      </span>
-                    </td>
+              <StandardHeader
+                columns={['amount']}
+                columnDefs={null}
+                labels={{ token: 'Governance', amount: 'Amount' }}
+              />
+              <tbody>
+                {governanceTokens.map((token, idx) => {
+                  return (
+                    <tr
+                      key={`governance-${idx}`}
+                      className="table-row table-row-hover tbody-divider"
+                    >
+                      <td className="td text-primary col-token">
+                        <span className="flex align-center gap-8">
+                          <TokenDisplay
+                            tokens={[token] as never[]}
+                            size={24}
+                            showChain={false}
+                            getChainIcon={(chainKey: string) => undefined}
+                          />
+                        </span>
+                      </td>
 
-                    <td className="td td-right td-mono text-primary col-amount">
-                      {formatTokenAmount(token)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+                      <td className="td td-right td-mono text-primary col-amount">
+                        {formatTokenAmount(token)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
 
-            <TableFooter
-              totalValue={governanceValue}
-              itemsCount={governanceTokens.length}
-              columns={['amount']}
-            />
-          </table>
-        </div>        </div>      )}
+              <TableFooter
+                totalValue={governanceValue}
+                itemsCount={governanceTokens.length}
+                columns={['amount']}
+              />
+            </table>
+          </div>{' '}
+        </div>
+      )}
     </div>
   );
 };

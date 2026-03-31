@@ -1,4 +1,5 @@
 import { useTheme } from '../context/ThemeProvider';
+
 import { Skeleton } from './Skeleton';
 
 interface SkeletonDashboardProps {
@@ -124,7 +125,14 @@ export default function SkeletonDashboard({ progress, message }: SkeletonDashboa
         `}</style>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14, marginBottom: 28 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+          gap: 14,
+          marginBottom: 28,
+        }}
+      >
         <SkeletonMetric />
         <SkeletonMetric />
         <SkeletonMetric />
@@ -132,7 +140,14 @@ export default function SkeletonDashboard({ progress, message }: SkeletonDashboa
       </div>
 
       <SkeletonSectionHeader />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))', gap: 20, marginBottom: 32 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))',
+          gap: 20,
+          marginBottom: 32,
+        }}
+      >
         <SkeletonCard />
         <SkeletonCard />
         <SkeletonCard />
@@ -140,7 +155,13 @@ export default function SkeletonDashboard({ progress, message }: SkeletonDashboa
       </div>
 
       <SkeletonSectionHeader />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))', gap: 20 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))',
+          gap: 20,
+        }}
+      >
         <SkeletonCard />
         <SkeletonCard />
       </div>

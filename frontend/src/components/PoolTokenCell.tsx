@@ -16,7 +16,12 @@ interface PoolTokenCellProps {
  * A reusable row cell for Liquidity Pool tokens with aligned columns.
  * Layout: | Token (icon + symbol) | Rewards | Balance |
  */
-export default function PoolTokenCell({ token, rewardText, balanceText, isLast = false }: PoolTokenCellProps) {
+export default function PoolTokenCell({
+  token,
+  rewardText,
+  balanceText,
+  isLast = false,
+}: PoolTokenCellProps) {
   const { theme } = useTheme();
   const baseContainerStyle: React.CSSProperties = {
     display: 'grid',

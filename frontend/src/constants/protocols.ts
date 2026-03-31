@@ -33,13 +33,13 @@ const PROTOCOL_MAP: Record<string, ProtocolConfig> = {
   'aave-v3': AAVE_V3,
   'uniswap v3': UNISWAP_V3,
   'uniswap-v3': UNISWAP_V3,
-  'kamino': {
+  kamino: {
     id: 'kamino',
     name: 'Kamino',
     logo: '/resources/protocols/kamino.svg',
     url: 'https://app.kamino.finance',
   },
-  'raydium': {
+  raydium: {
     id: 'raydium',
     name: 'Raydium',
     logo: '/resources/protocols/raydium.svg',
@@ -47,7 +47,7 @@ const PROTOCOL_MAP: Record<string, ProtocolConfig> = {
   },
   'pendle v2': PENDLE_V2,
   'pendle-v2': PENDLE_V2,
-  'wallet': {
+  wallet: {
     id: 'moralis',
     name: 'Wallet',
     logo: '',
@@ -57,12 +57,14 @@ const PROTOCOL_MAP: Record<string, ProtocolConfig> = {
 
 export function getProtocolConfig(name: string): ProtocolConfig {
   const key = name?.toLowerCase() ?? '';
-  return PROTOCOL_MAP[key] ?? {
-    id: key.replace(/\s+/g, '-'),
-    name,
-    logo: '',
-    url: '',
-  };
+  return (
+    PROTOCOL_MAP[key] ?? {
+      id: key.replace(/\s+/g, '-'),
+      name,
+      logo: '',
+      url: '',
+    }
+  );
 }
 
 export function hydrateProtocol(partial: { name: string; chain: string }): Protocol {

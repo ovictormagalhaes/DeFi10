@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback, Dispatch, SetStateAction } from 'react';
 
 import { api } from '../config/api';
-import { STORAGE_KEY, EXPIRY_HOURS } from '../constants/config';
-import { detectAvailableWallets, hasAnyWallet, getWalletNames, getWalletById } from '../constants/wallets';
-import type { WalletConfig } from '../constants/wallets';
 import { SUPPORTED_CHAINS } from '../constants/chains';
+import { STORAGE_KEY, EXPIRY_HOURS } from '../constants/config';
+import {
+  detectAvailableWallets,
+  hasAnyWallet,
+  getWalletNames,
+  getWalletById,
+} from '../constants/wallets';
+import type { WalletConfig } from '../constants/wallets';
 
 interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<any>;
@@ -16,13 +21,14 @@ interface EthereumProvider {
 interface SolanaProvider {
   isPhantom?: boolean;
   isConnected?: boolean;
-  connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString: () => string } }>;
+  connect: (opts?: {
+    onlyIfTrusted?: boolean;
+  }) => Promise<{ publicKey: { toString: () => string } }>;
   disconnect: () => Promise<void>;
   on?: (event: string, handler: (...args: any[]) => void) => void;
   removeListener?: (event: string, handler: (...args: any[]) => void) => void;
   [key: string]: any;
 }
-
 
 interface PendingConnection {
   walletName: string;
@@ -153,7 +159,7 @@ export function useWalletConnection(): UseWalletConnectionReturn {
       const elapsed = Date.now() - startTime;
       const minDelay = Math.max(0, 500 - elapsed);
       if (minDelay > 0) {
-        await new Promise(resolve => setTimeout(resolve, minDelay));
+        await new Promise((resolve) => setTimeout(resolve, minDelay));
       }
 
       setPendingConnection(null);

@@ -1,6 +1,7 @@
 /* ESLint base config for Defi10 frontend */
 module.exports = {
   root: true,
+  ignorePatterns: ['**/*.d.ts'],
   env: {
     browser: true,
     es2022: true,
@@ -41,9 +42,14 @@ module.exports = {
       'warn',
       { 'newlines-between': 'always', alphabetize: { order: 'asc', caseInsensitive: true } },
     ],
+    '@typescript-eslint/no-explicit-any': 'warn',
+    'no-empty': ['warn', { allowEmptyCatch: true }],
+    'no-useless-escape': 'warn',
+    'no-constant-condition': 'warn',
+    'no-dupe-else-if': 'warn',
+    'react/no-unescaped-entities': 'warn',
     'no-console': ['warn', { allow: ['warn', 'error'] }],
     'no-debugger': 'warn',
-    // Forbid inline style attribute on DOM elements
     'react/forbid-dom-props': ['warn', { forbid: ['style'] }],
   },
   overrides: [

@@ -172,7 +172,11 @@ const WalletTokensTable: React.FC<WalletTokensTableProps> = ({
               );
             })}
           </tbody>
-          <TableFooter totalValue={totalValue} itemsCount={count} columns={['price', 'amount', 'value']} />
+          <TableFooter
+            totalValue={totalValue}
+            itemsCount={count}
+            columns={['price', 'amount', 'value']}
+          />
         </table>
       </div>
     </div>

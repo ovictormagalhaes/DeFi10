@@ -3,8 +3,7 @@
  * Configuration types and interfaces
  */
 
-import type { TargetAllocation, AllocationDelta } from '../strategy';
-import type { StrategyType } from '../strategy';
+import type { TargetAllocation, AllocationDelta, StrategyType } from '../strategy';
 
 /**
  * Configuration for creating Type 1 strategy
@@ -57,6 +56,8 @@ export interface RebalanceAction {
 /**
  * Type guard to check if strategy is AllocationByWeight
  */
-export function isAllocationByWeightStrategy(strategyType: number): strategyType is StrategyType.AllocationByWeight {
+export function isAllocationByWeightStrategy(
+  strategyType: number
+): strategyType is StrategyType.AllocationByWeight {
   return strategyType === 1;
 }

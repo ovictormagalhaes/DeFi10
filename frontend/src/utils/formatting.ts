@@ -7,7 +7,10 @@ interface FormatPercentOptions {
   sign?: boolean;
 }
 
-export function formatPercent(value: number | string, { decimals = 2, trimZeros = false, sign = false }: FormatPercentOptions = {}): string {
+export function formatPercent(
+  value: number | string,
+  { decimals = 2, trimZeros = false, sign = false }: FormatPercentOptions = {}
+): string {
   const num = Number(value) || 0;
   const fixed = num.toFixed(decimals);
   let out = fixed;
@@ -23,7 +26,10 @@ interface FormatUsdOptions {
   sign?: boolean;
 }
 
-export function formatUsd(value: number | string, { decimals = 2, sign = false }: FormatUsdOptions = {}): string {
+export function formatUsd(
+  value: number | string,
+  { decimals = 2, sign = false }: FormatUsdOptions = {}
+): string {
   const num = Number(value) || 0;
   const abs = Math.abs(num);
   const formatted = abs.toLocaleString('en-US', {

@@ -454,7 +454,9 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
           (tokens.length >= 2
             ? `${tokens[0].symbol || tokens[0].name}/${tokens[1].symbol || tokens[1].name}`
             : tokens[0]?.symbol || tokens[0]?.name || `Pool #${i + 1}`);
-        const poolId = String(pos.id || pos.poolId || pos.address || pos.contractAddress || `pool-${i}`);
+        const poolId = String(
+          pos.id || pos.poolId || pos.address || pos.contractAddress || `pool-${i}`
+        );
 
         // Calculate uncollected fees value from LiquidityUncollectedFee tokens (like PoolTables)
         const rewardsTotalValue = uncollectedFeeTokens.reduce(
@@ -639,7 +641,13 @@ const PoolsView: React.FC<PoolsViewProps> = ({ getLiquidityPoolsData }) => {
                         token1={tokens[1].symbol}
                         protocol={protocolName || undefined}
                         chain={tokens[0].chain || undefined}
-                        feeTier={enrichedPool.raw.additionalData?.tierPercent != null ? Math.round(Number(enrichedPool.raw.additionalData.tierPercent) * 10000) : undefined}
+                        feeTier={
+                          enrichedPool.raw.additionalData?.tierPercent != null
+                            ? Math.round(
+                                Number(enrichedPool.raw.additionalData.tierPercent) * 10000
+                              )
+                            : undefined
+                        }
                       />
                     )}
                   </div>

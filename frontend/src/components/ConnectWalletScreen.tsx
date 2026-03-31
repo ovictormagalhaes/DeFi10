@@ -1,5 +1,5 @@
-import { WALLETS } from '../constants/wallets';
 import { SUPPORTED_CHAINS } from '../constants/chains';
+import { WALLETS } from '../constants/wallets';
 import type { ThemeShape } from '../context/ThemeProvider';
 
 interface ConnectWalletScreenProps {
@@ -8,7 +8,11 @@ interface ConnectWalletScreenProps {
   onManageGroups: () => void;
 }
 
-const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConnect, onManageGroups }) => {
+const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({
+  theme,
+  onConnect,
+  onManageGroups,
+}) => {
   return (
     <div
       style={{
@@ -221,10 +225,80 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConn
           }}
         >
           {[
-            { text: 'Multi-wallet — group and track wallets together', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.accent || theme.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg> },
-            { text: 'Multi-chain — Ethereum, Solana, Base and more', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.accent || theme.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg> },
-            { text: 'Multi-protocol — Aave, Kamino, Uniswap, Pendle', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.accent || theme.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg> },
-            { text: 'Non-custodial and read-only', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.accent || theme.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> },
+            {
+              text: 'Multi-wallet — group and track wallets together',
+              icon: (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={theme.accent || theme.primary}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              ),
+            },
+            {
+              text: 'Multi-chain — Ethereum, Solana, Base and more',
+              icon: (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={theme.accent || theme.primary}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h20" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+              ),
+            },
+            {
+              text: 'Multi-protocol — Aave, Kamino, Uniswap, Pendle',
+              icon: (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={theme.accent || theme.primary}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+              ),
+            },
+            {
+              text: 'Non-custodial and read-only',
+              icon: (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={theme.accent || theme.primary}
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              ),
+            },
           ].map((feature, idx) => (
             <div
               key={idx}
@@ -236,7 +310,18 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConn
                 color: theme.textSecondary,
               }}
             >
-              <div style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 8, background: theme.bgAccentSoft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                style={{
+                  flexShrink: 0,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: theme.bgAccentSoft,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 {feature.icon}
               </div>
               <span>{feature.text}</span>
@@ -290,7 +375,11 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConn
                     padding: 6,
                   }}
                 >
-                  <img src={wallet.icon} alt={wallet.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  <img
+                    src={wallet.icon}
+                    alt={wallet.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
                 </div>
                 <span style={{ fontSize: 11, color: theme.textSecondary }}>{wallet.name}</span>
               </div>
@@ -414,16 +503,22 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConn
                   <img
                     src={chain.iconUrl}
                     alt={chain.displayName}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%' }}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      borderRadius: '50%',
+                    }}
                     onError={(e) => (e.currentTarget.style.display = 'none')}
                   />
                 </div>
-                <span style={{ fontSize: 10, color: theme.textSecondary }}>{chain.displayName}</span>
+                <span style={{ fontSize: 10, color: theme.textSecondary }}>
+                  {chain.displayName}
+                </span>
               </div>
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );

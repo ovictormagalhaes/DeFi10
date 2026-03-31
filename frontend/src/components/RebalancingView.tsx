@@ -12,16 +12,15 @@ import { useTheme } from '../context/ThemeProvider';
 import { formatPercent, formatUsd } from '../utils/formatting';
 import { ITEM_TYPES } from '../utils/walletUtils';
 
-import IconButton from './IconButton';
-import RebalanceItemDialog from './RebalanceItemDialog';
-import Skeleton from './Skeleton';
-import LoadingScreen from './LoadingScreen';
-
-import TokenDisplay from './TokenDisplay';
 import RebalancingCards from './cards/RebalancingCards';
+import { StrategiesSectionHeader } from './cards/SectionHeaders';
 import StrategyGroupCard from './cards/StrategyGroupCard';
 import FAQSection from './FAQSection';
-import { StrategiesSectionHeader } from './cards/SectionHeaders';
+import IconButton from './IconButton';
+import LoadingScreen from './LoadingScreen';
+import RebalanceItemDialog from './RebalanceItemDialog';
+import Skeleton from './Skeleton';
+import TokenDisplay from './TokenDisplay';
 
 // Frontend mirror of backend enum
 const RebalanceReferenceType = {
@@ -182,7 +181,7 @@ export default function RebalancingView({
       if (!label) {
         const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
         const norm = (x) => (x && x.token ? x.token : x);
-        
+
         // Include both supplied AND borrowed tokens
         const supplied = toks
           .filter((t) => {
@@ -190,16 +189,16 @@ export default function RebalancingView({
             return ty === 'supplied' || ty === 'supply' || ty === 'deposit' || ty === 'collateral';
           })
           .map(norm);
-        
+
         const borrowed = toks
           .filter((t) => {
             const ty = (t?.type || '').toString().toLowerCase();
             return ty === 'borrowed' || ty === 'borrow' || ty === 'debt';
           })
           .map(norm);
-        
+
         // Prefer supplied, then borrowed, then all tokens
-        const choose = supplied.length ? supplied : (borrowed.length ? borrowed : toks.map(norm));
+        const choose = supplied.length ? supplied : borrowed.length ? borrowed : toks.map(norm);
         const syms = choose.map((t) => t?.symbol || t?.name).filter(Boolean);
         if (syms.length >= 2) label = `${syms[0]}/${syms[1]}`;
         else if (syms.length === 1) label = syms[0];
@@ -250,7 +249,13 @@ export default function RebalancingView({
       ...(getDepositingData?.() || []),
       ...(getLockingData?.() || []),
     ];
-  }, [getLiquidityPoolsData, getLendingAndBorrowingData, getStakingData, getDepositingData, getLockingData]);
+  }, [
+    getLiquidityPoolsData,
+    getLendingAndBorrowingData,
+    getStakingData,
+    getDepositingData,
+    getLockingData,
+  ]);
 
   const protocolsList = React.useMemo(() => {
     const set = new Map();
@@ -381,29 +386,41 @@ export default function RebalancingView({
       default:
         return [];
     }
-  }, [assetType, tokensList, poolsList, lendingList, stakingList, depositingList, lockingList, groupList]);
+  }, [
+    assetType,
+    tokensList,
+    poolsList,
+    lendingList,
+    stakingList,
+    depositingList,
+    lockingList,
+    groupList,
+  ]);
 
   // Helper to get options for any type
-  const getOptionsForType = React.useCallback((type) => {
-    switch (type) {
-      case RebalanceAssetType.Wallet:
-        return tokensList;
-      case RebalanceAssetType.LiquidityPool:
-        return poolsList;
-      case RebalanceAssetType.LendingAndBorrowing:
-        return lendingList;
-      case RebalanceAssetType.Staking:
-        return stakingList;
-      case RebalanceAssetType.Depositing:
-        return depositingList;
-      case RebalanceAssetType.Locking:
-        return lockingList;
-      case RebalanceAssetType.Group:
-        return groupList;
-      default:
-        return [];
-    }
-  }, [tokensList, poolsList, lendingList, stakingList, depositingList, lockingList, groupList]);
+  const getOptionsForType = React.useCallback(
+    (type) => {
+      switch (type) {
+        case RebalanceAssetType.Wallet:
+          return tokensList;
+        case RebalanceAssetType.LiquidityPool:
+          return poolsList;
+        case RebalanceAssetType.LendingAndBorrowing:
+          return lendingList;
+        case RebalanceAssetType.Staking:
+          return stakingList;
+        case RebalanceAssetType.Depositing:
+          return depositingList;
+        case RebalanceAssetType.Locking:
+          return lockingList;
+        case RebalanceAssetType.Group:
+          return groupList;
+        default:
+          return [];
+      }
+    },
+    [tokensList, poolsList, lendingList, stakingList, depositingList, lockingList, groupList]
+  );
 
   const referenceOptions = React.useMemo(() => {
     switch (referenceType) {
@@ -458,18 +475,21 @@ export default function RebalancingView({
   const handleAdd = () => {
     if (!canAdd) return;
     const atLabel =
-      ASSET_TYPE_OPTIONS.find((a) => a.value === assetType)?.label || getAssetTypeLabel(assetType as number);
+      ASSET_TYPE_OPTIONS.find((a) => a.value === assetType)?.label ||
+      getAssetTypeLabel(assetType as number);
     // Use assetIds if available, otherwise use single assetId
     const finalAssets = assetIds.length > 0 ? assetIds : [{ type: assetType, id: assetId }];
-    const assetLabels = finalAssets.map(asset => {
-      const opts = getOptionsForType(asset.type);
-      return opts.find((a) => a.id === asset.id)?.label || asset.id;
-    }).join(' + ');
+    const assetLabels = finalAssets
+      .map((asset) => {
+        const opts = getOptionsForType(asset.type);
+        return opts.find((a) => a.id === asset.id)?.label || asset.id;
+      })
+      .join(' + ');
     const refLabel =
       referenceType === RebalanceReferenceType.TotalWallet
         ? 'Total Wallet'
         : referenceOptions.find((r) => r.id === referenceValue)?.label || referenceValue;
-    const newId = `${finalAssets.map(a => `${a.type}-${a.id}`).join(',')}-${referenceType}-${referenceValue || 'total'}`;
+    const newId = `${finalAssets.map((a) => `${a.type}-${a.id}`).join(',')}-${referenceType}-${referenceValue || 'total'}`;
     setEntries((prev) => {
       if (prev.some((e) => e.id === newId)) return prev; // prevent duplicates
       return [
@@ -499,11 +519,13 @@ export default function RebalancingView({
         : referenceOptions.find((r) => r.id === referenceValue)?.label || referenceValue;
     // Use assetIds if available, otherwise use single assetId
     const finalAssets = assetIds.length > 0 ? assetIds : [{ type: assetType, id: assetId }];
-    const assetLabels = finalAssets.map(asset => {
-      const opts = getOptionsForType(asset.type);
-      return opts.find((a) => a.id === asset.id)?.label || asset.id;
-    }).join(' + ');
-    const newId = `${finalAssets.map(a => `${a.type}-${a.id}`).join(',')}-${referenceType}-${referenceValue || 'total'}`;
+    const assetLabels = finalAssets
+      .map((asset) => {
+        const opts = getOptionsForType(asset.type);
+        return opts.find((a) => a.id === asset.id)?.label || asset.id;
+      })
+      .join(' + ');
+    const newId = `${finalAssets.map((a) => `${a.type}-${a.id}`).join(',')}-${referenceType}-${referenceValue || 'total'}`;
     if (editingId) {
       // Update existing
       const dup = entries.some((e) => e.id === newId && e.id !== editingId);
@@ -608,14 +630,14 @@ export default function RebalancingView({
     const map = new Map();
     entries.forEach((e) => {
       let cur = 0;
-      
+
       // Support multiple assets: iterate over assetIds array
       const assetsArray = e.assetIds || (e.assetId ? [{ type: e.assetType, id: e.assetId }] : []);
-      
+
       assetsArray.forEach((asset) => {
         const assetType = asset.type;
         const assetId = asset.id;
-        
+
         if (assetType === RebalanceAssetType.Wallet) {
           const tok = tokensList.find((o) => o.id === assetId)?.raw;
           cur += tokenTotalPrice(tok);
@@ -671,7 +693,9 @@ export default function RebalancingView({
               const pos = o.raw?.position || o.raw;
               const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
               if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
-              const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+              const explicit = toNumber(
+                pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice
+              );
               return s + explicit;
             }, 0);
           } else if (gid === 'group:lending') {
@@ -679,13 +703,17 @@ export default function RebalancingView({
               const pos = o.raw?.position || o.raw;
               const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
               if (toks.length) return s + toks.reduce((ss, t) => ss + signedTokenValue(t, pos), 0);
-              const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+              const explicit = toNumber(
+                pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice
+              );
               return s + explicit;
             }, 0);
           } else if (gid === 'group:staking') {
             cur += stakingList.reduce((s, o) => {
               const pos = o.raw?.position || o.raw;
-              const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+              const explicit = toNumber(
+                pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice
+              );
               if (explicit) return s + explicit;
               const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
               if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
@@ -697,19 +725,25 @@ export default function RebalancingView({
               const pos = o.raw?.position || o.raw;
               const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
               if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
-              const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+              const explicit = toNumber(
+                pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice
+              );
               return s + explicit;
             }, 0);
             const lend = lendingList.reduce((s, o) => {
               const pos = o.raw?.position || o.raw;
               const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
               if (toks.length) return s + toks.reduce((ss, t) => ss + signedTokenValue(t, pos), 0);
-              const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+              const explicit = toNumber(
+                pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice
+              );
               return s + explicit;
             }, 0);
             const stake = stakingList.reduce((s, o) => {
               const pos = o.raw?.position || o.raw;
-              const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
+              const explicit = toNumber(
+                pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice
+              );
               if (explicit) return s + explicit;
               const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
               if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
@@ -729,7 +763,7 @@ export default function RebalancingView({
           }
         }
       });
-      
+
       map.set(e.id, cur);
     });
     return map;
@@ -903,20 +937,23 @@ export default function RebalancingView({
 
     const mapped = initialSavedItems.map((it) => {
       const refType = mapRefType(it.byGroupType);
-      
+
       // Convert assets array from backend format {key, type: number} to internal format {id, type: number}
       const assetsRaw = it.assets || [];
-      const assets = assetsRaw.map(a => ({
-        type: typeof a.type === 'number' ? a.type : (ASSET_TYPE_FROM_STRING[a.type] || RebalanceAssetType.Unknown),
-        id: a.key
+      const assets = assetsRaw.map((a) => ({
+        type:
+          typeof a.type === 'number'
+            ? a.type
+            : ASSET_TYPE_FROM_STRING[a.type] || RebalanceAssetType.Unknown,
+        id: a.key,
       }));
-      
+
       // All assets should have valid types
       const primaryType = assets[0]?.type || RebalanceAssetType.Unknown;
-      const assetLabels = assets.map(asset => makeAssetLabel(asset.id, asset.type)).join(' + ');
-      
+      const assetLabels = assets.map((asset) => makeAssetLabel(asset.id, asset.type)).join(' + ');
+
       const entry = {
-        id: `${assets.map(a => `${a.type}-${a.id}`).join(',')}-${refType}-${refType === RebalanceReferenceType.TotalWallet ? 'total' : it.value || ''}`,
+        id: `${assets.map((a) => `${a.type}-${a.id}`).join(',')}-${refType}-${refType === RebalanceReferenceType.TotalWallet ? 'total' : it.value || ''}`,
         assetType: primaryType,
         assetIds: assets,
         assetLabel: assetLabels,
@@ -934,7 +971,7 @@ export default function RebalancingView({
         if (!byId.has(m.id)) byId.set(m.id, m);
       });
       const finalEntries = Array.from(byId.values());
-      
+
       // Initialize lastSavedHashRef with loaded entries from backend
       if (!hasLoadedInitialDataRef.current) {
         hasLoadedInitialDataRef.current = true;
@@ -951,11 +988,21 @@ export default function RebalancingView({
           }))
         );
       }
-      
+
       return finalEntries;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSavedItems, tokensList, poolsList, lendingList, stakingList, depositingList, lockingList, protocolsList, ASSET_TYPE_FROM_STRING]);
+  }, [
+    initialSavedItems,
+    tokensList,
+    poolsList,
+    lendingList,
+    stakingList,
+    depositingList,
+    lockingList,
+    protocolsList,
+    ASSET_TYPE_FROM_STRING,
+  ]);
 
   // Track unsaved changes
   const hasUnsavedChanges = React.useMemo(() => {
@@ -971,7 +1018,7 @@ export default function RebalancingView({
       }))
     );
     const hasChanges = lastSavedHashRef.current !== currentHash;
-    
+
     return hasChanges;
   }, [entries, didInitialLoad]);
 
@@ -985,10 +1032,10 @@ export default function RebalancingView({
       setSaveError(null);
       const findLogosForEntry = (entry) => {
         const type = entry.assetType;
-        let logos = [];
+        const logos = [];
         // Support multiple assets from different types
         const assetsWithType = entry.assetIds || [{ type: entry.assetType, id: entry.assetId }];
-        
+
         const pickFromTokens = (tokens) => {
           tokens.forEach((t) => {
             if (logos.length >= 2) return;
@@ -1005,13 +1052,13 @@ export default function RebalancingView({
             if (lg && !logos.includes(lg)) logos.push(lg);
           });
         };
-        
+
         // Iterate through all assets to collect logos
         assetsWithType.forEach((asset) => {
           if (logos.length >= 2) return;
           const assetId = asset.id || asset;
           const assetType = asset.type || entry.assetType;
-          
+
           if (assetType === RebalanceAssetType.Wallet) {
             const tok = tokensList.find((x) => x.id === assetId)?.raw || {};
             const lg =
@@ -1065,36 +1112,38 @@ export default function RebalancingView({
             if (lock && Array.isArray(lock.tokens)) pickFromTokens(lock.tokens);
           }
         });
-        
+
         return { Logo1: logos[0] || null, Logo2: logos[1] || null };
       };
-      
+
       // Build items and filter out any with empty assets
-      const items = entries.map((e) => {
-        const logos = saveResult?.entriesHash ? null : findLogosForEntry(e); // Always recalc (could hash later)
-        // Extract assets from {type, id} format, or use legacy assetId
-        const assetsWithType = e.assetIds || [{ type: e.assetType, id: e.assetId }];
-        const assets = assetsWithType
-          .filter(a => a.id) // Filter out any assets without id
-          .map(a => ({
-            Key: a.id,
-            Type: a.type // Use numeric type directly (backend expects number)
-          }));
-        return {
-          Version: '1',
-          Assets: assets,
-          Note: e.note,
-          ByGroupType: REF_ENUM_MAP[e.referenceType] ?? 0,
-          Value:
-            e.referenceType === RebalanceReferenceType.TotalWallet
-              ? null
-              : e.referenceValue || e.referenceLabel,
-          AdditionalInfo: logos,
-        };
-      }).filter(item => item.Assets.length > 0); // Only include items with at least one asset
-      
+      const items = entries
+        .map((e) => {
+          const logos = saveResult?.entriesHash ? null : findLogosForEntry(e); // Always recalc (could hash later)
+          // Extract assets from {type, id} format, or use legacy assetId
+          const assetsWithType = e.assetIds || [{ type: e.assetType, id: e.assetId }];
+          const assets = assetsWithType
+            .filter((a) => a.id) // Filter out any assets without id
+            .map((a) => ({
+              Key: a.id,
+              Type: a.type, // Use numeric type directly (backend expects number)
+            }));
+          return {
+            Version: '1',
+            Assets: assets,
+            Note: e.note,
+            ByGroupType: REF_ENUM_MAP[e.referenceType] ?? 0,
+            Value:
+              e.referenceType === RebalanceReferenceType.TotalWallet
+                ? null
+                : e.referenceValue || e.referenceLabel,
+            AdditionalInfo: logos,
+          };
+        })
+        .filter((item) => item.Assets.length > 0); // Only include items with at least one asset
+
       const payload = {
-        AccountId: selectedWalletGroupId ? undefined : (account || undefined),
+        AccountId: selectedWalletGroupId ? undefined : account || undefined,
         WalletGroupId: selectedWalletGroupId || undefined,
         Items: items,
       };
@@ -1220,7 +1269,7 @@ export default function RebalancingView({
   return (
     <div>
       {/* Section Header */}
-      <StrategiesSectionHeader 
+      <StrategiesSectionHeader
         itemCount={entries.length}
         onAddClick={() => setShowDialog(true)}
         onSaveClick={() => saveRebalance()}
@@ -1281,101 +1330,114 @@ export default function RebalancingView({
                 buckets.set(key, {
                   label: `${e.referenceLabel}`,
                   referenceType: e.referenceType,
-                  entries: []
+                  entries: [],
                 });
               }
               buckets.get(key).entries.push(e);
             });
-            
-            return Array.from(buckets.entries()).map(([key, { label, referenceType, entries: groupEntries }]) => {
-              // Calculate general totals based on reference type
-              let totalCurrentGeneral = 0;
-              
-              // For TotalWallet reference type, use the entire portfolio value
-              if (referenceType === RebalanceReferenceType.TotalWallet) {
-                totalCurrentGeneral = totalPortfolioCurrent;
-              } else {
-                // For other reference types, detect asset type from first entry
-                const firstEntry = groupEntries[0];
-                const assetType = firstEntry?.assetType;
-                
-                // Calculate total for the specific asset type
-                if (assetType === RebalanceAssetType.Wallet) {
-                  // Just wallet tokens
-                  totalCurrentGeneral = tokensList.reduce((s, o) => s + tokenTotalPrice(o.raw), 0);
-                } else if (assetType === RebalanceAssetType.LiquidityPool) {
-                  // Total Liquidity Pools
-                  totalCurrentGeneral = poolsList.reduce((s, o) => {
-                    const pos = o.raw?.position || o.raw;
-                    const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
-                    if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
-                    const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
-                    return s + explicit;
-                  }, 0);
-                } else if (assetType === RebalanceAssetType.LendingAndBorrowing) {
-                  // Total Lending
-                  totalCurrentGeneral = lendingList.reduce((s, o) => {
-                    const pos = o.raw?.position || o.raw;
-                    const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
-                    if (toks.length) return s + toks.reduce((ss, t) => ss + signedTokenValue(t, pos), 0);
-                    const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
-                    return s + explicit;
-                  }, 0);
-                } else if (assetType === RebalanceAssetType.Staking) {
-                  // Total Staking
-                  totalCurrentGeneral = stakingList.reduce((s, o) => {
-                    const pos = o.raw?.position || o.raw;
-                    const explicit = toNumber(pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice);
-                    if (explicit) return s + explicit;
-                    const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
-                    if (toks.length) return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
-                    return s + toNumber(pos?.balance);
-                  }, 0);
+
+            return Array.from(buckets.entries()).map(
+              ([key, { label, referenceType, entries: groupEntries }]) => {
+                // Calculate general totals based on reference type
+                let totalCurrentGeneral = 0;
+
+                // For TotalWallet reference type, use the entire portfolio value
+                if (referenceType === RebalanceReferenceType.TotalWallet) {
+                  totalCurrentGeneral = totalPortfolioCurrent;
+                } else {
+                  // For other reference types, detect asset type from first entry
+                  const firstEntry = groupEntries[0];
+                  const assetType = firstEntry?.assetType;
+
+                  // Calculate total for the specific asset type
+                  if (assetType === RebalanceAssetType.Wallet) {
+                    // Just wallet tokens
+                    totalCurrentGeneral = tokensList.reduce(
+                      (s, o) => s + tokenTotalPrice(o.raw),
+                      0
+                    );
+                  } else if (assetType === RebalanceAssetType.LiquidityPool) {
+                    // Total Liquidity Pools
+                    totalCurrentGeneral = poolsList.reduce((s, o) => {
+                      const pos = o.raw?.position || o.raw;
+                      const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
+                      if (toks.length)
+                        return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
+                      const explicit = toNumber(
+                        pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice
+                      );
+                      return s + explicit;
+                    }, 0);
+                  } else if (assetType === RebalanceAssetType.LendingAndBorrowing) {
+                    // Total Lending
+                    totalCurrentGeneral = lendingList.reduce((s, o) => {
+                      const pos = o.raw?.position || o.raw;
+                      const toks = Array.isArray(pos?.tokens) ? pos.tokens : [];
+                      if (toks.length)
+                        return s + toks.reduce((ss, t) => ss + signedTokenValue(t, pos), 0);
+                      const explicit = toNumber(
+                        pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice
+                      );
+                      return s + explicit;
+                    }, 0);
+                  } else if (assetType === RebalanceAssetType.Staking) {
+                    // Total Staking
+                    totalCurrentGeneral = stakingList.reduce((s, o) => {
+                      const pos = o.raw?.position || o.raw;
+                      const explicit = toNumber(
+                        pos?.totalPrice ?? pos?.value ?? pos?.financials?.totalPrice
+                      );
+                      if (explicit) return s + explicit;
+                      const toks = getPositionTokens(pos).map((x) => (x && x.token ? x.token : x));
+                      if (toks.length)
+                        return s + toks.reduce((ss, t) => ss + tokenTotalPrice(t), 0);
+                      return s + toNumber(pos?.balance);
+                    }, 0);
+                  }
                 }
+
+                // Target is sum of notes in this bucket
+                const totalTargetGeneral = bucketNoteSums?.[key] || 0;
+
+                return (
+                  <StrategyGroupCard
+                    key={key}
+                    label={label}
+                    entries={groupEntries}
+                    onEdit={(row) => {
+                      setEditingId(row.id);
+                      setShowDialog(true);
+                      setAssetType(row.assetType);
+                      const assets = row.assetIds || [{ type: row.assetType, id: row.assetId }];
+                      if (assets.length === 1) {
+                        setAssetId(String(assets[0].id || assets[0]));
+                        setAssetIds([]);
+                      } else {
+                        setAssetId('');
+                        setAssetIds(assets);
+                      }
+                      setReferenceType(String(row.referenceType || ''));
+                      setReferenceValue((row.referenceValue as string | number) || '');
+                      setNote(Number(row.note) || 0);
+                    }}
+                    onDelete={removeEntry}
+                    entryCurrentValues={entryCurrentValues}
+                    bucketCurrentSums={bucketCurrentSums}
+                    bucketNoteSums={bucketNoteSums}
+                    bucketKey={bucketKey}
+                    tokensList={tokensList}
+                    poolsList={poolsList}
+                    lendingList={lendingList}
+                    stakingList={stakingList}
+                    totalCurrentGeneral={totalCurrentGeneral}
+                    totalTargetGeneral={totalTargetGeneral}
+                  />
+                );
               }
-              
-              // Target is sum of notes in this bucket
-              const totalTargetGeneral = bucketNoteSums?.[key] || 0;
-              
-              return (
-                <StrategyGroupCard
-                  key={key}
-                  label={label}
-                  entries={groupEntries}
-                  onEdit={(row) => {
-                    setEditingId(row.id);
-                    setShowDialog(true);
-                    setAssetType(row.assetType);
-                    const assets = row.assetIds || [{ type: row.assetType, id: row.assetId }];
-                    if (assets.length === 1) {
-                      setAssetId(String(assets[0].id || assets[0]));
-                      setAssetIds([]);
-                    } else {
-                      setAssetId('');
-                      setAssetIds(assets);
-                    }
-                    setReferenceType(String(row.referenceType || ''));
-                    setReferenceValue((row.referenceValue as string | number) || '');
-                    setNote(Number(row.note) || 0);
-                  }}
-                  onDelete={removeEntry}
-                  entryCurrentValues={entryCurrentValues}
-                  bucketCurrentSums={bucketCurrentSums}
-                  bucketNoteSums={bucketNoteSums}
-                  bucketKey={bucketKey}
-                  tokensList={tokensList}
-                  poolsList={poolsList}
-                  lendingList={lendingList}
-                  stakingList={stakingList}
-                  totalCurrentGeneral={totalCurrentGeneral}
-                  totalTargetGeneral={totalTargetGeneral}
-                />
-              );
-            });
+            );
           })()}
         </div>
       )}
-
 
       {/* FAQ Section */}
       <FAQSection
@@ -1383,37 +1445,45 @@ export default function RebalancingView({
         subtitle="Here you can find all the frequently asked questions about Strategies!"
         faqs={[
           {
-            question: "What are Strategies in DeFi10?",
-            answer: "Strategies allow you to define target allocations for your crypto assets across different protocols and asset types. Set percentage targets for each position and track how your current holdings compare to your desired portfolio allocation."
+            question: 'What are Strategies in DeFi10?',
+            answer:
+              'Strategies allow you to define target allocations for your crypto assets across different protocols and asset types. Set percentage targets for each position and track how your current holdings compare to your desired portfolio allocation.',
           },
           {
-            question: "How do I create a new strategy?",
-            answer: "Click the 'Add' button at the top right of the Strategies page. Select the asset type (Wallet, Liquidity Pool, Lending, or Staking), choose specific assets, set a reference (like Portfolio % or Fixed Value), and define your target allocation using the 'Note' field as a percentage or value."
+            question: 'How do I create a new strategy?',
+            answer:
+              "Click the 'Add' button at the top right of the Strategies page. Select the asset type (Wallet, Liquidity Pool, Lending, or Staking), choose specific assets, set a reference (like Portfolio % or Fixed Value), and define your target allocation using the 'Note' field as a percentage or value.",
           },
           {
-            question: "What do the Current, Target, and Diff columns mean?",
-            answer: "'Current' shows your actual holdings and their percentage of the total. 'Target' displays your desired allocation as defined in your strategy. 'Diff' shows the difference between your current and target allocation, helping you identify which assets to buy or sell to reach your goals."
+            question: 'What do the Current, Target, and Diff columns mean?',
+            answer:
+              "'Current' shows your actual holdings and their percentage of the total. 'Target' displays your desired allocation as defined in your strategy. 'Diff' shows the difference between your current and target allocation, helping you identify which assets to buy or sell to reach your goals.",
           },
           {
-            question: "Can I group multiple assets in one strategy?",
-            answer: "Yes! Each strategy entry supports multiple assets. The first asset always appears, and if there are more, you'll see a 'Show N more' button to expand and view all assets in that strategy entry."
+            question: 'Can I group multiple assets in one strategy?',
+            answer:
+              "Yes! Each strategy entry supports multiple assets. The first asset always appears, and if there are more, you'll see a 'Show N more' button to expand and view all assets in that strategy entry.",
           },
           {
-            question: "What are the different reference types?",
-            answer: "Reference types let you organize strategies by different contexts: Portfolio % allocates based on total portfolio value, Wallet groups assets by specific wallet addresses, and other options include Token, LP Pool, Lending Position, and Staking Position for more granular strategy management."
+            question: 'What are the different reference types?',
+            answer:
+              'Reference types let you organize strategies by different contexts: Portfolio % allocates based on total portfolio value, Wallet groups assets by specific wallet addresses, and other options include Token, LP Pool, Lending Position, and Staking Position for more granular strategy management.',
           },
           {
-            question: "How is the percentage calculated?",
-            answer: "Percentages are calculated within each reference group. For example, if you have two tokens in a 'Portfolio %' group with notes of 60 and 40, they represent 60% and 40% of that group's total value. The system automatically calculates the dollar values based on current prices."
+            question: 'How is the percentage calculated?',
+            answer:
+              "Percentages are calculated within each reference group. For example, if you have two tokens in a 'Portfolio %' group with notes of 60 and 40, they represent 60% and 40% of that group's total value. The system automatically calculates the dollar values based on current prices.",
           },
           {
-            question: "Can I edit or delete strategy entries?",
-            answer: "Absolutely! Each strategy card has Edit and Delete buttons at the bottom. Click Edit to modify the asset selection, reference type, or target allocation. Click Delete to remove the strategy entry entirely. Changes are saved automatically."
+            question: 'Can I edit or delete strategy entries?',
+            answer:
+              'Absolutely! Each strategy card has Edit and Delete buttons at the bottom. Click Edit to modify the asset selection, reference type, or target allocation. Click Delete to remove the strategy entry entirely. Changes are saved automatically.',
           },
           {
-            question: "Are strategies saved automatically?",
-            answer: "Yes, all strategy changes are automatically saved when you add, edit, or delete entries. You'll see a 'Saving changes...' indicator at the bottom of the page, followed by 'Saved successfully' with a timestamp when the operation completes."
-          }
+            question: 'Are strategies saved automatically?',
+            answer:
+              "Yes, all strategy changes are automatically saved when you add, edit, or delete entries. You'll see a 'Saving changes...' indicator at the bottom of the page, followed by 'Saved successfully' with a timestamp when the operation completes.",
+          },
         ]}
         style={{
           marginTop: 60,
@@ -1618,18 +1688,21 @@ function AssetDropdown({
               let lendingType = null;
               if (assetType === RebalanceAssetType.LendingAndBorrowing) {
                 const pos = opt.raw?.position || opt.raw;
-                
+
                 if (Array.isArray(pos?.tokens) && pos.tokens.length > 0) {
                   // Check position label first (case-insensitive)
                   const positionLabel = (pos.label || pos.key || '').toLowerCase();
-                  const isBorrowPosition = positionLabel.includes('borrow') || positionLabel.includes('debt');
-                  
+                  const isBorrowPosition =
+                    positionLabel.includes('borrow') || positionLabel.includes('debt');
+
                   // Check if ANY token is borrowed (case-insensitive)
-                  const hasBorrowedToken = pos.tokens.some(t => {
+                  const hasBorrowedToken = pos.tokens.some((t) => {
                     const tokenType = (t?.type || '').toLowerCase();
-                    return tokenType === 'borrowed' || tokenType === 'borrow' || tokenType === 'debt';
+                    return (
+                      tokenType === 'borrowed' || tokenType === 'borrow' || tokenType === 'debt'
+                    );
                   });
-                  
+
                   if (isBorrowPosition || hasBorrowedToken) {
                     lendingType = 'borrow';
                   } else {
@@ -1637,7 +1710,7 @@ function AssetDropdown({
                   }
                 }
               }
-              
+
               return (
                 <button
                   key={`${opt.id}-${idx}`}
@@ -1650,20 +1723,23 @@ function AssetDropdown({
                   style={{ display: 'flex', alignItems: 'center', gap: 8 }}
                 >
                   {assetType === RebalanceAssetType.Group ? null : renderAssetIcon(assetType, opt)}
-                  <span className="text-ellipsis-sm" style={{ flex: 1 }}>{opt.label}</span>
+                  <span className="text-ellipsis-sm" style={{ flex: 1 }}>
+                    {opt.label}
+                  </span>
                   {lendingType && (
-                    <span style={{
-                      fontSize: 10,
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      fontWeight: 600,
-                      background: lendingType === 'borrow' 
-                        ? 'rgba(239, 68, 68, 0.15)' 
-                        : 'rgba(34, 197, 94, 0.15)',
-                      color: lendingType === 'borrow' 
-                        ? 'rgb(239, 68, 68)' 
-                        : 'rgb(34, 197, 94)',
-                    }}>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        fontWeight: 600,
+                        background:
+                          lendingType === 'borrow'
+                            ? 'rgba(239, 68, 68, 0.15)'
+                            : 'rgba(34, 197, 94, 0.15)',
+                        color: lendingType === 'borrow' ? 'rgb(239, 68, 68)' : 'rgb(34, 197, 94)',
+                      }}
+                    >
                       {lendingType === 'borrow' ? 'BORROW' : 'SUPPLY'}
                     </span>
                   )}

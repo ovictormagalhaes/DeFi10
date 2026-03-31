@@ -118,29 +118,25 @@ function aggregateFromItems(items: WalletItem[] = []): AggregatedPosition[] {
       group
         .filter((t: any) => t.type === 'Supplied' || t.type === 'Supply')
         .map((t: any) => {
-          return (
-            t.balanceUSD ||
+          return (t.balanceUSD ||
             t.totalPrice ||
             t.totalValueUsd ||
             t.valueUsd ||
             parseFloat(String(t.balance || 0)) * parseFloat(String(t.price || 0)) ||
-            0
-          ) as number;
+            0) as number;
         })
     );
-    
+
     const totalBorrowed = sum(
       group
         .filter((t: any) => t.type === 'Borrowed' || t.type === 'Borrow')
         .map((t: any) => {
-          return (
-            t.balanceUSD ||
+          return (t.balanceUSD ||
             t.totalPrice ||
             t.totalValueUsd ||
             t.valueUsd ||
             parseFloat(String(t.balance || 0)) * parseFloat(String(t.price || 0)) ||
-            0
-          ) as number;
+            0) as number;
         })
     );
 
@@ -151,8 +147,16 @@ function aggregateFromItems(items: WalletItem[] = []): AggregatedPosition[] {
       group.flatMap((t: any) => t._sourceItem?.rewards || t._sourceItem?.rewardTokens || [])
     );
     const rewardsValue = sum(
-      rewards.map(
-        (r) => Number(r.totalValueUsd || r.totalValueUSD || r.totalValue || r.valueUsd || r.valueUSD || r.value || 0)
+      rewards.map((r) =>
+        Number(
+          r.totalValueUsd ||
+            r.totalValueUSD ||
+            r.totalValue ||
+            r.valueUsd ||
+            r.valueUSD ||
+            r.value ||
+            0
+        )
       )
     );
 
@@ -230,8 +234,16 @@ function aggregatePositions(positions: WalletItem[] = []): AggregatedPosition[] 
       group.flatMap((g: any) => (g as any).rewards || (g as any).rewardTokens || [])
     );
     const rewardsValue = sum(
-      rewards.map(
-        (r) => Number(r.totalValueUsd || r.totalValueUSD || r.totalValue || r.valueUsd || r.valueUSD || r.value || 0)
+      rewards.map((r) =>
+        Number(
+          r.totalValueUsd ||
+            r.totalValueUSD ||
+            r.totalValue ||
+            r.valueUsd ||
+            r.valueUSD ||
+            r.value ||
+            0
+        )
       )
     );
 
@@ -282,16 +294,18 @@ export default function LendingTables({
   }, [walletItems]);
 
   // Detectar se lendingItems tem estrutura nova (com tokens dentro) ou legada
-  const hasTokensInside = useMemo(() => 
-    lendingItems.some((item: any) => 
-      item.tokens && Array.isArray(item.tokens) && item.tokens.length > 0
-    ), [lendingItems]
+  const hasTokensInside = useMemo(
+    () =>
+      lendingItems.some(
+        (item: any) => item.tokens && Array.isArray(item.tokens) && item.tokens.length > 0
+      ),
+    [lendingItems]
   );
 
   // Aggregated data - sempre calcular (mesmo no legacy mode, não vai ser usado)
   const aggregated = useMemo(() => {
     if (lendingItems.length === 0) return [];
-    
+
     if (hasTokensInside) {
       // Nova estrutura: items com tokens dentro
       return aggregateFromItems(lendingItems);
@@ -301,32 +315,38 @@ export default function LendingTables({
     }
   }, [lendingItems, hasTokensInside]);
 
-  const suppliedList = useMemo(() => 
-    aggregated.filter((p) => parseFloat(p.supplied.toString()) > 0),
-    [aggregated]
-  );
-  
-  const borrowedList = useMemo(() => 
-    aggregated.filter((p) => parseFloat(p.borrowed.toString()) > 0),
-    [aggregated]
-  );
-  
-  const rewardsList = useMemo(() => 
-    aggregated.filter((p) => p.rewards && p.rewards.length > 0 && p.rewardsValue > 0),
+  const suppliedList = useMemo(
+    () => aggregated.filter((p) => parseFloat(p.supplied.toString()) > 0),
     [aggregated]
   );
 
-  const totalSuppliedValue = useMemo(() => sum(suppliedList.map((p) => p.supplied)), [suppliedList]);
-  const totalBorrowedValue = useMemo(() => sum(borrowedList.map((p) => p.borrowed)), [borrowedList]);
-  const totalRewardsValue = useMemo(() => sum(rewardsList.map((p) => p.rewardsValue)), [rewardsList]);
+  const borrowedList = useMemo(
+    () => aggregated.filter((p) => parseFloat(p.borrowed.toString()) > 0),
+    [aggregated]
+  );
+
+  const rewardsList = useMemo(
+    () => aggregated.filter((p) => p.rewards && p.rewards.length > 0 && p.rewardsValue > 0),
+    [aggregated]
+  );
+
+  const totalSuppliedValue = useMemo(
+    () => sum(suppliedList.map((p) => p.supplied)),
+    [suppliedList]
+  );
+  const totalBorrowedValue = useMemo(
+    () => sum(borrowedList.map((p) => p.borrowed)),
+    [borrowedList]
+  );
+  const totalRewardsValue = useMemo(
+    () => sum(rewardsList.map((p) => p.rewardsValue)),
+    [rewardsList]
+  );
 
   // Extract Health Factor from WalletItem lending items
-  const healthFactor = useMemo(() =>
-    propHealthFactor ||
-    lendingItems
-      .map(extractHealthFactor)
-      .find((hf) => hf != null) ||
-    null,
+  const healthFactor = useMemo(
+    () =>
+      propHealthFactor || lendingItems.map(extractHealthFactor).find((hf) => hf != null) || null,
     [propHealthFactor, lendingItems]
   );
 
@@ -344,22 +364,25 @@ export default function LendingTables({
     let totalSuppliedValue = 0;
     let totalBorrowedValue = 0;
     let weightedApySum = 0;
-    
+
     lendingItems.forEach((item: any) => {
       const tokens = item.tokens || [];
       // Get APY from position's additionalData (not per token)
-      const positionApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
-      
+      const positionApy = (item.additionalData?.projections as any[])?.find(
+        (p: any) => p.type === 'apy'
+      )?.metadata?.value;
+
       tokens.forEach((token: any) => {
-        const tokenValue = 
+        const tokenValue =
           token?.balanceUSD ||
-          token?.totalPrice || 
+          token?.totalPrice ||
           token?.financials?.totalPrice ||
-          token?.totalValueUsd || 
+          token?.totalValueUsd ||
           token?.valueUsd ||
           0;
-        
-        const value = typeof tokenValue === 'number' ? tokenValue : parseFloat(String(tokenValue)) || 0;
+
+        const value =
+          typeof tokenValue === 'number' ? tokenValue : parseFloat(String(tokenValue)) || 0;
 
         if (positionApy != null && !isNaN(positionApy) && value > 0) {
           if (token.type === 'Supplied') {
@@ -561,12 +584,7 @@ export default function LendingTables({
               value={(supplied?.length || 0) + (borrowed?.length || 0) + (rewards?.length || 0)}
             />
             <MiniMetric label="Portfolio %" value={portfolioPercent} />
-            {healthFactor && (
-              <MiniMetric
-                label="Health Factor"
-                value={healthFactor.toFixed(2)}
-              />
-            )}
+            {healthFactor && <MiniMetric label="Health Factor" value={healthFactor.toFixed(2)} />}
             {propNetApy != null && (
               <MiniMetric
                 label="NET APY %"

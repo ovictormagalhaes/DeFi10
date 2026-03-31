@@ -154,6 +154,7 @@ export const lightMint: ThemePalette = {
 const colors: ThemePalette = { ...darkMint };
 
 export const THEMES: Record<string, ThemePalette> = { darkMint, lightMint };
-export const getThemeByMode = (mode: string = 'dark'): ThemePalette => (mode === 'light' ? lightMint : darkMint);
+export const getThemeByMode = (mode: string = 'dark'): ThemePalette =>
+  mode === 'light' ? lightMint : darkMint;
 
 export default colors;

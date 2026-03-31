@@ -52,7 +52,10 @@ export default function SummaryProtocolsCard({
         const tokens: ProtocolToken[] = protocolGroup.positions.flatMap((pos) =>
           Array.isArray(pos.tokens) ? pos.tokens : []
         );
-        const totalValue = tokens.reduce((sum: number, t) => sum + (parseFloat(String(t.totalPrice)) || 0), 0);
+        const totalValue = tokens.reduce(
+          (sum: number, t) => sum + (parseFloat(String(t.totalPrice)) || 0),
+          0
+        );
         const percent = calculatePercentage(totalValue, getTotalPortfolioValue());
         return (
           <SectionTable

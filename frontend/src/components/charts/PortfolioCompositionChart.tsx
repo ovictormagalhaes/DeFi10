@@ -1,6 +1,7 @@
 // src/components/charts/PortfolioCompositionChart.tsx
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+
 import { ChartContainer } from './ChartContainer';
 import { useChartTheme } from './hooks/useChartTheme';
 
@@ -17,11 +18,11 @@ interface Props {
   formatPrice: (value: number) => string;
 }
 
-export const PortfolioCompositionChart: React.FC<Props> = ({ 
-  data, 
+export const PortfolioCompositionChart: React.FC<Props> = ({
+  data,
   totalValue,
   maskValue,
-  formatPrice
+  formatPrice,
 }) => {
   const { theme } = useChartTheme();
 
@@ -29,21 +30,25 @@ export const PortfolioCompositionChart: React.FC<Props> = ({
     if (!active || !payload || !payload[0]) return null;
 
     const data = payload[0].payload;
-    
+
     return (
-      <div style={{
-        background: 'rgba(0, 0, 0, 0.95)',
-        padding: '12px 16px',
-        borderRadius: 8,
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
-      }}>
-        <div style={{ 
-          color: data.color, 
-          fontWeight: 600, 
-          marginBottom: 4,
-          fontSize: 13
-        }}>
+      <div
+        style={{
+          background: 'rgba(0, 0, 0, 0.95)',
+          padding: '12px 16px',
+          borderRadius: 8,
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+        }}
+      >
+        <div
+          style={{
+            color: data.color,
+            fontWeight: 600,
+            marginBottom: 4,
+            fontSize: 13,
+          }}
+        >
           {data.name}
         </div>
         <div style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>
@@ -65,14 +70,14 @@ export const PortfolioCompositionChart: React.FC<Props> = ({
     if (percent < 0.05) return null;
 
     return (
-      <text 
-        x={x} 
-        y={y} 
+      <text
+        x={x}
+        y={y}
         fill="white"
         stroke="#000000"
         strokeWidth="4"
         paintOrder="stroke"
-        textAnchor={x > cx ? 'start' : 'end'} 
+        textAnchor={x > cx ? 'start' : 'end'}
         dominantBaseline="central"
         style={{ fontWeight: 600, fontSize: 11 }}
       >
@@ -102,8 +107,8 @@ export const PortfolioCompositionChart: React.FC<Props> = ({
             animationDuration={800}
           >
             {data.map((entry, index) => (
-              <Cell 
-                key={`cell-${index}`} 
+              <Cell
+                key={`cell-${index}`}
                 fill={entry.color}
                 stroke={theme.bgPanel}
                 strokeWidth={2}
@@ -111,14 +116,12 @@ export const PortfolioCompositionChart: React.FC<Props> = ({
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            verticalAlign="bottom" 
+          <Legend
+            verticalAlign="bottom"
             height={36}
             iconType="circle"
             formatter={(value) => (
-              <span style={{ color: theme.textPrimary, fontSize: 12 }}>
-                {value}
-              </span>
+              <span style={{ color: theme.textPrimary, fontSize: 12 }}>{value}</span>
             )}
           />
         </PieChart>

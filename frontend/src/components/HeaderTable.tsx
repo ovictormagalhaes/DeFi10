@@ -16,7 +16,12 @@ interface HeaderTableProps {
  * - rightValue?: string | JSX (Balance on the right)
  * - children: JSX (usually a TableSection)
  */
-export default function HeaderTable({ icon = null, title, rightValue = null, children }: HeaderTableProps) {
+export default function HeaderTable({
+  icon = null,
+  title,
+  rightValue = null,
+  children,
+}: HeaderTableProps) {
   const { theme } = useTheme();
   return (
     <div style={{ margin: '12px 0' }}>

@@ -21,7 +21,12 @@ interface ProtocolTablesProps {
   tables?: TableConfig[];
 }
 
-export default function ProtocolTables({ icon = null, title, rightValue = null, tables = [] }: ProtocolTablesProps): React.ReactElement {
+export default function ProtocolTables({
+  icon = null,
+  title,
+  rightValue = null,
+  tables = [],
+}: ProtocolTablesProps): React.ReactElement {
   const { theme } = useTheme();
   const showHeader = Boolean(icon || title || rightValue);
   return (

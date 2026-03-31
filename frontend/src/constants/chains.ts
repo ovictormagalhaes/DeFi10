@@ -3,16 +3,16 @@
  * Centralized configuration for blockchain networks
  */
 
-export type ChainKey = 
-  | 'eth' 
-  | 'ethereum' 
-  | 'polygon' 
-  | 'bsc' 
-  | 'avalanche' 
-  | 'optimism' 
+export type ChainKey =
+  | 'eth'
+  | 'ethereum'
+  | 'polygon'
+  | 'bsc'
+  | 'avalanche'
+  | 'optimism'
   | 'arbitrum'
-  | 'fantom' 
-  | 'base' 
+  | 'fantom'
+  | 'base'
   | 'cronos'
   | 'xdai'
   | 'solana'
@@ -43,62 +43,62 @@ export const CHAIN_ID_TO_KEY: Record<number, string> = {
 export const CHAIN_MAPPINGS: Record<string, ChainKey> = {
   // Ethereum
   '1': 'eth',
-  'eth': 'eth',
-  'ethereum': 'ethereum',
-  'mainnet': 'eth',
-  'erc20': 'eth',
-  
+  eth: 'eth',
+  ethereum: 'ethereum',
+  mainnet: 'eth',
+  erc20: 'eth',
+
   // Polygon
   '137': 'polygon',
-  'polygon': 'polygon',
-  'matic': 'polygon',
-  
+  polygon: 'polygon',
+  matic: 'polygon',
+
   // Avalanche
   '43114': 'avalanche',
-  'avalanche': 'avalanche',
-  'avax': 'avalanche',
-  
+  avalanche: 'avalanche',
+  avax: 'avalanche',
+
   // Optimism
   '10': 'optimism',
-  'optimism': 'optimism',
-  'op': 'optimism',
-  
+  optimism: 'optimism',
+  op: 'optimism',
+
   // BSC
   '56': 'bsc',
-  'bsc': 'bsc',
-  'bnb': 'bsc',
-  'binance': 'bsc',
+  bsc: 'bsc',
+  bnb: 'bsc',
+  binance: 'bsc',
   'binance smart chain': 'bsc',
   'bnb smart chain': 'bsc',
-  
+
   // Fantom
   '250': 'fantom',
-  'fantom': 'fantom',
-  'ftm': 'fantom',
-  
+  fantom: 'fantom',
+  ftm: 'fantom',
+
   // Arbitrum
   '42161': 'arbitrum',
-  'arbitrum': 'arbitrum',
-  'arb': 'arbitrum',
-  
+  arbitrum: 'arbitrum',
+  arb: 'arbitrum',
+
   // Base
   '8453': 'base',
   '84531': 'base',
-  'base': 'base',
-  
+  base: 'base',
+
   // Cronos
   '25': 'cronos',
-  'cronos': 'cronos',
-  'cro': 'cronos',
-  
+  cronos: 'cronos',
+  cro: 'cronos',
+
   // xDai/Gnosis
   '100': 'xdai',
-  'xdai': 'xdai',
-  'gnosis': 'xdai',
-  
+  xdai: 'xdai',
+  gnosis: 'xdai',
+
   // Solana
-  'solana': 'solana',
-  'sol': 'solana',
+  solana: 'solana',
+  sol: 'solana',
 };
 
 /**
@@ -108,7 +108,7 @@ export const CHAIN_MAPPINGS: Record<string, ChainKey> = {
  */
 export function getChainKey(input: string | number | null | undefined): ChainKey {
   if (input == null) return 'unknown';
-  
+
   const normalized = String(input).trim().toLowerCase();
   return (CHAIN_MAPPINGS[normalized] as ChainKey) || 'unknown';
 }
@@ -131,11 +131,53 @@ export interface ChainConfig {
 }
 
 export const SUPPORTED_CHAINS: ChainConfig[] = [
-  { name: 'Ethereum', id: 'ethereum', chainId: 1,     displayName: 'Ethereum', iconUrl: '/resources/chains/ethereum.png' },
-  { name: 'Base',     id: 'base',     chainId: 8453,  displayName: 'Base',     iconUrl: '/resources/chains/base.png' },
-  { name: 'Polygon',  id: 'polygon',  chainId: 137,   displayName: 'Polygon',  iconUrl: '/resources/chains/polygon.png' },
-  { name: 'Arbitrum', id: 'arbitrum', chainId: 42161, displayName: 'Arbitrum', iconUrl: '/resources/chains/arbitrum.png' },
-  { name: 'Optimism', id: 'optimism', chainId: 10,    displayName: 'Optimism', iconUrl: '/resources/chains/optimism.png' },
-  { name: 'BNB Chain',id: 'bnb',      chainId: 56,    displayName: 'BNB Chain',iconUrl: '/resources/chains/bsc.png' },
-  { name: 'Solana',   id: 'solana',   chainId: null,  displayName: 'Solana',   iconUrl: '/resources/chains/solana.png' },
+  {
+    name: 'Ethereum',
+    id: 'ethereum',
+    chainId: 1,
+    displayName: 'Ethereum',
+    iconUrl: '/resources/chains/ethereum.png',
+  },
+  {
+    name: 'Base',
+    id: 'base',
+    chainId: 8453,
+    displayName: 'Base',
+    iconUrl: '/resources/chains/base.png',
+  },
+  {
+    name: 'Polygon',
+    id: 'polygon',
+    chainId: 137,
+    displayName: 'Polygon',
+    iconUrl: '/resources/chains/polygon.png',
+  },
+  {
+    name: 'Arbitrum',
+    id: 'arbitrum',
+    chainId: 42161,
+    displayName: 'Arbitrum',
+    iconUrl: '/resources/chains/arbitrum.png',
+  },
+  {
+    name: 'Optimism',
+    id: 'optimism',
+    chainId: 10,
+    displayName: 'Optimism',
+    iconUrl: '/resources/chains/optimism.png',
+  },
+  {
+    name: 'BNB Chain',
+    id: 'bnb',
+    chainId: 56,
+    displayName: 'BNB Chain',
+    iconUrl: '/resources/chains/bsc.png',
+  },
+  {
+    name: 'Solana',
+    id: 'solana',
+    chainId: null,
+    displayName: 'Solana',
+    iconUrl: '/resources/chains/solana.png',
+  },
 ];

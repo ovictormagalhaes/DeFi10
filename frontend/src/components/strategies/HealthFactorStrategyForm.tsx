@@ -3,11 +3,6 @@
  * Form for creating/editing health factor target strategies
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { useTheme } from '../../context/ThemeProvider';
-import { useChainIcons } from '../../context/ChainIconsProvider';
-import type { HealthFactorTargetConfig, Strategy } from '../../types/strategy';
-import type { WalletItem } from '../../types/wallet';
 import {
   DndContext,
   closestCenter,
@@ -25,6 +20,12 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import React, { useState, useMemo, useEffect } from 'react';
+
+import { useChainIcons } from '../../context/ChainIconsProvider';
+import { useTheme } from '../../context/ThemeProvider';
+import type { HealthFactorTargetConfig, Strategy } from '../../types/strategy';
+import type { WalletItem } from '../../types/wallet';
 
 interface LendingPosition {
   id: string;
@@ -45,8 +46,8 @@ interface HealthFactorStrategyFormProps {
   portfolio: WalletItem[];
   initialStrategy?: Strategy | null;
   onSave: (
-    config: HealthFactorTargetConfig, 
-    name: string, 
+    config: HealthFactorTargetConfig,
+    name: string,
     description?: string,
     positionTargetHFs?: Record<string, number>,
     positionCriticalThresholds?: Record<string, number>,
@@ -59,7 +60,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
   portfolio,
   initialStrategy,
   onSave,
-  onCancel
+  onCancel,
 }) => {
   const { theme } = useTheme();
   const { getIcon: getChainLogo } = useChainIcons();
@@ -87,33 +88,37 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
   const availableLendingPositions = useMemo(() => {
     // Group by protocol + chain to avoid duplicates
     const positionsMap = new Map<string, LendingPosition>();
-    
+
     portfolio
-      .filter(item => 
-        item.type === 'LendingAndBorrowing' && 
-        item.additionalData?.healthFactor != null
+      .filter(
+        (item) => item.type === 'LendingAndBorrowing' && item.additionalData?.healthFactor != null
       )
-      .forEach(item => {
+      .forEach((item) => {
         const protocolId = item.protocol?.id || 'unknown';
         const chain = item.protocol?.chain || 'unknown';
         const positionKey = `${protocolId}-${chain}`;
-        
+
         // Skip if already processed
         if (positionsMap.has(positionKey)) return;
-        
-        const supplyTokens = item.position?.tokens?.filter(t => 
-          !t.symbol?.toLowerCase().includes('debt') && 
-          !t.type?.toLowerCase().includes('borrow')
-        ) || [];
-        
-        const borrowTokens = item.position?.tokens?.filter(t => 
-          t.symbol?.toLowerCase().includes('debt') || 
-          t.type?.toLowerCase().includes('borrow')
-        ) || [];
-        
-        const collateralValue = supplyTokens.reduce((sum, t) => sum + (t.financials?.totalPrice || 0), 0);
+
+        const supplyTokens =
+          item.position?.tokens?.filter(
+            (t) =>
+              !t.symbol?.toLowerCase().includes('debt') && !t.type?.toLowerCase().includes('borrow')
+          ) || [];
+
+        const borrowTokens =
+          item.position?.tokens?.filter(
+            (t) =>
+              t.symbol?.toLowerCase().includes('debt') || t.type?.toLowerCase().includes('borrow')
+          ) || [];
+
+        const collateralValue = supplyTokens.reduce(
+          (sum, t) => sum + (t.financials?.totalPrice || 0),
+          0
+        );
         const debtValue = borrowTokens.reduce((sum, t) => sum + (t.financials?.totalPrice || 0), 0);
-        
+
         positionsMap.set(positionKey, {
           id: positionKey,
           protocolId,
@@ -126,10 +131,10 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
           debtValue,
           walletItem: item,
           targetHF: 2.0,
-          criticalThreshold: 1.5
+          criticalThreshold: 1.5,
         });
       });
-    
+
     return Array.from(positionsMap.values());
   }, [portfolio, getChainLogo]);
 
@@ -145,26 +150,26 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
     if (initialStrategy && initialStrategy.strategyType === 2) {
       setName(initialStrategy.name || 'Health Factor Monitor');
       setDescription(initialStrategy.description || '');
-      
+
       // Check if using new structure (targets) or old structure (items)
       const hasNewStructure = !!(initialStrategy as any).targets;
-      
+
       if (hasNewStructure) {
         // NEW structure: read from targets array
         const targets = (initialStrategy as any).targets || [];
         const loadedPositions: LendingPosition[] = [];
-        
+
         targets.forEach((target: any) => {
-          const matchingPosition = availableLendingPositions.find(p => p.id === target.assetKey);
+          const matchingPosition = availableLendingPositions.find((p) => p.id === target.assetKey);
           if (matchingPosition) {
             loadedPositions.push({
               ...matchingPosition,
               targetHF: target.targetHealthFactor || 2.0,
-              criticalThreshold: target.criticalThreshold || 1.5
+              criticalThreshold: target.criticalThreshold || 1.5,
             });
           }
         });
-        
+
         if (loadedPositions.length > 0) {
           setLendingPositions(loadedPositions);
         }
@@ -180,9 +185,9 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
         (initialStrategy as any).items.forEach((item: any) => {
           const posId = item.value;
           if (!posId) return;
-          
+
           positionIds.add(posId);
-          
+
           if (item.metadata?.positionLabel === 'Health Factor Target') {
             // Target HF: note contains targetHF * 100
             targetHFsMap[posId] = (item.note || 200) / 100;
@@ -191,20 +196,20 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
             criticalThresholdsMap[posId] = (item.note || 150) / 100;
           }
         });
-        
+
         const loadedPositions: LendingPosition[] = [];
-        
+
         Array.from(positionIds).forEach((posId: string) => {
-          const matchingPosition = availableLendingPositions.find(p => p.id === posId);
+          const matchingPosition = availableLendingPositions.find((p) => p.id === posId);
           if (matchingPosition) {
             loadedPositions.push({
               ...matchingPosition,
               targetHF: targetHFsMap[posId] || 2.0,
-              criticalThreshold: criticalThresholdsMap[posId] || 1.5
+              criticalThreshold: criticalThresholdsMap[posId] || 1.5,
             });
           }
         });
-        
+
         if (loadedPositions.length > 0) {
           setLendingPositions(loadedPositions);
         }
@@ -247,18 +252,20 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
     setSaving(true);
     try {
       // Build config from lending positions
-      const avgTargetHF = lendingPositions.reduce((sum, p) => sum + p.targetHF, 0) / lendingPositions.length;
-      const avgCriticalThreshold = lendingPositions.reduce((sum, p) => sum + p.criticalThreshold, 0) / lendingPositions.length;
-      const positionIds = lendingPositions.map(p => p.id);
-      
+      const avgTargetHF =
+        lendingPositions.reduce((sum, p) => sum + p.targetHF, 0) / lendingPositions.length;
+      const avgCriticalThreshold =
+        lendingPositions.reduce((sum, p) => sum + p.criticalThreshold, 0) / lendingPositions.length;
+      const positionIds = lendingPositions.map((p) => p.id);
+
       // Build position-specific maps
       const positionTargetHFs: Record<string, number> = {};
       const positionCriticalThresholds: Record<string, number> = {};
-      lendingPositions.forEach(p => {
+      lendingPositions.forEach((p) => {
         positionTargetHFs[p.id] = p.targetHF;
         positionCriticalThresholds[p.id] = p.criticalThreshold;
       });
-      
+
       const warningThreshold = avgCriticalThreshold + (avgTargetHF - avgCriticalThreshold) * 0.5;
 
       const config: HealthFactorTargetConfig = {
@@ -266,10 +273,17 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
         warningThreshold: Math.round(warningThreshold * 100) / 100,
         criticalThreshold: avgCriticalThreshold,
         autoSuggest: true,
-        protocols: positionIds
+        protocols: positionIds,
       };
 
-      await onSave(config, name, description, positionTargetHFs, positionCriticalThresholds, initialStrategy?.id);
+      await onSave(
+        config,
+        name,
+        description,
+        positionTargetHFs,
+        positionCriticalThresholds,
+        initialStrategy?.id
+      );
     } catch (error) {
       console.error('Failed to save strategy:', error);
     } finally {
@@ -279,17 +293,20 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
 
   const handleAddPosition = (position: LendingPosition) => {
     // Check if already added
-    const exists = lendingPositions.some(p => p.id === position.id);
+    const exists = lendingPositions.some((p) => p.id === position.id);
     if (exists) {
       alert('This lending position is already added');
       return;
     }
 
-    setLendingPositions(prev => [...prev, { 
-      ...position, 
-      targetHF: dialogTargetHF,
-      criticalThreshold: dialogCriticalThreshold
-    }]);
+    setLendingPositions((prev) => [
+      ...prev,
+      {
+        ...position,
+        targetHF: dialogTargetHF,
+        criticalThreshold: dialogCriticalThreshold,
+      },
+    ]);
     setShowPositionDialog(false);
     setSelectedPosition(null);
     setDialogTargetHF(2.0);
@@ -297,7 +314,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
   };
 
   const handleRemovePosition = (id: string) => {
-    setLendingPositions(prev => prev.filter(p => p.id !== id));
+    setLendingPositions((prev) => prev.filter((p) => p.id !== id));
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -312,13 +329,12 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
   };
 
   const handleUpdateTargetHF = (id: string, targetHF: number) => {
-    setLendingPositions(prev => 
-      prev.map(p => {
+    setLendingPositions((prev) =>
+      prev.map((p) => {
         if (p.id === id) {
           // Ensure critical threshold stays below target HF
-          const adjustedCritical = p.criticalThreshold >= targetHF 
-            ? Math.max(1.1, targetHF - 0.1)
-            : p.criticalThreshold;
+          const adjustedCritical =
+            p.criticalThreshold >= targetHF ? Math.max(1.1, targetHF - 0.1) : p.criticalThreshold;
           return { ...p, targetHF, criticalThreshold: adjustedCritical };
         }
         return p;
@@ -327,23 +343,16 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
   };
 
   const handleUpdateCriticalThreshold = (id: string, criticalThreshold: number) => {
-    setLendingPositions(prev => 
-      prev.map(p => p.id === id ? { ...p, criticalThreshold } : p)
-    );
+    setLendingPositions((prev) => prev.map((p) => (p.id === id ? { ...p, criticalThreshold } : p)));
   };
 
   const SortablePositionCard: React.FC<{
     position: LendingPosition;
     index: number;
   }> = ({ position, index }) => {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id: position.id });
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+      id: position.id,
+    });
 
     const style: React.CSSProperties = {
       transform: CSS.Transform.toString(transform),
@@ -396,15 +405,21 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {position.protocolLogo && (
-                <img src={position.protocolLogo} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                <img
+                  src={position.protocolLogo}
+                  alt=""
+                  style={{ width: 32, height: 32, borderRadius: '50%' }}
+                />
               )}
               {position.chainLogo && (
-                <img src={position.chainLogo} alt="" style={{ width: 20, height: 20, borderRadius: '50%' }} />
+                <img
+                  src={position.chainLogo}
+                  alt=""
+                  style={{ width: 20, height: 20, borderRadius: '50%' }}
+                />
               )}
               <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>
-                  {position.protocolName}
-                </div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{position.protocolName}</div>
                 <div style={{ fontSize: 12, color: theme.textSecondary }}>
                   {position.chain} • Current HF: {position.currentHF.toFixed(2)}
                 </div>
@@ -483,11 +498,13 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
   };
 
   return (
-    <div style={{ 
-      maxWidth: '700px', 
-      margin: '0 auto',
-      color: theme.textPrimary
-    }}>
+    <div
+      style={{
+        maxWidth: '700px',
+        margin: '0 auto',
+        color: theme.textPrimary,
+      }}
+    >
       <style>{`
         .hf-form-section {
           background: ${theme.bgPanel};
@@ -655,7 +672,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
         <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 600 }}>
           Strategy Details
         </h3>
-        
+
         <div style={{ marginBottom: '16px' }}>
           <label className="hf-form-label">Name</label>
           <input
@@ -680,10 +697,15 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
 
       {/* Lending Positions */}
       <div className="hf-form-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-            Lending Positions
-          </h3>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>Lending Positions</h3>
           <button
             onClick={() => setShowPositionDialog(true)}
             className="btn-primary"
@@ -696,26 +718,30 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
         </div>
 
         {availableLendingPositions.length === 0 && (
-          <div style={{
-            padding: '16px',
-            background: '#fbbf2410',
-            border: '1px solid #fbbf24',
-            borderRadius: '8px',
-            fontSize: '13px',
-            color: theme.textSecondary,
-            textAlign: 'center'
-          }}>
+          <div
+            style={{
+              padding: '16px',
+              background: '#fbbf2410',
+              border: '1px solid #fbbf24',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: theme.textSecondary,
+              textAlign: 'center',
+            }}
+          >
             No lending positions found in your portfolio
           </div>
         )}
 
         {lendingPositions.length === 0 && availableLendingPositions.length > 0 && (
-          <div style={{
-            padding: '32px',
-            textAlign: 'center',
-            color: theme.textSecondary,
-            fontSize: '14px'
-          }}>
+          <div
+            style={{
+              padding: '32px',
+              textAlign: 'center',
+              color: theme.textSecondary,
+              fontSize: '14px',
+            }}
+          >
             No positions added yet. Click "+ Add Position" to start.
           </div>
         )}
@@ -732,11 +758,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {lendingPositions.map((position, index) => (
-                  <SortablePositionCard
-                    key={position.id}
-                    position={position}
-                    index={index}
-                  />
+                  <SortablePositionCard key={position.id} position={position} index={index} />
                 ))}
               </div>
             </SortableContext>
@@ -757,7 +779,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000
+            zIndex: 1000,
           }}
           onClick={() => setShowPositionDialog(false)}
         >
@@ -770,14 +792,19 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
               maxWidth: '500px',
               width: '90%',
               maxHeight: '80vh',
-              overflow: 'auto'
+              overflow: 'auto',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-                Add Lending Position
-              </h3>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px',
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Add Lending Position</h3>
               <button
                 onClick={() => setShowPositionDialog(false)}
                 style={{
@@ -786,7 +813,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
                   color: theme.textSecondary,
                   cursor: 'pointer',
                   padding: '4px',
-                  fontSize: '24px'
+                  fontSize: '24px',
                 }}
               >
                 ×
@@ -797,27 +824,38 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
               <label className="hf-form-label">Select Position</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {availableLendingPositions
-                  .filter(pos => !lendingPositions.some(p => p.id === pos.id))
-                  .map(position => (
+                  .filter((pos) => !lendingPositions.some((p) => p.id === pos.id))
+                  .map((position) => (
                     <div
                       key={position.id}
                       style={{
                         padding: '12px',
-                        background: selectedPosition === position.walletItem ? theme.bgInteractiveHover : theme.bgInteractive,
+                        background:
+                          selectedPosition === position.walletItem
+                            ? theme.bgInteractiveHover
+                            : theme.bgInteractive,
                         border: `1px solid ${selectedPosition === position.walletItem ? theme.accent : theme.border}`,
                         borderRadius: '8px',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '12px'
+                        gap: '12px',
                       }}
                       onClick={() => setSelectedPosition(position.walletItem)}
                     >
                       {position.protocolLogo && (
-                        <img src={position.protocolLogo} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+                        <img
+                          src={position.protocolLogo}
+                          alt=""
+                          style={{ width: '32px', height: '32px', borderRadius: '50%' }}
+                        />
                       )}
                       {position.chainLogo && (
-                        <img src={position.chainLogo} alt="" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+                        <img
+                          src={position.chainLogo}
+                          alt=""
+                          style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                        />
                       )}
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: '14px' }}>
@@ -890,16 +928,15 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
             )}
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowPositionDialog(false)}
-                className="btn-flat"
-              >
+              <button onClick={() => setShowPositionDialog(false)} className="btn-flat">
                 Cancel
               </button>
               <button
                 onClick={() => {
                   if (selectedPosition) {
-                    const position = availableLendingPositions.find(p => p.walletItem === selectedPosition);
+                    const position = availableLendingPositions.find(
+                      (p) => p.walletItem === selectedPosition
+                    );
                     if (position) {
                       handleAddPosition(position);
                     }
@@ -917,24 +954,31 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
 
       {/* Validation Errors */}
       {submitted && !validation.valid && (
-        <div className="hf-form-section" style={{
-          background: '#dc262610',
-          borderColor: '#dc2626'
-        }}>
-          <div style={{ 
-            fontSize: '14px', 
-            fontWeight: 600,
-            color: '#dc2626',
-            marginBottom: '8px'
-          }}>
+        <div
+          className="hf-form-section"
+          style={{
+            background: '#dc262610',
+            borderColor: '#dc2626',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#dc2626',
+              marginBottom: '8px',
+            }}
+          >
             ⚠️ Validation Errors
           </div>
-          <ul style={{ 
-            margin: 0, 
-            paddingLeft: '20px',
-            fontSize: '13px',
-            color: theme.textSecondary
-          }}>
+          <ul
+            style={{
+              margin: 0,
+              paddingLeft: '20px',
+              fontSize: '13px',
+              color: theme.textSecondary,
+            }}
+          >
             {validation.errors.map((error, i) => (
               <li key={i}>{error}</li>
             ))}
@@ -943,17 +987,15 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
       )}
 
       {/* Actions */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '12px', 
-        justifyContent: 'flex-end',
-        marginTop: '20px'
-      }}>
-        <button 
-          onClick={onCancel} 
-          className="btn-flat"
-          disabled={saving}
-        >
+      <div
+        style={{
+          display: 'flex',
+          gap: '12px',
+          justifyContent: 'flex-end',
+          marginTop: '20px',
+        }}
+      >
+        <button onClick={onCancel} className="btn-flat" disabled={saving}>
           Cancel
         </button>
         <button
@@ -961,7 +1003,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
           className="btn-primary"
           disabled={!validation.valid || saving}
         >
-          {saving ? 'Saving...' : (initialStrategy ? 'Update Strategy' : 'Create Strategy')}
+          {saving ? 'Saving...' : initialStrategy ? 'Update Strategy' : 'Create Strategy'}
         </button>
       </div>
     </div>

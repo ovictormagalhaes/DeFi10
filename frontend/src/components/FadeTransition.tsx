@@ -6,7 +6,11 @@ interface FadeTransitionProps {
   duration?: number;
 }
 
-export default function FadeTransition({ children, transitionKey, duration = 200 }: FadeTransitionProps) {
+export default function FadeTransition({
+  children,
+  transitionKey,
+  duration = 200,
+}: FadeTransitionProps) {
   const [visible, setVisible] = useState(false);
   const [currentKey, setCurrentKey] = useState(transitionKey);
   const [content, setContent] = useState(children);

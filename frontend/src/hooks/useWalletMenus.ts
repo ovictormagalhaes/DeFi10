@@ -6,12 +6,8 @@ import {
   getStakingItems,
   getWalletTokenItems,
 } from '../types/filters';
-import {
-  ITEM_TYPES,
-  filterItemsByType,
-  getWalletTokens,
-} from '../utils/walletUtils';
 import type { WalletItem } from '../types/wallet';
+import { ITEM_TYPES, filterItemsByType, getWalletTokens } from '../utils/walletUtils';
 
 interface WalletData {
   items?: WalletItem[];
@@ -92,7 +88,10 @@ export const useWalletMenus = (walletData: WalletData): UseWalletMenusReturn => 
       return getLiquidityPoolItems(walletData.items);
     }
     if (walletData.data && Array.isArray(walletData.data)) {
-      return filterItemsByType(walletData.data, ITEM_TYPES.LIQUIDITY_POOL) as unknown as WalletItem[];
+      return filterItemsByType(
+        walletData.data,
+        ITEM_TYPES.LIQUIDITY_POOL
+      ) as unknown as WalletItem[];
     }
     return walletData.liquidityPools || [];
   };
@@ -102,7 +101,10 @@ export const useWalletMenus = (walletData: WalletData): UseWalletMenusReturn => 
       return getLendingItems(walletData.items);
     }
     if (walletData.data && Array.isArray(walletData.data)) {
-      return filterItemsByType(walletData.data, ITEM_TYPES.LENDING_AND_BORROWING) as unknown as WalletItem[];
+      return filterItemsByType(
+        walletData.data,
+        ITEM_TYPES.LENDING_AND_BORROWING
+      ) as unknown as WalletItem[];
     }
     return walletData.lendingAndBorrowing || [];
   };

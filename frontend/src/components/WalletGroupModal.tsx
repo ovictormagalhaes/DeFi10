@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
+import { detectAvailableWallets, getWalletById } from '../constants/wallets';
 import { useTheme } from '../context/ThemeProvider';
 import { useWalletGroups } from '../hooks/useWalletGroups';
+import * as apiClient from '../services/apiClient';
+import { solveChallenge, estimateSolveTime } from '../services/proofOfWork';
 import {
   WalletGroup,
   validateSingleAddress,
@@ -9,11 +12,8 @@ import {
   formatAddress,
   validateWalletGroup,
 } from '../types/wallet-groups';
-import * as apiClient from '../services/apiClient';
-import { solveChallenge, estimateSolveTime } from '../services/proofOfWork';
-import { detectAvailableWallets, getWalletById } from '../constants/wallets';
-import WalletSelectorDialog from './WalletSelectorDialog';
 
+import WalletSelectorDialog from './WalletSelectorDialog';
 
 interface WalletGroupModalProps {
   isOpen: boolean;
@@ -36,9 +36,12 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   initialGroupId,
 }) => {
   const { theme } = useTheme();
-  const { groups, loading, error, createGroup, updateGroup, deleteGroup, clearError } = useWalletGroups();
+  const { groups, loading, error, createGroup, updateGroup, deleteGroup, clearError } =
+    useWalletGroups();
 
-  const [viewportWidth, setViewportWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
   const [mode, setMode] = useState<'list' | 'create' | 'edit' | 'addWallet' | 'connect'>('list');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
@@ -110,18 +113,18 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
     try {
       setIsCheckingGroup(true);
       setGroupError(null);
-      
+
       // REMOVED: checkWalletGroup endpoint does not exist in backend
       // Assuming all groups require password for now
       // const response = await apiClient.checkWalletGroup(groupId.trim());
-      
+
       setPasswordRequired(true);
       setGroupIsPublic(false);
-      
-      console.log('[WalletGroup] Group check (default):', { 
-        groupId: groupId.trim(), 
+
+      console.log('[WalletGroup] Group check (default):', {
+        groupId: groupId.trim(),
         requiresPassword: true,
-        isPublic: false
+        isPublic: false,
       });
     } catch (err: any) {
       console.error('[WalletGroup] Error checking group:', err);
@@ -245,27 +248,27 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         // Step 1: Get challenge from backend
         setPowStatus('solving');
         setPowProgress('Initializing secure connection...');
-        
+
         console.log('[WalletGroup] Requesting challenge from server...');
         const challengeData = await apiClient.getChallenge();
         console.log('[WalletGroup] Challenge received:', {
           challenge: challengeData.challenge.substring(0, 16) + '...',
           difficulty: challengeData.difficulty,
-          expiresAt: challengeData.expiresAt
+          expiresAt: challengeData.expiresAt,
         });
-        
+
         setPowProgress('Creating wallet group securely...');
 
         // Step 2: Solve Proof-of-Work challenge with progress callback
         const { nonce, hash } = await solveChallenge(
-          challengeData.challenge, 
+          challengeData.challenge,
           challengeData.difficulty,
           (currentNonce, currentHash) => {
             // Update progress message without percentage details
             setPowProgress('Processing wallet group...');
           }
         );
-        
+
         console.log('[WalletGroup] Challenge solved, creating group...');
         setPowStatus('solved');
         setPowProgress('Finalizing wallet group...');
@@ -398,29 +401,36 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   };
 
   const handleCopyGroupId = (groupId: string) => {
-    navigator.clipboard.writeText(groupId).then(() => {
-      // Could add a toast notification here in the future
-      console.log('[WalletGroup] Group ID copied to clipboard:', groupId);
-    }).catch(err => {
-      console.error('[WalletGroup] Failed to copy group ID:', err);
-    });
+    navigator.clipboard
+      .writeText(groupId)
+      .then(() => {
+        // Could add a toast notification here in the future
+        console.log('[WalletGroup] Group ID copied to clipboard:', groupId);
+      })
+      .catch((err) => {
+        console.error('[WalletGroup] Failed to copy group ID:', err);
+      });
   };
 
   const handleDisconnectGroup = (groupId: string) => {
-    if (!window.confirm('Disconnect from this wallet group? You can reconnect later using the Group ID.')) {
+    if (
+      !window.confirm(
+        'Disconnect from this wallet group? You can reconnect later using the Group ID.'
+      )
+    ) {
       return;
     }
 
     try {
       // Remove token
       apiClient.removeToken(groupId);
-      
+
       // Remove from local storage
-      const updatedGroups = groups.filter(g => g.id !== groupId);
+      const updatedGroups = groups.filter((g) => g.id !== groupId);
       localStorage.setItem('defi10_wallet_groups', JSON.stringify(updatedGroups));
-      
+
       console.log('[WalletGroup] Disconnected from group:', groupId);
-      
+
       // Force refresh by triggering a re-render
       window.location.reload();
     } catch (err) {
@@ -461,7 +471,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
   const handleConnectToExistingGroup = async () => {
     const trimmedId = connectGroupId.trim();
-    
+
     if (!trimmedId) {
       setGroupError('Please enter a Group ID');
       return;
@@ -490,16 +500,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         displayName: response.displayName,
         createdAt: response.createdAt,
       };
-      
+
       // Check if group already exists locally
-      const existingGroup = groups.find(g => g.id === group.id);
-      
+      const existingGroup = groups.find((g) => g.id === group.id);
+
       let updatedGroups: WalletGroup[];
       if (existingGroup) {
         // If reconnecting (initialGroupId present), update existing group data
         if (initialGroupId) {
           console.log('[WalletGroup] Reconnected - updating existing group');
-          updatedGroups = groups.map(g => g.id === group.id ? group : g);
+          updatedGroups = groups.map((g) => (g.id === group.id ? group : g));
         } else {
           // If not reconnecting, show error (group already exists)
           setGroupError('This group is already in your list');
@@ -512,7 +522,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
       // Save to local storage
       localStorage.setItem('defi10_wallet_groups', JSON.stringify(updatedGroups));
-      
+
       console.log('[WalletGroup] Group connected and saved to local storage');
 
       // Trigger selection if callback provided
@@ -520,12 +530,11 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         // Pass isReconnect flag if it's a reconnection
         onGroupSelected(group.id, !!initialGroupId);
       }
-      
+
       onClose();
-      
     } catch (err: any) {
       console.error('[WalletGroup] Error connecting to group:', err);
-      
+
       if (err.response?.status === 401 || err.response?.status === 404) {
         setGroupError('Invalid Group ID or password. Please check and try again.');
       } else {
@@ -663,7 +672,14 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
           {mode === 'list' ? (
             <>
               {/* Action Buttons */}
-              <div style={{ display: 'flex', flexDirection: viewportWidth < 640 ? 'column' : 'row', gap: 12, marginBottom: 24 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: viewportWidth < 640 ? 'column' : 'row',
+                  gap: 12,
+                  marginBottom: 24,
+                }}
+              >
                 <button
                   onClick={() => {
                     resetForm();
@@ -708,7 +724,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                   </svg>
                   Create New Group
                 </button>
-                
+
                 <button
                   onClick={() => {
                     resetForm();
@@ -838,13 +854,15 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             Created {new Date(group.createdAt).toLocaleDateString()}
                           </p>
                         </div>
-                        <div style={{ 
-                          display: 'flex', 
-                          gap: 6, 
-                          flexShrink: 0, 
-                          marginLeft: viewportWidth < 640 ? 0 : 12,
-                          flexWrap: 'wrap',
-                        }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 6,
+                            flexShrink: 0,
+                            marginLeft: viewportWidth < 640 ? 0 : 12,
+                            flexWrap: 'wrap',
+                          }}
+                        >
                           {onGroupSelected && (
                             <button
                               onClick={() => {
@@ -868,7 +886,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                 if (!loading) e.currentTarget.style.background = theme.primary;
                               }}
                               onMouseLeave={(e) => {
-                                if (!loading) e.currentTarget.style.background = theme.primarySubtle;
+                                if (!loading)
+                                  e.currentTarget.style.background = theme.primarySubtle;
                               }}
                             >
                               Select
@@ -1003,8 +1022,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             }}
                             onMouseEnter={(e) => {
                               if (!loading) {
-                                e.currentTarget.style.background =
-                                  'rgba(239, 68, 68, 0.1)';
+                                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
                                 e.currentTarget.style.borderColor = theme.danger || '#ef4444';
                               }
                             }}
@@ -1100,15 +1118,22 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       color: theme.textPrimary,
                     }}
                   >
-                    <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: theme.warning || '#f59e0b' }}>
+                    <p
+                      style={{
+                        margin: '0 0 8px 0',
+                        fontWeight: 600,
+                        color: theme.warning || '#f59e0b',
+                      }}
+                    >
                       🔐 Session Expired
                     </p>
                     <p style={{ margin: 0, color: theme.textSecondary }}>
-                      Your authentication session has expired. Please enter your password to reconnect to this wallet group.
+                      Your authentication session has expired. Please enter your password to
+                      reconnect to this wallet group.
                     </p>
                   </div>
                 )}
-                
+
                 <div>
                   <label
                     htmlFor="group-id"
@@ -1133,7 +1158,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                         const value = e.target.value;
                         setConnectGroupId(value);
                         setGroupError(null);
-                        
+
                         if (value.trim().length > 10) {
                           checkGroupPasswordRequirement(value);
                         } else {
@@ -1146,7 +1171,7 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       width: '100%',
                       padding: '12px 14px',
                       borderRadius: 10,
-                      border: `1px solid ${(groupError && groupError.includes('Group ID')) ? theme.danger || '#ef4444' : theme.border}`,
+                      border: `1px solid ${groupError && groupError.includes('Group ID') ? theme.danger || '#ef4444' : theme.border}`,
                       background: initialGroupId ? theme.bgElevated || theme.bgPanel : theme.bgApp,
                       color: theme.textPrimary,
                       fontSize: 14,
@@ -1157,11 +1182,28 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       cursor: initialGroupId ? 'not-allowed' : 'text',
                       opacity: initialGroupId ? 0.7 : 1,
                     }}
-                    onFocus={(e) => !initialGroupId && (e.currentTarget.style.borderColor = theme.primary)}
-                    onBlur={(e) => !initialGroupId && (e.currentTarget.style.borderColor = (groupError && groupError.includes('Group ID')) ? theme.danger || '#ef4444' : theme.border)}
+                    onFocus={(e) =>
+                      !initialGroupId && (e.currentTarget.style.borderColor = theme.primary)
+                    }
+                    onBlur={(e) =>
+                      !initialGroupId &&
+                      (e.currentTarget.style.borderColor =
+                        groupError && groupError.includes('Group ID')
+                          ? theme.danger || '#ef4444'
+                          : theme.border)
+                    }
                   />
                   {isCheckingGroup && (
-                    <p style={{ margin: '8px 0 0', fontSize: 12, color: theme.textSecondary, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <p
+                      style={{
+                        margin: '8px 0 0',
+                        fontSize: 12,
+                        color: theme.textSecondary,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
                       <svg
                         width="12"
                         height="12"
@@ -1181,8 +1223,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       style={{
                         marginTop: 8,
                         padding: '8px 12px',
-                        background: groupIsPublic 
-                          ? 'rgba(16, 185, 129, 0.1)' 
+                        background: groupIsPublic
+                          ? 'rgba(16, 185, 129, 0.1)'
                           : 'rgba(245, 158, 11, 0.1)',
                         border: `1px solid ${groupIsPublic ? '#10b981' : '#f59e0b'}`,
                         borderRadius: 8,
@@ -1237,12 +1279,21 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       marginBottom: 8,
                     }}
                   >
-                    Password {passwordRequired ? <span style={{ color: theme.danger || '#ef4444' }}>*</span> : <span style={{ opacity: 0.5 }}>(if required)</span>}
+                    Password{' '}
+                    {passwordRequired ? (
+                      <span style={{ color: theme.danger || '#ef4444' }}>*</span>
+                    ) : (
+                      <span style={{ opacity: 0.5 }}>(if required)</span>
+                    )}
                   </label>
                   <input
                     id="connect-password"
                     type="password"
-                    placeholder={passwordRequired ? "Enter group password" : "Enter password if group is protected"}
+                    placeholder={
+                      passwordRequired
+                        ? 'Enter group password'
+                        : 'Enter password if group is protected'
+                    }
                     value={connectPassword}
                     onChange={(e) => {
                       const newPassword = e.target.value;
@@ -1270,14 +1321,21 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       boxSizing: 'border-box',
                     }}
                     onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
-                    onBlur={(e) => (e.currentTarget.style.borderColor = (connectPassword.length > 0 && connectPassword.length < 8) || groupError ? theme.danger || '#ef4444' : theme.border)}
+                    onBlur={(e) =>
+                      (e.currentTarget.style.borderColor =
+                        (connectPassword.length > 0 && connectPassword.length < 8) || groupError
+                          ? theme.danger || '#ef4444'
+                          : theme.border)
+                    }
                   />
                   {connectPassword.length > 0 && connectPassword.length < 8 && (
-                    <p style={{ 
-                      margin: '6px 0 0', 
-                      fontSize: 12, 
-                      color: theme.danger || '#ef4444' 
-                    }}>
+                    <p
+                      style={{
+                        margin: '6px 0 0',
+                        fontSize: 12,
+                        color: theme.danger || '#ef4444',
+                      }}
+                    >
                       Password must be at least 8 characters
                     </p>
                   )}
@@ -1293,12 +1351,14 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                     </p>
                   )}
                   {!groupError && !(connectPassword.length > 0 && connectPassword.length < 8) && (
-                    <p style={{ 
-                      margin: '6px 0 0', 
-                      fontSize: 12, 
-                      color: theme.textSecondary,
-                      opacity: 0.7 
-                    }}>
+                    <p
+                      style={{
+                        margin: '6px 0 0',
+                        fontSize: 12,
+                        color: theme.textSecondary,
+                        opacity: 0.7,
+                      }}
+                    >
                       Leave empty if the group has no password
                     </p>
                   )}
@@ -1312,7 +1372,9 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                     border: `1px solid ${theme.border}`,
                   }}
                 >
-                  <p style={{ margin: 0, fontSize: 13, color: theme.textSecondary, lineHeight: 1.6 }}>
+                  <p
+                    style={{ margin: 0, fontSize: 13, color: theme.textSecondary, lineHeight: 1.6 }}
+                  >
                     <svg
                       width="16"
                       height="16"
@@ -1327,7 +1389,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       <circle cx="12" cy="12" r="10" />
                       <path d="M12 16v-4M12 8h.01" />
                     </svg>
-                    Enter the Group ID from another device to sync your wallet collections across devices.
+                    Enter the Group ID from another device to sync your wallet collections across
+                    devices.
                   </p>
                 </div>
 
@@ -1457,22 +1520,27 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             <line x1="12" y1="17" x2="12.01" y2="17" />
                           </svg>
                           <div style={{ flex: 1 }}>
-                            <p style={{ 
-                              margin: 0, 
-                              fontSize: 12, 
-                              fontWeight: 600,
-                              color: theme.warning || '#f59e0b',
-                              marginBottom: 4,
-                            }}>
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: theme.warning || '#f59e0b',
+                                marginBottom: 4,
+                              }}
+                            >
                               ⚠️ Security Warning
                             </p>
-                            <p style={{ 
-                              margin: 0, 
-                              fontSize: 12, 
-                              color: theme.textSecondary,
-                              lineHeight: 1.5,
-                            }}>
-                              Anyone with the Group ID will be able to view and modify this wallet group. We recommend using a password for better security.
+                            <p
+                              style={{
+                                margin: 0,
+                                fontSize: 12,
+                                color: theme.textSecondary,
+                                lineHeight: 1.5,
+                              }}
+                            >
+                              Anyone with the Group ID will be able to view and modify this wallet
+                              group. We recommend using a password for better security.
                             </p>
                           </div>
                         </div>
@@ -1526,33 +1594,45 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             boxSizing: 'border-box',
                           }}
                           onFocus={(e) => (e.currentTarget.style.borderColor = theme.primary)}
-                          onBlur={(e) => (e.currentTarget.style.borderColor = password.length > 0 && password.length < 8 ? theme.danger || '#ef4444' : theme.border)}
+                          onBlur={(e) =>
+                            (e.currentTarget.style.borderColor =
+                              password.length > 0 && password.length < 8
+                                ? theme.danger || '#ef4444'
+                                : theme.border)
+                          }
                         />
                         {password.length > 0 && password.length < 8 && (
-                          <p style={{ 
-                            margin: '6px 0 0', 
-                            fontSize: 12, 
-                            color: theme.danger || '#ef4444' 
-                          }}>
+                          <p
+                            style={{
+                              margin: '6px 0 0',
+                              fontSize: 12,
+                              color: theme.danger || '#ef4444',
+                            }}
+                          >
                             Password must be at least 8 characters
                           </p>
                         )}
                         {groupError && groupError.includes('Password') && (
-                          <p style={{ 
-                            margin: '6px 0 0', 
-                            fontSize: 12, 
-                            color: theme.danger || '#ef4444' 
-                          }}>
+                          <p
+                            style={{
+                              margin: '6px 0 0',
+                              fontSize: 12,
+                              color: theme.danger || '#ef4444',
+                            }}
+                          >
                             {groupError}
                           </p>
                         )}
-                        <p style={{ 
-                          margin: '6px 0 0', 
-                          fontSize: 12, 
-                          color: theme.textSecondary,
-                          opacity: 0.7 
-                        }}>
-                          🔒 This password is required to access and modify this wallet group. Use a strong password - there is no recovery option if forgotten.
+                        <p
+                          style={{
+                            margin: '6px 0 0',
+                            fontSize: 12,
+                            color: theme.textSecondary,
+                            opacity: 0.7,
+                          }}
+                        >
+                          🔒 This password is required to access and modify this wallet group. Use a
+                          strong password - there is no recovery option if forgotten.
                         </p>
                       </div>
                     )}
@@ -1604,12 +1684,14 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {walletInputs.map((wallet, idx) => (
                       <div key={idx}>
-                        <div style={{ 
-                          display: 'flex', 
-                          flexDirection: viewportWidth < 640 ? 'column' : 'row',
-                          gap: 8, 
-                          alignItems: viewportWidth < 640 ? 'stretch' : 'flex-start' 
-                        }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: viewportWidth < 640 ? 'column' : 'row',
+                            gap: 8,
+                            alignItems: viewportWidth < 640 ? 'stretch' : 'flex-start',
+                          }}
+                        >
                           <span
                             style={{
                               width: 24,
@@ -1628,166 +1710,184 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                           >
                             {idx + 1}
                           </span>
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-                            <div style={{ 
-                              display: 'flex', 
-                              flexDirection: viewportWidth < 640 ? 'column' : 'row',
-                              gap: 8, 
-                              alignItems: viewportWidth < 640 ? 'stretch' : 'center' 
-                            }}>
+                          <div
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 6,
+                              minWidth: 0,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: viewportWidth < 640 ? 'column' : 'row',
+                                gap: 8,
+                                alignItems: viewportWidth < 640 ? 'stretch' : 'center',
+                              }}
+                            >
                               <div style={{ position: 'relative', flex: 1 }}>
                                 <input
-                                id={`wallet-${idx}`}
-                                type="text"
-                                placeholder={`0x... or Solana address ${idx === 0 ? '(required)' : ''}`}
-                                value={wallet}
-                                onChange={(e) => handleWalletInput(idx, e.target.value)}
-                                readOnly={connectedWallets[idx]}
-                                style={{
-                                  width: '100%',
-                                  padding: wallet && !validationErrors[idx] && viewportWidth >= 640 ? '12px 70px 12px 14px' : '12px 14px',
-                                  borderRadius: 10,
-                                  border: `1px solid ${validationErrors[idx] ? theme.danger || '#ef4444' : theme.border}`,
-                                  background: connectedWallets[idx] ? theme.primarySubtle : theme.bgApp,
-                                  color: theme.textPrimary,
-                                  fontSize: viewportWidth < 640 ? 12 : 13,
-                                  fontFamily: 'monospace',
-                                  outline: 'none',
-                                  transition: 'border-color 0.15s, padding 0.15s, background 0.15s',
-                                  boxSizing: 'border-box',
-                                  cursor: connectedWallets[idx] ? 'not-allowed' : 'text',
-                                }}
-                                onFocus={(e) => {
-                                  if (!connectedWallets[idx]) {
-                                    e.currentTarget.style.borderColor = validationErrors[idx]
-                                      ? theme.danger || '#ef4444'
-                                      : theme.primary;
-                                  }
-                                }}
-                                onBlur={(e) =>
-                                  (e.currentTarget.style.borderColor = validationErrors[idx]
-                                    ? theme.danger || '#ef4444'
-                                    : theme.border)
-                                }
-                              />
-                            {wallet && !validationErrors[idx] && viewportWidth >= 640 && (
-                              <div
-                                style={{
-                                  position: 'absolute',
-                                  right: 12,
-                                  top: '50%',
-                                  transform: 'translateY(-50%)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                }}
-                              >
-                                <span
+                                  id={`wallet-${idx}`}
+                                  type="text"
+                                  placeholder={`0x... or Solana address ${idx === 0 ? '(required)' : ''}`}
+                                  value={wallet}
+                                  onChange={(e) => handleWalletInput(idx, e.target.value)}
+                                  readOnly={connectedWallets[idx]}
                                   style={{
-                                    padding: '4px 8px',
-                                    background: theme.success + '20' || '#10b98120',
-                                    color: theme.success || '#10b981',
-                                    borderRadius: 6,
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: 0.5,
+                                    width: '100%',
+                                    padding:
+                                      wallet && !validationErrors[idx] && viewportWidth >= 640
+                                        ? '12px 70px 12px 14px'
+                                        : '12px 14px',
+                                    borderRadius: 10,
+                                    border: `1px solid ${validationErrors[idx] ? theme.danger || '#ef4444' : theme.border}`,
+                                    background: connectedWallets[idx]
+                                      ? theme.primarySubtle
+                                      : theme.bgApp,
+                                    color: theme.textPrimary,
+                                    fontSize: viewportWidth < 640 ? 12 : 13,
+                                    fontFamily: 'monospace',
+                                    outline: 'none',
+                                    transition:
+                                      'border-color 0.15s, padding 0.15s, background 0.15s',
+                                    boxSizing: 'border-box',
+                                    cursor: connectedWallets[idx] ? 'not-allowed' : 'text',
                                   }}
-                                >
-                                  {getAddressType(wallet)}
-                                </span>
-                                {connectedWallets[idx] ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDisconnectWallet(idx)}
-                                    title="Disconnect wallet"
+                                  onFocus={(e) => {
+                                    if (!connectedWallets[idx]) {
+                                      e.currentTarget.style.borderColor = validationErrors[idx]
+                                        ? theme.danger || '#ef4444'
+                                        : theme.primary;
+                                    }
+                                  }}
+                                  onBlur={(e) =>
+                                    (e.currentTarget.style.borderColor = validationErrors[idx]
+                                      ? theme.danger || '#ef4444'
+                                      : theme.border)
+                                  }
+                                />
+                                {wallet && !validationErrors[idx] && viewportWidth >= 640 && (
+                                  <div
                                     style={{
-                                      padding: '4px 8px',
-                                      borderRadius: 6,
-                                      border: 'none',
-                                      background: theme.danger + '20' || '#ef444420',
-                                      color: theme.danger || '#ef4444',
-                                      fontSize: 10,
-                                      fontWeight: 600,
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s',
+                                      position: 'absolute',
+                                      right: 12,
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
                                       display: 'flex',
                                       alignItems: 'center',
-                                      gap: 4,
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background = theme.danger || '#ef4444';
-                                      e.currentTarget.style.color = '#fff';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background = theme.danger + '20' || '#ef444420';
-                                      e.currentTarget.style.color = theme.danger || '#ef4444';
+                                      gap: 8,
                                     }}
                                   >
-                                    <svg
-                                      width="10"
-                                      height="10"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
+                                    <span
+                                      style={{
+                                        padding: '4px 8px',
+                                        background: theme.success + '20' || '#10b98120',
+                                        color: theme.success || '#10b981',
+                                        borderRadius: 6,
+                                        fontSize: 10,
+                                        fontWeight: 600,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: 0.5,
+                                      }}
                                     >
-                                      <line x1="18" y1="6" x2="6" y2="18"></line>
-                                      <line x1="6" y1="6" x2="18" y2="18"></line>
-                                    </svg>
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setWalletSelectorIndex(idx);
-                                      setShowWalletSelector(true);
-                                    }}
-                                    title="Connect wallet"
-                                    style={{
-                                      padding: '4px 8px',
-                                      borderRadius: 6,
-                                      border: 'none',
-                                      background: theme.primary + '20',
-                                      color: theme.primary,
-                                      fontSize: 10,
-                                      fontWeight: 600,
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: 4,
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background = theme.primary;
-                                      e.currentTarget.style.color = '#fff';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background = theme.primary + '20';
-                                      e.currentTarget.style.color = theme.primary;
-                                    }}
-                                  >
-                                    <svg
-                                      width="10"
-                                      height="10"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
-                                      <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
-                                    </svg>
-                                    Connect
-                                  </button>
+                                      {getAddressType(wallet)}
+                                    </span>
+                                    {connectedWallets[idx] ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDisconnectWallet(idx)}
+                                        title="Disconnect wallet"
+                                        style={{
+                                          padding: '4px 8px',
+                                          borderRadius: 6,
+                                          border: 'none',
+                                          background: theme.danger + '20' || '#ef444420',
+                                          color: theme.danger || '#ef4444',
+                                          fontSize: 10,
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background =
+                                            theme.danger || '#ef4444';
+                                          e.currentTarget.style.color = '#fff';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background =
+                                            theme.danger + '20' || '#ef444420';
+                                          e.currentTarget.style.color = theme.danger || '#ef4444';
+                                        }}
+                                      >
+                                        <svg
+                                          width="10"
+                                          height="10"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setWalletSelectorIndex(idx);
+                                          setShowWalletSelector(true);
+                                        }}
+                                        title="Connect wallet"
+                                        style={{
+                                          padding: '4px 8px',
+                                          borderRadius: 6,
+                                          border: 'none',
+                                          background: theme.primary + '20',
+                                          color: theme.primary,
+                                          fontSize: 10,
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          transition: 'all 0.2s',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: 4,
+                                          whiteSpace: 'nowrap',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = theme.primary;
+                                          e.currentTarget.style.color = '#fff';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = theme.primary + '20';
+                                          e.currentTarget.style.color = theme.primary;
+                                        }}
+                                      >
+                                        <svg
+                                          width="10"
+                                          height="10"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+                                          <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+                                        </svg>
+                                        Connect
+                                      </button>
+                                    )}
+                                  </div>
                                 )}
-                              </div>
-                            )}
                               </div>
                               <button
                                 type="button"
@@ -1921,24 +2021,26 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                   <div
                     style={{
                       padding: '12px 16px',
-                      background: powStatus === 'error' 
-                        ? (theme.danger || '#ef4444') + '15' 
-                        : powStatus === 'solved'
-                        ? (theme.primary || '#45b773') + '15'
-                        : theme.primarySubtle,
+                      background:
+                        powStatus === 'error'
+                          ? (theme.danger || '#ef4444') + '15'
+                          : powStatus === 'solved'
+                            ? (theme.primary || '#45b773') + '15'
+                            : theme.primarySubtle,
                       border: `1px solid ${
-                        powStatus === 'error' 
+                        powStatus === 'error'
                           ? theme.danger || '#ef4444'
                           : powStatus === 'solved'
-                          ? theme.primary
-                          : theme.border
+                            ? theme.primary
+                            : theme.border
                       }`,
                       borderRadius: 10,
-                      color: powStatus === 'error' 
-                        ? theme.danger || '#ef4444'
-                        : powStatus === 'solved'
-                        ? theme.primary
-                        : theme.textPrimary,
+                      color:
+                        powStatus === 'error'
+                          ? theme.danger || '#ef4444'
+                          : powStatus === 'solved'
+                            ? theme.primary
+                            : theme.textPrimary,
                       fontSize: 13,
                       display: 'flex',
                       alignItems: 'center',
@@ -2038,11 +2140,23 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       ? handleConnectToExistingGroup
                       : handleCreateGroup
               }
-              disabled={loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)}
+              disabled={
+                loading ||
+                powStatus === 'solving' ||
+                isConnecting ||
+                (mode === 'connect'
+                  ? !connectGroupId.trim() || (passwordRequired && !connectPassword.trim())
+                  : !canSubmit)
+              }
               style={{
                 padding: '10px 24px',
                 background:
-                  loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit)
+                  loading ||
+                  powStatus === 'solving' ||
+                  isConnecting ||
+                  (mode === 'connect'
+                    ? !connectGroupId.trim() || (passwordRequired && !connectPassword.trim())
+                    : !canSubmit)
                     ? theme.textMuted
                     : `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
                 border: 'none',
@@ -2050,26 +2164,58 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 color: '#fff',
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 'not-allowed' : 'pointer',
-                opacity: loading || powStatus === 'solving' || isConnecting || (mode === 'connect' ? (!connectGroupId.trim() || (passwordRequired && !connectPassword.trim())) : !canSubmit) ? 0.5 : 1,
+                cursor:
+                  loading ||
+                  powStatus === 'solving' ||
+                  isConnecting ||
+                  (mode === 'connect'
+                    ? !connectGroupId.trim() || (passwordRequired && !connectPassword.trim())
+                    : !canSubmit)
+                    ? 'not-allowed'
+                    : 'pointer',
+                opacity:
+                  loading ||
+                  powStatus === 'solving' ||
+                  isConnecting ||
+                  (mode === 'connect'
+                    ? !connectGroupId.trim() || (passwordRequired && !connectPassword.trim())
+                    : !canSubmit)
+                    ? 0.5
+                    : 1,
                 transition: 'all 0.15s',
                 width: viewportWidth < 640 ? '100%' : 'auto',
               }}
               onMouseEnter={(e) => {
-                if (!loading && powStatus !== 'solving' && !isConnecting && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
+                if (
+                  !loading &&
+                  powStatus !== 'solving' &&
+                  !isConnecting &&
+                  (mode === 'connect'
+                    ? connectGroupId.trim() && (!passwordRequired || connectPassword.trim())
+                    : canSubmit)
+                ) {
                   e.currentTarget.style.transform = 'translateY(-1px)';
                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
                 }
               }}
               onMouseLeave={(e) => {
-                if (!loading && powStatus !== 'solving' && !isConnecting && (mode === 'connect' ? (connectGroupId.trim() && (!passwordRequired || connectPassword.trim())) : canSubmit)) {
+                if (
+                  !loading &&
+                  powStatus !== 'solving' &&
+                  !isConnecting &&
+                  (mode === 'connect'
+                    ? connectGroupId.trim() && (!passwordRequired || connectPassword.trim())
+                    : canSubmit)
+                ) {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = 'none';
                 }
               }}
             >
               {loading || powStatus === 'solving' || isConnecting
-                ? powStatus === 'solving' ? 'Solving Challenge...' : 'Connecting...'
+                ? powStatus === 'solving'
+                  ? 'Solving Challenge...'
+                  : 'Connecting...'
                 : mode === 'edit'
                   ? 'Update Group'
                   : mode === 'addWallet'

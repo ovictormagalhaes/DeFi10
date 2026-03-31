@@ -1,10 +1,10 @@
 import React from 'react';
 
+import { getChainKeyFromId, getChainKey } from '../constants/chains';
 import { useChainIcons } from '../context/ChainIconsProvider';
 import { useTheme } from '../context/ThemeProvider';
 import type { Token } from '../types/wallet';
 import { formatTokenDisplay } from '../utils/tokenDisplay.js';
-import { getChainKeyFromId, getChainKey } from '../constants/chains';
 
 interface TokenDisplayProps {
   tokens?: (Token | any)[];

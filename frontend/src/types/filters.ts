@@ -3,8 +3,9 @@
  * CORRECT ARCHITECTURE: All components use WalletItem[], only filter
  */
 
-import type { WalletItem } from './wallet';
 import { WalletItemType } from '../constants/walletItemTypes';
+
+import type { WalletItem } from './wallet';
 
 /**
  * Filter WalletItems to get only liquidity positions

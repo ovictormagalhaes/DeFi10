@@ -3,20 +3,21 @@ import axios from 'axios';
 import { api } from '../config/api';
 import { HealthStatus, SupportedChain } from '../types/api';
 import type {
+  Strategy,
+  SaveStrategyRequest,
+  SaveStrategyResponse,
+  SaveStrategiesRequest,
+  SaveStrategiesResponse,
+  StrategyData,
+} from '../types/strategy';
+import type {
   WalletGroup,
   CreateWalletGroupRequest,
   UpdateWalletGroupRequest,
   ConnectWalletGroupResponse,
   ConnectWalletGroupRequest,
 } from '../types/wallet-groups';
-import type { 
-  Strategy, 
-  SaveStrategyRequest, 
-  SaveStrategyResponse,
-  SaveStrategiesRequest,
-  SaveStrategiesResponse,
-  StrategyData
-} from '../types/strategy';
+
 import type { Challenge } from './proofOfWork';
 import { solveChallenge } from './proofOfWork';
 
@@ -39,29 +40,29 @@ function getStoredTokens(): StoredToken[] {
 
 function getToken(walletGroupId: string): string | null {
   const tokens = getStoredTokens();
-  const tokenData = tokens.find(t => t.walletGroupId === walletGroupId);
-  
+  const tokenData = tokens.find((t) => t.walletGroupId === walletGroupId);
+
   if (!tokenData) return null;
-  
+
   const expiresAt = new Date(tokenData.expiresAt);
   if (expiresAt <= new Date()) {
     removeToken(walletGroupId);
     return null;
   }
-  
+
   return tokenData.token;
 }
 
 function storeToken(walletGroupId: string, token: string, expiresAt: string): void {
   const tokens = getStoredTokens();
-  const filtered = tokens.filter(t => t.walletGroupId !== walletGroupId);
+  const filtered = tokens.filter((t) => t.walletGroupId !== walletGroupId);
   filtered.push({ walletGroupId, token, expiresAt });
   localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(filtered));
 }
 
 function removeToken(walletGroupId: string): void {
   const tokens = getStoredTokens();
-  const filtered = tokens.filter(t => t.walletGroupId !== walletGroupId);
+  const filtered = tokens.filter((t) => t.walletGroupId !== walletGroupId);
   localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(filtered));
 }
 
@@ -79,7 +80,7 @@ export function onTokenExpired(callback: TokenExpiredListener): () => void {
 }
 
 function notifyTokenExpired(walletGroupId: string): void {
-  tokenExpiredListeners.forEach(listener => {
+  tokenExpiredListeners.forEach((listener) => {
     try {
       listener(walletGroupId);
     } catch (err) {
@@ -96,19 +97,19 @@ axios.interceptors.request.use((config) => {
   if (match && match[1] && match[1] !== 'challenge') {
     const walletGroupId = decodeURIComponent(match[1]);
     const token = getToken(walletGroupId);
-    
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
   }
-  
+
   // Match strategies routes: /strategies/{walletGroupId} or /strategies (with walletGroupId in body)
   if (!match) {
     match = config.url?.match(/\/strategies\/([^\/]+)/);
     if (match && match[1] && match[1] !== 'save') {
       const walletGroupId = decodeURIComponent(match[1]);
       const token = getToken(walletGroupId);
-      
+
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -127,7 +128,7 @@ axios.interceptors.request.use((config) => {
       }
     }
   }
-  
+
   return config;
 });
 
@@ -142,7 +143,7 @@ axios.interceptors.response.use(
         removeToken(walletGroupId);
         notifyTokenExpired(walletGroupId);
       }
-      
+
       // Check strategies routes
       if (!match) {
         match = error.config?.url?.match(/\/strategies\/([^\/]+)/);
@@ -152,7 +153,7 @@ axios.interceptors.response.use(
           notifyTokenExpired(walletGroupId);
         }
       }
-      
+
       // Check POST body for walletGroupId
       if (error.config?.data && error.config.method === 'post') {
         try {
@@ -166,7 +167,7 @@ axios.interceptors.response.use(
         }
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -193,7 +194,7 @@ export async function getChallenge(): Promise<Challenge> {
 export async function createWalletGroup(data: CreateWalletGroupRequest): Promise<WalletGroup> {
   const res = await axios.post(api.createWalletGroup(), data);
   const walletGroup = res.data;
-  
+
   if (data.password) {
     try {
       await connectWalletGroup(walletGroup.id, { password: data.password });
@@ -207,7 +208,7 @@ export async function createWalletGroup(data: CreateWalletGroupRequest): Promise
       // Silently handle auto-connect failure
     }
   }
-  
+
   return walletGroup;
 }
 
@@ -225,9 +226,9 @@ export async function connectWalletGroup(
 ): Promise<ConnectWalletGroupResponse> {
   const res = await axios.post(api.connectWalletGroup(id), data);
   const response: ConnectWalletGroupResponse = res.data;
-  
+
   storeToken(response.walletGroupId, response.token, response.expiresAt);
-  
+
   return response;
 }
 
@@ -268,7 +269,9 @@ export async function saveStrategies(data: SaveStrategiesRequest): Promise<SaveS
 /**
  * Get strategy for a wallet group (returns new format with array of strategies)
  */
-export async function getStrategyByGroup(walletGroupId: string): Promise<SaveStrategiesResponse | null> {
+export async function getStrategyByGroup(
+  walletGroupId: string
+): Promise<SaveStrategiesResponse | null> {
   try {
     const res = await axios.get(api.getStrategiesByGroup(walletGroupId));
     return res.data;
