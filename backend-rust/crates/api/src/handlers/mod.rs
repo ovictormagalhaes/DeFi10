@@ -1,6 +1,7 @@
 pub mod aggregations;
 pub mod auth;
 pub mod health;
+pub mod history;
 pub mod pow;
 pub mod strategies;
 pub mod tokens;

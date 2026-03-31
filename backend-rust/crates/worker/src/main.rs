@@ -1,14 +1,21 @@
 use anyhow::Result;
 use defi10_core::aggregation::{AggregationResult, JobStatus, OperationStatus};
+use defi10_core::analytics::compute_analytics;
+use defi10_core::snapshot::DailySnapshot;
 use defi10_infrastructure::{
     aggregation::{AggregationMessage, JobManager},
     cache::{CacheService, RedisCache, AGGREGATION_CACHE_PREFIX},
     config::load_config,
+    database::{
+        MongoDatabase, SnapshotRepository, SnapshotRepositoryTrait, WalletGroupRepository,
+        WalletGroupRepositoryTrait,
+    },
     init_tracing_with_newrelic,
     messaging::RabbitMqConnection,
 };
 use futures_util::stream::StreamExt;
 use lapin::ExchangeKind;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
@@ -75,6 +82,12 @@ async fn main() -> Result<()> {
     let job_manager = Arc::new(JobManager::new(&config.redis.url).await?);
     info!("Job manager initialized");
 
+    let mongo_db = MongoDatabase::new(&config.mongodb.uri, &config.mongodb.database)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to connect to MongoDB: {}", e))?;
+    let snapshot_repo = Arc::new(SnapshotRepository::new(mongo_db.database()));
+    info!("MongoDB connected, snapshot repository initialized");
+
     let processor = Arc::new(AggregationProcessor::new(config.clone()));
     info!("Processor initialized");
 
@@ -91,8 +104,27 @@ async fn main() -> Result<()> {
     const RECONNECT_MAX_DELAY_SECS: u64 = 30;
     let mut consecutive_failures: u32 = 0;
 
+    {
+        let snapshot_repo = Arc::clone(&snapshot_repo);
+        let processor = Arc::clone(&processor);
+        let cache_clone = cache.clone();
+        let wg_repo = Arc::new(WalletGroupRepository::new(mongo_db.database()));
+        tokio::spawn(async move {
+            daily_sweep_loop(&snapshot_repo, &processor, &cache_clone, wg_repo.as_ref()).await;
+        });
+    }
+
     loop {
-        match run_consumer(&config, &job_manager, &processor, &cache, account_cache_ttl).await {
+        match run_consumer(
+            &config,
+            &job_manager,
+            &processor,
+            &cache,
+            account_cache_ttl,
+            &snapshot_repo,
+        )
+        .await
+        {
             Ok(_) => {
                 warn!("Consumer stream ended, reconnecting...");
                 consecutive_failures = 0;
@@ -118,6 +150,7 @@ async fn run_consumer(
     processor: &Arc<AggregationProcessor>,
     cache: &RedisCache,
     account_cache_ttl: Duration,
+    snapshot_repo: &Arc<SnapshotRepository>,
 ) -> Result<()> {
     let rabbitmq = RabbitMqConnection::new(&config.rabbitmq.url).await?;
     info!("Connected to RabbitMQ");
@@ -174,6 +207,7 @@ async fn run_consumer(
                     let job_manager = Arc::clone(job_manager);
                     let processor = Arc::clone(processor);
                     let cache_clone = cache.clone();
+                    let snapshot_repo = Arc::clone(snapshot_repo);
 
                     tokio::spawn(async move {
                         info!(
@@ -187,6 +221,7 @@ async fn run_consumer(
                             processor,
                             &cache_clone,
                             account_cache_ttl,
+                            &snapshot_repo,
                         )
                         .await
                         {
@@ -245,6 +280,7 @@ async fn process_message(
     processor: Arc<AggregationProcessor>,
     cache: &RedisCache,
     account_cache_ttl: Duration,
+    snapshot_repo: &SnapshotRepository,
 ) -> Result<()> {
     let cache_key = format!(
         "{}:{}",
@@ -377,12 +413,16 @@ async fn process_message(
         }
     }
 
-    check_job_completion(&message.job_id, &job_manager).await?;
+    check_job_completion(&message.job_id, &job_manager, snapshot_repo).await?;
 
     Ok(())
 }
 
-async fn check_job_completion(job_id: &Uuid, job_manager: &JobManager) -> Result<()> {
+async fn check_job_completion(
+    job_id: &Uuid,
+    job_manager: &JobManager,
+    snapshot_repo: &SnapshotRepository,
+) -> Result<()> {
     if let Some(snapshot) = job_manager.get_snapshot(job_id).await? {
         let total_processed = snapshot.succeeded + snapshot.failed + snapshot.timed_out;
 
@@ -415,8 +455,288 @@ async fn check_job_completion(job_id: &Uuid, job_manager: &JobManager) -> Result
                 "Job {} completed with status {:?} - Total value: ${:.2}",
                 job_id, final_status, snapshot.total_value_usd
             );
+
+            if let Some(wg_id) = snapshot.wallet_group_id {
+                if snapshot.succeeded > 0 {
+                    save_daily_snapshot(wg_id, &snapshot.results, snapshot_repo).await;
+                }
+            }
         }
     }
 
+    Ok(())
+}
+
+async fn save_daily_snapshot(
+    wallet_group_id: Uuid,
+    results: &[AggregationResult],
+    snapshot_repo: &SnapshotRepository,
+) {
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+
+    let daily_snapshot = DailySnapshot::from_results(wallet_group_id, &today, results);
+
+    if let Err(e) = snapshot_repo.upsert_snapshot(&daily_snapshot).await {
+        error!(
+            "Failed to save daily snapshot for wallet group {}: {}",
+            wallet_group_id, e
+        );
+        return;
+    }
+
+    info!(
+        "Saved daily snapshot for wallet group {} - date: {}, value: ${:.2}",
+        wallet_group_id, today, daily_snapshot.total_value_usd
+    );
+
+    let previous = match snapshot_repo
+        .get_analytics(&wallet_group_id, &yesterday(&today))
+        .await
+    {
+        Ok(p) => p,
+        Err(e) => {
+            warn!("Failed to fetch previous analytics: {}", e);
+            None
+        }
+    };
+
+    let first_snapshot = match snapshot_repo.get_first_snapshot(&wallet_group_id).await {
+        Ok(f) => f,
+        Err(e) => {
+            warn!("Failed to fetch first snapshot: {}", e);
+            None
+        }
+    };
+
+    let recent_totals = match snapshot_repo.get_recent_totals(&wallet_group_id, 8).await {
+        Ok(t) => t,
+        Err(e) => {
+            warn!("Failed to fetch recent totals: {}", e);
+            vec![]
+        }
+    };
+
+    let analytics = compute_analytics(
+        &daily_snapshot,
+        previous.as_ref(),
+        first_snapshot.as_ref(),
+        &recent_totals,
+    );
+
+    if let Err(e) = snapshot_repo.upsert_analytics(&analytics).await {
+        error!(
+            "Failed to save portfolio analytics for wallet group {}: {}",
+            wallet_group_id, e
+        );
+        return;
+    }
+
+    info!(
+        "Saved portfolio analytics for wallet group {} - P&L: ${:.2} ({:.2}%)",
+        wallet_group_id, analytics.daily_pnl, analytics.daily_pnl_percent
+    );
+}
+
+fn yesterday(date: &str) -> String {
+    if let Ok(d) = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d") {
+        (d - chrono::Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string()
+    } else {
+        String::new()
+    }
+}
+
+const SWEEP_CACHE_PREFIX: &str = "sweep_snapshot";
+const SWEEP_CACHE_TTL: Duration = Duration::from_secs(6 * 3600);
+
+async fn daily_sweep_loop(
+    snapshot_repo: &SnapshotRepository,
+    processor: &AggregationProcessor,
+    cache: &RedisCache,
+    wg_repo: &WalletGroupRepository,
+) {
+    info!("Daily snapshot sweep task started");
+
+    loop {
+        let now = chrono::Utc::now();
+        let tomorrow = (now + chrono::Duration::days(1))
+            .date_naive()
+            .and_hms_opt(0, 30, 0)
+            .unwrap();
+        let sleep_duration = (tomorrow - now.naive_utc())
+            .to_std()
+            .unwrap_or(Duration::from_secs(3600));
+
+        info!(
+            "Next daily sweep scheduled at {} UTC (in {:.1}h)",
+            tomorrow,
+            sleep_duration.as_secs_f64() / 3600.0
+        );
+
+        tokio::time::sleep(sleep_duration).await;
+
+        info!("Running daily snapshot sweep...");
+        if let Err(e) = run_daily_sweep(
+            snapshot_repo,
+            processor,
+            cache,
+            wg_repo as &dyn WalletGroupRepositoryTrait,
+        )
+        .await
+        {
+            error!("Daily sweep failed: {}", e);
+        }
+    }
+}
+
+async fn run_daily_sweep(
+    snapshot_repo: &SnapshotRepository,
+    processor: &AggregationProcessor,
+    cache: &RedisCache,
+    wg_repo: &dyn WalletGroupRepositoryTrait,
+) -> Result<()> {
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+
+    let all_groups = wg_repo
+        .list(None)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to list wallet groups: {}", e))?;
+
+    if all_groups.is_empty() {
+        info!("No wallet groups found, skipping sweep");
+        return Ok(());
+    }
+
+    let existing_ids: HashSet<String> = snapshot_repo
+        .get_wallet_group_ids_with_snapshot(&today)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get existing snapshots: {}", e))?
+        .into_iter()
+        .collect();
+
+    let missing: Vec<_> = all_groups
+        .into_iter()
+        .filter(|wg| !existing_ids.contains(&wg.id.to_string()))
+        .collect();
+
+    if missing.is_empty() {
+        info!("All wallet groups already have snapshots for today");
+        return Ok(());
+    }
+
+    info!("Sweep: {} wallet groups need snapshots", missing.len());
+
+    let default_chains = vec![
+        "ethereum".to_string(),
+        "base".to_string(),
+        "arbitrum".to_string(),
+        "bnb".to_string(),
+        "solana".to_string(),
+    ];
+
+    let mut unique_pairs: HashSet<(String, String)> = HashSet::new();
+    for wg in &missing {
+        for account in &wg.wallets {
+            for chain in &default_chains {
+                if defi10_core::is_chain_compatible(account, chain) {
+                    unique_pairs.insert((account.to_lowercase(), chain.clone()));
+                }
+            }
+        }
+    }
+
+    info!(
+        "Sweep: {} unique account×chain pairs to process (from {} wallet groups)",
+        unique_pairs.len(),
+        missing.len()
+    );
+
+    let sweep_date_prefix = format!("{}:{}", today, SWEEP_CACHE_PREFIX);
+    let mut processed = 0u32;
+    let mut cached_hits = 0u32;
+    let mut failures = 0u32;
+
+    for (account, chain) in &unique_pairs {
+        let cache_key = format!("{}:{}", account, chain);
+
+        let cached: Option<Vec<AggregationResult>> = cache
+            .get(&sweep_date_prefix, &cache_key)
+            .await
+            .ok()
+            .flatten();
+
+        if cached.is_some() {
+            cached_hits += 1;
+            continue;
+        }
+
+        match processor.process(account, chain, Uuid::nil()).await {
+            Ok(output) => {
+                if let Err(e) = cache
+                    .set(
+                        &sweep_date_prefix,
+                        &cache_key,
+                        &output.results,
+                        Some(SWEEP_CACHE_TTL),
+                    )
+                    .await
+                {
+                    warn!("Sweep: failed to cache {}/{}: {}", account, chain, e);
+                }
+                processed += 1;
+            }
+            Err(e) => {
+                warn!("Sweep: failed to process {}/{}: {}", account, chain, e);
+                failures += 1;
+            }
+        }
+    }
+
+    info!(
+        "Sweep: account processing done - processed: {}, cache hits: {}, failures: {}",
+        processed, cached_hits, failures
+    );
+
+    let mut snapshots_saved = 0u32;
+    for wg in &missing {
+        let mut wg_results: Vec<AggregationResult> = Vec::new();
+
+        for account in &wg.wallets {
+            for chain in &default_chains {
+                if !defi10_core::is_chain_compatible(account, chain) {
+                    continue;
+                }
+
+                let cache_key = format!("{}:{}", account.to_lowercase(), chain);
+                let cached: Option<Vec<AggregationResult>> = cache
+                    .get(&sweep_date_prefix, &cache_key)
+                    .await
+                    .ok()
+                    .flatten();
+
+                if let Some(results) = cached {
+                    wg_results.extend(results);
+                }
+            }
+        }
+
+        if wg_results.is_empty() {
+            warn!(
+                "Sweep: no results for wallet group {}, skipping snapshot",
+                wg.id
+            );
+            continue;
+        }
+
+        save_daily_snapshot(wg.id, &wg_results, snapshot_repo).await;
+        snapshots_saved += 1;
+    }
+
+    info!(
+        "Sweep completed: {} snapshots saved for {} wallet groups",
+        snapshots_saved,
+        missing.len()
+    );
     Ok(())
 }
