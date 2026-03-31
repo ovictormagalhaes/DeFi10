@@ -1,0 +1,216 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  # ── Rust checks (fast feedback) ──────────────────────────────────────
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --manifest-path backend-rust/Cargo.toml --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend-rust
+      - run: cargo clippy --manifest-path backend-rust/Cargo.toml --all-targets --all-features
+
+  # ── API pipeline ─────────────────────────────────────────────────────
+  test-api:
+    name: Test API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend-rust
+      - name: Run unit tests (API)
+        run: cargo test --manifest-path backend-rust/Cargo.toml --lib --bin defi10-api
+        env:
+          RUST_LOG: warn
+
+  build-api:
+    name: Build API
+    needs: [fmt, clippy, test-api]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend-rust
+      - run: cargo build --manifest-path backend-rust/Cargo.toml --release --bin defi10-api
+
+  # ── Worker pipeline ──────────────────────────────────────────────────
+  test-worker:
+    name: Test Worker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend-rust
+      - name: Run unit tests (Worker)
+        run: cargo test --manifest-path backend-rust/Cargo.toml --lib --bin defi10-worker
+        env:
+          RUST_LOG: warn
+
+  build-worker:
+    name: Build Worker
+    needs: [fmt, clippy, test-worker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend-rust
+      - run: cargo build --manifest-path backend-rust/Cargo.toml --release --bin defi10-worker
+
+  # ── Frontend pipeline ───────────────────────────────────────────────
+  frontend:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build
+
+  # ── E2E pipeline ────────────────────────────────────────────────────
+  e2e:
+    name: E2E Tests
+    needs: [build-api]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand({ping:1})'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        ports:
+          - 5672:5672
+        env:
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin123
+        options: >-
+          --health-cmd "rabbitmq-diagnostics ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend-rust
+
+      - name: Build API
+        working-directory: backend-rust
+        run: cargo build --bin defi10-api
+
+      - name: Create test config
+        run: |
+          cat > backend-rust/config/testing.toml << 'TOML'
+          [cors]
+          allowed_origins = ["http://localhost:3000"]
+          TOML
+
+      - name: Start API
+        working-directory: backend-rust
+        run: |
+          ./target/debug/defi10-api &
+          echo "Waiting for API to start..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:10000/health > /dev/null 2>&1; then
+              echo "API is ready!"
+              break
+            fi
+            sleep 2
+          done
+        env:
+          RUST_LOG: info
+          ENVIRONMENT: testing
+          Server__Host: "0.0.0.0"
+          Server__Port: "10000"
+          MongoDB__Uri: mongodb://localhost:27017
+          MongoDB__Database: defi10_e2e_test
+          Redis__Url: redis://localhost:6379
+          RabbitMQ__Url: amqp://admin:admin123@localhost:5672
+          Jwt__Secret: test-secret-key-super-secure-for-testing-only-12345678
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        working-directory: e2e
+        run: npx playwright test
+        env:
+          API_BASE_URL: http://localhost:10000
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: e2e/playwright-report/
+          retention-days: 14
