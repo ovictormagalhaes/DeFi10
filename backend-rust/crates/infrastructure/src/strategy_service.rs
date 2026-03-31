@@ -86,8 +86,8 @@ impl StrategyService {
 
         match doc {
             Some(d) => {
-                let mut wgs: WalletGroupStrategies =
-                    mongodb::bson::from_document(d).unwrap_or_else(|_| {
+                let mut wgs: WalletGroupStrategies = mongodb::bson::from_document(d)
+                    .unwrap_or_else(|_| {
                         WalletGroupStrategies::new(Uuid::nil(), vec![key.to_string()], vec![])
                     });
                 wgs.key = key.to_string();
