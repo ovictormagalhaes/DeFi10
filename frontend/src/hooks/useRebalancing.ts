@@ -101,6 +101,8 @@ export const useRebalancing = (
       [RebalanceAssetType.LendingAndBorrowing]: lendingPositions.length,
       [RebalanceAssetType.Staking]: stakingPositions.length,
       [RebalanceAssetType.Group]: 0,
+      [RebalanceAssetType.LendingSupply]: 0,
+      [RebalanceAssetType.LendingBorrow]: 0,
     };
 
     const protocolDistribution: Record<string, number> = {};

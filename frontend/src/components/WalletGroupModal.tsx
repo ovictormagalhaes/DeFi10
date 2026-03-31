@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeProvider.tsx';
 import { useWalletGroups } from '../hooks/useWalletGroups';
 import {
+  WalletGroup,
   validateSingleAddress,
   getAddressType,
   formatAddress,
