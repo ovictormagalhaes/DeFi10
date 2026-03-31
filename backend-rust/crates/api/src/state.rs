@@ -27,6 +27,7 @@ pub struct AppState {
     pub pow_service: Arc<ProofOfWorkService>,
     pub strategy_service: Arc<StrategyService>,
     pub token_logo_service: Arc<TokenLogoService>,
+    #[allow(dead_code)]
     pub price_aggregator: Arc<PriceAggregator>,
 }
 

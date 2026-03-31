@@ -207,12 +207,17 @@ export interface UseRebalancingResult {
 export type RebalanceAction = 'buy' | 'sell' | 'hold';
 export type ChainKey =
   | 'eth'
+  | 'ethereum'
   | 'polygon'
   | 'avalanche'
   | 'optimism'
   | 'bsc'
+  | 'arbitrum'
   | 'fantom'
   | 'base'
+  | 'cronos'
+  | 'xdai'
+  | 'solana'
   | 'unknown';
 
 // Constants tipados
