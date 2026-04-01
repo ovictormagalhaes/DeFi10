@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const OMNI_BASE = (import.meta.env.VITE_OMNI_API_URL || 'http://localhost:8080').replace(
   /\/+$/,
-  '',
+  ''
 );
 
 const PROTOCOL_KEY_MAP: Record<string, string> = {
