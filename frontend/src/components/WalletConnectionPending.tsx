@@ -8,22 +8,16 @@ interface WalletConnectionPendingProps {
   walletColor?: string;
 }
 
-const WalletConnectionPending: React.FC<WalletConnectionPendingProps> = ({
-  isOpen,
-  onClose,
-  walletName,
-  walletIcon,
-  walletColor,
-}) => {
+const WalletConnectionPending: React.FC<WalletConnectionPendingProps> = ({ isOpen, onClose, walletName, walletIcon, walletColor }) => {
   // Auto-close after 30 seconds as safety fallback
   useEffect(() => {
     if (!isOpen) return;
-
+    
     const timeout = setTimeout(() => {
       console.warn('[WalletConnectionPending] Auto-closing after 30s timeout');
       onClose();
     }, 30000);
-
+    
     return () => clearTimeout(timeout);
   }, [isOpen, onClose]);
 
@@ -166,11 +160,7 @@ const WalletConnectionPending: React.FC<WalletConnectionPendingProps> = ({
           }}
         >
           {typeof walletIcon === 'string' && walletIcon.endsWith('.svg') ? (
-            <img
-              src={walletIcon}
-              alt={walletName || 'Wallet'}
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            />
+            <img src={walletIcon} alt={walletName || 'Wallet'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           ) : (
             <span style={{ fontSize: 60 }}>{walletIcon || '🔗'}</span>
           )}

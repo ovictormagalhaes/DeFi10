@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
-
-import { useMaskValues } from '../../context/MaskValuesContext';
 import { useTheme } from '../../context/ThemeProvider';
-import type { WalletItem } from '../../types/wallet';
-import { capitalize } from '../../utils/format';
+import { useMaskValues } from '../../context/MaskValuesContext';
 import { formatPrice } from '../../utils/walletUtils';
 import PeriodDropdown from '../PeriodDropdown';
+import type { WalletItem } from '../../types/wallet';
 
 type ScreenSize = 'mobile' | 'tablet' | 'desktop';
 
@@ -58,44 +56,37 @@ const SubSectionItem: React.FC<SubSectionItemProps> = ({
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-        padding: '8px 14px',
-        backgroundColor: theme.bgPanel || theme.bgSecondary,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 8,
-        flex: getFlexStyle(),
-        minWidth:
-          screenSize === 'mobile' ? '100%' : screenSize === 'tablet' ? 'calc(50% - 5px)' : '120px',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          color: theme.textSecondary,
-          fontWeight: 500,
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-        }}
-      >
+    <div style={{ 
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+      padding: '8px 14px',
+      backgroundColor: theme.bgPanel || theme.bgSecondary,
+      border: `1px solid ${theme.border}`,
+      borderRadius: 8,
+      flex: getFlexStyle(),
+      minWidth: screenSize === 'mobile' ? '100%' : screenSize === 'tablet' ? 'calc(50% - 5px)' : '120px',
+      boxSizing: 'border-box',
+    }}>
+      <div style={{ 
+        fontSize: 11, 
+        color: theme.textSecondary, 
+        fontWeight: 500,
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px'
+      }}>
         {label}
       </div>
-      <div
-        style={{
-          fontSize: 15,
-          fontWeight: 600,
-          color: color || theme.textPrimary,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          wordBreak: 'break-word',
-          overflowWrap: 'break-word',
-        }}
-      >
+      <div style={{ 
+        fontSize: 15, 
+        fontWeight: 600, 
+        color: color || theme.textPrimary,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        wordBreak: 'break-word',
+        overflowWrap: 'break-word'
+      }}>
         {icon && <span style={{ display: 'flex', alignItems: 'center' }}>{icon}</span>}
         {value}
       </div>
@@ -151,21 +142,18 @@ const SubSectionItemWithDropdown: React.FC<SubSectionItemWithDropdownProps> = ({
 
   // Check if values contains projection types (apr, aprhistorical, etc.) or direct periods (day, week, etc.)
   const hasTypes = values && !values.day && !values.week && !values.month && !values.year;
-
+  
   // Check if values are simple (not nested objects with periods)
   const currentTypeValues = hasTypes ? values[selectedType] : values;
-  const isSimpleValue =
-    typeof currentTypeValues === 'string' || typeof currentTypeValues === 'number';
-
+  const isSimpleValue = typeof currentTypeValues === 'string' || typeof currentTypeValues === 'number';
+  
   // Get available types
-  const typeOptions = hasTypes
-    ? Object.keys(values).map((type) => {
+  const typeOptions = hasTypes 
+    ? Object.keys(values).map(type => {
         const lowerType = type.toLowerCase();
         switch (lowerType) {
-          case 'apr':
-            return { key: type, label: 'APR' };
-          default:
-            return { key: type, label: capitalize(type) };
+          case 'apr': return { key: type, label: 'APR' };
+          default: return { key: type, label: type.charAt(0).toUpperCase() + type.slice(1) };
         }
       })
     : [{ key: 'apr', label: 'APR' }];
@@ -185,13 +173,13 @@ const SubSectionItemWithDropdown: React.FC<SubSectionItemWithDropdownProps> = ({
 
   // Handler for type change
   const handleTypeChange = (displayLabel: string) => {
-    const typeOption = typeOptions.find((t) => t.label === displayLabel);
+    const typeOption = typeOptions.find(t => t.label === displayLabel);
     if (typeOption) setSelectedType(typeOption.key);
   };
 
   // Handler for period change
   const handlePeriodChange = (displayLabel: string) => {
-    const periodOption = periodOptions.find((p) => p.label === displayLabel);
+    const periodOption = periodOptions.find(p => p.label === displayLabel);
     if (periodOption) setSelectedPeriod(periodOption.key);
   };
 
@@ -205,49 +193,40 @@ const SubSectionItemWithDropdown: React.FC<SubSectionItemWithDropdownProps> = ({
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-        padding: '8px 14px',
-        backgroundColor: theme.bgPanel || theme.bgSecondary,
-        border: `1px solid ${theme.border}`,
-        borderRadius: 8,
-        flex: getFlexStyle(),
-        minWidth:
-          screenSize === 'mobile' ? '100%' : screenSize === 'tablet' ? 'calc(50% - 5px)' : '120px',
-        boxSizing: 'border-box',
-        position: 'relative',
-      }}
-    >
+    <div style={{ 
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+      padding: '8px 14px',
+      backgroundColor: theme.bgPanel || theme.bgSecondary,
+      border: `1px solid ${theme.border}`,
+      borderRadius: 8,
+      flex: getFlexStyle(),
+      minWidth: screenSize === 'mobile' ? '100%' : screenSize === 'tablet' ? 'calc(50% - 5px)' : '120px',
+      boxSizing: 'border-box',
+      position: 'relative',
+    }}>
       {/* Header: Label and Dropdown */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            color: theme.textSecondary,
-            fontWeight: 500,
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}
-        >
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+      }}>
+        <div style={{ 
+          fontSize: 11, 
+          color: theme.textSecondary, 
+          fontWeight: 500,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
           {label}
         </div>
-
+        
         {/* Type Selector */}
         {showTypeDropdown && (
           <PeriodDropdown
-            periods={typeOptions.map((t) => t.label)}
-            selectedPeriod={
-              typeOptions.find((t) => t.key === selectedType)?.label || typeOptions[0]?.label
-            }
+            periods={typeOptions.map(t => t.label)}
+            selectedPeriod={typeOptions.find(t => t.key === selectedType)?.label || typeOptions[0]?.label}
             onPeriodChange={handleTypeChange}
             compact={true}
             disableHoverEffects={true}
@@ -270,8 +249,8 @@ const SubSectionItemWithDropdown: React.FC<SubSectionItemWithDropdownProps> = ({
         {/* Period Selector - only show if not simple value */}
         {showPeriodDropdown && (
           <PeriodDropdown
-            periods={periodOptions.map((p) => p.label)}
-            selectedPeriod={periodOptions.find((p) => p.key === selectedPeriod)?.label || 'Day'}
+            periods={periodOptions.map(p => p.label)}
+            selectedPeriod={periodOptions.find(p => p.key === selectedPeriod)?.label || 'Day'}
             onPeriodChange={handlePeriodChange}
             compact={true}
             disableHoverEffects={true}
@@ -293,21 +272,17 @@ const SubSectionItemWithDropdown: React.FC<SubSectionItemWithDropdownProps> = ({
       </div>
 
       {/* Value Display */}
-      <div
-        style={{
-          fontSize: 15,
-          fontWeight: 600,
-          color: currentColor || theme.textPrimary,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          wordBreak: 'break-word',
-          overflowWrap: 'break-word',
-        }}
-      >
-        {isSimpleValue
-          ? `${currentValue}%`
-          : maskValue(formatPrice(currentValue as string | number))}
+      <div style={{ 
+        fontSize: 15, 
+        fontWeight: 600, 
+        color: currentColor || theme.textPrimary,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        wordBreak: 'break-word',
+        overflowWrap: 'break-word'
+      }}>
+        {isSimpleValue ? `${currentValue}%` : maskValue(formatPrice(currentValue as string | number))}
       </div>
     </div>
   );
@@ -322,10 +297,7 @@ interface LendingSubSectionHeaderProps {
   groupByProtocol?: boolean;
 }
 
-export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = ({
-  data = [],
-  groupByProtocol = false,
-}) => {
+export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = ({ data = [], groupByProtocol = false }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const screenSize = useScreenSize();
@@ -336,8 +308,8 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
   let suppliedValue = 0;
   let borrowedValue = 0;
   let weightedApySum = 0;
-  const weightForApy = 0;
-
+  let weightForApy = 0;
+  
   // Projection sums by type
   const projectionSums = {
     apr: { day: 0, week: 0, month: 0, year: 0 },
@@ -345,74 +317,57 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
   };
 
   // Se groupByProtocol, calcular Health Factor único por protocolo + chain
-  const uniqueHealthFactors = new Map<string, number>();
+  let uniqueHealthFactors = new Map<string, number>();
 
-  data.forEach((item) => {
+  data.forEach(item => {
     const position = item.position || item;
     const tokens = Array.isArray(position.tokens) ? position.tokens : [];
-
-    const hf =
-      position.additionalData?.healthFactor ||
-      position.healthFactor ||
-      item.additionalData?.healthFactor ||
-      item.healthFactor;
-
-    if (
-      groupByProtocol &&
-      hf != null &&
-      isFinite(parseFloat(String(hf))) &&
-      parseFloat(String(hf)) > 0
-    ) {
-      const protocol = (position.protocol || item.protocol || {}) as {
-        name?: string;
-        [key: string]: unknown;
-      };
+    
+    const hf = position.additionalData?.healthFactor || 
+               position.healthFactor ||
+               item.additionalData?.healthFactor ||
+               item.healthFactor;
+    
+    if (groupByProtocol && hf != null && isFinite(parseFloat(String(hf))) && parseFloat(String(hf)) > 0) {
+      const protocol = (position.protocol || item.protocol || {}) as { name?: string; [key: string]: unknown };
       const chain = tokens[0]?.chain || 'unknown';
       const key = `${protocol.name || 'unknown'}-${chain}`;
 
       if (!uniqueHealthFactors.has(key)) {
         uniqueHealthFactors.set(key, parseFloat(String(hf)));
       }
-    } else if (
-      !groupByProtocol &&
-      hf != null &&
-      isFinite(parseFloat(String(hf))) &&
-      parseFloat(String(hf)) > 0
-    ) {
+    } else if (!groupByProtocol && hf != null && isFinite(parseFloat(String(hf))) && parseFloat(String(hf)) > 0) {
       healthFactorSum += parseFloat(String(hf));
       healthFactorCount++;
     }
 
-    const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')
-      ?.metadata?.value;
+    const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
     const supplyRate = position.supplyRate || position.apy || projApy || 0;
     const borrowRate = position.borrowRate || position.borrowApy || projApy || 0;
-
+    
     // Support both new projections array and legacy single projection
-    const projections =
-      item.additionalData?.projections ||
-      item.additionalInfo?.projections ||
-      position?.projections ||
-      position?.additionalData?.projections ||
-      position?.additionalInfo?.projections ||
-      null;
-
-    const legacyProjection =
-      item.additionalInfo?.projection ||
-      item.additionalData?.projection ||
-      position.projection ||
-      position?.additionalData?.projection ||
-      position?.additionalInfo?.projection ||
-      null;
-
+    const projections = item.additionalData?.projections || 
+                       item.additionalInfo?.projections || 
+                       position?.projections ||
+                       position?.additionalData?.projections ||
+                       position?.additionalInfo?.projections ||
+                       null;
+    
+    const legacyProjection = item.additionalInfo?.projection || 
+                            item.additionalData?.projection || 
+                            position.projection ||
+                            position?.additionalData?.projection ||
+                            position?.additionalInfo?.projection ||
+                            null;
+    
     // Process projections array (new format)
     if (projections && Array.isArray(projections)) {
-      projections.forEach((proj) => {
+      projections.forEach(proj => {
         const rawType = proj.type?.toLowerCase() || 'apy';
         if (rawType === 'aprhistorical') return;
         const type = rawType;
         const projection = proj.projection;
-
+        
         if (projection && projectionSums[type]) {
           projectionSums[type].day += parseFloat(projection.oneDay || 0);
           projectionSums[type].week += parseFloat(projection.oneWeek || 0);
@@ -420,7 +375,7 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
           projectionSums[type].year += parseFloat(projection.oneYear || 0);
         }
       });
-    }
+    } 
     // Process legacy projection (backward compatibility)
     else if (legacyProjection) {
       // Default to apy for lending
@@ -429,34 +384,29 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
       projectionSums.apy.month += parseFloat(legacyProjection.oneMonth || 0);
       projectionSums.apy.year += parseFloat(legacyProjection.oneYear || 0);
     }
-
+    
     // Processar tokens
-    tokens.forEach((token) => {
-      const tokenValue = parseFloat(
-        String(token.totalPrice || token.financials?.totalPrice || token.balanceUSD || 0)
-      );
-
+    tokens.forEach(token => {
+      const tokenValue = parseFloat(String(
+        token.totalPrice ||
+        token.financials?.totalPrice ||
+        token.balanceUSD ||
+        0
+      ));
+      
       const tokenType = (token.type || '').toLowerCase();
       const tokenApy = token.apy || token.apr;
-
-      if (
-        tokenType.includes('supplied') ||
-        tokenType.includes('supply') ||
-        tokenType.includes('deposit')
-      ) {
+      
+      if (tokenType.includes('supplied') || tokenType.includes('supply') || tokenType.includes('deposit')) {
         suppliedValue += tokenValue;
-
+        
         // Usar supplyRate para supply tokens
         if (supplyRate != null && !isNaN(supplyRate) && tokenValue > 0 && supplyRate !== 0) {
           weightedApySum += supplyRate * tokenValue;
         }
-      } else if (
-        tokenType.includes('borrowed') ||
-        tokenType.includes('borrow') ||
-        tokenType.includes('debt')
-      ) {
+      } else if (tokenType.includes('borrowed') || tokenType.includes('borrow') || tokenType.includes('debt')) {
         borrowedValue += tokenValue;
-
+        
         // Usar borrowRate para borrow tokens (usar valor absoluto ao subtrair)
         if (borrowRate != null && !isNaN(borrowRate) && tokenValue > 0 && borrowRate !== 0) {
           const borrowCost = Math.abs(borrowRate) * tokenValue;
@@ -474,21 +424,15 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
   } else if (!groupByProtocol && healthFactorCount > 0) {
     avgHealthFactor = healthFactorSum / healthFactorCount;
   }
-
+  
   const netPosition = suppliedValue - borrowedValue;
-  const avgApy: number | null = netPosition !== 0 ? weightedApySum / netPosition : null;
+  const avgApy: number | null = netPosition !== 0 ? (weightedApySum / netPosition) : null;
 
   // Check if any projection type has values
-  const hasAprProjections =
-    (projectionSums.apr?.day || 0) !== 0 ||
-    (projectionSums.apr?.week || 0) !== 0 ||
-    (projectionSums.apr?.month || 0) !== 0 ||
-    (projectionSums.apr?.year || 0) !== 0;
-  const hasApyProjections =
-    (projectionSums.apy?.day || 0) !== 0 ||
-    (projectionSums.apy?.week || 0) !== 0 ||
-    (projectionSums.apy?.month || 0) !== 0 ||
-    (projectionSums.apy?.year || 0) !== 0;
+  const hasAprProjections = (projectionSums.apr?.day || 0) !== 0 || (projectionSums.apr?.week || 0) !== 0 || 
+                           (projectionSums.apr?.month || 0) !== 0 || (projectionSums.apr?.year || 0) !== 0;
+  const hasApyProjections = (projectionSums.apy?.day || 0) !== 0 || (projectionSums.apy?.week || 0) !== 0 || 
+                           (projectionSums.apy?.month || 0) !== 0 || (projectionSums.apy?.year || 0) !== 0;
   const hasProjections = hasAprProjections || hasApyProjections;
 
   const items = [
@@ -498,33 +442,23 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
       flex: 1,
       color: avgHealthFactor > 2 ? '#10b981' : avgHealthFactor > 1.5 ? '#f59e0b' : '#ef4444',
       icon: (
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
         </svg>
       ),
     },
-    avgApy !== null &&
-      avgApy !== 0 && {
-        label: 'Net APY',
-        value: `${avgApy >= 0 ? '+' : ''}${avgApy.toFixed(2)}%`,
-        flex: 1,
-        color: avgApy >= 0 ? '#10b981' : '#ef4444',
-      },
+    avgApy !== null && avgApy !== 0 && {
+      label: 'Net APY',
+      value: `${avgApy >= 0 ? '+' : ''}${avgApy.toFixed(2)}%`,
+      flex: 1,
+      color: avgApy >= 0 ? '#10b981' : '#ef4444',
+    },
   ].filter(Boolean);
 
   // Build projection values object
   let projectionValues: Record<string, unknown> = {};
   const shouldShowTypeDropdown = false; // LendingCards uses showTypeWhenSingle: false
-
+  
   if (hasAprProjections && hasApyProjections) {
     // Multiple types: create nested structure
     projectionValues = {};
@@ -545,35 +479,39 @@ export const LendingSubSectionHeader: React.FC<LendingSubSectionHeaderProps> = (
     }
   }
 
-  const projectionItem = hasProjections
-    ? {
-        label: 'Projection',
-        values: projectionValues,
-        defaultType: hasApyProjections ? 'apy' : 'apr',
-        defaultPeriod: 'day',
-        showTypeWhenSingle: false,
-        color: (value) => (value >= 0 ? '#10b981' : '#ef4444'),
-        flex: 1,
-        withDropdown: true,
-      }
-    : null;
+  const projectionItem = hasProjections ? {
+    label: 'Projection',
+    values: projectionValues,
+    defaultType: hasApyProjections ? 'apy' : 'apr',
+    defaultPeriod: 'day',
+    showTypeWhenSingle: false,
+    color: (value) => value >= 0 ? '#10b981' : '#ef4444',
+    flex: 1,
+    withDropdown: true,
+  } : null;
 
   if (items.length === 0 && !projectionItem) return null;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 10,
-        marginBottom: 16,
-      }}
-    >
+    <div style={{
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: 16,
+    }}>
       {items.map((item, index) => (
-        <SubSectionItem key={index} {...item} screenSize={screenSize} />
+        <SubSectionItem
+          key={index}
+          {...item}
+          screenSize={screenSize}
+        />
       ))}
       {projectionItem && (
-        <SubSectionItemWithDropdown key="projection" {...projectionItem} screenSize={screenSize} />
+        <SubSectionItemWithDropdown
+          key="projection"
+          {...projectionItem}
+          screenSize={screenSize}
+        />
       )}
     </div>
   );
@@ -586,16 +524,14 @@ interface LiquiditySubSectionHeaderProps {
   data: WalletItem[];
 }
 
-export const LiquiditySubSectionHeader: React.FC<LiquiditySubSectionHeaderProps> = ({
-  data = [],
-}) => {
+export const LiquiditySubSectionHeader: React.FC<LiquiditySubSectionHeaderProps> = ({ data = [] }) => {
   const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const screenSize = useScreenSize();
 
   // Calculate metrics
-  const inRangeValue = 0;
-  const outOfRangeValue = 0;
+  let inRangeValue = 0;
+  let outOfRangeValue = 0;
   let inRangeCount = 0;
   let outOfRangeCount = 0;
   let totalUncollectedFees = 0;
@@ -604,39 +540,34 @@ export const LiquiditySubSectionHeader: React.FC<LiquiditySubSectionHeaderProps>
   let aprCount = 0;
   let totalAprWeighted = 0;
   let totalWeightForApr = 0;
-
+  
   const projectionSums = {
     apr: { day: 0, week: 0, month: 0, year: 0 },
   };
 
-  data.forEach((item) => {
+  data.forEach(item => {
     const position = item.position || item;
     const tokens = Array.isArray(position.tokens) ? position.tokens : [];
-
-    const positionApr =
-      (position.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata
-        ?.value ||
-      (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata
-        ?.value ||
-      position.apr ||
-      item.apr ||
-      position.apy;
-
+    
+    const positionApr = (position.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata?.value ||
+                        (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata?.value ||
+                        position.apr ||
+                        item.apr ||
+                        position.apy;
+    
     // Support both new projections array and legacy single projection
-    const projections =
-      item.additionalData?.projections ||
-      item.additionalInfo?.projections ||
-      position?.projections ||
-      null;
-
-    const legacyProjection =
-      item.additionalInfo?.projection ||
-      item.additionalData?.projection ||
-      position.projection ||
-      null;
-
+    const projections = item.additionalData?.projections || 
+                       item.additionalInfo?.projections || 
+                       position?.projections ||
+                       null;
+    
+    const legacyProjection = item.additionalInfo?.projection || 
+                            item.additionalData?.projection || 
+                            position.projection ||
+                            null;
+    
     if (projections && Array.isArray(projections)) {
-      projections.forEach((proj) => {
+      projections.forEach(proj => {
         const projection = proj.projection;
         if (projection) {
           projectionSums.apr.day += parseFloat(projection.oneDay || 0);
@@ -651,60 +582,54 @@ export const LiquiditySubSectionHeader: React.FC<LiquiditySubSectionHeaderProps>
       projectionSums.apr.month += parseFloat(legacyProjection.oneMonth || 0);
       projectionSums.apr.year += parseFloat(legacyProjection.oneYear || 0);
     }
-
+    
     // Check range status - IMPORTANTE: item.additionalData vem primeiro!
-    const rangeData =
-      item.additionalData?.range ||
-      item.additionalInfo?.range ||
-      position.additionalData?.range ||
-      position.range ||
-      position.rangeData ||
-      item.range;
-
-    const isInRange =
-      rangeData?.inRange ??
-      (rangeData &&
-        rangeData.current != null &&
-        rangeData.lower != null &&
-        rangeData.upper != null &&
-        rangeData.current >= rangeData.lower &&
-        rangeData.current <= rangeData.upper);
+    const rangeData = item.additionalData?.range || 
+                      item.additionalInfo?.range || 
+                      position.additionalData?.range || 
+                      position.range || 
+                      position.rangeData ||
+                      item.range;
+    
+    const isInRange = rangeData?.inRange ?? (
+      rangeData && rangeData.current != null && rangeData.lower != null && rangeData.upper != null &&
+      rangeData.current >= rangeData.lower && rangeData.current <= rangeData.upper
+    );
 
     // Calculate position liquidity value
     let positionLiquidityValue = 0;
     let positionFeesValue = 0;
 
-    tokens.forEach((token) => {
-      const tokenValue = parseFloat(
-        String(token.totalPrice || token.financials?.totalPrice || token.balanceUSD || 0)
-      );
+    tokens.forEach(token => {
+      const tokenValue = parseFloat(String(
+        token.totalPrice ||
+        token.financials?.totalPrice ||
+        token.balanceUSD ||
+        0
+      ));
 
       const tokenType = (token.type || '').toLowerCase();
-
-      if (
-        tokenType.includes('supplied') ||
-        tokenType.includes('supply') ||
-        tokenType.includes('liquidity') ||
-        tokenType.includes('deposit') ||
-        !tokenType ||
-        tokenType === ''
-      ) {
+      
+      if (tokenType.includes('supplied') || 
+          tokenType.includes('supply') || 
+          tokenType.includes('liquidity') ||
+          tokenType.includes('deposit') ||
+          !tokenType ||
+          tokenType === '') {
         positionLiquidityValue += tokenValue;
       }
-
+      
       // Fees separadas
-      if (
-        tokenType.includes('uncollectedfee') ||
-        tokenType.includes('reward') ||
-        tokenType.includes('fee')
-      ) {
+      if (tokenType.includes('uncollectedfee') || 
+          tokenType.includes('reward') ||
+          tokenType.includes('fee')) {
         positionFeesValue += tokenValue;
       }
     });
 
     totalLiquidity += positionLiquidityValue;
     totalUncollectedFees += positionFeesValue;
-
+    
     if (positionApr != null && !isNaN(positionApr) && positionLiquidityValue > 0) {
       totalAprWeighted += positionApr * positionLiquidityValue;
       totalWeightForApr += positionLiquidityValue;
@@ -723,12 +648,9 @@ export const LiquiditySubSectionHeader: React.FC<LiquiditySubSectionHeaderProps>
   });
 
   const avgAPR = totalWeightForApr > 0 ? totalAprWeighted / totalWeightForApr : null;
-
-  const hasProjections =
-    projectionSums.apr.day !== 0 ||
-    projectionSums.apr.week !== 0 ||
-    projectionSums.apr.month !== 0 ||
-    projectionSums.apr.year !== 0;
+  
+  const hasProjections = projectionSums.apr.day !== 0 || projectionSums.apr.week !== 0 || 
+                         projectionSums.apr.month !== 0 || projectionSums.apr.year !== 0;
 
   const items = [
     {
@@ -737,17 +659,8 @@ export const LiquiditySubSectionHeader: React.FC<LiquiditySubSectionHeaderProps>
       flex: 1.2,
       color: '#10b981',
       icon: (
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#10b981"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="20 6 9 17 4 12" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
         </svg>
       ),
     },
@@ -757,73 +670,71 @@ export const LiquiditySubSectionHeader: React.FC<LiquiditySubSectionHeaderProps>
       flex: 1.2,
       color: '#ef4444',
       icon: (
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#ef4444"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
       ),
     },
   ];
+  
+  const avgAprItem = avgAPR !== null ? {
+    label: 'NET',
+    values: {
+      apr: avgAPR.toFixed(2),
+    },
+    defaultType: 'apr',
+    showTypeWhenSingle: true,
+    color: (value) => {
+      const numValue = parseFloat(value);
+      return numValue > 10 ? '#10b981' : theme.textPrimary;
+    },
+    flex: 1,
+    withDropdown: true,
+  } : null;
 
-  const avgAprItem =
-    avgAPR !== null
-      ? {
-          label: 'NET',
-          values: {
-            apr: avgAPR.toFixed(2),
-          },
-          defaultType: 'apr',
-          showTypeWhenSingle: true,
-          color: (value) => {
-            const numValue = parseFloat(value);
-            return numValue > 10 ? '#10b981' : theme.textPrimary;
-          },
-          flex: 1,
-          withDropdown: true,
-        }
-      : null;
-
-  const projectionItem = hasProjections
-    ? {
-        label: 'Projection',
-        values: projectionSums.apr,
-        defaultType: 'apr',
-        defaultPeriod: 'day',
-        showTypeWhenSingle: false,
-        color: (value) => (value >= 0 ? '#10b981' : '#ef4444'),
-        flex: 1,
-        withDropdown: true,
-      }
-    : null;
+  const projectionItem = hasProjections ? {
+    label: 'Projection',
+    values: projectionSums.apr,
+    defaultType: 'apr',
+    defaultPeriod: 'day',
+    showTypeWhenSingle: false,
+    color: (value) => value >= 0 ? '#10b981' : '#ef4444',
+    flex: 1,
+    withDropdown: true,
+  } : null;
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 10,
-        marginBottom: 16,
-      }}
-    >
+    <div style={{
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: 10,
+      marginBottom: 16,
+    }}>
       {items.map((item, index) => (
-        <SubSectionItem key={index} {...item} screenSize={screenSize} />
+        <SubSectionItem
+          key={index}
+          {...item}
+          screenSize={screenSize}
+        />
       ))}
       {avgAprItem && (
-        <SubSectionItemWithDropdown key="avgApr" {...avgAprItem} screenSize={screenSize} />
+        <SubSectionItemWithDropdown
+          key="avgApr"
+          {...avgAprItem}
+          screenSize={screenSize}
+        />
       )}
       {projectionItem && (
-        <SubSectionItemWithDropdown key="projection" {...projectionItem} screenSize={screenSize} />
+        <SubSectionItemWithDropdown
+          key="projection"
+          {...projectionItem}
+          screenSize={screenSize}
+        />
       )}
     </div>
   );
 };
+
+
