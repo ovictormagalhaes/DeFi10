@@ -1,31 +1,9 @@
 import axios from 'axios';
 
-const getOmniBaseUrl = (): string => {
-  const env = (key: string): string | undefined => {
-    try {
-      const meta: any = import.meta as any;
-      if (meta?.env?.[key]) return meta.env[key];
-    } catch {}
-    if (typeof process !== 'undefined' && process.env) {
-      return (process.env as Record<string, string | undefined>)[key];
-    }
-    return undefined;
-  };
-
-  const explicit = env('VITE_OMNI_API_URL');
-  if (explicit) return explicit.replace(/\/+$/, '');
-
-  try {
-    if (typeof window !== 'undefined') {
-      const host = window.location.hostname;
-      if (/^(localhost|127\.0\.0\.1)$/.test(host)) return 'http://localhost:8080';
-    }
-  } catch {}
-
-  return 'https://omni-api.onrender.com';
-};
-
-const OMNI_BASE = getOmniBaseUrl();
+const OMNI_BASE = (import.meta.env.VITE_OMNI_API_URL || 'http://localhost:8080').replace(
+  /\/+$/,
+  '',
+);
 
 const PROTOCOL_KEY_MAP: Record<string, string> = {
   'aave v3': 'aave-v3',
