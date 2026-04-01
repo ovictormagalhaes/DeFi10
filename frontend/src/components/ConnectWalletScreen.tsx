@@ -1,4 +1,3 @@
-import { SUPPORTED_CHAINS } from '../constants/chains';
 import { WALLETS } from '../constants/wallets';
 import type { ThemeShape } from '../context/ThemeProvider';
 
@@ -8,11 +7,7 @@ interface ConnectWalletScreenProps {
   onManageGroups: () => void;
 }
 
-const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({
-  theme,
-  onConnect,
-  onManageGroups,
-}) => {
+const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConnect, onManageGroups }) => {
   return (
     <div
       style={{
@@ -98,20 +93,20 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({
               fontSize: 16,
               fontWeight: 600,
               color: 'white',
-              background: theme.brandGrad,
+              background: 'linear-gradient(135deg, #35f7a5 0%, #2fbfd9 100%)',
               border: 'none',
               borderRadius: 12,
               cursor: 'pointer',
               transition: 'transform 0.2s, box-shadow 0.2s',
-              boxShadow: theme.brandGlow,
+              boxShadow: '0 4px 12px rgba(53, 247, 165, 0.3)',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = theme.brandGlowHover;
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(53, 247, 165, 0.4)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = theme.brandGlow;
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(53, 247, 165, 0.3)';
             }}
           >
             Connect Wallet
@@ -173,8 +168,8 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.borderColor = theme.accent || theme.primary;
-              e.currentTarget.style.background = theme.bgAccentSoft;
+              e.currentTarget.style.borderColor = '#35f7a5';
+              e.currentTarget.style.background = 'rgba(53, 247, 165, 0.1)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
@@ -212,121 +207,6 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({
           >
             💡 Create groups to track multiple wallets together
           </p>
-        </div>
-
-        {/* Features */}
-        <div
-          style={{
-            marginTop: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-            textAlign: 'left',
-          }}
-        >
-          {[
-            {
-              text: 'Multi-wallet — group and track wallets together',
-              icon: (
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={theme.accent || theme.primary}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              ),
-            },
-            {
-              text: 'Multi-chain — Ethereum, Solana, Base and more',
-              icon: (
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={theme.accent || theme.primary}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M2 12h20" />
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                </svg>
-              ),
-            },
-            {
-              text: 'Multi-protocol — Aave, Kamino, Uniswap, Pendle',
-              icon: (
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={theme.accent || theme.primary}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                </svg>
-              ),
-            },
-            {
-              text: 'Non-custodial and read-only',
-              icon: (
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={theme.accent || theme.primary}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              ),
-            },
-          ].map((feature, idx) => (
-            <div
-              key={idx}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                fontSize: 13,
-                color: theme.textSecondary,
-              }}
-            >
-              <div
-                style={{
-                  flexShrink: 0,
-                  width: 28,
-                  height: 28,
-                  borderRadius: 8,
-                  background: theme.bgAccentSoft,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {feature.icon}
-              </div>
-              <span>{feature.text}</span>
-            </div>
-          ))}
         </div>
 
         {/* Supported Wallets Info */}
@@ -375,11 +255,7 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({
                     padding: 6,
                   }}
                 >
-                  <img
-                    src={wallet.icon}
-                    alt={wallet.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                  />
+                  <img src={wallet.icon} alt={wallet.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 </div>
                 <span style={{ fontSize: 11, color: theme.textSecondary }}>{wallet.name}</span>
               </div>
@@ -387,137 +263,36 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({
           </div>
         </div>
 
-        {/* Supported Protocols */}
+        {/* Features */}
         <div
           style={{
-            marginTop: 28,
-            padding: '16px',
-            background: theme.bgSecondary || theme.bgPrimary,
-            borderRadius: 12,
-            border: `1px solid ${theme.border}`,
+            marginTop: 32,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            textAlign: 'left',
           }}
         >
-          <p
-            style={{
-              margin: '0 0 12px 0',
-              fontSize: 12,
-              fontWeight: 600,
-              color: theme.textMuted,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-            }}
-          >
-            Supported Protocols
-          </p>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 14,
-              flexWrap: 'wrap',
-            }}
-          >
-            {[
-              { name: 'Aave', icon: '/resources/protocols/aave.svg' },
-              { name: 'Uniswap', icon: '/resources/protocols/uniswap.svg' },
-              { name: 'Kamino', icon: '/resources/protocols/kamino.svg' },
-              { name: 'Pendle', icon: '/resources/protocols/pendle.svg' },
-              { name: 'Raydium', icon: '/resources/protocols/raydium.svg' },
-            ].map((p) => (
-              <div key={p.name} style={{ textAlign: 'center' }}>
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    margin: '0 auto 4px',
-                    borderRadius: 8,
-                    background: theme.bgPanel,
-                    border: `1px solid ${theme.border}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 5,
-                  }}
-                >
-                  <img
-                    src={p.icon}
-                    alt={p.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                    onError={(e) => (e.currentTarget.style.display = 'none')}
-                  />
-                </div>
-                <span style={{ fontSize: 10, color: theme.textSecondary }}>{p.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Supported Chains */}
-        <div
-          style={{
-            marginTop: 12,
-            padding: '16px',
-            background: theme.bgSecondary || theme.bgPrimary,
-            borderRadius: 12,
-            border: `1px solid ${theme.border}`,
-          }}
-        >
-          <p
-            style={{
-              margin: '0 0 12px 0',
-              fontSize: 12,
-              fontWeight: 600,
-              color: theme.textMuted,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-            }}
-          >
-            Supported Chains
-          </p>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 14,
-              flexWrap: 'wrap',
-            }}
-          >
-            {SUPPORTED_CHAINS.map((chain) => (
-              <div key={chain.id} style={{ textAlign: 'center' }}>
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    margin: '0 auto 4px',
-                    borderRadius: '50%',
-                    background: theme.bgPanel,
-                    border: `1px solid ${theme.border}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 6,
-                  }}
-                >
-                  <img
-                    src={chain.iconUrl}
-                    alt={chain.displayName}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                      borderRadius: '50%',
-                    }}
-                    onError={(e) => (e.currentTarget.style.display = 'none')}
-                  />
-                </div>
-                <span style={{ fontSize: 10, color: theme.textSecondary }}>
-                  {chain.displayName}
-                </span>
-              </div>
-            ))}
-          </div>
+          {[
+            { icon: '🗂️', text: 'Multi-wallet — group and track wallets together' },
+            { icon: '🔗', text: 'Multi-chain — Ethereum, Solana, Base and more' },
+            { icon: '🏦', text: 'Multi-protocol — Aave, Kamino, Uniswap, Pendle and more' },
+            { icon: '🔒', text: 'Non-custodial and read-only' },
+          ].map((feature, idx) => (
+            <div
+              key={idx}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                fontSize: 13,
+                color: theme.textSecondary,
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{feature.icon}</span>
+              <span>{feature.text}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
