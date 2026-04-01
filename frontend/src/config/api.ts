@@ -1,6 +1,6 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000').replace(
   /\/+$/,
-  '',
+  ''
 );
 
 export const config = {
@@ -82,9 +82,7 @@ export const api = {
     if (!Array.isArray(jobs) || !jobs.length) return null;
     const prefs = ['base', 'bnb'];
     for (const p of prefs) {
-      const found = jobs.find(
-        (j) => String(j.chain || '').toLowerCase() === p,
-      );
+      const found = jobs.find((j) => String(j.chain || '').toLowerCase() === p);
       if (found) return found.jobId || found.jobID || found.id || null;
     }
     const first = jobs[0];

@@ -7,7 +7,11 @@ interface ConnectWalletScreenProps {
   onManageGroups: () => void;
 }
 
-const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConnect, onManageGroups }) => {
+const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({
+  theme,
+  onConnect,
+  onManageGroups,
+}) => {
   return (
     <div
       style={{
@@ -255,7 +259,11 @@ const ConnectWalletScreen: React.FC<ConnectWalletScreenProps> = ({ theme, onConn
                     padding: 6,
                   }}
                 >
-                  <img src={wallet.icon} alt={wallet.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  <img
+                    src={wallet.icon}
+                    alt={wallet.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
                 </div>
                 <span style={{ fontSize: 11, color: theme.textSecondary }}>{wallet.name}</span>
               </div>
