@@ -1,26 +1,8 @@
 declare global {
   interface Window {
-    rabby?: {
-      request?: (...args: any[]) => any;
-      on?: (...args: any[]) => any;
-      removeListener?: (...args: any[]) => any;
-      [key: string]: any;
-    };
-    ethereum?: {
-      request?: (...args: any[]) => any;
-      on?: (...args: any[]) => any;
-      removeListener?: (...args: any[]) => any;
-      [key: string]: any;
-    };
-    solana?: {
-      isPhantom?: boolean;
-      isConnected?: boolean;
-      connect?: (...args: any[]) => any;
-      disconnect?: (...args: any[]) => any;
-      on?: (...args: any[]) => any;
-      removeListener?: (...args: any[]) => any;
-      [key: string]: any;
-    };
+    rabby?: { request?: (...args: any[]) => any; on?: (...args: any[]) => any; removeListener?: (...args: any[]) => any; [key: string]: any };
+    ethereum?: { request?: (...args: any[]) => any; on?: (...args: any[]) => any; removeListener?: (...args: any[]) => any; [key: string]: any };
+    solana?: { isPhantom?: boolean; isConnected?: boolean; connect?: (...args: any[]) => any; disconnect?: (...args: any[]) => any; on?: (...args: any[]) => any; removeListener?: (...args: any[]) => any; [key: string]: any };
   }
 }
 
