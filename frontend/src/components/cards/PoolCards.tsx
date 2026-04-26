@@ -3,7 +3,6 @@ import React from 'react';
 import { useCardContext } from '../../hooks/useCardContext';
 import type { WalletItem } from '../../types/wallet';
 import { capitalize } from '../../utils/format';
-import { getProtocolColor } from '../../utils/protocolColors';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
 import OmniScoreBadge from '../OmniScoreBadge';
 import ProjectionSelector from '../ProjectionSelector';
@@ -313,7 +312,6 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [], isLoading }) => {
         return (
           <CardContainer
             key={index}
-            accentColor={getProtocolColor(protocol.name as string | undefined)}
             style={{
               display: 'flex',
               flexDirection: 'column',

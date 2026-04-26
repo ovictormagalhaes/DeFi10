@@ -4,7 +4,6 @@ import { useCardContext } from '../../hooks/useCardContext';
 import type { WalletItem } from '../../types/wallet';
 import { capitalize } from '../../utils/format';
 import { filterSuppliedTokens, filterGovernanceTokens } from '../../utils/tokenFilters';
-import { getProtocolColor } from '../../utils/protocolColors';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
 import SafeImage from '../SafeImage';
 
@@ -111,7 +110,6 @@ const LockingCards: React.FC<LockingCardsProps> = ({ data = [], isLoading }) => 
         return (
           <CardContainer
             key={index}
-            accentColor={getProtocolColor(protocol.name as string | undefined)}
             style={{
               display: 'flex',
               flexDirection: 'column',
