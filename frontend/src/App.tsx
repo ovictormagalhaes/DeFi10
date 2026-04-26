@@ -27,6 +27,7 @@ import HeaderBar from './components/HeaderBar';
 import LendingDetailView from './components/LendingDetailView';
 import LoadingScreen from './components/LoadingScreen';
 import PoolsView from './components/PoolsView';
+import PortfolioHeroCard from './components/PortfolioHeroCard';
 import PositionSearchBar from './components/PositionSearchBar';
 import ProtocolsSection from './components/ProtocolsSection';
 import RebalancingView from './components/RebalancingView'; // will render under 'strategies'
@@ -1754,6 +1755,18 @@ function App(): JSX.Element {
                     )}
                     {viewMode === 'overview' && (
                       <>
+                        <PortfolioHeroCard
+                          breakdown={getPortfolioBreakdown()}
+                          counts={{
+                            pools: getLiquidityPoolsData().length,
+                            lending: getLendingAndBorrowingData().length,
+                            staking: getStakingData().length,
+                            locking: getLockingData().length,
+                            wallet: walletTokens.length,
+                          }}
+                          maskValue={(v) => maskValue(v)}
+                          formatPrice={formatPrice}
+                        />
                         {/* Liquidity placeholder when viewMode === 'liquidity' */}
                         {(viewMode as string) === 'liquidity' && (
                           <div
