@@ -44,7 +44,7 @@ export const WalletSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] })
   const sectionBg =
     mode === 'dark'
       ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : `linear-gradient(to bottom, ${theme.bgPanel} 0%, ${theme.bgPanelAlt} 100%)`;
+      : `linear-gradient(to bottom, ${theme.bgHover} 0%, ${theme.bgPanelAlt} 100%)`;
 
   const totalValue = data.reduce((sum, item) => {
     const token = (item.token || item) as {
@@ -138,7 +138,7 @@ export const LendingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }
   const sectionBg =
     mode === 'dark'
       ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : `linear-gradient(to bottom, ${theme.bgPanel} 0%, ${theme.bgPanelAlt} 100%)`;
+      : `linear-gradient(to bottom, ${theme.bgHover} 0%, ${theme.bgPanelAlt} 100%)`;
 
   let totalSupply = 0;
   let totalBorrow = 0;
@@ -287,7 +287,7 @@ export const PoolsSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }) 
   const sectionBg =
     mode === 'dark'
       ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : `linear-gradient(to bottom, ${theme.bgPanel} 0%, ${theme.bgPanelAlt} 100%)`;
+      : `linear-gradient(to bottom, ${theme.bgHover} 0%, ${theme.bgPanelAlt} 100%)`;
 
   let totalValue = 0;
   let totalFees = 0;
@@ -430,7 +430,7 @@ export const LockingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }
   const sectionBg =
     mode === 'dark'
       ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : `linear-gradient(to bottom, ${theme.bgPanel} 0%, ${theme.bgPanelAlt} 100%)`;
+      : `linear-gradient(to bottom, ${theme.bgHover} 0%, ${theme.bgPanelAlt} 100%)`;
 
   let totalLockedValue = 0;
   let totalGovernanceTokens = 0;
@@ -605,7 +605,7 @@ export const StrategiesSectionHeader: React.FC<StrategiesSectionHeaderProps> = (
   const sectionBg =
     mode === 'dark'
       ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : `linear-gradient(to bottom, ${theme.bgPanel} 0%, ${theme.bgPanelAlt} 100%)`;
+      : `linear-gradient(to bottom, ${theme.bgHover} 0%, ${theme.bgPanelAlt} 100%)`;
 
   return (
     <div style={{ margin: '0 -20px 16px', borderBottom: `1px solid ${theme.border}` }}>
