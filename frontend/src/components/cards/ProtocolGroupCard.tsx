@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useCardContext } from '../../hooks/useCardContext';
 import type { WalletItem } from '../../types/wallet';
 import { capitalize } from '../../utils/format';
+import { getProtocolColor } from '../../utils/protocolColors';
 import { formatPrice } from '../../utils/walletUtils';
 import OmniScoreBadge from '../OmniScoreBadge';
 import ProjectionSelector from '../ProjectionSelector';
@@ -152,14 +153,16 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({
   const netPosition = totalSupplied - totalBorrowed;
   const avgApy = netPosition !== 0 ? (weightedSupplyRate - weightedBorrowRate) / netPosition : 0;
 
-  // Determine health color
-  const healthColor = healthFactor >= 2 ? '#10b981' : healthFactor >= 1.5 ? '#f59e0b' : '#ef4444';
+  const healthColor =
+    healthFactor >= 2 ? theme.success : healthFactor >= 1.5 ? theme.warning : theme.danger;
+  const protocolAccent = getProtocolColor(protocolName);
 
   return (
     <div
       style={{
         backgroundColor: theme.bgPanel,
-        border: `2px solid ${theme.border}`,
+        border: `1px solid ${theme.border}`,
+        ...(protocolAccent ? { borderTop: `2px solid ${protocolAccent}` } : {}),
         borderRadius: 16,
         marginBottom: 24,
         overflow: 'hidden',
@@ -413,7 +416,7 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({
                 style={{
                   fontSize: 16,
                   fontWeight: 700,
-                  color: '#10b981',
+                  color: theme.success,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
@@ -424,7 +427,7 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({
                   height="16"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#10b981"
+                  stroke={theme.success}
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -452,7 +455,7 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({
                 style={{
                   fontSize: 16,
                   fontWeight: 700,
-                  color: netPosition >= 0 ? '#10b981' : '#ef4444',
+                  color: netPosition >= 0 ? theme.success : theme.danger,
                 }}
               >
                 {maskValue(formatPrice(netPosition))}
@@ -468,7 +471,7 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({
                 style={{
                   fontSize: 16,
                   fontWeight: 700,
-                  color: '#ef4444',
+                  color: theme.danger,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'flex-end',
@@ -480,7 +483,7 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({
                   height="16"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#ef4444"
+                  stroke={theme.danger}
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -610,9 +613,9 @@ const ProtocolGroupCard: React.FC<ProtocolGroupCardProps> = ({
                                 padding: '2px 6px',
                                 borderRadius: 4,
                                 backgroundColor: isBorrowToken
-                                  ? 'rgba(239, 68, 68, 0.15)'
-                                  : 'rgba(16, 185, 129, 0.15)',
-                                color: isBorrowToken ? '#ef4444' : '#10b981',
+                                  ? `${theme.danger}26`
+                                  : `${theme.success}26`,
+                                color: isBorrowToken ? theme.danger : theme.success,
                               }}
                             >
                               {positionType}
