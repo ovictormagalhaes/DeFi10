@@ -8,28 +8,45 @@ interface CardContainerProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const CardContainer: React.FC<CardContainerProps> = ({ children, style, ...rest }) => {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
+
+  const bg =
+    mode === 'dark'
+      ? `linear-gradient(160deg, ${theme.bgPanelAlt} 0%, ${theme.bgCard} 100%)`
+      : `linear-gradient(160deg, ${theme.bgPanel} 0%, ${theme.bgCard} 100%)`;
+
+  const border =
+    mode === 'dark'
+      ? '1px solid rgba(255,255,255,0.07)'
+      : `1px solid ${theme.border}`;
+
+  const hoverBorder =
+    mode === 'dark'
+      ? `1px solid ${theme.accent}55`
+      : `1px solid ${theme.accent}80`;
 
   return (
     <div
       style={{
-        backgroundColor: theme.bgPanel,
-        border: `1px solid ${theme.border}`,
+        background: bg,
+        border,
         borderRadius: 12,
         padding: 16,
-        transition: 'all 0.2s ease',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease, border 0.2s ease',
         cursor: 'pointer',
         ...style,
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = theme.accent;
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = theme.shadowHover;
+        const el = e.currentTarget;
+        el.style.border = hoverBorder;
+        el.style.transform = 'translateY(-2px)';
+        el.style.boxShadow = theme.shadowHover;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = theme.border;
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
+        const el = e.currentTarget;
+        el.style.border = border;
+        el.style.transform = 'translateY(0)';
+        el.style.boxShadow = 'none';
       }}
       {...rest}
     >
