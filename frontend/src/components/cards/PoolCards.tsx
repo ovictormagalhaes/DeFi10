@@ -11,6 +11,7 @@ import SafeImage from '../SafeImage';
 
 import CardContainer from './CardContainer';
 import EmptyStateCard from './EmptyStateCard';
+import PoolShareBanner from './PoolShareBanner';
 import SkeletonCardGrid from './SkeletonCardGrid';
 
 interface PoolCardsProps {
@@ -30,6 +31,7 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [], isLoading }) => {
     | 'projections'
     | null;
   const [expandedSection, setExpandedSection] = React.useState<Record<number, ExpandSection>>({});
+  const [shareBannerIndex, setShareBannerIndex] = React.useState<number | null>(null);
 
   if (!data || data.length === 0) {
     return <EmptyStateCard label="pool positions" />;
@@ -465,9 +467,9 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [], isLoading }) => {
                     padding: '2px 8px',
                     borderRadius: 4,
                     backgroundColor: inRange
-                      ? 'rgba(16, 185, 129, 0.15)'
-                      : 'rgba(239, 68, 68, 0.15)',
-                    color: inRange ? '#10b981' : '#ef4444',
+                      ? `${theme.success}26`
+                      : `${theme.danger}26`,
+                    color: inRange ? theme.success : theme.danger,
                   }}
                 >
                   {inRange ? 'In Range' : 'Out of Range'}
@@ -827,9 +829,9 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [], isLoading }) => {
                             color: (() => {
                               const { lower, upper, current } = displayRangeData;
                               if (current < lower || current > upper) {
-                                return '#ef4444';
+                                return theme.danger;
                               }
-                              return '#10b981';
+                              return theme.success;
                             })(),
                           }}
                         >
@@ -1367,7 +1369,7 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [], isLoading }) => {
                           fontSize: 13,
                           fontWeight: 400,
                           fontFamily: 'inherit',
-                          color: 'rgb(162, 169, 181)',
+                          color: theme.textSecondary,
                           backgroundColor: 'transparent',
                           border: 'none',
                           borderRadius: 0,
@@ -1402,7 +1404,7 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [], isLoading }) => {
                           fontSize: 13,
                           fontWeight: 400,
                           fontFamily: 'inherit',
-                          color: 'rgb(162, 169, 181)',
+                          color: theme.textSecondary,
                           backgroundColor: 'transparent',
                           border: 'none',
                           borderRadius: 0,
@@ -1417,6 +1419,86 @@ const PoolCards: React.FC<PoolCardsProps> = ({ data = [], isLoading }) => {
                 return null;
               })()}
             </div>
+
+            {/* Share button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+              <button
+                onClick={() => setShareBannerIndex(index)}
+                style={{
+                  background: 'none',
+                  border: `1px solid ${theme.borderColor || '#334155'}`,
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  padding: '5px 10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  color: theme.textSecondary,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = theme.accent || '#6366f1';
+                  e.currentTarget.style.color = theme.accent || '#6366f1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = theme.borderColor || '#334155';
+                  e.currentTarget.style.color = theme.textSecondary;
+                }}
+                title="Share pool"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Share
+              </button>
+            </div>
+
+            {/* Banner modal */}
+            {shareBannerIndex === index && (
+              <PoolShareBanner
+                token0Symbol={displayToken0?.symbol || 'Unknown'}
+                token1Symbol={displayToken1?.symbol || 'Unknown'}
+                token0Logo={displayToken0?.logo || undefined}
+                token1Logo={displayToken1?.logo || undefined}
+                protocolName={protocol.name}
+                protocolLogo={protocol.logo || protocol.icon}
+                chain={displayToken0?.chain ? capitalize(displayToken0.chain) : undefined}
+                chainIcon={displayToken0?.chain ? getChainIcon(displayToken0.chain) : undefined}
+                apr={displayedApr || undefined}
+                age={age !== '-' ? age : undefined}
+                inRange={rangeData ? inRange : undefined}
+                totalValue={totalValue > 0 ? totalValue : undefined}
+                totalFees={(() => {
+                  const uf =
+                    (uncollectedFees?.token0?.value || 0) + (uncollectedFees?.token1?.value || 0);
+                  const cf =
+                    (collectedFees?.token0?.value || 0) + (collectedFees?.token1?.value || 0);
+                  const total = uf + cf;
+                  return total > 0 ? total : undefined;
+                })()}
+                rangeData={
+                  rangeData?.lower != null && rangeData?.upper != null && rangeData?.current != null
+                    ? { lower: rangeData.lower, upper: rangeData.upper, current: rangeData.current }
+                    : undefined
+                }
+                tierPercent={
+                  additionalData?.tierPercent != null
+                    ? Number(additionalData.tierPercent)
+                    : additionalInfo?.tierPercent != null
+                      ? Number(additionalInfo.tierPercent)
+                      : undefined
+                }
+                onClose={() => setShareBannerIndex(null)}
+              />
+            )}
           </CardContainer>
         );
       })}

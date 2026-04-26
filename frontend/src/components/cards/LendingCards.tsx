@@ -237,7 +237,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({
   // Expanded mode rendering
   if (mode === 'expanded' && expandedProps) {
     const { protocolName, chainName, healthFactor, protocolLogo, onBack } = expandedProps;
-    const healthColor = healthFactor >= 2 ? '#10b981' : healthFactor >= 1.5 ? '#f59e0b' : '#ef4444';
+    const healthColor = healthFactor >= 2 ? theme.success : healthFactor >= 1.5 ? theme.warning : theme.danger;
 
     return (
       <div
@@ -387,7 +387,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({
               style={{
                 fontSize: 18,
                 fontWeight: 700,
-                color: '#10b981',
+                color: theme.success,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
@@ -398,7 +398,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({
                 height="16"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#10b981"
+                stroke={theme.success}
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -425,7 +425,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({
               style={{
                 fontSize: 18,
                 fontWeight: 700,
-                color: netPosition >= 0 ? '#10b981' : '#ef4444',
+                color: netPosition >= 0 ? theme.success : theme.danger,
               }}
             >
               {maskValue(formatPrice(netPosition))}
@@ -438,7 +438,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({
               style={{
                 fontSize: 18,
                 fontWeight: 700,
-                color: '#ef4444',
+                color: theme.danger,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-end',
@@ -450,7 +450,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({
                 height="16"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#ef4444"
+                stroke={theme.danger}
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -746,9 +746,9 @@ const LendingCards: React.FC<LendingCardsProps> = ({
                           padding: '2px 8px',
                           borderRadius: 4,
                           backgroundColor: isBorrowToken
-                            ? 'rgba(239, 68, 68, 0.15)'
-                            : 'rgba(16, 185, 129, 0.15)',
-                          color: isBorrowToken ? '#ef4444' : '#10b981',
+                            ? `${theme.danger}26`
+                            : `${theme.success}26`,
+                          color: isBorrowToken ? theme.danger : theme.success,
                         }}
                       >
                         {positionType}
@@ -870,10 +870,10 @@ const LendingCards: React.FC<LendingCardsProps> = ({
                           fontWeight: 600,
                           color:
                             healthFactor >= 2
-                              ? '#10b981'
+                              ? theme.success
                               : healthFactor >= 1.5
-                                ? '#f59e0b'
-                                : '#ef4444',
+                                ? theme.warning
+                                : theme.danger,
                         }}
                       >
                         {healthFactor.toFixed(2)}
@@ -962,7 +962,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({
                                 fontSize: 13,
                                 fontWeight: 400,
                                 fontFamily: 'inherit',
-                                color: 'rgb(162, 169, 181)',
+                                color: theme.textSecondary,
                                 backgroundColor: 'transparent',
                                 border: 'none',
                                 borderRadius: 0,
@@ -1001,7 +1001,7 @@ const LendingCards: React.FC<LendingCardsProps> = ({
                                 fontSize: 13,
                                 fontWeight: 400,
                                 fontFamily: 'inherit',
-                                color: 'rgb(162, 169, 181)',
+                                color: theme.textSecondary,
                                 backgroundColor: 'transparent',
                                 border: 'none',
                                 borderRadius: 0,
@@ -1199,16 +1199,16 @@ const TransactionHistory = ({ supplyHistory, borrowHistory, repayHistory, theme 
 
               let iconColor, bgColor, icon;
               if (isSupply) {
-                iconColor = '#10b981'; // Green
-                bgColor = 'rgba(16, 185, 129, 0.15)';
+                iconColor = theme.success;
+                bgColor = `${theme.success}26`;
                 icon = <path d="M12 5v14M19 12l-7 7-7-7" />; // Down arrow (deposit)
               } else if (isRepay) {
                 iconColor = '#3b82f6'; // Blue
                 bgColor = 'rgba(59, 130, 246, 0.15)';
                 icon = <path d="M12 19V5M5 12l7-7 7 7" />; // Up arrow (payment)
               } else {
-                iconColor = '#ef4444'; // Red
-                bgColor = 'rgba(239, 68, 68, 0.15)';
+                iconColor = theme.danger;
+                bgColor = `${theme.danger}26`;
                 icon = <path d="M12 19V5M5 12l7-7 7 7" />; // Up arrow (withdrawal)
               }
 
