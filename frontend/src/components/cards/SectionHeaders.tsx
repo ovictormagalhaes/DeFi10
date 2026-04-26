@@ -38,13 +38,9 @@ interface StrategiesSectionHeaderProps {
  * WalletSectionHeader - Header for Wallet tokens section
  */
 export const WalletSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }) => {
-  const { theme, mode } = useTheme();
+  const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const isMobile = useIsMobile();
-  const sectionBg =
-    mode === 'dark'
-      ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : theme.bgPanel;
 
   const totalValue = data.reduce((sum, item) => {
     const token = (item.token || item) as {
@@ -65,7 +61,7 @@ export const WalletSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] })
           justifyContent: 'space-between',
           alignItems: isMobile ? 'stretch' : 'center',
           padding: '16px 24px',
-          background: sectionBg,
+          backgroundColor: theme.bgPanel,
           gap: isMobile ? 16 : 0,
         }}
       >
@@ -132,13 +128,9 @@ export const WalletSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] })
  * LendingSectionHeader - Header for Lending & Borrowing section
  */
 export const LendingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }) => {
-  const { theme, mode } = useTheme();
+  const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const isMobile = useIsMobile();
-  const sectionBg =
-    mode === 'dark'
-      ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : theme.bgPanel;
 
   let totalSupply = 0;
   let totalBorrow = 0;
@@ -185,7 +177,7 @@ export const LendingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }
           justifyContent: 'space-between',
           alignItems: isMobile ? 'stretch' : 'center',
           padding: '16px 24px',
-          background: sectionBg,
+          backgroundColor: theme.bgPanel,
           gap: isMobile ? 16 : 0,
         }}
       >
@@ -281,13 +273,9 @@ export const LendingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }
  * PoolsSectionHeader - Header for Liquidity Pools section
  */
 export const PoolsSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }) => {
-  const { theme, mode } = useTheme();
+  const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const isMobile = useIsMobile();
-  const sectionBg =
-    mode === 'dark'
-      ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : theme.bgPanel;
 
   let totalValue = 0;
   let totalFees = 0;
@@ -328,7 +316,7 @@ export const PoolsSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }) 
           justifyContent: 'space-between',
           alignItems: isMobile ? 'stretch' : 'center',
           padding: '16px 24px',
-          background: sectionBg,
+          backgroundColor: theme.bgPanel,
           gap: isMobile ? 16 : 0,
         }}
       >
@@ -424,13 +412,9 @@ export const PoolsSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }) 
  * LockingSectionHeader - Header for Locked Tokens section
  */
 export const LockingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }) => {
-  const { theme, mode } = useTheme();
+  const { theme } = useTheme();
   const { maskValue } = useMaskValues();
   const isMobile = useIsMobile();
-  const sectionBg =
-    mode === 'dark'
-      ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : theme.bgPanel;
 
   let totalLockedValue = 0;
   let totalGovernanceTokens = 0;
@@ -498,7 +482,7 @@ export const LockingSectionHeader: React.FC<SectionHeaderProps> = ({ data = [] }
           justifyContent: 'space-between',
           alignItems: isMobile ? 'stretch' : 'center',
           padding: '16px 24px',
-          background: sectionBg,
+          backgroundColor: theme.bgPanel,
           gap: isMobile ? 16 : 0,
         }}
       >
@@ -600,12 +584,8 @@ export const StrategiesSectionHeader: React.FC<StrategiesSectionHeaderProps> = (
   saveResult = null,
   saveError = null,
 }) => {
-  const { theme, mode } = useTheme();
+  const { theme } = useTheme();
   const isMobile = useIsMobile();
-  const sectionBg =
-    mode === 'dark'
-      ? `linear-gradient(to bottom, ${theme.bgPanelAlt} 0%, ${theme.bgPanel} 100%)`
-      : theme.bgPanel;
 
   return (
     <div style={{ margin: '0 -20px 16px', borderBottom: `1px solid ${theme.border}` }}>
@@ -616,7 +596,7 @@ export const StrategiesSectionHeader: React.FC<StrategiesSectionHeaderProps> = (
           justifyContent: 'space-between',
           alignItems: isMobile ? 'stretch' : 'center',
           padding: '16px 24px',
-          background: sectionBg,
+          backgroundColor: theme.bgPanel,
           gap: isMobile ? 16 : 12,
         }}
       >
