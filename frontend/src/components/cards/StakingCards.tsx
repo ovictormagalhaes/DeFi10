@@ -134,7 +134,7 @@ const StakingCards: React.FC<StakingCardsProps> = ({ data = [], isLoading }) => 
                   style={{
                     fontSize: 16,
                     fontWeight: 700,
-                    color: rewardsValue > 0 ? '#10b981' : theme.textPrimary,
+                    color: rewardsValue > 0 ? theme.success : theme.textPrimary,
                   }}
                 >
                   {maskValue(formatPrice(rewardsValue))}
