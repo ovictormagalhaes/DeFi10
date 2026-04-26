@@ -5,9 +5,10 @@ import { useTheme } from '../../context/ThemeProvider';
 interface CardContainerProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   style?: React.CSSProperties;
+  accentColor?: string;
 }
 
-const CardContainer: React.FC<CardContainerProps> = ({ children, style, ...rest }) => {
+const CardContainer: React.FC<CardContainerProps> = ({ children, style, accentColor, ...rest }) => {
   const { theme, mode } = useTheme();
 
   const bg =
@@ -40,6 +41,7 @@ const CardContainer: React.FC<CardContainerProps> = ({ children, style, ...rest 
       style={{
         background: bg,
         border,
+        ...(accentColor ? { borderTop: `2px solid ${accentColor}` } : {}),
         borderRadius: 12,
         padding: 16,
         boxShadow: restingShadow,
@@ -50,12 +52,14 @@ const CardContainer: React.FC<CardContainerProps> = ({ children, style, ...rest 
       onMouseEnter={(e) => {
         const el = e.currentTarget;
         el.style.border = hoverBorder;
+        if (accentColor) el.style.borderTop = `2px solid ${accentColor}`;
         el.style.transform = 'translateY(-2px)';
         el.style.boxShadow = hoverShadow;
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget;
         el.style.border = border;
+        if (accentColor) el.style.borderTop = `2px solid ${accentColor}`;
         el.style.transform = 'translateY(0)';
         el.style.boxShadow = restingShadow;
       }}

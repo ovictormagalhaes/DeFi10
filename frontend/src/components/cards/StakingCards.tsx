@@ -1,6 +1,7 @@
 import { useMaskValues } from '../../context/MaskValuesContext';
 import { useTheme } from '../../context/ThemeProvider';
 import type { WalletItem } from '../../types/wallet';
+import { getProtocolColor } from '../../utils/protocolColors';
 import { formatPrice, formatBalance } from '../../utils/walletUtils';
 import SafeImage from '../SafeImage';
 
@@ -45,7 +46,7 @@ const StakingCards: React.FC<StakingCardsProps> = ({ data = [], isLoading }) => 
         const rewardsValue = rewards.reduce((sum, reward) => sum + (reward.totalPrice || 0), 0);
 
         return (
-          <CardContainer key={index}>
+          <CardContainer key={index} accentColor={getProtocolColor(protocol.name as string | undefined)}>
             {/* Header - Protocol */}
             <div
               style={{
