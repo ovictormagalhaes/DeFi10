@@ -133,9 +133,7 @@ impl WalletGroupRepositoryTrait for WalletGroupRepository {
         self.collection
             .update_one(filter, update)
             .await
-            .map_err(|e| {
-                DeFi10Error::Database(format!("Failed to update lastSyncedAt: {}", e))
-            })?;
+            .map_err(|e| DeFi10Error::Database(format!("Failed to update lastSyncedAt: {}", e)))?;
         Ok(())
     }
 
@@ -147,18 +145,14 @@ impl WalletGroupRepositoryTrait for WalletGroupRepository {
             "lastSyncedAt": { "$exists": false },
         };
 
-        let mut cursor = self
-            .collection
-            .find(filter)
-            .await
-            .map_err(|e| DeFi10Error::Database(format!("Failed to list groups for backfill: {}", e)))?;
+        let mut cursor = self.collection.find(filter).await.map_err(|e| {
+            DeFi10Error::Database(format!("Failed to list groups for backfill: {}", e))
+        })?;
 
         let mut count = 0u32;
-        while cursor
-            .advance()
-            .await
-            .map_err(|e| DeFi10Error::Database(format!("Failed to iterate backfill cursor: {}", e)))?
-        {
+        while cursor.advance().await.map_err(|e| {
+            DeFi10Error::Database(format!("Failed to iterate backfill cursor: {}", e))
+        })? {
             let raw = cursor.current();
             if let Ok(group) = from_slice::<WalletGroup>(raw.as_bytes()) {
                 let update_filter = doc! { "_id": group.id.to_string() };

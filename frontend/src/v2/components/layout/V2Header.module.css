@@ -8,7 +8,9 @@
   align-items: center;
   height: 52px;
   padding: 0 24px;
-  transition: background 0.16s ease, border-color 0.16s ease;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .logo {
@@ -42,7 +44,9 @@
   color: var(--v2-muted);
   text-decoration: none;
   border-bottom: 2px solid transparent;
-  transition: color 0.16s ease, border-color 0.16s ease;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease;
   user-select: none;
   white-space: nowrap;
 }
@@ -74,7 +78,10 @@
   justify-content: center;
   cursor: pointer;
   color: var(--v2-muted);
-  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
 
 .iconBtn:hover {

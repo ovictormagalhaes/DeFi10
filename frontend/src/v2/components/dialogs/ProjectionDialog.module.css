@@ -117,7 +117,9 @@
   justify-content: center;
   cursor: pointer;
   color: var(--v2-muted);
-  transition: color 0.12s ease, border-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .closeBtn:hover {
@@ -314,7 +316,9 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: color 0.12s ease, border-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .resetBtn:hover {
@@ -438,7 +442,9 @@
 .miniBarFill {
   width: 100%;
   border-radius: 4px;
-  transition: height 0.3s ease, background 0.2s ease;
+  transition:
+    height 0.3s ease,
+    background 0.2s ease;
   min-height: 4px;
 }
 
@@ -476,7 +482,10 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    background 0.12s ease;
 }
 
 .shareBtn:hover {

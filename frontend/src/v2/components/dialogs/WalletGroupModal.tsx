@@ -226,7 +226,9 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
         const { nonce } = await solveChallenge(
           challengeData.challenge,
           challengeData.difficulty,
-          () => { setPowProgress('Processing wallet group...'); }
+          () => {
+            setPowProgress('Processing wallet group...');
+          }
         );
         setPowStatus('solved');
         setPowProgress('Finalizing wallet group...');
@@ -339,7 +341,12 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
   };
 
   const handleDisconnectGroup = (groupId: string) => {
-    if (!window.confirm('Disconnect from this wallet group? You can reconnect later using the Group ID.')) return;
+    if (
+      !window.confirm(
+        'Disconnect from this wallet group? You can reconnect later using the Group ID.'
+      )
+    )
+      return;
     try {
       apiClient.removeToken(groupId);
       const updatedGroups = groups.filter((g) => g.id !== groupId);
@@ -446,7 +453,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
             <p className={s.headerSub}>{subText}</p>
           </div>
           <button className={s.closeBtn} onClick={onClose}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
@@ -456,14 +472,44 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
           {mode === 'list' ? (
             <>
               <div className={s.topActions}>
-                <button className={s.btnPrimary} onClick={() => { resetForm(); setMode('create'); }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <button
+                  className={s.btnPrimary}
+                  onClick={() => {
+                    resetForm();
+                    setMode('create');
+                  }}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M12 5v14M5 12h14" />
                   </svg>
                   Create New Group
                 </button>
-                <button className={s.btnSecondary} onClick={() => { resetForm(); setMode('connect'); }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <button
+                  className={s.btnSecondary}
+                  onClick={() => {
+                    resetForm();
+                    setMode('connect');
+                  }}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                   </svg>
@@ -473,7 +519,17 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
               {groups.length === 0 ? (
                 <div className={s.emptyState}>
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 16px', opacity: 0.5, display: 'block' }}>
+                  <svg
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ margin: '0 auto 16px', opacity: 0.5, display: 'block' }}
+                  >
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -490,14 +546,18 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                         <div className={s.groupInfo}>
                           <h4 className={s.groupName}>{group.displayName || 'Unnamed Group'}</h4>
                           <p className={s.groupMeta}>
-                            {group.wallets.length} wallet{group.wallets.length !== 1 ? 's' : ''} • Created {new Date(group.createdAt).toLocaleDateString()}
+                            {group.wallets.length} wallet{group.wallets.length !== 1 ? 's' : ''} •
+                            Created {new Date(group.createdAt).toLocaleDateString()}
                           </p>
                         </div>
                         <div className={s.groupBtns}>
                           {onGroupSelected && (
                             <button
                               className={`${s.btnSm} ${s.btnSmSelect}`}
-                              onClick={() => { onGroupSelected(group.id); onClose(); }}
+                              onClick={() => {
+                                onGroupSelected(group.id);
+                                onClose();
+                              }}
                               disabled={loading}
                             >
                               Select
@@ -508,7 +568,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             onClick={() => handleCopyGroupId(group.id)}
                             disabled={loading}
                           >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
                               <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                               <path d="M5 15H4a2 2 0 0 1-2-2V4c0-1.1.9-2 2-2h9a2 2 0 0 1 2 2v1" />
                             </svg>
@@ -519,7 +588,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             onClick={() => handleDisconnectGroup(group.id)}
                             disabled={loading}
                           >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
                               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                               <polyline points="16 17 21 12 16 7" />
                               <line x1="21" y1="12" x2="9" y2="12" />
@@ -538,7 +616,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             onClick={() => handleDeleteGroup(group.id)}
                             disabled={loading}
                           >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
                               <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
                             </svg>
                           </button>
@@ -564,13 +651,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 <div className={s.reconnectBanner}>
                   <p className={s.reconnectTitle}>Session Expired</p>
                   <p className={s.reconnectDesc}>
-                    Your authentication session has expired. Please enter your password to reconnect to this wallet group.
+                    Your authentication session has expired. Please enter your password to reconnect
+                    to this wallet group.
                   </p>
                 </div>
               )}
 
               <div className={s.fieldGroup}>
-                <label htmlFor="group-id" className={s.label}>Group ID</label>
+                <label htmlFor="group-id" className={s.label}>
+                  Group ID
+                </label>
                 <input
                   id="group-id"
                   type="text"
@@ -583,11 +673,20 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                       setConnectGroupId(value);
                       setGroupError(null);
                       if (value.trim().length > 10) checkGroupPasswordRequirement(value);
-                      else { setGroupIsPublic(null); setPasswordRequired(null); }
+                      else {
+                        setGroupIsPublic(null);
+                        setPasswordRequired(null);
+                      }
                     }
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !loading && !isConnecting && connectGroupId.trim() && (!passwordRequired || connectPassword.trim()))
+                    if (
+                      e.key === 'Enter' &&
+                      !loading &&
+                      !isConnecting &&
+                      connectGroupId.trim() &&
+                      (!passwordRequired || connectPassword.trim())
+                    )
                       handleConnectToExistingGroup();
                   }}
                   className={`${s.input} ${s.inputMono} ${groupError?.includes('Group ID') ? s.inputErr : ''} ${initialGroupId ? s.inputReadonly : ''}`}
@@ -599,8 +698,19 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                   </p>
                 )}
                 {!isCheckingGroup && groupIsPublic !== null && (
-                  <div className={`${s.groupStatusBadge} ${groupIsPublic ? s.groupStatusPublic : s.groupStatusLocked}`}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <div
+                    className={`${s.groupStatusBadge} ${groupIsPublic ? s.groupStatusPublic : s.groupStatusLocked}`}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       {groupIsPublic ? (
                         <>
                           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -621,24 +731,36 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
               <div className={s.fieldGroup}>
                 <label htmlFor="connect-password" className={s.label}>
                   Password{' '}
-                  {passwordRequired
-                    ? <span style={{ color: 'var(--v2-red)' }}>*</span>
-                    : <span className={s.labelHint}>(if required)</span>
-                  }
+                  {passwordRequired ? (
+                    <span style={{ color: 'var(--v2-red)' }}>*</span>
+                  ) : (
+                    <span className={s.labelHint}>(if required)</span>
+                  )}
                 </label>
                 <input
                   id="connect-password"
                   type="password"
-                  placeholder={passwordRequired ? 'Enter group password' : 'Enter password if group is protected'}
+                  placeholder={
+                    passwordRequired
+                      ? 'Enter group password'
+                      : 'Enter password if group is protected'
+                  }
                   value={connectPassword}
                   onChange={(e) => {
                     const val = e.target.value;
                     setConnectPassword(val);
-                    if (val.length > 0 && val.length < 8) setGroupError('Password must be at least 8 characters');
+                    if (val.length > 0 && val.length < 8)
+                      setGroupError('Password must be at least 8 characters');
                     else if (groupError?.includes('Password')) setGroupError(null);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !loading && !isConnecting && connectGroupId.trim() && (!passwordRequired || connectPassword.trim()))
+                    if (
+                      e.key === 'Enter' &&
+                      !loading &&
+                      !isConnecting &&
+                      connectGroupId.trim() &&
+                      (!passwordRequired || connectPassword.trim())
+                    )
                       handleConnectToExistingGroup();
                   }}
                   className={`${s.input} ${(connectPassword.length > 0 && connectPassword.length < 8) || groupError ? s.inputErr : ''}`}
@@ -646,20 +768,29 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 {connectPassword.length > 0 && connectPassword.length < 8 && (
                   <p className={s.errorText}>Password must be at least 8 characters</p>
                 )}
-                {groupError?.includes('Group ID') && (
-                  <p className={s.errorText}>{groupError}</p>
-                )}
+                {groupError?.includes('Group ID') && <p className={s.errorText}>{groupError}</p>}
                 {!groupError && !(connectPassword.length > 0 && connectPassword.length < 8) && (
                   <p className={s.hint}>Leave empty if the group has no password</p>
                 )}
               </div>
 
               <div className={s.infoBanner}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0, marginTop: 2 }}
+                >
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 16v-4M12 8h.01" />
                 </svg>
-                Enter the Group ID from another device to sync your wallet collections across devices.
+                Enter the Group ID from another device to sync your wallet collections across
+                devices.
               </div>
 
               {error && <div className={s.errorBanner}>{error}</div>}
@@ -680,7 +811,13 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                     maxLength={50}
                     className={s.input}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && noPassword && !loading && powStatus !== 'solving' && canSubmit)
+                      if (
+                        e.key === 'Enter' &&
+                        noPassword &&
+                        !loading &&
+                        powStatus !== 'solving' &&
+                        canSubmit
+                      )
                         handleCreateGroup();
                     }}
                   />
@@ -707,7 +844,17 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
                     {noPassword && (
                       <div className={s.warningBannerRow}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2, color: 'var(--v2-yellow)' }}>
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{ flexShrink: 0, marginTop: 2, color: 'var(--v2-yellow)' }}
+                        >
                           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                           <line x1="12" y1="9" x2="12" y2="13" />
                           <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -715,7 +862,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                         <div>
                           <p className={s.warningBannerTitle}>Security Warning</p>
                           <p className={s.warningBannerText}>
-                            Anyone with the Group ID will be able to view and modify this wallet group. We recommend using a password for better security.
+                            Anyone with the Group ID will be able to view and modify this wallet
+                            group. We recommend using a password for better security.
                           </p>
                         </div>
                       </div>
@@ -735,7 +883,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                         onChange={(e) => {
                           const val = e.target.value;
                           setPassword(val);
-                          if (val.length > 0 && val.length < 8) setGroupError('Password must be at least 8 characters');
+                          if (val.length > 0 && val.length < 8)
+                            setGroupError('Password must be at least 8 characters');
                           else if (groupError?.includes('Password')) setGroupError(null);
                         }}
                         onKeyDown={(e) => {
@@ -752,7 +901,8 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                         <p className={s.errorText}>{groupError}</p>
                       )}
                       <p className={s.hint}>
-                        This password is required to access and modify this wallet group. Use a strong password — there is no recovery option if forgotten.
+                        This password is required to access and modify this wallet group. Use a
+                        strong password — there is no recovery option if forgotten.
                       </p>
                     </div>
                   )}
@@ -791,7 +941,9 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                   validationErrors[idx] ? s.inputErr : '',
                                   connectedWallets[idx] ? s.inputConnected : '',
                                   wallet && !validationErrors[idx] ? s.inputHasBadge : '',
-                                ].filter(Boolean).join(' ')}
+                                ]
+                                  .filter(Boolean)
+                                  .join(' ')}
                               />
                               {wallet && !validationErrors[idx] && (
                                 <div className={s.walletInputBadgeOverlay}>
@@ -803,7 +955,16 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                       onClick={() => handleDisconnectWallet(idx)}
                                       title="Disconnect wallet"
                                     >
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
                                         <line x1="18" y1="6" x2="6" y2="18" />
                                         <line x1="6" y1="6" x2="18" y2="18" />
                                       </svg>
@@ -812,10 +973,22 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                                     <button
                                       type="button"
                                       className={`${s.addrActionBtn} ${s.addrConnectBtn}`}
-                                      onClick={() => { setWalletSelectorIndex(idx); setShowWalletSelector(true); }}
+                                      onClick={() => {
+                                        setWalletSelectorIndex(idx);
+                                        setShowWalletSelector(true);
+                                      }}
                                       title="Connect wallet"
                                     >
-                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
                                         <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
                                         <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
                                       </svg>
@@ -828,10 +1001,22 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                             <button
                               type="button"
                               className={s.walletConnectBtn}
-                              onClick={() => { setWalletSelectorIndex(idx); setShowWalletSelector(true); }}
+                              onClick={() => {
+                                setWalletSelectorIndex(idx);
+                                setShowWalletSelector(true);
+                              }}
                               title="Connect wallet"
                             >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
                                 <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
                                 <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
                               </svg>
@@ -864,15 +1049,24 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
                 </div>
               </div>
 
-              {(groupError || error) && (
-                <div className={s.errorBanner}>{groupError || error}</div>
-              )}
+              {(groupError || error) && <div className={s.errorBanner}>{groupError || error}</div>}
 
               {mode === 'create' && powStatus !== 'idle' && (
-                <div className={`${s.powBanner} ${powStatus === 'error' ? s.powError : powStatus === 'solved' ? s.powSolved : s.powSolving}`}>
+                <div
+                  className={`${s.powBanner} ${powStatus === 'error' ? s.powError : powStatus === 'solved' ? s.powSolved : s.powSolving}`}
+                >
                   {powStatus === 'solving' && <div className={s.spinner} />}
                   {powStatus === 'solved' && (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M20 6 9 17l-5-5" />
                     </svg>
                   )}
@@ -888,7 +1082,9 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
         {mode !== 'list' && (
           <div className={s.footer}>
-            <button className={s.btnCancel} onClick={cancelForm}>Cancel</button>
+            <button className={s.btnCancel} onClick={cancelForm}>
+              Cancel
+            </button>
             <button
               className={s.btnSubmit}
               onClick={
@@ -910,7 +1106,10 @@ const WalletGroupModal: React.FC<WalletGroupModalProps> = ({
 
       <WalletSelectorDialog
         isOpen={showWalletSelector}
-        onClose={() => { setShowWalletSelector(false); setWalletSelectorIndex(null); }}
+        onClose={() => {
+          setShowWalletSelector(false);
+          setWalletSelectorIndex(null);
+        }}
         onSelectWallet={handleWalletSelection}
         availableWallets={detectAvailableWallets()}
       />

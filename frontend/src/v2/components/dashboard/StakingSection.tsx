@@ -5,7 +5,7 @@ import { SectionHeader } from '../shared/SectionHeader';
 import { ProtocolIcon } from '../shared/ProtocolIcon';
 import { ChainIcon } from '../shared/ChainIcon';
 
-const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 import MaskedValue from '../shared/MaskedValue';
 import { formatPrice, formatTokenAmount } from '../../../utils/walletUtils';
 import s from './StakingSection.module.css';
@@ -25,17 +25,20 @@ export const StakingSection: React.FC<Props> = ({ items }) => {
   const filtered = useMemo(() => {
     let result = items;
     if (selectedChains) {
-      result = result.filter(item =>
-        selectedChains.has(String(item.protocol?.chain ?? '').trim().toLowerCase())
+      result = result.filter((item) =>
+        selectedChains.has(
+          String(item.protocol?.chain ?? '')
+            .trim()
+            .toLowerCase()
+        )
       );
     }
     if (positionSearch.trim()) {
       const q = positionSearch.toLowerCase();
-      result = result.filter(item =>
-        (item.protocol?.name ?? '').toLowerCase().includes(q) ||
-        (item.position?.tokens ?? []).some((t: any) =>
-          (t.symbol ?? '').toLowerCase().includes(q)
-        )
+      result = result.filter(
+        (item) =>
+          (item.protocol?.name ?? '').toLowerCase().includes(q) ||
+          (item.position?.tokens ?? []).some((t: any) => (t.symbol ?? '').toLowerCase().includes(q))
       );
     }
     return result;
@@ -43,39 +46,47 @@ export const StakingSection: React.FC<Props> = ({ items }) => {
 
   if (filtered.length === 0) return null;
 
-  const total = filtered.reduce((s, item) =>
-    s + (item.position?.tokens ?? [])
-      .filter((t: any) => {
+  const total = filtered.reduce(
+    (s, item) =>
+      s +
+      (item.position?.tokens ?? [])
+        .filter((t: any) => {
+          const type = (t?.type ?? '').toLowerCase();
+          return type !== 'reward' && type !== 'rewards';
+        })
+        .reduce((ts: number, t: any) => ts + tokenVal(t), 0),
+    0
+  );
+
+  const sectionBreakdown: ProjectionBreakdownItem[] = filtered
+    .map((item: any) => {
+      const tokens = (item.position?.tokens ?? []).filter((t: any) => {
         const type = (t?.type ?? '').toLowerCase();
         return type !== 'reward' && type !== 'rewards';
-      })
-      .reduce((ts: number, t: any) => ts + tokenVal(t), 0), 0);
+      });
+      const stakedVal = tokens.reduce((s: number, t: any) => s + tokenVal(t), 0);
+      const apy = item.position?.apy ?? item.position?.apr ?? item.apy ?? null;
+      const rate = apy != null ? parseFloat(apy) : 0;
+      const label =
+        tokens.map((t: any) => t.symbol ?? '?').join(' + ') || (item.position?.name ?? 'Stake');
+      return {
+        name: `${item.protocol?.name ?? '?'} · ${label}`,
+        logoUrl: item.protocol?.logo ?? undefined,
+        rate,
+        baseUsd: stakedVal,
+        type: 'earn' as const,
+      };
+    })
+    .filter((b) => b.baseUsd > 0);
 
-  const sectionBreakdown: ProjectionBreakdownItem[] = filtered.map((item: any) => {
-    const tokens = (item.position?.tokens ?? []).filter((t: any) => {
-      const type = (t?.type ?? '').toLowerCase();
-      return type !== 'reward' && type !== 'rewards';
+  const handleHeaderClick = () =>
+    openProjection({
+      level: 'global',
+      name: 'Staking',
+      context: `${filtered.length} position${filtered.length !== 1 ? 's' : ''}`,
+      baseUsd: total,
+      breakdownItems: sectionBreakdown.length > 0 ? sectionBreakdown : undefined,
     });
-    const stakedVal = tokens.reduce((s: number, t: any) => s + tokenVal(t), 0);
-    const apy = item.position?.apy ?? item.position?.apr ?? item.apy ?? null;
-    const rate = apy != null ? parseFloat(apy) : 0;
-    const label = tokens.map((t: any) => t.symbol ?? '?').join(' + ') || (item.position?.name ?? 'Stake');
-    return {
-      name: `${item.protocol?.name ?? '?'} · ${label}`,
-      logoUrl: item.protocol?.logo ?? undefined,
-      rate,
-      baseUsd: stakedVal,
-      type: 'earn' as const,
-    };
-  }).filter(b => b.baseUsd > 0);
-
-  const handleHeaderClick = () => openProjection({
-    level: 'global',
-    name: 'Staking',
-    context: `${filtered.length} position${filtered.length !== 1 ? 's' : ''}`,
-    baseUsd: total,
-    breakdownItems: sectionBreakdown.length > 0 ? sectionBreakdown : undefined,
-  });
 
   return (
     <div className={s.section}>
@@ -100,19 +111,22 @@ export const StakingSection: React.FC<Props> = ({ items }) => {
           const rewardVal = rewards.reduce((s: number, t: any) => s + tokenVal(t), 0);
           const apy = item.position?.apy ?? item.position?.apr ?? item.apy ?? null;
 
-          const label = (tokens.map((t: any) => t.symbol ?? '?').join(' + ')) || (item.position?.name ?? 'Stake');
+          const label =
+            tokens.map((t: any) => t.symbol ?? '?').join(' + ') || (item.position?.name ?? 'Stake');
 
           return (
             <div
               key={i}
               className={s.card}
-              onClick={() => openProjection({
-                level: 'protocol',
-                name: label,
-                context: `${item.protocol?.name ?? ''} Staking`,
-                baseUsd: stakedVal,
-                rate: apy != null ? parseFloat(apy) : undefined,
-              })}
+              onClick={() =>
+                openProjection({
+                  level: 'protocol',
+                  name: label,
+                  context: `${item.protocol?.name ?? ''} Staking`,
+                  baseUsd: stakedVal,
+                  rate: apy != null ? parseFloat(apy) : undefined,
+                })
+              }
             >
               <div className={s.cardHeader}>
                 <ProtocolIcon name={item.protocol?.name ?? ''} size={26} />

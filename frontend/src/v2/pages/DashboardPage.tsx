@@ -20,7 +20,15 @@ import s from './DashboardPage.module.css';
 type ViewMode = 'cards' | 'chart';
 
 export const DashboardPage: React.FC = () => {
-  const { account, selectedWalletGroupId, setWalletData, projectionTarget, closeProjection, openProjection, agg } = useV2();
+  const {
+    account,
+    selectedWalletGroupId,
+    setWalletData,
+    projectionTarget,
+    closeProjection,
+    openProjection,
+    agg,
+  } = useV2();
   const [view, setView] = useState<ViewMode>('cards');
   const identifier = account ?? selectedWalletGroupId ?? '';
 
@@ -55,7 +63,8 @@ export const DashboardPage: React.FC = () => {
     const acc = { oneDay: 0, oneWeek: 0, oneMonth: 0, oneYear: 0 };
     let hasAny = false;
     items.forEach((item: any) => {
-      const projections: any[] = item.additionalData?.projections ?? item.position?.additionalData?.projections ?? [];
+      const projections: any[] =
+        item.additionalData?.projections ?? item.position?.additionalData?.projections ?? [];
       projections.forEach((p: any) => {
         if (!p?.projection) return;
         acc.oneDay += Number(p.projection.oneDay ?? 0);
@@ -77,15 +86,38 @@ export const DashboardPage: React.FC = () => {
     let borrowedCost = 0;
     lendingItems.forEach((item: any) => {
       const tokens: any[] = item.position?.tokens ?? [];
-      const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
-      const projApr = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata?.value;
-      const supplyRate = Math.abs(parseFloat(item.position?.supplyRate ?? item.position?.apy ?? item.additionalInfo?.supplyRate ?? projApy ?? projApr ?? 0) / 100);
-      const borrowRate = Math.abs(parseFloat(item.position?.borrowRate ?? item.position?.borrowApy ?? item.additionalInfo?.borrowRate ?? projApy ?? 0) / 100);
+      const projApy = (item.additionalData?.projections as any[])?.find(
+        (p: any) => p.type === 'apy'
+      )?.metadata?.value;
+      const projApr = (item.additionalData?.projections as any[])?.find(
+        (p: any) => p.type === 'apr'
+      )?.metadata?.value;
+      const supplyRate = Math.abs(
+        parseFloat(
+          item.position?.supplyRate ??
+            item.position?.apy ??
+            item.additionalInfo?.supplyRate ??
+            projApy ??
+            projApr ??
+            0
+        ) / 100
+      );
+      const borrowRate = Math.abs(
+        parseFloat(
+          item.position?.borrowRate ??
+            item.position?.borrowApy ??
+            item.additionalInfo?.borrowRate ??
+            projApy ??
+            0
+        ) / 100
+      );
       tokens.forEach((t: any) => {
         const type = (t?.type ?? '').toLowerCase();
         const val = parseFloat(t?.financials?.totalPrice ?? 0);
         if (!isFinite(val) || val <= 0) return;
-        const tokenRate = Math.abs(t.apy != null ? parseFloat(t.apy) / 100 : t.apr != null ? parseFloat(t.apr) / 100 : 0);
+        const tokenRate = Math.abs(
+          t.apy != null ? parseFloat(t.apy) / 100 : t.apr != null ? parseFloat(t.apr) / 100 : 0
+        );
         if (type === 'supplied' || type === 'supply' || type === 'deposit') {
           suppliedTotal += val;
           suppliedEarn += val * (tokenRate || supplyRate);
@@ -120,15 +152,25 @@ export const DashboardPage: React.FC = () => {
           const type = (t?.type ?? '').toLowerCase();
           return type !== 'reward' && type !== 'rewards' && !type.includes('fee');
         });
-        const totalVal = supplied.reduce((s: number, t: any) => s + (parseFloat(t?.financials?.totalPrice ?? 0) || 0), 0);
-        const fees24h = item.additionalData?.fees24h ?? item.position?.additionalData?.fees24h ?? null;
+        const totalVal = supplied.reduce(
+          (s: number, t: any) => s + (parseFloat(t?.financials?.totalPrice ?? 0) || 0),
+          0
+        );
+        const fees24h =
+          item.additionalData?.fees24h ?? item.position?.additionalData?.fees24h ?? null;
         const additionalInfo = item.additionalInfo ?? item.position?.additionalInfo ?? {};
-        const aprProjection = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr');
+        const aprProjection = (item.additionalData?.projections as any[])?.find(
+          (p: any) => p.type === 'apr'
+        );
         const projApr = aprProjection?.metadata?.value;
-        const apr = additionalInfo.apr ?? projApr ?? item.position?.apr ?? item.position?.apy ?? null;
-        const rate = fees24h != null && totalVal > 0
-          ? (fees24h / totalVal) * 365
-          : apr != null ? parseFloat(apr) / 100 : 0;
+        const apr =
+          additionalInfo.apr ?? projApr ?? item.position?.apr ?? item.position?.apy ?? null;
+        const rate =
+          fees24h != null && totalVal > 0
+            ? (fees24h / totalVal) * 365
+            : apr != null
+              ? parseFloat(apr) / 100
+              : 0;
         totalEarn += totalVal * rate;
       });
       segments.push({
@@ -146,7 +188,10 @@ export const DashboardPage: React.FC = () => {
           const type = (t?.type ?? '').toLowerCase();
           return type !== 'reward' && type !== 'rewards';
         });
-        const stakedVal = tokens.reduce((s: number, t: any) => s + (parseFloat(t?.financials?.totalPrice ?? 0) || 0), 0);
+        const stakedVal = tokens.reduce(
+          (s: number, t: any) => s + (parseFloat(t?.financials?.totalPrice ?? 0) || 0),
+          0
+        );
         const apy = item.position?.apy ?? item.position?.apr ?? item.apy ?? null;
         const rate = apy != null ? parseFloat(apy) : 0;
         totalEarn += stakedVal * rate;
@@ -181,7 +226,9 @@ export const DashboardPage: React.FC = () => {
         <ErrorScreen
           error={agg.error}
           retrying={agg.starting}
-          onRetry={() => agg.ensure(identifier, null, { isGroup: !!selectedWalletGroupId, force: true })}
+          onRetry={() =>
+            agg.ensure(identifier, null, { isGroup: !!selectedWalletGroupId, force: true })
+          }
         />
       </>
     );
@@ -198,10 +245,42 @@ export const DashboardPage: React.FC = () => {
               onClick={() => setView('cards')}
             >
               <svg width="13" height="13" viewBox="0 0 18 18" fill="none">
-                <rect x="2" y="2" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-                <rect x="10" y="2" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-                <rect x="2" y="10" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-                <rect x="10" y="10" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+                <rect
+                  x="2"
+                  y="2"
+                  width="6"
+                  height="6"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <rect
+                  x="10"
+                  y="2"
+                  width="6"
+                  height="6"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <rect
+                  x="2"
+                  y="10"
+                  width="6"
+                  height="6"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <rect
+                  x="10"
+                  y="10"
+                  width="6"
+                  height="6"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
               </svg>
               Cards
             </button>
@@ -210,23 +289,32 @@ export const DashboardPage: React.FC = () => {
               onClick={() => setView('chart')}
             >
               <svg width="13" height="13" viewBox="0 0 18 18" fill="none">
-                <path d="M2 15V9M6 15V3M10 15V7M14 15V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path
+                  d="M2 15V9M6 15V3M10 15V7M14 15V5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
               Chart
             </button>
           </div>
         </div>
 
-        <HeroCard breakdown={breakdown} onProjection={() =>
-          openProjection({
-            level: 'global',
-            name: 'Portfolio',
-            context: 'All positions',
-            baseUsd: breakdown.totalValue,
-            preCalculated: portfolioPreCalc,
-            breakdownItems: segmentBreakdown.length > 0 ? segmentBreakdown : undefined,
-          })
-        } />
+        <HeroCard
+          breakdown={breakdown}
+          onProjection={() =>
+            openProjection({
+              level: 'global',
+              name: 'Portfolio',
+              context: 'All positions',
+              baseUsd: breakdown.totalValue,
+              preCalculated: portfolioPreCalc,
+              breakdownItems: segmentBreakdown.length > 0 ? segmentBreakdown : undefined,
+            })
+          }
+        />
 
         {view === 'cards' && (
           <>
@@ -249,14 +337,15 @@ export const DashboardPage: React.FC = () => {
         )}
       </div>
 
-      {projectionTarget && (
-        <ProjectionDialog target={projectionTarget} onClose={closeProjection} />
-      )}
+      {projectionTarget && <ProjectionDialog target={projectionTarget} onClose={closeProjection} />}
     </>
   );
 };
 
-function useSmoothProgress(progress: number, isCompleted: boolean): { displayed: number; reachedFull: boolean } {
+function useSmoothProgress(
+  progress: number,
+  isCompleted: boolean
+): { displayed: number; reachedFull: boolean } {
   const target = isCompleted ? 1 : Math.max(0, Math.min(1, progress));
   const [displayed, setDisplayed] = useState(0);
   const rafRef = useRef<number | null>(null);
@@ -338,7 +427,10 @@ const V2LoadingSkeleton: React.FC<V2LoadingSkeletonProps> = ({ displayed }) => {
                 <div className={s.skeletonBlock} style={{ flex: 1, height: 13 }} />
                 <div className={s.skeletonBlock} style={{ width: 80, height: 13 }} />
               </div>
-              <div className={s.skeletonBlock} style={{ width: '100%', height: 6, marginTop: 12, borderRadius: 3 }} />
+              <div
+                className={s.skeletonBlock}
+                style={{ width: '100%', height: 6, marginTop: 12, borderRadius: 3 }}
+              />
             </div>
           ))}
         </div>

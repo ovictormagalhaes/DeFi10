@@ -464,7 +464,6 @@ fn result_dedup_field(r: &AggregationResult) -> String {
 }
 
 impl JobManager {
-
     pub async fn find_latest_job_for_wallet(&self, wallet: &str) -> Result<Option<Uuid>> {
         let wk = Self::wallet_index_key(wallet);
 

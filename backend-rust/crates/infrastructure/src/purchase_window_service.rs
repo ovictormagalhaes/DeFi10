@@ -103,7 +103,10 @@ impl PurchaseWindowService {
             .collect()
     }
 
-    async fn get_markets_cached(&self, coingecko_ids: &[String]) -> HashMap<String, TokenMarketData> {
+    async fn get_markets_cached(
+        &self,
+        coingecko_ids: &[String],
+    ) -> HashMap<String, TokenMarketData> {
         if coingecko_ids.is_empty() {
             return HashMap::new();
         }
@@ -170,10 +173,7 @@ impl PurchaseWindowService {
 
         let triggers = entry.effective_triggers();
         if triggers.is_empty() {
-            return Err(anyhow::anyhow!(
-                "Entry {} has no triggers",
-                entry.asset_key
-            ));
+            return Err(anyhow::anyhow!("Entry {} has no triggers", entry.asset_key));
         }
 
         let mut evaluations: Vec<TriggerEvaluation> = Vec::with_capacity(triggers.len());
@@ -367,7 +367,10 @@ fn parse_iso_datetime(s: &str) -> Option<DateTime<Utc>> {
 }
 
 fn ytd_start(now_ts: i64) -> i64 {
-    let dt = Utc.timestamp_opt(now_ts, 0).single().unwrap_or_else(Utc::now);
+    let dt = Utc
+        .timestamp_opt(now_ts, 0)
+        .single()
+        .unwrap_or_else(Utc::now);
     Utc.with_ymd_and_hms(dt.year(), 1, 1, 0, 0, 0)
         .single()
         .map(|d| d.timestamp())

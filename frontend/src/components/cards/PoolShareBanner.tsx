@@ -300,7 +300,9 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
         );
       }
 
-      swapped.forEach(([img, src]) => { img.src = src; });
+      swapped.forEach(([img, src]) => {
+        img.src = src;
+      });
       cropped.toBlob(async (blob) => {
         if (!blob) return;
         try {
@@ -319,7 +321,9 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
         }
       }, 'image/png');
     } catch {
-      swapped.forEach(([img, src]) => { img.src = src; });
+      swapped.forEach(([img, src]) => {
+        img.src = src;
+      });
       setCopying(false);
     }
   };
@@ -353,11 +357,10 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
 
   const rangeSize =
     rangeData && Number(rangeData.lower) > 0
-      ? ((Number(rangeData.upper) / Number(rangeData.lower)) - 1) * 100
+      ? (Number(rangeData.upper) / Number(rangeData.lower) - 1) * 100
       : null;
 
-  const tierDisplay =
-    tierPercent != null ? `${(tierPercent * 100).toFixed(2)}%` : null;
+  const tierDisplay = tierPercent != null ? `${(tierPercent * 100).toFixed(2)}%` : null;
 
   const ageDisplay = (() => {
     if (!createdAt) return null;
@@ -461,21 +464,35 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
           )}
 
           {/* Top row: Logo + Protocol/Chain */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}
+          >
             <BannerLogo />
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <div
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}
+            >
               {protocolName && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {protocolLogo && (
-                    <img src={protocolLogo} alt={protocolName} style={{ width: 18, height: 18, borderRadius: '50%' }} />
+                    <img
+                      src={protocolLogo}
+                      alt={protocolName}
+                      style={{ width: 18, height: 18, borderRadius: '50%' }}
+                    />
                   )}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: t.protocolText }}>{protocolName}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: t.protocolText }}>
+                    {protocolName}
+                  </span>
                 </div>
               )}
               {chain && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {chainIcon && (
-                    <img src={chainIcon} alt={chain} style={{ width: 14, height: 14, borderRadius: '50%' }} />
+                    <img
+                      src={chainIcon}
+                      alt={chain}
+                      style={{ width: 14, height: 14, borderRadius: '50%' }}
+                    />
                   )}
                   <span style={{ fontSize: 12, color: t.chainText }}>{chain}</span>
                 </div>
@@ -500,7 +517,11 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
                     position: 'relative',
                   }}
                 >
-                  <img src={displayToken0Url} alt={displayToken0Symbol} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img
+                    src={displayToken0Url}
+                    alt={displayToken0Symbol}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
                 </div>
               )}
               {displayToken1Url && (
@@ -518,11 +539,17 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
                     position: 'relative',
                   }}
                 >
-                  <img src={displayToken1Url} alt={displayToken1Symbol} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img
+                    src={displayToken1Url}
+                    alt={displayToken1Symbol}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
                 </div>
               )}
             </div>
-            <div style={{ fontSize: 32, fontWeight: 800, color: t.textPrimary, letterSpacing: -0.5 }}>
+            <div
+              style={{ fontSize: 32, fontWeight: 800, color: t.textPrimary, letterSpacing: -0.5 }}
+            >
               {displayToken0Symbol} / {displayToken1Symbol}
             </div>
           </div>
@@ -530,16 +557,35 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
           {/* Optional: Range section */}
           {showRange && effectiveRange && (
             <div style={{ backgroundColor: t.sectionBg, borderRadius: 10, padding: '14px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 10,
+                }}
+              >
                 <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 500 }}>PRICE RANGE</div>
                 {rangeSize != null && (
                   <div style={{ fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
-                    <span style={{ fontSize: 10, fontWeight: 500, color: t.textMuted, marginRight: 4 }}>Size</span>
+                    <span
+                      style={{ fontSize: 10, fontWeight: 500, color: t.textMuted, marginRight: 4 }}
+                    >
+                      Size
+                    </span>
                     {rangeSize.toFixed(2)}%
                   </div>
                 )}
               </div>
-              <div style={{ position: 'relative', height: 6, backgroundColor: t.rangeTrack, borderRadius: 3, marginBottom: 8 }}>
+              <div
+                style={{
+                  position: 'relative',
+                  height: 6,
+                  backgroundColor: t.rangeTrack,
+                  borderRadius: 3,
+                  marginBottom: 8,
+                }}
+              >
                 <div
                   style={{
                     position: 'absolute',
@@ -565,12 +611,20 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: t.textMuted }}>{fmtNum(effectiveRange.lower)}</span>
-                <span style={{ fontSize: 12, color: inRange ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <span style={{ fontSize: 12, color: t.textMuted }}>
+                  {fmtNum(effectiveRange.lower)}
+                </span>
+                <span
+                  style={{ fontSize: 12, color: inRange ? '#10b981' : '#ef4444', fontWeight: 600 }}
+                >
                   ▲ {fmtNum(effectiveRange.current)}
                 </span>
-                <span style={{ fontSize: 12, color: t.textMuted }}>{fmtNum(effectiveRange.upper)}</span>
+                <span style={{ fontSize: 12, color: t.textMuted }}>
+                  {fmtNum(effectiveRange.upper)}
+                </span>
               </div>
             </div>
           )}
@@ -580,32 +634,68 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
             <div style={{ display: 'flex', gap: metricGap, flexWrap: 'wrap' }}>
               {apr != null && apr > 0 && (
                 <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}>APR</div>
-                  <div style={{ fontSize: metricFontSize, fontWeight: 700, color: '#10b981' }}>{apr.toFixed(2)}%</div>
+                  <div
+                    style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}
+                  >
+                    APR
+                  </div>
+                  <div style={{ fontSize: metricFontSize, fontWeight: 700, color: '#10b981' }}>
+                    {apr.toFixed(2)}%
+                  </div>
                 </div>
               )}
               {showTier && tierDisplay && (
                 <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}>Tier</div>
-                  <div style={{ fontSize: metricFontSize, fontWeight: 700, color: t.textSecondary }}>{tierDisplay}</div>
+                  <div
+                    style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}
+                  >
+                    Tier
+                  </div>
+                  <div
+                    style={{ fontSize: metricFontSize, fontWeight: 700, color: t.textSecondary }}
+                  >
+                    {tierDisplay}
+                  </div>
                 </div>
               )}
               {ageDisplay && (
                 <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}>Age</div>
-                  <div style={{ fontSize: metricFontSize, fontWeight: 700, color: t.textSecondary }}>{ageDisplay}</div>
+                  <div
+                    style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}
+                  >
+                    Age
+                  </div>
+                  <div
+                    style={{ fontSize: metricFontSize, fontWeight: 700, color: t.textSecondary }}
+                  >
+                    {ageDisplay}
+                  </div>
                 </div>
               )}
               {showValue && totalValue != null && totalValue > 0 && (
                 <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}>Value</div>
-                  <div style={{ fontSize: metricFontSize, fontWeight: 700, color: t.textSecondary }}>{fmtUsd(totalValue)}</div>
+                  <div
+                    style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}
+                  >
+                    Value
+                  </div>
+                  <div
+                    style={{ fontSize: metricFontSize, fontWeight: 700, color: t.textSecondary }}
+                  >
+                    {fmtUsd(totalValue)}
+                  </div>
                 </div>
               )}
               {showFees && totalFees != null && totalFees > 0 && (
                 <div style={{ flexShrink: 0 }}>
-                  <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}>Earned</div>
-                  <div style={{ fontSize: metricFontSize, fontWeight: 700, color: '#10b981' }}>{fmtUsd(totalFees)}</div>
+                  <div
+                    style={{ fontSize: 11, color: t.textMuted, marginBottom: 2, fontWeight: 500 }}
+                  >
+                    Earned
+                  </div>
+                  <div style={{ fontSize: metricFontSize, fontWeight: 700, color: '#10b981' }}>
+                    {fmtUsd(totalFees)}
+                  </div>
                 </div>
               )}
             </div>
@@ -642,10 +732,30 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
           }}
         >
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', flex: 1 }}>
-            <Toggle label="Range" checked={showRange} onChange={setShowRange} disabled={!rangeData} />
-            <Toggle label="Tier" checked={showTier} onChange={setShowTier} disabled={!tierDisplay} />
-            <Toggle label="Value" checked={showValue} onChange={setShowValue} disabled={!totalValue} />
-            <Toggle label="Total Earned" checked={showFees} onChange={setShowFees} disabled={!totalFees || totalFees <= 0} />
+            <Toggle
+              label="Range"
+              checked={showRange}
+              onChange={setShowRange}
+              disabled={!rangeData}
+            />
+            <Toggle
+              label="Tier"
+              checked={showTier}
+              onChange={setShowTier}
+              disabled={!tierDisplay}
+            />
+            <Toggle
+              label="Value"
+              checked={showValue}
+              onChange={setShowValue}
+              disabled={!totalValue}
+            />
+            <Toggle
+              label="Total Earned"
+              checked={showFees}
+              onChange={setShowFees}
+              disabled={!totalFees || totalFees <= 0}
+            />
           </div>
 
           {/* Flip button */}
@@ -655,7 +765,9 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
             style={{
               background: isFlipped
                 ? 'rgba(99,102,241,0.15)'
-                : mode === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.07)',
+                : mode === 'light'
+                  ? 'rgba(0,0,0,0.06)'
+                  : 'rgba(255,255,255,0.07)',
               border: `1px solid ${isFlipped ? '#6366f1' : t.dialogBorder}`,
               borderRadius: 8,
               cursor: 'pointer',
@@ -675,7 +787,10 @@ const PoolShareBanner: React.FC<PoolShareBannerProps> = ({
               height="14"
               viewBox="0 0 24 24"
               fill="none"
-              style={{ transform: isFlipped ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+              style={{
+                transform: isFlipped ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.2s',
+              }}
             >
               <path
                 d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"

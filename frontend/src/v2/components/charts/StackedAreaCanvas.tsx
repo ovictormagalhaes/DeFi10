@@ -40,7 +40,12 @@ function indexFromX(canvas: HTMLCanvasElement, mouseX: number, n: number): numbe
   return Math.max(0, Math.min(n - 1, Math.round((relX / cw) * (n - 1))));
 }
 
-function draw(canvas: HTMLCanvasElement, points: StackedPoint[], series: StackedSeries[], hoverIndex?: number | null) {
+function draw(
+  canvas: HTMLCanvasElement,
+  points: StackedPoint[],
+  series: StackedSeries[],
+  hoverIndex?: number | null
+) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const dpr = window.devicePixelRatio || 1;
@@ -54,12 +59,15 @@ function draw(canvas: HTMLCanvasElement, points: StackedPoint[], series: Stacked
   const N = points.length;
   if (N < 1) return;
 
-  let maxVal = 0, minVal = 0;
-  points.forEach(p => {
-    let posSum = 0, negSum = 0;
-    series.forEach(sr => {
+  let maxVal = 0,
+    minVal = 0;
+  points.forEach((p) => {
+    let posSum = 0,
+      negSum = 0;
+    series.forEach((sr) => {
       const v = p.values[sr.key] ?? 0;
-      if (v >= 0) posSum += v; else negSum += v;
+      if (v >= 0) posSum += v;
+      else negSum += v;
     });
     maxVal = Math.max(maxVal, posSum);
     minVal = Math.min(minVal, negSum);
@@ -157,12 +165,15 @@ function draw(canvas: HTMLCanvasElement, points: StackedPoint[], series: Stacked
     ctx.stroke();
   };
 
-  series.forEach(sr => {
-    const vals = points.map(p => p.values[sr.key] ?? 0);
-    const topArr = vals.map((v, i) => v >= 0 ? posCum[i] + v : negCum[i]);
-    const botArr = vals.map((v, i) => v >= 0 ? posCum[i] : negCum[i] + v);
+  series.forEach((sr) => {
+    const vals = points.map((p) => p.values[sr.key] ?? 0);
+    const topArr = vals.map((v, i) => (v >= 0 ? posCum[i] + v : negCum[i]));
+    const botArr = vals.map((v, i) => (v >= 0 ? posCum[i] : negCum[i] + v));
     drawBand(topArr, botArr, sr.color);
-    vals.forEach((v, i) => { if (v >= 0) posCum[i] += v; else negCum[i] += v; });
+    vals.forEach((v, i) => {
+      if (v >= 0) posCum[i] += v;
+      else negCum[i] += v;
+    });
   });
 
   ctx.fillStyle = labelColor;
@@ -194,11 +205,13 @@ function draw(canvas: HTMLCanvasElement, points: StackedPoint[], series: Stacked
 
     if (N === 1 && hoverIndex === 0) return;
 
-    let posAcc = 0, negAcc = 0;
-    series.forEach(sr => {
+    let posAcc = 0,
+      negAcc = 0;
+    series.forEach((sr) => {
       const v = points[hoverIndex].values[sr.key] ?? 0;
       const dotY = v >= 0 ? py(posAcc + v) : py(negAcc + v);
-      if (v >= 0) posAcc += v; else negAcc += v;
+      if (v >= 0) posAcc += v;
+      else negAcc += v;
       ctx.beginPath();
       ctx.arc(hx, dotY, 4, 0, Math.PI * 2);
       ctx.fillStyle = sr.color;
@@ -221,7 +234,9 @@ export const StackedAreaCanvas: React.FC<Props> = ({ points, series, loading, he
     draw(canvas, points, series, hover?.index ?? null);
   };
 
-  useEffect(() => { renderRef.current?.(); }, [points, series, hover]);
+  useEffect(() => {
+    renderRef.current?.();
+  }, [points, series, hover]);
 
   useEffect(() => {
     const onResize = () => renderRef.current?.();
@@ -266,21 +281,27 @@ export const StackedAreaCanvas: React.FC<Props> = ({ points, series, loading, he
         {hover && hp && (
           <div
             className={s.chartTooltip}
-            style={tooltipRight
-              ? { right: w - hover.x + 12, top: hover.y - 10 }
-              : { left: hover.x + 12, top: hover.y - 10 }}
+            style={
+              tooltipRight
+                ? { right: w - hover.x + 12, top: hover.y - 10 }
+                : { left: hover.x + 12, top: hover.y - 10 }
+            }
           >
             <div className={s.ttDate}>{hp.date}</div>
             <div className={s.ttSeries}>
-              {series.map(sr => {
+              {series.map((sr) => {
                 const v = hp.values[sr.key] ?? 0;
                 if (v === 0) return null;
                 return (
                   <div key={sr.key} className={s.ttSeriesRow}>
                     <span className={s.ttSeriesDot} style={{ background: sr.color }} />
                     <span className={s.ttSeriesLabel}>{sr.label}</span>
-                    <span className={s.ttSeriesVal} style={{ color: v < 0 ? 'var(--v2-red)' : undefined }}>
-                      {v < 0 ? '-' : ''}{formatPrice(Math.abs(v))}
+                    <span
+                      className={s.ttSeriesVal}
+                      style={{ color: v < 0 ? 'var(--v2-red)' : undefined }}
+                    >
+                      {v < 0 ? '-' : ''}
+                      {formatPrice(Math.abs(v))}
                     </span>
                   </div>
                 );
@@ -294,7 +315,7 @@ export const StackedAreaCanvas: React.FC<Props> = ({ points, series, loading, he
         )}
       </div>
       <div className={s.stackLegend}>
-        {series.map(sr => (
+        {series.map((sr) => (
           <span key={sr.key} className={s.stackLegendItem}>
             <span className={s.stackLegendDot} style={{ background: sr.color }} />
             {sr.label}

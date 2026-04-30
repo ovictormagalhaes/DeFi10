@@ -19,7 +19,10 @@ pub async fn fetch_and_proxy_image(
         .build()
         .map_err(|e| {
             tracing::error!("Failed to build HTTP client: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, "Client error".to_string())
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Client error".to_string(),
+            )
         })?;
 
     let resp = client.get(url).send().await.map_err(|e| {

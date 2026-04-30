@@ -44,25 +44,39 @@ export function computeV2Breakdown({
   });
 
   const poolValue = poolItems.reduce((s, item) => {
-    return s + positionTokens(item)
-      .filter((t: any) => {
-        const type = (t?.type ?? '').toString().toLowerCase();
-        return type !== 'reward' && type !== 'rewards' && !type.includes('fee');
-      })
-      .reduce((ts: number, t: any) => ts + tokenVal(t), 0);
+    return (
+      s +
+      positionTokens(item)
+        .filter((t: any) => {
+          const type = (t?.type ?? '').toString().toLowerCase();
+          return type !== 'reward' && type !== 'rewards' && !type.includes('fee');
+        })
+        .reduce((ts: number, t: any) => ts + tokenVal(t), 0)
+    );
   }, 0);
 
   const stakingValue = stakingItems.reduce((s, item) => {
-    return s + positionTokens(item)
-      .filter((t: any) => {
-        const type = (t?.type ?? '').toString().toLowerCase();
-        return type !== 'reward' && type !== 'rewards';
-      })
-      .reduce((ts: number, t: any) => ts + tokenVal(t), 0);
+    return (
+      s +
+      positionTokens(item)
+        .filter((t: any) => {
+          const type = (t?.type ?? '').toString().toLowerCase();
+          return type !== 'reward' && type !== 'rewards';
+        })
+        .reduce((ts: number, t: any) => ts + tokenVal(t), 0)
+    );
   }, 0);
 
   const lendingNet = lendingSupplied - lendingBorrowed;
   const totalValue = walletValue + lendingNet + poolValue + stakingValue;
 
-  return { walletValue, lendingSupplied, lendingBorrowed, lendingNet, poolValue, stakingValue, totalValue };
+  return {
+    walletValue,
+    lendingSupplied,
+    lendingBorrowed,
+    lendingNet,
+    poolValue,
+    stakingValue,
+    totalValue,
+  };
 }

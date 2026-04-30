@@ -10,9 +10,24 @@ import s from './StrategiesPage.module.css';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const TYPES = [
-  { type: StrategyType.AllocationByWeight, icon: '⚖️', label: 'Allocation', desc: 'Target weights & rebalancing' },
-  { type: StrategyType.HealthFactorTarget, icon: '🛡️', label: 'Health Factor', desc: 'Per-position liquidation targets' },
-  { type: StrategyType.BestPurchaseWindow, icon: '📈', label: 'Purchase Window', desc: 'Price signals & entry conditions' },
+  {
+    type: StrategyType.AllocationByWeight,
+    icon: '⚖️',
+    label: 'Allocation',
+    desc: 'Target weights & rebalancing',
+  },
+  {
+    type: StrategyType.HealthFactorTarget,
+    icon: '🛡️',
+    label: 'Health Factor',
+    desc: 'Per-position liquidation targets',
+  },
+  {
+    type: StrategyType.BestPurchaseWindow,
+    icon: '📈',
+    label: 'Purchase Window',
+    desc: 'Price signals & entry conditions',
+  },
 ];
 
 export const StrategiesPage: React.FC = () => {
@@ -60,7 +75,7 @@ export const StrategiesPage: React.FC = () => {
       </div>
 
       <div className={s.typeRow}>
-        {TYPES.map(t => {
+        {TYPES.map((t) => {
           const count = counts[t.type] ?? 0;
           return (
             <button
@@ -86,14 +101,10 @@ export const StrategiesPage: React.FC = () => {
           <div className={s.authIcon}>🔐</div>
           <div className={s.authTitle}>Authentication Required</div>
           <div className={s.authSub}>
-            Strategies require authentication. A short proof-of-work challenge will run in your browser{' '}
-            <span className={s.powTime}>({estimateSolveTime(5)})</span>.
+            Strategies require authentication. A short proof-of-work challenge will run in your
+            browser <span className={s.powTime}>({estimateSolveTime(5)})</span>.
           </div>
-          <button
-            className={s.authBtn}
-            onClick={handleAuthenticate}
-            disabled={authenticating}
-          >
+          <button className={s.authBtn} onClick={handleAuthenticate} disabled={authenticating}>
             {authenticating
               ? `Solving… (${powProgress.toLocaleString()} hashes)`
               : 'Authenticate Wallet'}
@@ -104,7 +115,10 @@ export const StrategiesPage: React.FC = () => {
       {authError && (
         <ErrorScreen
           error={authError}
-          onRetry={() => { setAuthError(null); handleAuthenticate(); }}
+          onRetry={() => {
+            setAuthError(null);
+            handleAuthenticate();
+          }}
         />
       )}
 

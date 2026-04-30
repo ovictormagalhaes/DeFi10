@@ -29,35 +29,49 @@ function getHF(item: any): number | null {
 
 function computeTokenRate(item: any, t: any): number | undefined {
   const position = item.position ?? item;
-  const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
-  const projApr = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata?.value;
-  const rawSupplyRate = parseFloat(position?.supplyRate ?? position?.apy ?? item.additionalInfo?.supplyRate ?? projApy ?? projApr ?? 0);
-  const rawBorrowRate = parseFloat(position?.borrowRate ?? position?.borrowApy ?? item.additionalInfo?.borrowRate ?? projApy ?? 0);
+  const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')
+    ?.metadata?.value;
+  const projApr = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')
+    ?.metadata?.value;
+  const rawSupplyRate = parseFloat(
+    position?.supplyRate ??
+      position?.apy ??
+      item.additionalInfo?.supplyRate ??
+      projApy ??
+      projApr ??
+      0
+  );
+  const rawBorrowRate = parseFloat(
+    position?.borrowRate ?? position?.borrowApy ?? item.additionalInfo?.borrowRate ?? projApy ?? 0
+  );
   const type = (t?.type ?? '').toLowerCase();
   const isSupply = type === 'supplied' || type === 'supply' || type === 'deposit';
   const rate = Math.abs(
-    t.apy != null ? parseFloat(t.apy) / 100
-    : t.apr != null ? parseFloat(t.apr) / 100
-    : (isSupply ? rawSupplyRate : rawBorrowRate) / 100
+    t.apy != null
+      ? parseFloat(t.apy) / 100
+      : t.apr != null
+        ? parseFloat(t.apr) / 100
+        : (isSupply ? rawSupplyRate : rawBorrowRate) / 100
   );
   return isFinite(rate) && rate > 0 ? rate : undefined;
 }
 
 function getCreatedAt(item: any): number | null {
-  const c = item.additionalData?.createdAt
-    ?? item.position?.additionalData?.createdAt
-    ?? item.position?.createdAt
-    ?? null;
+  const c =
+    item.additionalData?.createdAt ??
+    item.position?.additionalData?.createdAt ??
+    item.position?.createdAt ??
+    null;
   if (c == null) return null;
   const n = typeof c === 'number' ? c : parseFloat(c);
   return isFinite(n) && n > 0 ? n : null;
 }
 
-const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 function groupByProtocol(items: any[]): Array<{ protocol: any; items: any[] }> {
   const map = new Map<string, { protocol: any; items: any[] }>();
-  items.forEach(item => {
+  items.forEach((item) => {
     const id = item.protocol?.id ?? item.protocol?.name ?? 'Unknown';
     if (!map.has(id)) map.set(id, { protocol: item.protocol, items: [] });
     map.get(id)!.items.push(item);
@@ -75,17 +89,20 @@ export const LendingSection: React.FC<Props> = ({ items }) => {
   const filtered = useMemo(() => {
     let result = items;
     if (selectedChains) {
-      result = result.filter(item =>
-        selectedChains.has(String(item.protocol?.chain ?? '').trim().toLowerCase())
+      result = result.filter((item) =>
+        selectedChains.has(
+          String(item.protocol?.chain ?? '')
+            .trim()
+            .toLowerCase()
+        )
       );
     }
     if (positionSearch.trim()) {
       const q = positionSearch.toLowerCase();
-      result = result.filter(item =>
-        (item.protocol?.name ?? '').toLowerCase().includes(q) ||
-        (item.position?.tokens ?? []).some((t: any) =>
-          (t.symbol ?? '').toLowerCase().includes(q)
-        )
+      result = result.filter(
+        (item) =>
+          (item.protocol?.name ?? '').toLowerCase().includes(q) ||
+          (item.position?.tokens ?? []).some((t: any) => (t.symbol ?? '').toLowerCase().includes(q))
       );
     }
     return result;
@@ -95,17 +112,29 @@ export const LendingSection: React.FC<Props> = ({ items }) => {
 
   const groups = groupByProtocol(filtered);
 
-  const totalSupplied = filtered.reduce((s, item) =>
-    s + (item.position?.tokens ?? []).filter((t: any) => {
-      const type = (t?.type ?? '').toLowerCase();
-      return type === 'supplied' || type === 'supply' || type === 'deposit';
-    }).reduce((ts: number, t: any) => ts + tokenVal(t), 0), 0);
+  const totalSupplied = filtered.reduce(
+    (s, item) =>
+      s +
+      (item.position?.tokens ?? [])
+        .filter((t: any) => {
+          const type = (t?.type ?? '').toLowerCase();
+          return type === 'supplied' || type === 'supply' || type === 'deposit';
+        })
+        .reduce((ts: number, t: any) => ts + tokenVal(t), 0),
+    0
+  );
 
-  const totalBorrowed = filtered.reduce((s, item) =>
-    s + (item.position?.tokens ?? []).filter((t: any) => {
-      const type = (t?.type ?? '').toLowerCase();
-      return type === 'borrowed' || type === 'borrow' || type === 'debt';
-    }).reduce((ts: number, t: any) => ts + tokenVal(t), 0), 0);
+  const totalBorrowed = filtered.reduce(
+    (s, item) =>
+      s +
+      (item.position?.tokens ?? [])
+        .filter((t: any) => {
+          const type = (t?.type ?? '').toLowerCase();
+          return type === 'borrowed' || type === 'borrow' || type === 'debt';
+        })
+        .reduce((ts: number, t: any) => ts + tokenVal(t), 0),
+    0
+  );
 
   type GroupAcc = {
     protoName: string;
@@ -127,23 +156,46 @@ export const LendingSection: React.FC<Props> = ({ items }) => {
     const logoUrl = protoCfg.logo || item.protocol?.logo || item.protocol?.icon || undefined;
 
     if (!groupMap.has(key)) {
-      groupMap.set(key, { protoName, chain, logoUrl, suppliedVal: 0, suppliedEarn: 0, borrowedVal: 0, borrowedCost: 0 });
+      groupMap.set(key, {
+        protoName,
+        chain,
+        logoUrl,
+        suppliedVal: 0,
+        suppliedEarn: 0,
+        borrowedVal: 0,
+        borrowedCost: 0,
+      });
     }
     const g = groupMap.get(key)!;
 
-    const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')?.metadata?.value;
-    const projApr = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')?.metadata?.value;
-    const rawSupplyRate = parseFloat(position?.supplyRate ?? position?.apy ?? item.additionalInfo?.supplyRate ?? projApy ?? projApr ?? 0);
-    const rawBorrowRate = parseFloat(position?.borrowRate ?? position?.borrowApy ?? item.additionalInfo?.borrowRate ?? projApy ?? 0);
+    const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')
+      ?.metadata?.value;
+    const projApr = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')
+      ?.metadata?.value;
+    const rawSupplyRate = parseFloat(
+      position?.supplyRate ??
+        position?.apy ??
+        item.additionalInfo?.supplyRate ??
+        projApy ??
+        projApr ??
+        0
+    );
+    const rawBorrowRate = parseFloat(
+      position?.borrowRate ?? position?.borrowApy ?? item.additionalInfo?.borrowRate ?? projApy ?? 0
+    );
 
     tokens.forEach((t: any) => {
       const type = (t?.type ?? '').toLowerCase();
       const val = tokenVal(t);
       if (val <= 0) return;
       const tokenRate = Math.abs(
-        t.apy != null ? parseFloat(t.apy) / 100
-        : t.apr != null ? parseFloat(t.apr) / 100
-        : (type === 'borrowed' || type === 'borrow' || type === 'debt' ? rawBorrowRate : rawSupplyRate) / 100
+        t.apy != null
+          ? parseFloat(t.apy) / 100
+          : t.apr != null
+            ? parseFloat(t.apr) / 100
+            : (type === 'borrowed' || type === 'borrow' || type === 'debt'
+                ? rawBorrowRate
+                : rawSupplyRate) / 100
       );
       if (type === 'supplied' || type === 'supply' || type === 'deposit') {
         g.suppliedVal += val;
@@ -156,7 +208,7 @@ export const LendingSection: React.FC<Props> = ({ items }) => {
   });
 
   const sectionBreakdown: ProjectionBreakdownItem[] = [];
-  groupMap.forEach(g => {
+  groupMap.forEach((g) => {
     const label = g.chain ? `${g.protoName} · ${cap(g.chain)}` : g.protoName;
     if (g.suppliedVal > 0) {
       sectionBreakdown.push({
@@ -178,13 +230,14 @@ export const LendingSection: React.FC<Props> = ({ items }) => {
     }
   });
 
-  const handleHeaderClick = () => openProjection({
-    level: 'global',
-    name: 'Lending & Borrowing',
-    context: `${filtered.length} position${filtered.length !== 1 ? 's' : ''}`,
-    baseUsd: totalSupplied - totalBorrowed,
-    breakdownItems: sectionBreakdown.length > 0 ? sectionBreakdown : undefined,
-  });
+  const handleHeaderClick = () =>
+    openProjection({
+      level: 'global',
+      name: 'Lending & Borrowing',
+      context: `${filtered.length} position${filtered.length !== 1 ? 's' : ''}`,
+      baseUsd: totalSupplied - totalBorrowed,
+      breakdownItems: sectionBreakdown.length > 0 ? sectionBreakdown : undefined,
+    });
 
   return (
     <div className={s.section}>
@@ -200,15 +253,21 @@ export const LendingSection: React.FC<Props> = ({ items }) => {
             key={protocol?.id ?? protocol?.name}
             protocol={protocol}
             items={groupItems}
-            onProjection={(baseUsd, preCalc, breakdownItems) => openProjection({
-              level: 'protocol',
-              name: protocol?.name ?? 'Lending',
-              context: `${cap(protocol?.chain ?? '')} Lending`,
-              baseUsd,
-              logoUrl: getProtocolConfig(protocol?.name ?? '').logo || protocol?.logo || protocol?.icon || undefined,
-              preCalculated: preCalc,
-              breakdownItems,
-            })}
+            onProjection={(baseUsd, preCalc, breakdownItems) =>
+              openProjection({
+                level: 'protocol',
+                name: protocol?.name ?? 'Lending',
+                context: `${cap(protocol?.chain ?? '')} Lending`,
+                baseUsd,
+                logoUrl:
+                  getProtocolConfig(protocol?.name ?? '').logo ||
+                  protocol?.logo ||
+                  protocol?.icon ||
+                  undefined,
+                preCalculated: preCalc,
+                breakdownItems,
+              })
+            }
           />
         ))}
       </div>
@@ -219,19 +278,24 @@ export const LendingSection: React.FC<Props> = ({ items }) => {
 const ProtocolGroup: React.FC<{
   protocol: any;
   items: any[];
-  onProjection: (total: number, preCalc?: { oneDay?: number; oneWeek?: number; oneMonth?: number; oneYear?: number }, breakdownItems?: ProjectionBreakdownItem[]) => void;
+  onProjection: (
+    total: number,
+    preCalc?: { oneDay?: number; oneWeek?: number; oneMonth?: number; oneYear?: number },
+    breakdownItems?: ProjectionBreakdownItem[]
+  ) => void;
 }> = ({ protocol, items, onProjection }) => {
   const { openProjection } = useV2();
 
-  const allTokens: Array<{ token: any; item: any }> = items.flatMap(item =>
+  const allTokens: Array<{ token: any; item: any }> = items.flatMap((item) =>
     (item.position?.tokens ?? []).map((t: any) => ({ token: t, item }))
   );
 
   const aggregatedPreCalc = (() => {
     const acc = { oneDay: 0, oneWeek: 0, oneMonth: 0, oneYear: 0 };
     let hasAny = false;
-    items.forEach(item => {
-      const projections: any[] = item.additionalData?.projections ?? item.position?.additionalData?.projections ?? [];
+    items.forEach((item) => {
+      const projections: any[] =
+        item.additionalData?.projections ?? item.position?.additionalData?.projections ?? [];
       projections.forEach((p: any) => {
         if (!p?.projection) return;
         acc.oneDay += Number(p.projection.oneDay ?? 0);
@@ -269,31 +333,41 @@ const ProtocolGroup: React.FC<{
   const netAPYDenom = netLending > 0 ? netLending : totalSupplied;
   const netAPY = netAPYDenom > 0 ? netEarn / netAPYDenom : null;
 
-  const oldestCreatedAt = items.reduce((min, item) => {
-    const c = getCreatedAt(item);
-    if (c == null) return min;
-    return min == null || c < min ? c : min;
-  }, null as number | null);
-  const ageDays = oldestCreatedAt != null ? Math.floor((Date.now() / 1000 - oldestCreatedAt) / 86400) : null;
+  const oldestCreatedAt = items.reduce(
+    (min, item) => {
+      const c = getCreatedAt(item);
+      if (c == null) return min;
+      return min == null || c < min ? c : min;
+    },
+    null as number | null
+  );
+  const ageDays =
+    oldestCreatedAt != null ? Math.floor((Date.now() / 1000 - oldestCreatedAt) / 86400) : null;
 
-  const minHF = items.reduce((min, item) => {
-    const hf = getHF(item);
-    if (hf == null) return min;
-    return min == null || hf < min ? hf : min;
-  }, null as number | null);
+  const minHF = items.reduce(
+    (min, item) => {
+      const hf = getHF(item);
+      if (hf == null) return min;
+      return min == null || hf < min ? hf : min;
+    },
+    null as number | null
+  );
 
   const breakdownItems: ProjectionBreakdownItem[] = [];
   items.forEach((item: any) => {
     const position = item.position ?? item;
     const tokens: any[] = position?.tokens ?? [];
-    const projApy = (item.additionalData?.projections as any[])?.find(
-      (p: any) => p.type === 'apy'
-    )?.metadata?.value;
-    const projApr = (item.additionalData?.projections as any[])?.find(
-      (p: any) => p.type === 'apr'
-    )?.metadata?.value;
+    const projApy = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apy')
+      ?.metadata?.value;
+    const projApr = (item.additionalData?.projections as any[])?.find((p: any) => p.type === 'apr')
+      ?.metadata?.value;
     const rawSupplyRate = parseFloat(
-      position?.supplyRate ?? position?.apy ?? item.additionalInfo?.supplyRate ?? projApy ?? projApr ?? 0
+      position?.supplyRate ??
+        position?.apy ??
+        item.additionalInfo?.supplyRate ??
+        projApy ??
+        projApr ??
+        0
     );
     const rawBorrowRate = parseFloat(
       position?.borrowRate ?? position?.borrowApy ?? item.additionalInfo?.borrowRate ?? projApy ?? 0
@@ -305,9 +379,11 @@ const ProtocolGroup: React.FC<{
       if (val <= 0) return;
       if (type === 'supplied' || type === 'supply' || type === 'deposit') {
         const tokenRate = Math.abs(
-          t.apy != null ? parseFloat(t.apy) / 100
-          : t.apr != null ? parseFloat(t.apr) / 100
-          : rawSupplyRate / 100
+          t.apy != null
+            ? parseFloat(t.apy) / 100
+            : t.apr != null
+              ? parseFloat(t.apr) / 100
+              : rawSupplyRate / 100
         );
         breakdownItems.push({
           name: `${t.symbol ?? '?'} supply`,
@@ -319,9 +395,11 @@ const ProtocolGroup: React.FC<{
         });
       } else if (type === 'borrowed' || type === 'borrow' || type === 'debt') {
         const tokenRate = Math.abs(
-          t.apy != null ? parseFloat(t.apy) / 100
-          : t.apr != null ? parseFloat(t.apr) / 100
-          : rawBorrowRate / 100
+          t.apy != null
+            ? parseFloat(t.apy) / 100
+            : t.apr != null
+              ? parseFloat(t.apr) / 100
+              : rawBorrowRate / 100
         );
         breakdownItems.push({
           name: `${t.symbol ?? '?'} borrow cost`,
@@ -336,15 +414,24 @@ const ProtocolGroup: React.FC<{
   });
 
   return (
-    <div className={s.card} onClick={() => onProjection(netLending, aggregatedPreCalc, breakdownItems.length > 0 ? breakdownItems : undefined)}>
+    <div
+      className={s.card}
+      onClick={() =>
+        onProjection(
+          netLending,
+          aggregatedPreCalc,
+          breakdownItems.length > 0 ? breakdownItems : undefined
+        )
+      }
+    >
       <div className={s.cardHeader}>
         <ProtocolIcon name={protocol?.name ?? ''} size={28} />
         <div className={s.protoInfo}>
           <div className={s.protoName}>{protocol?.name ?? 'Unknown'}</div>
           <div className={s.protoChain}>
-              <ChainIcon name={protocol?.chain} />
-              {cap(protocol?.chain ?? '')}
-            </div>
+            <ChainIcon name={protocol?.chain} />
+            {cap(protocol?.chain ?? '')}
+          </div>
         </div>
         <div className={s.protoTotal}>
           <MaskedValue value={formatPrice(netLending)} />
@@ -362,14 +449,21 @@ const ProtocolGroup: React.FC<{
               token={t}
               type="supplied"
               rate={computeTokenRate(item, t)}
-              onClick={() => openProjection({
-                level: 'token',
-                name: t.symbol ?? '?',
-                context: `${protocol?.name} supplied`,
-                baseUsd: tokenVal(t),
-                rate: t.apy != null ? parseFloat(t.apy) / 100 : t.apr != null ? parseFloat(t.apr) / 100 : undefined,
-                logoUrl: t.logo ?? t.thumbnail ?? undefined,
-              })}
+              onClick={() =>
+                openProjection({
+                  level: 'token',
+                  name: t.symbol ?? '?',
+                  context: `${protocol?.name} supplied`,
+                  baseUsd: tokenVal(t),
+                  rate:
+                    t.apy != null
+                      ? parseFloat(t.apy) / 100
+                      : t.apr != null
+                        ? parseFloat(t.apr) / 100
+                        : undefined,
+                  logoUrl: t.logo ?? t.thumbnail ?? undefined,
+                })
+              }
             />
           ))}
         </div>
@@ -379,12 +473,7 @@ const ProtocolGroup: React.FC<{
         <div className={s.tokenGroup}>
           <div className={s.tokenGroupLabel}>Borrowed</div>
           {borrowed.map(({ token: t, item }, i: number) => (
-            <TokenRow
-              key={i}
-              token={t}
-              type="borrowed"
-              rate={computeTokenRate(item, t)}
-            />
+            <TokenRow key={i} token={t} type="borrowed" rate={computeTokenRate(item, t)} />
           ))}
         </div>
       )}
@@ -394,7 +483,10 @@ const ProtocolGroup: React.FC<{
           <span className={s.metricLabel}>Net APY</span>
           <span
             className={s.metricValue}
-            style={{ color: netAPY != null ? (netAPY >= 0 ? 'var(--v2-green)' : 'var(--v2-red)') : undefined }}
+            style={{
+              color:
+                netAPY != null ? (netAPY >= 0 ? 'var(--v2-green)' : 'var(--v2-red)') : undefined,
+            }}
           >
             {netAPY != null ? `${netAPY >= 0 ? '+' : ''}${(netAPY * 100).toFixed(2)}%` : '—'}
           </span>
@@ -405,9 +497,7 @@ const ProtocolGroup: React.FC<{
         </div>
         <div className={s.metric}>
           <span className={s.metricLabel}>{ageDays != null ? 'Age' : 'Positions'}</span>
-          <span className={s.metricValue}>
-            {ageDays != null ? `${ageDays}d` : items.length}
-          </span>
+          <span className={s.metricValue}>{ageDays != null ? `${ageDays}d` : items.length}</span>
         </div>
       </div>
     </div>
@@ -426,21 +516,36 @@ const TokenRow: React.FC<{
   const symbol = token.symbol ?? '?';
 
   return (
-    <div className={s.tokenRow} onClick={onClick} style={onClick ? { cursor: 'pointer' } : undefined}>
+    <div
+      className={s.tokenRow}
+      onClick={onClick}
+      style={onClick ? { cursor: 'pointer' } : undefined}
+    >
       <div className={s.tokenLogo}>
         {logo ? (
-          <img src={logo} alt={symbol} width={16} height={16} style={{ borderRadius: '50%', objectFit: 'cover' }}
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          <img
+            src={logo}
+            alt={symbol}
+            width={16}
+            height={16}
+            style={{ borderRadius: '50%', objectFit: 'cover' }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
         ) : (
           <div className={s.tokenLogoFallback}>{symbol[0]}</div>
         )}
       </div>
       <span className={s.tokenSym}>{symbol}</span>
-      {rate != null && rate > 0 && (
-        <span className={s.tokenRate}>{(rate * 100).toFixed(2)}%</span>
-      )}
-      <span className={s.tokenAmt}><MaskedValue value={amt} /></span>
-      <span className={s.tokenPrice} style={{ color: type === 'borrowed' ? 'var(--v2-red)' : 'var(--v2-green)' }}>
+      {rate != null && rate > 0 && <span className={s.tokenRate}>{(rate * 100).toFixed(2)}%</span>}
+      <span className={s.tokenAmt}>
+        <MaskedValue value={amt} />
+      </span>
+      <span
+        className={s.tokenPrice}
+        style={{ color: type === 'borrowed' ? 'var(--v2-red)' : 'var(--v2-green)' }}
+      >
         <MaskedValue value={formatPrice(val)} />
       </span>
     </div>

@@ -198,9 +198,7 @@ impl StrategyService {
                     }
                     let triggers = entry.effective_triggers();
                     if triggers.is_empty() {
-                        return Err(anyhow::anyhow!(
-                            "Each entry must have at least one trigger"
-                        ));
+                        return Err(anyhow::anyhow!("Each entry must have at least one trigger"));
                     }
                     for trigger in &triggers {
                         if let defi10_core::strategy::PurchaseTrigger::Price { target, .. } =

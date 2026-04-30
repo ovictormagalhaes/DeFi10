@@ -15,7 +15,10 @@ const MV: React.FC<{ value: string; className?: string }> = ({ value, className 
 };
 
 const Stat: React.FC<{ label: string; value: string; sub?: string; color?: string }> = ({
-  label, value, sub, color,
+  label,
+  value,
+  sub,
+  color,
 }) => (
   <div className={s.stat}>
     <div className={s.statLabel}>{label}</div>
@@ -33,7 +36,7 @@ export const HeroCard: React.FC<HeroCardProps> = ({ breakdown, onProjection }) =
     { label: 'Lending', value: breakdown.lendingNet, color: '#22c55e' },
     { label: 'Pools', value: breakdown.poolValue, color: '#f59e0b' },
     { label: 'Staking', value: breakdown.stakingValue, color: '#a78bfa' },
-  ].filter(c => c.value > 0);
+  ].filter((c) => c.value > 0);
 
   return (
     <div className={s.card} onClick={onProjection}>
@@ -47,7 +50,7 @@ export const HeroCard: React.FC<HeroCardProps> = ({ breakdown, onProjection }) =
 
         {categories.length > 0 && (
           <div className={s.barLegend}>
-            {categories.map(c => (
+            {categories.map((c) => (
               <div key={c.label} className={s.legendItem}>
                 <div className={s.legendDot} style={{ background: c.color }} />
                 <span className={s.legendLabel}>{c.label}</span>
@@ -71,9 +74,11 @@ export const HeroCard: React.FC<HeroCardProps> = ({ breakdown, onProjection }) =
         <Stat
           label="Borrowed"
           value={formatPrice(breakdown.lendingBorrowed)}
-          sub={breakdown.lendingSupplied > 0
-            ? `LTV ${((breakdown.lendingBorrowed / breakdown.lendingSupplied) * 100).toFixed(1)}%`
-            : undefined}
+          sub={
+            breakdown.lendingSupplied > 0
+              ? `LTV ${((breakdown.lendingBorrowed / breakdown.lendingSupplied) * 100).toFixed(1)}%`
+              : undefined
+          }
           color="var(--v2-red)"
         />
         <div className={s.divider} />

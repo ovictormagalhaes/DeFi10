@@ -67,7 +67,12 @@ export const PortfolioMixCard: React.FC<Props> = ({ strategy, portfolio, onEdit,
   const [collapsed, setCollapsed] = useState(false);
 
   const fmt = (v: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(v);
 
   const { rows, maxDeviation, actionCount, totalValue } = useMemo(() => {
     const segValues = computeSegmentValues(portfolio);
@@ -78,17 +83,21 @@ export const PortfolioMixCard: React.FC<Props> = ({ strategy, portfolio, onEdit,
     let maxDeviation = 0;
     let actionCount = 0;
 
-    const rows = allocations.map(alloc => {
+    const rows = allocations.map((alloc) => {
       const key = SEGMENT_KEYS[alloc.groupType];
       const rawVal = key ? segValues[key] : 0;
       const currentValue = typeof rawVal === 'number' ? rawVal : 0;
-      const currentWeight = segValues.total > 0 ? (Math.max(0, currentValue) / segValues.total) * 100 : 0;
+      const currentWeight =
+        segValues.total > 0 ? (Math.max(0, currentValue) / segValues.total) * 100 : 0;
       const deltaWeight = alloc.targetWeight - currentWeight;
       const deviation = Math.abs(deltaWeight);
       if (deviation > maxDeviation) maxDeviation = deviation;
       if (deviation > 2) actionCount++;
 
-      const meta = SEGMENT_META[alloc.groupType] ?? { label: alloc.group || 'Unknown', color: 'var(--v2-muted)' };
+      const meta = SEGMENT_META[alloc.groupType] ?? {
+        label: alloc.group || 'Unknown',
+        color: 'var(--v2-muted)',
+      };
 
       return {
         groupType: alloc.groupType,
@@ -106,17 +115,23 @@ export const PortfolioMixCard: React.FC<Props> = ({ strategy, portfolio, onEdit,
     return { rows, maxDeviation, actionCount, totalValue: segValues.total };
   }, [strategy, portfolio]);
 
-  const dotColor = actionCount === 0 ? 'var(--v2-green)' : maxDeviation > 10 ? 'var(--v2-red)' : 'var(--v2-yellow)';
+  const dotColor =
+    actionCount === 0
+      ? 'var(--v2-green)'
+      : maxDeviation > 10
+        ? 'var(--v2-red)'
+        : 'var(--v2-yellow)';
   const statColor = actionCount === 0 ? 'var(--v2-green)' : 'var(--v2-yellow)';
 
   return (
     <div className={s.card}>
-      <div className={s.header} onClick={() => setCollapsed(v => !v)}>
+      <div className={s.header} onClick={() => setCollapsed((v) => !v)}>
         <div className={s.dot} style={{ background: dotColor }} />
         <div className={s.headerMeta}>
           <div className={s.name}>{strategy.name || 'Segments'}</div>
           <div className={s.sub}>
-            {rows.length} segments · max deviation {isFinite(maxDeviation) ? maxDeviation.toFixed(1) : '0.0'}%
+            {rows.length} segments · max deviation{' '}
+            {isFinite(maxDeviation) ? maxDeviation.toFixed(1) : '0.0'}%
           </div>
         </div>
         <div className={s.stat}>
@@ -125,22 +140,50 @@ export const PortfolioMixCard: React.FC<Props> = ({ strategy, portfolio, onEdit,
           </div>
           <div className={s.statLbl}>Status</div>
         </div>
-        <div className={s.actions} onClick={e => e.stopPropagation()}>
+        <div className={s.actions} onClick={(e) => e.stopPropagation()}>
           {onEdit && (
             <button className={s.iconBtn} onClick={onEdit} title="Edit">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              >
                 <path d="M11 2.5l2.5 2.5L5 13.5H2.5V11L11 2.5z" />
               </svg>
             </button>
           )}
           <button className={`${s.iconBtn} ${s.iconBtnDanger}`} onClick={onDelete} title="Delete">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            >
               <path d="M3 4h10M6 4V2h4v2M5 4l.5 9h5l.5-9" />
             </svg>
           </button>
         </div>
-        <svg className={`${s.chevron} ${!collapsed ? s.chevronOpen : ''}`} width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <svg
+          className={`${s.chevron} ${!collapsed ? s.chevronOpen : ''}`}
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+        >
+          <path
+            d="M3 5l4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </div>
 
@@ -171,44 +214,65 @@ export const PortfolioMixCard: React.FC<Props> = ({ strategy, portfolio, onEdit,
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => {
-                  const deltaClass = row.deltaWeight > 2 ? s.deltaPos : row.deltaWeight < -2 ? s.deltaNeg : s.deltaNeu;
+                {rows.map((row) => {
+                  const deltaClass =
+                    row.deltaWeight > 2
+                      ? s.deltaPos
+                      : row.deltaWeight < -2
+                        ? s.deltaNeg
+                        : s.deltaNeu;
                   const sign = row.deltaWeight > 0 ? '+' : '';
                   return (
                     <tr key={row.groupType}>
                       <td className={s.tl}>
                         <div className={s.cellWithLogo}>
-                          <span className={s.bold} style={{ color: row.color }}>{row.label}</span>
+                          <span className={s.bold} style={{ color: row.color }}>
+                            {row.label}
+                          </span>
                         </div>
                       </td>
                       <td className={s.tl}>
-                        <div className={s.cellWithLogo}><span>All</span></div>
+                        <div className={s.cellWithLogo}>
+                          <span>All</span>
+                        </div>
                       </td>
                       <td className={s.tl}>
-                        <div className={s.cellWithLogo}><span>All</span></div>
+                        <div className={s.cellWithLogo}>
+                          <span>All</span>
+                        </div>
                       </td>
                       <td className={s.tc}>
                         <div className={s.targetCell}>
                           <div className={s.barWrap}>
-                            <div className={s.barFill} style={{ width: `${Math.min(row.targetWeight, 100)}%`, background: row.color }} />
+                            <div
+                              className={s.barFill}
+                              style={{
+                                width: `${Math.min(row.targetWeight, 100)}%`,
+                                background: row.color,
+                              }}
+                            />
                           </div>
                           <span>{row.targetWeight.toFixed(0)}%</span>
                         </div>
                       </td>
                       <td className={s.tc}>{row.currentWeight.toFixed(1)}%</td>
                       <td className={s.tc}>
-                        <span className={deltaClass}>{sign}{row.deltaWeight.toFixed(1)}%</span>
+                        <span className={deltaClass}>
+                          {sign}
+                          {row.deltaWeight.toFixed(1)}%
+                        </span>
                       </td>
                       <td className={s.tc}>
                         <MaskedValue value={fmt(row.currentValue)} />
                       </td>
                       <td className={s.tc}>
-                        {row.deltaWeight > 2
-                          ? <span className={`${s.chip} ${s.chipBuy}`}>Buy</span>
-                          : row.deltaWeight < -2
-                          ? <span className={`${s.chip} ${s.chipSell}`}>Sell</span>
-                          : <span className={`${s.chip} ${s.chipHold}`}>Hold</span>
-                        }
+                        {row.deltaWeight > 2 ? (
+                          <span className={`${s.chip} ${s.chipBuy}`}>Buy</span>
+                        ) : row.deltaWeight < -2 ? (
+                          <span className={`${s.chip} ${s.chipSell}`}>Sell</span>
+                        ) : (
+                          <span className={`${s.chip} ${s.chipHold}`}>Hold</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -217,7 +281,15 @@ export const PortfolioMixCard: React.FC<Props> = ({ strategy, portfolio, onEdit,
             </table>
           </div>
           {totalValue > 0 && (
-            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--v2-border-sub)', fontSize: 11, color: 'var(--v2-muted)', textAlign: 'right' }}>
+            <div
+              style={{
+                padding: '8px 12px',
+                borderTop: '1px solid var(--v2-border-sub)',
+                fontSize: 11,
+                color: 'var(--v2-muted)',
+                textAlign: 'right',
+              }}
+            >
               Net portfolio: <MaskedValue value={fmt(totalValue)} />
             </div>
           )}

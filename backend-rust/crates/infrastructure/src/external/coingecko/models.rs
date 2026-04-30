@@ -139,7 +139,10 @@ mod tests {
         assert_eq!(btc.max_supply, Some(21_000_000.0));
         assert_eq!(btc.ath, Some(126080.0));
         assert_eq!(btc.ath_date.as_deref(), Some("2025-10-06T18:57:42.558Z"));
-        assert_eq!(btc.last_updated.as_deref(), Some("2026-04-27T02:36:54.270Z"));
+        assert_eq!(
+            btc.last_updated.as_deref(),
+            Some("2026-04-27T02:36:54.270Z")
+        );
         assert!(btc.price_change_percentage_1h_in_currency.is_some());
         assert!(btc.price_change_percentage_24h_in_currency.is_some());
         assert!(btc.price_change_percentage_7d_in_currency.is_some());

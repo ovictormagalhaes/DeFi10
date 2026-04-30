@@ -27,7 +27,7 @@ function useUrlGroupId() {
 function resolveGroupId(groupId: string): 'ok' | 'needs-auth' {
   try {
     const groups = JSON.parse(localStorage.getItem(WALLET_GROUPS_KEY) ?? '[]') as { id: string }[];
-    const exists = groups.some(g => g.id === groupId);
+    const exists = groups.some((g) => g.id === groupId);
     const tokenValid = hasValidToken(groupId);
     return exists && tokenValid ? 'ok' : 'needs-auth';
   } catch {
@@ -64,7 +64,9 @@ const V2Inner: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
 
-  useEffect(() => { setAccount(account); }, [account, setAccount]);
+  useEffect(() => {
+    setAccount(account);
+  }, [account, setAccount]);
 
   useEffect(() => {
     if (walletSupportedChains.length) setSupportedChains(walletSupportedChains);
@@ -121,7 +123,9 @@ const V2Inner: React.FC = () => {
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [urlGroupId, setSelectedWalletGroupId]);
 
   const handleGroupSelected = (groupId: string) => {
@@ -139,12 +143,7 @@ const V2Inner: React.FC = () => {
   const isConnected = !!(ctxAccount || selectedWalletGroupId);
 
   if (resolvingUrlGroup && !isConnected) {
-    return (
-      <div
-        className="v2"
-        style={{ minHeight: '100vh', background: 'var(--v2-bg)' }}
-      />
-    );
+    return <div className="v2" style={{ minHeight: '100vh', background: 'var(--v2-bg)' }} />;
   }
 
   if (!isConnected) {

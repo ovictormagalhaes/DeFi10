@@ -54,7 +54,9 @@
   color: var(--v2-text);
   position: relative;
   overflow: hidden;
-  transition: border-color 0.14s ease, background 0.14s ease;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
 }
 
 .typeBtn:hover {

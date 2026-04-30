@@ -125,7 +125,9 @@ const SortableEntryHandle: React.FC<{ id: string; children: React.ReactNode; isL
   isLast,
 }) => {
   const { theme } = useTheme();
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
   return (
     <div
       ref={setNodeRef}
@@ -212,11 +214,7 @@ export const BestPurchaseWindowStrategyForm: React.FC<BestPurchaseWindowStrategy
     if (initialStrategy?.purchaseWindowEntries?.length) {
       return initialStrategy.purchaseWindowEntries.map((e) => {
         const triggers: PurchaseTrigger[] =
-          e.triggers && e.triggers.length > 0
-            ? e.triggers
-            : e.trigger
-              ? [e.trigger]
-              : [];
+          e.triggers && e.triggers.length > 0 ? e.triggers : e.trigger ? [e.trigger] : [];
 
         const windowTriggers = triggers.filter(
           (t): t is Extract<PurchaseTrigger, { type: 'window' }> => t.type === 'window'
@@ -325,8 +323,7 @@ export const BestPurchaseWindowStrategyForm: React.FC<BestPurchaseWindowStrategy
       if (!e.symbol) return 'Select an asset for each entry';
       if (!e.coingeckoId) return `CoinGecko ID missing for ${e.symbol}. Fill it in manually.`;
       if (e.triggerType === 'window') {
-        if (e.windows.length === 0)
-          return `Select at least one period for ${e.symbol}`;
+        if (e.windows.length === 0) return `Select at least one period for ${e.symbol}`;
       } else {
         const n = parseFloat(e.priceTarget);
         if (!e.priceTarget || isNaN(n) || n <= 0) return `Invalid price target for ${e.symbol}`;
@@ -364,7 +361,12 @@ export const BestPurchaseWindowStrategyForm: React.FC<BestPurchaseWindowStrategy
           coingeckoId: e.coingeckoId,
           protocol: { id: '', name: '' },
           chain: { id: '', name: '' },
-          token: { symbol: e.symbol, name: e.tokenName, address: e.tokenAddress, logo: e.tokenLogo },
+          token: {
+            symbol: e.symbol,
+            name: e.tokenName,
+            address: e.tokenAddress,
+            logo: e.tokenLogo,
+          },
           triggers,
         };
       });
@@ -453,7 +455,15 @@ export const BestPurchaseWindowStrategyForm: React.FC<BestPurchaseWindowStrategy
         }}
       >
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
+          <label
+            style={{
+              display: 'block',
+              marginBottom: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              color: theme.textPrimary,
+            }}
+          >
             Name
           </label>
           <input
@@ -465,8 +475,17 @@ export const BestPurchaseWindowStrategyForm: React.FC<BestPurchaseWindowStrategy
         </div>
 
         <div>
-          <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
-            Description <span style={{ fontWeight: 400, color: theme.textSecondary }}>(optional)</span>
+          <label
+            style={{
+              display: 'block',
+              marginBottom: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              color: theme.textPrimary,
+            }}
+          >
+            Description{' '}
+            <span style={{ fontWeight: 400, color: theme.textSecondary }}>(optional)</span>
           </label>
           <textarea
             value={description}
@@ -495,257 +514,417 @@ export const BestPurchaseWindowStrategyForm: React.FC<BestPurchaseWindowStrategy
           }}
         >
           <div style={{ fontWeight: 600, fontSize: 16, color: theme.textPrimary }}>Assets</div>
-          <button onClick={addEntry} style={{ padding: '6px 14px', background: theme.accent, color: 'white', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button
+            onClick={addEntry}
+            style={{
+              padding: '6px 14px',
+              background: theme.accent,
+              color: 'white',
+              border: 'none',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
             + Add asset
           </button>
         </div>
 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-        {entries.map((entry, i) => (
-          <SortableEntryHandle key={entry.id} id={entry.id} isLast={i === entries.length - 1}>
-          <div
-            style={{
-              padding: 16,
-              background: theme.bgSecondary ?? theme.bgPanel,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 10,
-              position: 'relative',
-            }}
-          >
-            {entries.length > 1 && (
-              <button
-                onClick={() => removeEntry(entry.id)}
-                style={{
-                  position: 'absolute',
-                  top: 10,
-                  right: 10,
-                  width: 24,
-                  height: 24,
-                  border: 'none',
-                  background: 'transparent',
-                  color: theme.textSecondary,
-                  cursor: 'pointer',
-                  fontSize: 18,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '50%',
-                }}
-              >
-                ×
-              </button>
-            )}
-
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
-                Asset
-              </label>
-              <div style={{ position: 'relative' }} onMouseDown={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdownId(openDropdownId === entry.id ? null : entry.id)}
+            {entries.map((entry, i) => (
+              <SortableEntryHandle key={entry.id} id={entry.id} isLast={i === entries.length - 1}>
+                <div
                   style={{
-                    width: '100%',
-                    padding: '9px 12px',
+                    padding: 16,
+                    background: theme.bgSecondary ?? theme.bgPanel,
                     border: `1px solid ${theme.border}`,
-                    borderRadius: 8,
-                    background: theme.bgPanel,
-                    color: theme.textPrimary,
-                    fontSize: 14,
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    boxSizing: 'border-box',
+                    borderRadius: 10,
+                    position: 'relative',
                   }}
                 >
-                  {entry.symbol ? (
-                    <>
-                      {entry.tokenLogo && (
-                        <img src={entry.tokenLogo} alt={entry.symbol} style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0 }} />
-                      )}
-                      <span style={{ fontWeight: 600 }}>{entry.symbol}</span>
-                      <span style={{ marginLeft: 'auto', color: theme.textSecondary, fontSize: 12 }}>▼</span>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ color: theme.textSecondary }}>Select asset...</span>
-                      <span style={{ marginLeft: 'auto', color: theme.textSecondary, fontSize: 12 }}>▼</span>
-                    </>
+                  {entries.length > 1 && (
+                    <button
+                      onClick={() => removeEntry(entry.id)}
+                      style={{
+                        position: 'absolute',
+                        top: 10,
+                        right: 10,
+                        width: 24,
+                        height: 24,
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.textSecondary,
+                        cursor: 'pointer',
+                        fontSize: 18,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '50%',
+                      }}
+                    >
+                      ×
+                    </button>
                   )}
-                </button>
 
-                {openDropdownId === entry.id && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 4px)',
-                      left: 0,
-                      right: 0,
-                      maxHeight: 260,
-                      overflowY: 'auto',
-                      background: theme.bgPanel,
-                      border: `1px solid ${theme.border}`,
-                      borderRadius: 10,
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                      zIndex: 1000,
-                      padding: 6,
-                    }}
-                  >
-                    {portfolioAssets.map((a) => (
+                  <div style={{ marginBottom: 14 }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: 6,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: theme.textPrimary,
+                      }}
+                    >
+                      Asset
+                    </label>
+                    <div style={{ position: 'relative' }} onMouseDown={(e) => e.stopPropagation()}>
                       <button
-                        key={a.symbol}
                         type="button"
-                        onClick={() => selectAsset(entry.id, a.symbol)}
+                        onClick={() =>
+                          setOpenDropdownId(openDropdownId === entry.id ? null : entry.id)
+                        }
                         style={{
                           width: '100%',
+                          padding: '9px 12px',
+                          border: `1px solid ${theme.border}`,
+                          borderRadius: 8,
+                          background: theme.bgPanel,
+                          color: theme.textPrimary,
+                          fontSize: 14,
+                          textAlign: 'left',
+                          cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 10,
-                          padding: '8px 10px',
-                          border: 'none',
-                          borderRadius: 7,
-                          background: entry.symbol === a.symbol ? `${theme.accent}18` : 'transparent',
-                          color: theme.textPrimary,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          transition: 'background 0.15s',
+                          boxSizing: 'border-box',
                         }}
-                        onMouseEnter={(e) => { if (entry.symbol !== a.symbol) e.currentTarget.style.background = `${theme.border}60`; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = entry.symbol === a.symbol ? `${theme.accent}18` : 'transparent'; }}
                       >
-                        {a.tokenLogo ? (
-                          <img src={a.tokenLogo} alt={a.symbol} style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0 }} />
+                        {entry.symbol ? (
+                          <>
+                            {entry.tokenLogo && (
+                              <img
+                                src={entry.tokenLogo}
+                                alt={entry.symbol}
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: '50%',
+                                  flexShrink: 0,
+                                }}
+                              />
+                            )}
+                            <span style={{ fontWeight: 600 }}>{entry.symbol}</span>
+                            <span
+                              style={{
+                                marginLeft: 'auto',
+                                color: theme.textSecondary,
+                                fontSize: 12,
+                              }}
+                            >
+                              ▼
+                            </span>
+                          </>
                         ) : (
-                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.border, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: theme.textSecondary }}>
-                            {a.symbol.slice(0, 2)}
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{a.symbol}</div>
-                          {a.tokenName && a.tokenName !== a.symbol && (
-                            <div style={{ fontSize: 11, color: theme.textSecondary }}>{a.tokenName}</div>
-                          )}
-                        </div>
-                        {entry.symbol === a.symbol && (
-                          <span style={{ marginLeft: 'auto', color: theme.accent, fontSize: 14 }}>✓</span>
+                          <>
+                            <span style={{ color: theme.textSecondary }}>Select asset...</span>
+                            <span
+                              style={{
+                                marginLeft: 'auto',
+                                color: theme.textSecondary,
+                                fontSize: 12,
+                              }}
+                            >
+                              ▼
+                            </span>
+                          </>
                         )}
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
 
-            {entry.symbol && !SYMBOL_TO_COINGECKO_ID[entry.symbol.toUpperCase()] && (
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>
-                  CoinGecko ID <span style={{ fontWeight: 400 }}>(not found automatically)</span>
-                </label>
-                <input
-                  type="text"
-                  value={entry.coingeckoId}
-                  onChange={(e) => updateEntry(entry.id, { coingeckoId: e.target.value })}
-                  placeholder="ex: ethereum, usd-coin"
-                  style={inputStyle}
-                />
-              </div>
-            )}
-
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
-                Trigger type
-              </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button style={segmentStyle(entry.triggerType === 'window')} onClick={() => updateEntry(entry.id, { triggerType: 'window' })}>
-                  By window
-                </button>
-                <button style={segmentStyle(entry.triggerType === 'price')} onClick={() => updateEntry(entry.id, { triggerType: 'price' })}>
-                  By price
-                </button>
-              </div>
-            </div>
-
-            {entry.triggerType === 'window' ? (
-              <>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
-                    Periods <span style={{ fontWeight: 400, color: theme.textSecondary }}>(select one or more — signal fires when ALL are met)</span>
-                  </label>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {WINDOW_OPTIONS.map((opt) => {
-                      const active = entry.windows.includes(opt.value);
-                      return (
-                        <button
-                          key={opt.value}
-                          style={chipStyle(active)}
-                          onClick={() => {
-                            const next = active
-                              ? entry.windows.filter((w) => w !== opt.value)
-                              : [...entry.windows, opt.value];
-                            updateEntry(entry.id, { windows: next });
+                      {openDropdownId === entry.id && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 'calc(100% + 4px)',
+                            left: 0,
+                            right: 0,
+                            maxHeight: 260,
+                            overflowY: 'auto',
+                            background: theme.bgPanel,
+                            border: `1px solid ${theme.border}`,
+                            borderRadius: 10,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                            zIndex: 1000,
+                            padding: 6,
                           }}
                         >
-                          {active ? '✓ ' : ''}{opt.label}
-                        </button>
-                      );
-                    })}
+                          {portfolioAssets.map((a) => (
+                            <button
+                              key={a.symbol}
+                              type="button"
+                              onClick={() => selectAsset(entry.id, a.symbol)}
+                              style={{
+                                width: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '8px 10px',
+                                border: 'none',
+                                borderRadius: 7,
+                                background:
+                                  entry.symbol === a.symbol ? `${theme.accent}18` : 'transparent',
+                                color: theme.textPrimary,
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                transition: 'background 0.15s',
+                              }}
+                              onMouseEnter={(e) => {
+                                if (entry.symbol !== a.symbol)
+                                  e.currentTarget.style.background = `${theme.border}60`;
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background =
+                                  entry.symbol === a.symbol ? `${theme.accent}18` : 'transparent';
+                              }}
+                            >
+                              {a.tokenLogo ? (
+                                <img
+                                  src={a.tokenLogo}
+                                  alt={a.symbol}
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: '50%',
+                                    flexShrink: 0,
+                                  }}
+                                />
+                              ) : (
+                                <div
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: '50%',
+                                    background: theme.border,
+                                    flexShrink: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    color: theme.textSecondary,
+                                  }}
+                                >
+                                  {a.symbol.slice(0, 2)}
+                                </div>
+                              )}
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: 14 }}>{a.symbol}</div>
+                                {a.tokenName && a.tokenName !== a.symbol && (
+                                  <div style={{ fontSize: 11, color: theme.textSecondary }}>
+                                    {a.tokenName}
+                                  </div>
+                                )}
+                              </div>
+                              {entry.symbol === a.symbol && (
+                                <span
+                                  style={{ marginLeft: 'auto', color: theme.accent, fontSize: 14 }}
+                                >
+                                  ✓
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
-                    Trigger when % is
-                  </label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={segmentStyle(entry.windowDirection === 'min')} onClick={() => updateEntry(entry.id, { windowDirection: 'min' })}>
-                      Negative
-                    </button>
-                    <button style={segmentStyle(entry.windowDirection === 'max')} onClick={() => updateEntry(entry.id, { windowDirection: 'max' })}>
-                      Positive
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
-                    Target price (USD)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={entry.priceTarget}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(',', '.');
-                      if (v === '' || /^\d*\.?\d*$/.test(v)) updateEntry(entry.id, { priceTarget: v });
-                    }}
-                    placeholder="ex: 2500"
-                    style={{ ...inputStyle, width: 240, fontSize: 15, fontVariantNumeric: 'tabular-nums' }}
-                  />
-                </div>
+                  {entry.symbol && !SYMBOL_TO_COINGECKO_ID[entry.symbol.toUpperCase()] && (
+                    <div style={{ marginBottom: 14 }}>
+                      <label
+                        style={{
+                          display: 'block',
+                          marginBottom: 6,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: '#f59e0b',
+                        }}
+                      >
+                        CoinGecko ID{' '}
+                        <span style={{ fontWeight: 400 }}>(not found automatically)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={entry.coingeckoId}
+                        onChange={(e) => updateEntry(entry.id, { coingeckoId: e.target.value })}
+                        placeholder="ex: ethereum, usd-coin"
+                        style={inputStyle}
+                      />
+                    </div>
+                  )}
 
-                <div>
-                  <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: theme.textPrimary }}>
-                    Signal when price is
-                  </label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={segmentStyle(entry.priceDirection === 'below')} onClick={() => updateEntry(entry.id, { priceDirection: 'below' })}>
-                      Below
-                    </button>
-                    <button style={segmentStyle(entry.priceDirection === 'above')} onClick={() => updateEntry(entry.id, { priceDirection: 'above' })}>
-                      Above
-                    </button>
+                  <div style={{ marginBottom: 14 }}>
+                    <label
+                      style={{
+                        display: 'block',
+                        marginBottom: 8,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: theme.textPrimary,
+                      }}
+                    >
+                      Trigger type
+                    </label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        style={segmentStyle(entry.triggerType === 'window')}
+                        onClick={() => updateEntry(entry.id, { triggerType: 'window' })}
+                      >
+                        By window
+                      </button>
+                      <button
+                        style={segmentStyle(entry.triggerType === 'price')}
+                        onClick={() => updateEntry(entry.id, { triggerType: 'price' })}
+                      >
+                        By price
+                      </button>
+                    </div>
                   </div>
+
+                  {entry.triggerType === 'window' ? (
+                    <>
+                      <div style={{ marginBottom: 12 }}>
+                        <label
+                          style={{
+                            display: 'block',
+                            marginBottom: 8,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: theme.textPrimary,
+                          }}
+                        >
+                          Periods{' '}
+                          <span style={{ fontWeight: 400, color: theme.textSecondary }}>
+                            (select one or more — signal fires when ALL are met)
+                          </span>
+                        </label>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {WINDOW_OPTIONS.map((opt) => {
+                            const active = entry.windows.includes(opt.value);
+                            return (
+                              <button
+                                key={opt.value}
+                                style={chipStyle(active)}
+                                onClick={() => {
+                                  const next = active
+                                    ? entry.windows.filter((w) => w !== opt.value)
+                                    : [...entry.windows, opt.value];
+                                  updateEntry(entry.id, { windows: next });
+                                }}
+                              >
+                                {active ? '✓ ' : ''}
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label
+                          style={{
+                            display: 'block',
+                            marginBottom: 8,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: theme.textPrimary,
+                          }}
+                        >
+                          Trigger when % is
+                        </label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            style={segmentStyle(entry.windowDirection === 'min')}
+                            onClick={() => updateEntry(entry.id, { windowDirection: 'min' })}
+                          >
+                            Negative
+                          </button>
+                          <button
+                            style={segmentStyle(entry.windowDirection === 'max')}
+                            onClick={() => updateEntry(entry.id, { windowDirection: 'max' })}
+                          >
+                            Positive
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: 12 }}>
+                        <label
+                          style={{
+                            display: 'block',
+                            marginBottom: 6,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: theme.textPrimary,
+                          }}
+                        >
+                          Target price (USD)
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={entry.priceTarget}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(',', '.');
+                            if (v === '' || /^\d*\.?\d*$/.test(v))
+                              updateEntry(entry.id, { priceTarget: v });
+                          }}
+                          placeholder="ex: 2500"
+                          style={{
+                            ...inputStyle,
+                            width: 240,
+                            fontSize: 15,
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          style={{
+                            display: 'block',
+                            marginBottom: 8,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: theme.textPrimary,
+                          }}
+                        >
+                          Signal when price is
+                        </label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            style={segmentStyle(entry.priceDirection === 'below')}
+                            onClick={() => updateEntry(entry.id, { priceDirection: 'below' })}
+                          >
+                            Below
+                          </button>
+                          <button
+                            style={segmentStyle(entry.priceDirection === 'above')}
+                            onClick={() => updateEntry(entry.id, { priceDirection: 'above' })}
+                          >
+                            Above
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </>
-            )}
-          </div>
-          </SortableEntryHandle>
-        ))}
+              </SortableEntryHandle>
+            ))}
           </SortableContext>
         </DndContext>
       </div>
@@ -754,7 +933,14 @@ export const BestPurchaseWindowStrategyForm: React.FC<BestPurchaseWindowStrategy
         <button
           onClick={onCancel}
           disabled={saving}
-          style={{ padding: '10px 20px', background: 'transparent', border: 'none', fontSize: 14, color: theme.textPrimary, cursor: 'pointer' }}
+          style={{
+            padding: '10px 20px',
+            background: 'transparent',
+            border: 'none',
+            fontSize: 14,
+            color: theme.textPrimary,
+            cursor: 'pointer',
+          }}
         >
           Cancel
         </button>

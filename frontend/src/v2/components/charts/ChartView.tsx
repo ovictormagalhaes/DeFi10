@@ -36,7 +36,16 @@ interface HistoryPoint {
 }
 
 const HISTORY_DAYS = 90;
-const COLORS = ['#14b8a6', '#45b773', '#f59e0b', '#a78bfa', '#06b6d4', '#f97316', '#ec4899', '#22c55e'];
+const COLORS = [
+  '#14b8a6',
+  '#45b773',
+  '#f59e0b',
+  '#a78bfa',
+  '#06b6d4',
+  '#f97316',
+  '#ec4899',
+  '#22c55e',
+];
 
 interface Props {
   walletTokens: any[];
@@ -59,7 +68,13 @@ function indexFromX(canvas: HTMLCanvasElement, mouseX: number, n: number): numbe
   return Math.max(0, Math.min(n - 1, Math.round((relX / cw) * (n - 1))));
 }
 
-function drawLineChart(canvas: HTMLCanvasElement, values: number[], labels: string[], color: string, hoverIndex?: number | null) {
+function drawLineChart(
+  canvas: HTMLCanvasElement,
+  values: number[],
+  labels: string[],
+  color: string,
+  hoverIndex?: number | null
+) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const dpr = window.devicePixelRatio || 1;
@@ -84,7 +99,8 @@ function drawLineChart(canvas: HTMLCanvasElement, values: number[], labels: stri
   const ch = h - pad.top - pad.bottom;
 
   const px = (i: number) => pad.left + (onlyOne ? cw : (i / (points - 1)) * cw);
-  const py = (v: number) => max === min ? pad.top + ch / 2 : pad.top + (1 - (v - min) / (max - min)) * ch;
+  const py = (v: number) =>
+    max === min ? pad.top + ch / 2 : pad.top + (1 - (v - min) / (max - min)) * ch;
 
   const styles = getComputedStyle(document.documentElement);
   const labelColor = styles.getPropertyValue('--v2-muted').trim() || '#64748b';
@@ -159,9 +175,12 @@ function drawLineChart(canvas: HTMLCanvasElement, values: number[], labels: stri
   for (let i = 0; i <= ySteps; i++) {
     const v = min + (i / ySteps) * (max - min);
     const y = py(v);
-    const label = v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M`
-      : v >= 1000 ? `$${(v / 1000).toFixed(0)}k`
-      : `$${v.toFixed(0)}`;
+    const label =
+      v >= 1_000_000
+        ? `$${(v / 1_000_000).toFixed(1)}M`
+        : v >= 1000
+          ? `$${(v / 1000).toFixed(0)}k`
+          : `$${v.toFixed(0)}`;
     ctx.fillText(label, pad.left - 6, y + 4);
     ctx.beginPath();
     ctx.strokeStyle = gridColor;
@@ -195,7 +214,11 @@ function drawLineChart(canvas: HTMLCanvasElement, values: number[], labels: stri
   }
 }
 
-const LineChart: React.FC<{ history: HistoryPoint[] | null; loading: boolean; liveTotal?: number }> = ({ history, loading, liveTotal }) => {
+const LineChart: React.FC<{
+  history: HistoryPoint[] | null;
+  loading: boolean;
+  liveTotal?: number;
+}> = ({ history, loading, liveTotal }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const renderRef = useRef<() => void>();
   const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null);
@@ -219,8 +242,8 @@ const LineChart: React.FC<{ history: HistoryPoint[] | null; loading: boolean; li
   const { values, labels } = useMemo(() => {
     if (!ready) return { values: [], labels: [] };
     return {
-      values: merged.map(p => p.totalValueUsd),
-      labels: merged.map(p => {
+      values: merged.map((p) => p.totalValueUsd),
+      labels: merged.map((p) => {
         const d = new Date(p.date);
         return `${d.getMonth() + 1}/${d.getDate()}`;
       }),
@@ -233,7 +256,9 @@ const LineChart: React.FC<{ history: HistoryPoint[] | null; loading: boolean; li
     drawLineChart(canvas, values, labels, '#22c55e', hover?.index ?? null);
   };
 
-  useEffect(() => { renderRef.current?.(); }, [values, labels, ready, hover]);
+  useEffect(() => {
+    renderRef.current?.();
+  }, [values, labels, ready, hover]);
 
   useEffect(() => {
     const onResize = () => renderRef.current?.();
@@ -253,7 +278,11 @@ const LineChart: React.FC<{ history: HistoryPoint[] | null; loading: boolean; li
   };
 
   if (!ready) {
-    return <div className={s.lineEmpty}>{loading ? 'Loading history…' : 'Not enough history yet — check back tomorrow.'}</div>;
+    return (
+      <div className={s.lineEmpty}>
+        {loading ? 'Loading history…' : 'Not enough history yet — check back tomorrow.'}
+      </div>
+    );
   }
 
   const hp = hover ? merged[hover.index] : null;
@@ -271,18 +300,27 @@ const LineChart: React.FC<{ history: HistoryPoint[] | null; loading: boolean; li
       {hover && hp && (
         <div
           className={s.chartTooltip}
-          style={tooltipRight
-            ? { right: w - hover.x + 12, top: hover.y - 10 }
-            : { left: hover.x + 12, top: hover.y - 10 }}
+          style={
+            tooltipRight
+              ? { right: w - hover.x + 12, top: hover.y - 10 }
+              : { left: hover.x + 12, top: hover.y - 10 }
+          }
         >
           <div className={s.ttDate}>{hp.date}</div>
           <div className={s.ttValue}>{formatPrice(hp.totalValueUsd)}</div>
           {hp.dailyPnl !== 0 && isFinite(hp.dailyPnl) && (
             <div className={`${s.ttPnl} ${hp.dailyPnl > 0 ? s.ttPos : s.ttNeg}`}>
-              {hp.dailyPnl > 0 ? '+' : '−'}{formatPrice(Math.abs(hp.dailyPnl))}
-              {hp.dailyPnlPercent != null && isFinite(hp.dailyPnlPercent) && hp.dailyPnlPercent !== 0 && (
-                <span className={s.ttPct}> ({hp.dailyPnlPercent > 0 ? '+' : ''}{hp.dailyPnlPercent.toFixed(2)}%)</span>
-              )}
+              {hp.dailyPnl > 0 ? '+' : '−'}
+              {formatPrice(Math.abs(hp.dailyPnl))}
+              {hp.dailyPnlPercent != null &&
+                isFinite(hp.dailyPnlPercent) &&
+                hp.dailyPnlPercent !== 0 && (
+                  <span className={s.ttPct}>
+                    {' '}
+                    ({hp.dailyPnlPercent > 0 ? '+' : ''}
+                    {hp.dailyPnlPercent.toFixed(2)}%)
+                  </span>
+                )}
             </div>
           )}
         </div>
@@ -309,7 +347,10 @@ function heatColor(pnl: number, maxAbs: number): string {
   return pnl >= 0 ? `rgba(34,197,94,${a})` : `rgba(239,68,68,${a})`;
 }
 
-const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }> = ({ history, loading }) => {
+const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }> = ({
+  history,
+  loading,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const strideRef = useRef({ w: HSTRIDE_H, h: HSTRIDE_H });
@@ -319,7 +360,9 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const pnlMap: Record<string, HistoryPoint> = {};
-    (history ?? []).forEach(p => { pnlMap[p.date] = p; });
+    (history ?? []).forEach((p) => {
+      pnlMap[p.date] = p;
+    });
 
     const startDate = new Date(today);
     startDate.setDate(startDate.getDate() - 89);
@@ -337,18 +380,31 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
       col++;
     }
 
-    const withPnl = result.filter(c => c.point && isFinite(c.point.dailyPnl) && c.point.dailyPnl !== 0);
-    const maxA = Math.max(0, ...withPnl.map(c => Math.abs(c.point!.dailyPnl)));
-    const positive = withPnl.filter(c => c.point!.dailyPnl > 0);
-    const best = withPnl.reduce<HistoryPoint | null>((acc, c) => (!acc || c.point!.dailyPnl > acc.dailyPnl) ? c.point! : acc, null);
-    const worst = withPnl.reduce<HistoryPoint | null>((acc, c) => (!acc || c.point!.dailyPnl < acc.dailyPnl) ? c.point! : acc, null);
+    const withPnl = result.filter(
+      (c) => c.point && isFinite(c.point.dailyPnl) && c.point.dailyPnl !== 0
+    );
+    const maxA = Math.max(0, ...withPnl.map((c) => Math.abs(c.point!.dailyPnl)));
+    const positive = withPnl.filter((c) => c.point!.dailyPnl > 0);
+    const best = withPnl.reduce<HistoryPoint | null>(
+      (acc, c) => (!acc || c.point!.dailyPnl > acc.dailyPnl ? c.point! : acc),
+      null
+    );
+    const worst = withPnl.reduce<HistoryPoint | null>(
+      (acc, c) => (!acc || c.point!.dailyPnl < acc.dailyPnl ? c.point! : acc),
+      null
+    );
     const totalPnl = withPnl.reduce((sum, c) => sum + c.point!.dailyPnl, 0);
 
     return {
       cells: result,
       maxAbs: maxA,
       numCols: col,
-      stats: { totalPnl, winRate: withPnl.length > 0 ? (positive.length / withPnl.length) * 100 : null, best, worst },
+      stats: {
+        totalPnl,
+        winRate: withPnl.length > 0 ? (positive.length / withPnl.length) * 100 : null,
+        best,
+        worst,
+      },
     };
   }, [history]);
 
@@ -378,7 +434,20 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
     ctx.clearRect(0, 0, w, h);
     const empty = st.getPropertyValue('--v2-bg-hover').trim() || '#1e293b';
     const labelCol = st.getPropertyValue('--v2-muted').trim() || '#64748b';
-    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const MONTHS = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
     ctx.fillStyle = labelCol;
@@ -391,15 +460,17 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
 
     ctx.textAlign = 'left';
     let lastMonth = -1;
-    cells.filter(c => c.row === 0).forEach(c => {
-      const m = new Date(c.date + 'T00:00:00').getMonth();
-      if (m !== lastMonth) {
-        lastMonth = m;
-        ctx.fillText(MONTHS[m], HPAD.left + c.col * strideW, HPAD.top - 6);
-      }
-    });
+    cells
+      .filter((c) => c.row === 0)
+      .forEach((c) => {
+        const m = new Date(c.date + 'T00:00:00').getMonth();
+        if (m !== lastMonth) {
+          lastMonth = m;
+          ctx.fillText(MONTHS[m], HPAD.left + c.col * strideW, HPAD.top - 6);
+        }
+      });
 
-    cells.forEach(c => {
+    cells.forEach((c) => {
       const x = HPAD.left + c.col * strideW;
       const y = HPAD.top + c.row * strideH;
       const hasData = c.point != null && isFinite(c.point.dailyPnl) && c.point.dailyPnl !== 0;
@@ -428,7 +499,9 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
     });
   }, [cells, maxAbs, numCols]);
 
-  useEffect(() => { draw(); }, [draw]);
+  useEffect(() => {
+    draw();
+  }, [draw]);
   useEffect(() => {
     const onResize = () => draw();
     window.addEventListener('resize', onResize);
@@ -444,12 +517,13 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
     const { w: strideW, h: strideH } = strideRef.current;
     const col = Math.floor((mx - HPAD.left) / strideW);
     const row = Math.floor((my - HPAD.top) / strideH);
-    const cell = cells.find(c => c.col === col && c.row === row);
+    const cell = cells.find((c) => c.col === col && c.row === row);
     setHover(cell ? { cell, x: mx, y: my } : null);
   };
 
   if (loading) return <div className={s.lineEmpty}>Loading history…</div>;
-  if (!history || history.length === 0) return <div className={s.lineEmpty}>Not enough history yet.</div>;
+  if (!history || history.length === 0)
+    return <div className={s.lineEmpty}>Not enough history yet.</div>;
 
   const hp = hover?.cell;
   const canvasW = canvasRef.current?.offsetWidth ?? 0;
@@ -467,17 +541,26 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
         {hover && hp && (
           <div
             className={s.chartTooltip}
-            style={tooltipRight
-              ? { right: canvasW - hover.x + 12, top: hover.y - 10 }
-              : { left: hover.x + 12, top: hover.y - 10 }}
+            style={
+              tooltipRight
+                ? { right: canvasW - hover.x + 12, top: hover.y - 10 }
+                : { left: hover.x + 12, top: hover.y - 10 }
+            }
           >
             <div className={s.ttDate}>{hp.date}</div>
             {hp.point && isFinite(hp.point.dailyPnl) && hp.point.dailyPnl !== 0 ? (
               <div className={`${s.ttPnl} ${hp.point.dailyPnl > 0 ? s.ttPos : s.ttNeg}`}>
-                {hp.point.dailyPnl > 0 ? '+' : '−'}{formatPrice(Math.abs(hp.point.dailyPnl))}
-                {hp.point.dailyPnlPercent != null && isFinite(hp.point.dailyPnlPercent) && hp.point.dailyPnlPercent !== 0 && (
-                  <span className={s.ttPct}> ({hp.point.dailyPnlPercent > 0 ? '+' : ''}{hp.point.dailyPnlPercent.toFixed(2)}%)</span>
-                )}
+                {hp.point.dailyPnl > 0 ? '+' : '−'}
+                {formatPrice(Math.abs(hp.point.dailyPnl))}
+                {hp.point.dailyPnlPercent != null &&
+                  isFinite(hp.point.dailyPnlPercent) &&
+                  hp.point.dailyPnlPercent !== 0 && (
+                    <span className={s.ttPct}>
+                      {' '}
+                      ({hp.point.dailyPnlPercent > 0 ? '+' : ''}
+                      {hp.point.dailyPnlPercent.toFixed(2)}%)
+                    </span>
+                  )}
               </div>
             ) : (
               <div className={s.ttNoData}>No data</div>
@@ -489,8 +572,12 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
         <div className={s.heatStats}>
           <div className={s.heatStat}>
             <span className={s.heatStatLabel}>90d PnL</span>
-            <span className={s.heatStatVal} style={{ color: stats.totalPnl >= 0 ? 'var(--v2-green)' : 'var(--v2-red)' }}>
-              {stats.totalPnl >= 0 ? '+' : '−'}{formatPrice(Math.abs(stats.totalPnl))}
+            <span
+              className={s.heatStatVal}
+              style={{ color: stats.totalPnl >= 0 ? 'var(--v2-green)' : 'var(--v2-red)' }}
+            >
+              {stats.totalPnl >= 0 ? '+' : '−'}
+              {formatPrice(Math.abs(stats.totalPnl))}
             </span>
           </div>
           {stats.winRate != null && (
@@ -502,20 +589,28 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
           {stats.best && (
             <div className={s.heatStat}>
               <span className={s.heatStatLabel}>Best day</span>
-              <span className={s.heatStatVal} style={{ color: 'var(--v2-green)' }}>+{formatPrice(stats.best.dailyPnl)}</span>
+              <span className={s.heatStatVal} style={{ color: 'var(--v2-green)' }}>
+                +{formatPrice(stats.best.dailyPnl)}
+              </span>
             </div>
           )}
           {stats.worst && (
             <div className={s.heatStat}>
               <span className={s.heatStatLabel}>Worst day</span>
-              <span className={s.heatStatVal} style={{ color: 'var(--v2-red)' }}>−{formatPrice(Math.abs(stats.worst.dailyPnl))}</span>
+              <span className={s.heatStatVal} style={{ color: 'var(--v2-red)' }}>
+                −{formatPrice(Math.abs(stats.worst.dailyPnl))}
+              </span>
             </div>
           )}
         </div>
         <div className={s.heatLegend}>
           <span className={s.heatLegendLabel}>Less</span>
-          {[0.2, 0.45, 0.7, 1.0].map(t => (
-            <span key={t} className={s.heatLegendCell} style={{ background: `rgba(34,197,94,${t})` }} />
+          {[0.2, 0.45, 0.7, 1.0].map((t) => (
+            <span
+              key={t}
+              className={s.heatLegendCell}
+              style={{ background: `rgba(34,197,94,${t})` }}
+            />
           ))}
           <span className={s.heatLegendLabel}>More</span>
         </div>
@@ -525,19 +620,32 @@ const PnLHeatmap: React.FC<{ history: HistoryPoint[] | null; loading: boolean }>
 };
 
 export const ChartView: React.FC<Props> = ({
-  walletTokens, lendingItems, poolItems, stakingItems, breakdown, walletGroupId,
+  walletTokens,
+  lendingItems,
+  poolItems,
+  stakingItems,
+  breakdown,
+  walletGroupId,
 }) => {
   const [history, setHistory] = useState<HistoryPoint[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyView, setHistoryView] = useState<'portfolio' | 'composition' | 'heatmap'>('portfolio');
+  const [historyView, setHistoryView] = useState<'portfolio' | 'composition' | 'heatmap'>(
+    'portfolio'
+  );
 
   useEffect(() => {
     if (!walletGroupId) return;
     const controller = new AbortController();
     setHistoryLoading(true);
-    axios.get<{ points: HistoryPoint[] }>(api.getWalletGroupHistory(walletGroupId), { signal: controller.signal })
-      .then(res => { setHistory(res.data.points); setHistoryLoading(false); })
-      .catch(err => {
+    axios
+      .get<{ points: HistoryPoint[] }>(api.getWalletGroupHistory(walletGroupId), {
+        signal: controller.signal,
+      })
+      .then((res) => {
+        setHistory(res.data.points);
+        setHistoryLoading(false);
+      })
+      .catch((err) => {
         if (axios.isCancel?.(err) || err?.name === 'CanceledError') return;
         setHistory(null);
         setHistoryLoading(false);
@@ -545,26 +653,34 @@ export const ChartView: React.FC<Props> = ({
     return () => controller.abort();
   }, [walletGroupId]);
 
-  const lendingSegments = useMemo<DonutSegment[]>(() => [
-    { label: 'Supplied', value: breakdown.lendingSupplied, color: '#45b773' },
-    { label: 'Borrowed', value: breakdown.lendingBorrowed, color: '#ef4444' },
-  ].filter(c => c.value > 0), [breakdown]);
+  const lendingSegments = useMemo<DonutSegment[]>(
+    () =>
+      [
+        { label: 'Supplied', value: breakdown.lendingSupplied, color: '#45b773' },
+        { label: 'Borrowed', value: breakdown.lendingBorrowed, color: '#ef4444' },
+      ].filter((c) => c.value > 0),
+    [breakdown]
+  );
 
-  const ltv = breakdown.lendingSupplied > 0
-    ? (breakdown.lendingBorrowed / breakdown.lendingSupplied) * 100
-    : 0;
+  const ltv =
+    breakdown.lendingSupplied > 0
+      ? (breakdown.lendingBorrowed / breakdown.lendingSupplied) * 100
+      : 0;
 
-  const stackedSeries = useMemo<StackedSeries[]>(() => [
-    { key: 'lending', label: 'Lending (supplied)', color: '#22c55e' },
-    { key: 'liquiditypool', label: 'Liquidity Pool', color: '#f59e0b' },
-    { key: 'staking', label: 'Staking', color: '#a78bfa' },
-    { key: 'borrowing', label: 'Borrowing', color: '#ef4444' },
-  ], []);
+  const stackedSeries = useMemo<StackedSeries[]>(
+    () => [
+      { key: 'lending', label: 'Lending (supplied)', color: '#22c55e' },
+      { key: 'liquiditypool', label: 'Liquidity Pool', color: '#f59e0b' },
+      { key: 'staking', label: 'Staking', color: '#a78bfa' },
+      { key: 'borrowing', label: 'Borrowing', color: '#ef4444' },
+    ],
+    []
+  );
 
   const stackedPoints = useMemo<StackedPoint[]>(() => {
     const base: StackedPoint[] = (history ?? [])
-      .filter(p => p.summary?.byPositionType)
-      .map(p => {
+      .filter((p) => p.summary?.byPositionType)
+      .map((p) => {
         const bp = p.summary?.byPositionType ?? {};
         const norm: Record<string, number> = {};
         Object.entries(bp).forEach(([k, v]) => {
@@ -581,7 +697,7 @@ export const ChartView: React.FC<Props> = ({
       liquiditypool: breakdown.poolValue,
       staking: breakdown.stakingValue,
     };
-    const hasLive = Object.values(liveValues).some(v => v > 0);
+    const hasLive = Object.values(liveValues).some((v) => v > 0);
     if (!hasLive) return base;
 
     if (base.length > 0 && base[base.length - 1].date === today) {
@@ -590,7 +706,13 @@ export const ChartView: React.FC<Props> = ({
       base.push({ date: today, values: liveValues });
     }
     return base;
-  }, [history, breakdown.lendingSupplied, breakdown.lendingBorrowed, breakdown.poolValue, breakdown.stakingValue]);
+  }, [
+    history,
+    breakdown.lendingSupplied,
+    breakdown.lendingBorrowed,
+    breakdown.poolValue,
+    breakdown.stakingValue,
+  ]);
 
   return (
     <div className={s.view}>
@@ -610,7 +732,9 @@ export const ChartView: React.FC<Props> = ({
           <div className={s.panelTitle}>Lending Breakdown</div>
           {lendingSegments.length > 0 ? (
             <Donut segments={lendingSegments} total={breakdown.lendingSupplied} center="Lending" />
-          ) : <div className={s.lineEmpty}>No lending positions.</div>}
+          ) : (
+            <div className={s.lineEmpty}>No lending positions.</div>
+          )}
         </div>
 
         <div className={s.panel}>
@@ -621,13 +745,15 @@ export const ChartView: React.FC<Props> = ({
 
       <div className={s.panel}>
         <div className={s.panelTitle}>Exposure</div>
-        <Bullet rows={[
-          { label: 'Supplied', value: breakdown.lendingSupplied, color: '#22c55e' },
-          { label: 'Borrowed', value: breakdown.lendingBorrowed, color: '#ef4444' },
-          { label: 'Pools', value: breakdown.poolValue, color: '#f59e0b' },
-          { label: 'Staking', value: breakdown.stakingValue, color: '#a78bfa' },
-          { label: 'Wallet', value: breakdown.walletValue, color: '#14b8a6' },
-        ].filter(r => r.value > 0)} />
+        <Bullet
+          rows={[
+            { label: 'Supplied', value: breakdown.lendingSupplied, color: '#22c55e' },
+            { label: 'Borrowed', value: breakdown.lendingBorrowed, color: '#ef4444' },
+            { label: 'Pools', value: breakdown.poolValue, color: '#f59e0b' },
+            { label: 'Staking', value: breakdown.stakingValue, color: '#a78bfa' },
+            { label: 'Wallet', value: breakdown.walletValue, color: '#14b8a6' },
+          ].filter((r) => r.value > 0)}
+        />
       </div>
 
       <div className={s.panel}>
@@ -637,22 +763,32 @@ export const ChartView: React.FC<Props> = ({
             type="button"
             className={`${s.allocBtn} ${historyView === 'portfolio' ? s.allocBtnOn : ''}`}
             onClick={() => setHistoryView('portfolio')}
-          >Portfolio Value</button>
+          >
+            Portfolio Value
+          </button>
           <button
             type="button"
             className={`${s.allocBtn} ${historyView === 'composition' ? s.allocBtnOn : ''}`}
             onClick={() => setHistoryView('composition')}
-          >Position Types</button>
+          >
+            Position Types
+          </button>
           <button
             type="button"
             className={`${s.allocBtn} ${historyView === 'heatmap' ? s.allocBtnOn : ''}`}
             onClick={() => setHistoryView('heatmap')}
-          >PnL Heatmap</button>
+          >
+            PnL Heatmap
+          </button>
         </div>
         {historyView === 'portfolio' ? (
           <LineChart history={history} loading={historyLoading} liveTotal={breakdown.totalValue} />
         ) : historyView === 'composition' ? (
-          <StackedAreaCanvas points={stackedPoints} series={stackedSeries} loading={historyLoading} />
+          <StackedAreaCanvas
+            points={stackedPoints}
+            series={stackedSeries}
+            loading={historyLoading}
+          />
         ) : (
           <PnLHeatmap history={history} loading={historyLoading} />
         )}
@@ -667,17 +803,30 @@ export const ChartView: React.FC<Props> = ({
             { label: 'Borrowed', value: -breakdown.lendingBorrowed, positive: false },
             { label: 'Pools', value: breakdown.poolValue, positive: true },
             { label: 'Staking', value: breakdown.stakingValue, positive: true },
-          ].map(item => (
+          ].map((item) => (
             <div key={item.label} className={s.netItem}>
               <span className={s.netLabel}>{item.label}</span>
-              <span className={s.netVal} style={{ color: item.value < 0 ? 'var(--v2-red)' : 'var(--v2-green)' }}>
-                <MaskedValue value={`${item.value < 0 ? '-' : '+'}${formatPrice(Math.abs(item.value))}`} />
+              <span
+                className={s.netVal}
+                style={{ color: item.value < 0 ? 'var(--v2-red)' : 'var(--v2-green)' }}
+              >
+                <MaskedValue
+                  value={`${item.value < 0 ? '-' : '+'}${formatPrice(Math.abs(item.value))}`}
+                />
               </span>
             </div>
           ))}
-          <div className={s.netItem} style={{ borderTop: '1px solid var(--v2-border)', paddingTop: 8 }}>
-            <span className={s.netLabel} style={{ fontWeight: 800, color: 'var(--v2-text)' }}>Total</span>
-            <span className={s.netVal} style={{ color: 'var(--v2-text)', fontSize: 15, fontWeight: 800 }}>
+          <div
+            className={s.netItem}
+            style={{ borderTop: '1px solid var(--v2-border)', paddingTop: 8 }}
+          >
+            <span className={s.netLabel} style={{ fontWeight: 800, color: 'var(--v2-text)' }}>
+              Total
+            </span>
+            <span
+              className={s.netVal}
+              style={{ color: 'var(--v2-text)', fontSize: 15, fontWeight: 800 }}
+            >
               <MaskedValue value={formatPrice(breakdown.totalValue)} />
             </span>
           </div>

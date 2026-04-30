@@ -4,21 +4,33 @@ import s from './V2Toolbar.module.css';
 
 const IconSearch = () => (
   <svg width="13" height="13" viewBox="0 0 18 18" fill="none">
-    <circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" strokeWidth="1.5"/>
-    <path d="M16 16l-3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M16 16l-3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </svg>
 );
 
 const IconChevron = ({ open }: { open: boolean }) => (
   <svg
-    width="10" height="10" viewBox="0 0 10 10" fill="none"
+    width="10"
+    height="10"
+    viewBox="0 0 10 10"
+    fill="none"
     style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.16s ease' }}
   >
-    <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path
+      d="M2 3.5L5 6.5L8 3.5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
-const normKey = (v: any): string => String(v ?? '').trim().toLowerCase();
+const normKey = (v: any): string =>
+  String(v ?? '')
+    .trim()
+    .toLowerCase();
 
 export const V2Toolbar: React.FC = () => {
   const { positionSearch, setPositionSearch, selectedChains, setSelectedChains, supportedChains } =
@@ -68,13 +80,15 @@ export const V2Toolbar: React.FC = () => {
   const label = allSelected
     ? 'All chains'
     : activeCount === 1
-    ? '1 chain'
-    : `${activeCount} chains`;
+      ? '1 chain'
+      : `${activeCount} chains`;
 
   return (
     <div className={s.toolbar}>
       <div className={s.searchWrap}>
-        <span className={s.searchIcon}><IconSearch /></span>
+        <span className={s.searchIcon}>
+          <IconSearch />
+        </span>
         <input
           className={s.searchInput}
           placeholder="Search positions, protocols, tokens…"
@@ -111,7 +125,9 @@ export const V2Toolbar: React.FC = () => {
                         src={chain.iconUrl}
                         alt={chain.displayName ?? chain.name}
                         className={s.chainIcon}
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
                       />
                     ) : (
                       <span className={s.chainInitial}>
@@ -124,8 +140,12 @@ export const V2Toolbar: React.FC = () => {
               })}
             </div>
             <div className={s.chainFooter}>
-              <button className={s.chainFooterBtn} onClick={selectAll}>Select all</button>
-              <button className={s.chainFooterBtn} onClick={clearAll}>Clear</button>
+              <button className={s.chainFooterBtn} onClick={selectAll}>
+                Select all
+              </button>
+              <button className={s.chainFooterBtn} onClick={clearAll}>
+                Clear
+              </button>
             </div>
           </div>
         )}

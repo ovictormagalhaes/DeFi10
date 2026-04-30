@@ -56,10 +56,7 @@ pub async fn start_worker(config: AppConfig) -> Result<()> {
                 break;
             }
             Err(e) => {
-                warn!(
-                    "Worker: MongoDB init attempt {}/5 failed: {}",
-                    attempt, e
-                );
+                warn!("Worker: MongoDB init attempt {}/5 failed: {}", attempt, e);
                 tokio::time::sleep(Duration::from_secs(3 * attempt)).await;
             }
         }

@@ -135,27 +135,23 @@ const SortableAllocationCard: React.FC<SortableAllocationCardProps> = ({
 
   return (
     <div ref={setNodeRef} style={style} className="alloc-row">
-      <div
-        {...attributes}
-        {...listeners}
-        className="alloc-drag"
-        title="Drag to reorder"
-      >
+      <div {...attributes} {...listeners} className="alloc-drag" title="Drag to reorder">
         <svg width="12" height="16" viewBox="0 0 12 16" fill="none">
-          <circle cx="3" cy="3" r="1.5" fill="currentColor"/>
-          <circle cx="9" cy="3" r="1.5" fill="currentColor"/>
-          <circle cx="3" cy="8" r="1.5" fill="currentColor"/>
-          <circle cx="9" cy="8" r="1.5" fill="currentColor"/>
-          <circle cx="3" cy="13" r="1.5" fill="currentColor"/>
-          <circle cx="9" cy="13" r="1.5" fill="currentColor"/>
+          <circle cx="3" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="9" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="3" cy="8" r="1.5" fill="currentColor" />
+          <circle cx="9" cy="8" r="1.5" fill="currentColor" />
+          <circle cx="3" cy="13" r="1.5" fill="currentColor" />
+          <circle cx="9" cy="13" r="1.5" fill="currentColor" />
         </svg>
       </div>
 
       <div className="alloc-identity">
-        {logo
-          ? <img src={logo} alt={allocation.symbol} className="alloc-logo" />
-          : <div className="alloc-logo-placeholder">{allocation.symbol[0]}</div>
-        }
+        {logo ? (
+          <img src={logo} alt={allocation.symbol} className="alloc-logo" />
+        ) : (
+          <div className="alloc-logo-placeholder">{allocation.symbol[0]}</div>
+        )}
         <div className="alloc-meta">
           <span className="alloc-symbol">{allocation.symbol}</span>
           {(allocation.protocolName || allocation.chain) && (
@@ -163,14 +159,23 @@ const SortableAllocationCard: React.FC<SortableAllocationCardProps> = ({
               {allocation.protocolLogo && (
                 <img src={allocation.protocolLogo} alt="" className="alloc-badge-icon" />
               )}
-              {allocation.protocolName && <span className="alloc-badge">{allocation.protocolName}</span>}
-              {allocation.chain && <span className="alloc-badge alloc-badge-chain">{capitalize(allocation.chain)}</span>}
+              {allocation.protocolName && (
+                <span className="alloc-badge">{allocation.protocolName}</span>
+              )}
+              {allocation.chain && (
+                <span className="alloc-badge alloc-badge-chain">
+                  {capitalize(allocation.chain)}
+                </span>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      <span className="alloc-value">${assetValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      <span className="alloc-value">
+        $
+        {assetValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </span>
 
       <div className="alloc-weight-ctrl">
         <input
@@ -196,13 +201,14 @@ const SortableAllocationCard: React.FC<SortableAllocationCardProps> = ({
         </div>
       </div>
 
-      <button
-        onClick={() => onRemove(allocation.id)}
-        className="alloc-remove"
-        title="Remove"
-      >
+      <button onClick={() => onRemove(allocation.id)} className="alloc-remove" title="Remove">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+          <path
+            d="M1 1l10 10M11 1L1 11"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
         </svg>
       </button>
     </div>
@@ -444,7 +450,6 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
   };
 
   const initialState = initializeFromStrategy();
-
 
   // Step 1: Select Asset Type
   const [assetType, setAssetType] = useState<RebalanceAssetType | null>(initialState.assetType);
@@ -946,7 +951,11 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                           <>
                             <div className="dropdown-card-left">
                               {token.logo && (
-                                <img src={token.logo} alt={token.symbol} className="dropdown-card-logo" />
+                                <img
+                                  src={token.logo}
+                                  alt={token.symbol}
+                                  className="dropdown-card-logo"
+                                />
                               )}
                               <div className="dropdown-card-info">
                                 <span className="dropdown-card-symbol">{token.symbol}</span>
@@ -1037,7 +1046,11 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                         >
                           <div className="dropdown-card-left">
                             {token.logo && (
-                              <img src={token.logo} alt={token.symbol} className="dropdown-card-logo" />
+                              <img
+                                src={token.logo}
+                                alt={token.symbol}
+                                className="dropdown-card-logo"
+                              />
                             )}
                             <div className="dropdown-card-info">
                               <span className="dropdown-card-symbol">{token.symbol}</span>
