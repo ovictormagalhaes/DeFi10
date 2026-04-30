@@ -6,9 +6,17 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 
+[lib]
+name = "defi10_worker"
+path = "src/lib.rs"
+
 [[bin]]
 name = "defi10-worker"
 path = "src/main.rs"
+
+[[bin]]
+name = "defi10-snapshot-job"
+path = "src/bin/snapshot_job.rs"
 
 [dependencies]
 defi10-core = { path = "../core", features = ["http"] }

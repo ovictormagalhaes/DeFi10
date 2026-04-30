@@ -9,7 +9,7 @@ use defi10_infrastructure::protocol_factory::{build_aave_config, build_uniswap_c
 use defi10_infrastructure::PriceHydrationService;
 use defi10_protocols::{
     AaveAdapter, FetchContext, KaminoAdapter, PendleAdapter, ProtocolRegistry, RaydiumAdapter,
-    UniswapAdapter,
+    RaydiumPositionStore, UniswapAdapter,
 };
 use reqwest::Client;
 use std::collections::HashMap;
@@ -30,11 +30,19 @@ pub struct AggregationProcessor {
 }
 
 impl AggregationProcessor {
-    pub fn new(config: AppConfig) -> Self {
+    pub fn new(
+        config: AppConfig,
+        position_store: Option<Arc<dyn RaydiumPositionStore>>,
+    ) -> Self {
         let http_client = Arc::new(Client::new());
 
         let aave_config = build_aave_config(&config);
         let uniswap_config = build_uniswap_config(&config);
+
+        let raydium_adapter = match position_store {
+            Some(store) => RaydiumAdapter::with_store(http_client.clone(), store),
+            None => RaydiumAdapter::new(http_client.clone()),
+        };
 
         let mut registry = ProtocolRegistry::new();
         registry.register(Arc::new(AaveAdapter::new(http_client.clone(), aave_config)));
@@ -43,7 +51,7 @@ impl AggregationProcessor {
             uniswap_config,
         )));
         registry.register(Arc::new(KaminoAdapter::new(http_client.clone())));
-        registry.register(Arc::new(RaydiumAdapter::new(http_client.clone())));
+        registry.register(Arc::new(raydium_adapter));
         registry.register(Arc::new(PendleAdapter::new(http_client.clone())));
 
         let price_hydration = PriceHydrationService::with_client(http_client.clone());
@@ -419,6 +427,6 @@ mod tests {
             graph: None,
             newrelic: None,
         };
-        let _processor = AggregationProcessor::new(config);
+        let _processor = AggregationProcessor::new(config, None);
     }
 }
