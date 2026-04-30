@@ -458,9 +458,7 @@ async fn check_job_completion(
         );
 
         if total_processed >= snapshot.expected_total {
-            let final_status = if snapshot.succeeded == snapshot.expected_total {
-                JobStatus::Completed
-            } else if snapshot.succeeded > 0 {
+            let final_status = if snapshot.succeeded > 0 {
                 JobStatus::Completed
             } else {
                 JobStatus::Failed
