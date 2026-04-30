@@ -32,10 +32,9 @@ import { useChainIcons } from '../../context/ChainIconsProvider';
 import { useTheme } from '../../context/ThemeProvider';
 import { RebalanceAssetType, ASSET_TYPE_OPTIONS } from '../../types/rebalancing';
 import type { AllocationByWeightConfig } from '../../types/strategies/allocationByWeight';
-import type { SaveStrategiesResponse } from '../../types/strategy';
+import type { AllocationStrategy, SaveStrategiesResponse } from '../../types/strategy';
 import type { WalletItem } from '../../types/wallet';
 import { capitalize } from '../../utils/format';
-
 // Helper to map WalletItemType to RebalanceAssetType
 const mapWalletTypeToRebalanceType = (type: WalletItemType): RebalanceAssetType => {
   switch (type) {
@@ -79,7 +78,136 @@ interface AllocationItem {
   tokenLogo?: string;
   weight: number;
   value?: number;
+  isGeneral?: boolean;
 }
+
+interface GeneralTokenOption {
+  symbol: string;
+  logo?: string;
+  value: number;
+}
+
+const aggregateGeneralTokens = (portfolio: WalletItem[]): GeneralTokenOption[] => {
+  const map = new Map<string, GeneralTokenOption>();
+  portfolio.forEach((item) => {
+    const tokens = item.position?.tokens || [];
+    tokens.forEach((t: any) => {
+      const tokenType = (t.type || '').toString().toLowerCase();
+      if (tokenType === 'borrowed' || tokenType === 'borrow') return;
+      if (!t.symbol) return;
+      const value = Math.abs(t.financials?.totalPrice || 0);
+      const existing = map.get(t.symbol);
+      if (existing) {
+        existing.value += value;
+        if (!existing.logo && t.logo) existing.logo = t.logo;
+      } else {
+        map.set(t.symbol, { symbol: t.symbol, logo: t.logo, value });
+      }
+    });
+  });
+  return Array.from(map.values()).sort((a, b) => b.value - a.value);
+};
+
+interface SortableAllocationCardProps {
+  allocation: AllocationItem;
+  logo: string | undefined;
+  assetValue: number;
+  onRemove: (id: string) => void;
+  onUpdateWeight: (id: string, weight: number) => void;
+}
+
+const SortableAllocationCard: React.FC<SortableAllocationCardProps> = ({
+  allocation,
+  logo,
+  assetValue,
+  onRemove,
+  onUpdateWeight,
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: allocation.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="alloc-row">
+      <div
+        {...attributes}
+        {...listeners}
+        className="alloc-drag"
+        title="Drag to reorder"
+      >
+        <svg width="12" height="16" viewBox="0 0 12 16" fill="none">
+          <circle cx="3" cy="3" r="1.5" fill="currentColor"/>
+          <circle cx="9" cy="3" r="1.5" fill="currentColor"/>
+          <circle cx="3" cy="8" r="1.5" fill="currentColor"/>
+          <circle cx="9" cy="8" r="1.5" fill="currentColor"/>
+          <circle cx="3" cy="13" r="1.5" fill="currentColor"/>
+          <circle cx="9" cy="13" r="1.5" fill="currentColor"/>
+        </svg>
+      </div>
+
+      <div className="alloc-identity">
+        {logo
+          ? <img src={logo} alt={allocation.symbol} className="alloc-logo" />
+          : <div className="alloc-logo-placeholder">{allocation.symbol[0]}</div>
+        }
+        <div className="alloc-meta">
+          <span className="alloc-symbol">{allocation.symbol}</span>
+          {(allocation.protocolName || allocation.chain) && (
+            <div className="alloc-badges">
+              {allocation.protocolLogo && (
+                <img src={allocation.protocolLogo} alt="" className="alloc-badge-icon" />
+              )}
+              {allocation.protocolName && <span className="alloc-badge">{allocation.protocolName}</span>}
+              {allocation.chain && <span className="alloc-badge alloc-badge-chain">{capitalize(allocation.chain)}</span>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <span className="alloc-value">${assetValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+
+      <div className="alloc-weight-ctrl">
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value={allocation.weight}
+          onChange={(e) => onUpdateWeight(allocation.id, Number(e.target.value))}
+          className="alloc-slider"
+        />
+        <div className="alloc-weight-input-wrap">
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            value={allocation.weight}
+            onChange={(e) => onUpdateWeight(allocation.id, Number(e.target.value))}
+            className="alloc-weight-input"
+          />
+          <span className="alloc-weight-pct">%</span>
+        </div>
+      </div>
+
+      <button
+        onClick={() => onRemove(allocation.id)}
+        className="alloc-remove"
+        title="Remove"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      </button>
+    </div>
+  );
+};
 
 export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
   walletGroupId,
@@ -121,7 +249,11 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
 
       if (hasNewStructure) {
         // New structure has groupType directly in allocation
-        detectedType = firstAlloc.groupType as RebalanceAssetType;
+        if (firstAlloc.groupType === RebalanceAssetType.General || firstAlloc.group === 'General') {
+          detectedType = RebalanceAssetType.General;
+        } else {
+          detectedType = firstAlloc.groupType as RebalanceAssetType;
+        }
       } else {
         // Old structure needs to check items
         if (initialStrategy.items && initialStrategy.items.length > 0) {
@@ -138,6 +270,25 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
 
     // Map allocations to form items
     const existingAllocations: AllocationItem[] = allocationsData.map((alloc: any, idx: number) => {
+      const isGeneralAlloc =
+        hasNewStructure &&
+        (alloc.groupType === RebalanceAssetType.General || alloc.group === 'General');
+
+      if (isGeneralAlloc) {
+        const symbol = alloc.token?.symbol || alloc.assetKey;
+        const tokenLogo = alloc.token?.logo || '';
+        const aggregated = aggregateGeneralTokens(portfolio).find((t) => t.symbol === symbol);
+        return {
+          id: `existing-${idx}`,
+          assetKey: symbol,
+          symbol,
+          tokenLogo: tokenLogo || aggregated?.logo,
+          weight: alloc.targetWeight,
+          value: aggregated?.value || 0,
+          isGeneral: true,
+        };
+      }
+
       if (hasNewStructure) {
         // NEW structure: data is already in the allocation object
         const protocol = alloc.protocol?.id || alloc.protocol;
@@ -294,6 +445,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
 
   const initialState = initializeFromStrategy();
 
+
   // Step 1: Select Asset Type
   const [assetType, setAssetType] = useState<RebalanceAssetType | null>(initialState.assetType);
   const [assetTypeLabel, setAssetTypeLabel] = useState<string>(initialState.assetTypeLabel);
@@ -339,14 +491,21 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
     return grouped;
   }, [portfolio]);
 
+  // Aggregate tokens across all non-borrow positions for the General type
+  const generalTokens = useMemo(() => aggregateGeneralTokens(portfolio), [portfolio]);
+
   // Get available asset types (that have portfolio items)
   const availableAssetTypes = useMemo(() => {
-    return ASSET_TYPE_OPTIONS.filter((opt) => portfolioByAssetType.has(opt.value));
-  }, [portfolioByAssetType]);
+    return ASSET_TYPE_OPTIONS.filter((opt) => {
+      if (opt.value === RebalanceAssetType.General) return generalTokens.length > 0;
+      return portfolioByAssetType.has(opt.value);
+    });
+  }, [portfolioByAssetType, generalTokens]);
 
   // Get assets for selected asset type
   const assetsInType = useMemo(() => {
     if (!assetType) return [];
+    if (assetType === RebalanceAssetType.General) return [];
     const items = portfolioByAssetType.get(assetType) || [];
 
     // For Lending Supply, only show supply positions
@@ -442,6 +601,28 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
       return;
     }
 
+    if (assetType === RebalanceAssetType.General) {
+      const token = generalTokens.find((t) => t.symbol === selectedAsset);
+      if (!token) {
+        alert('Token not found');
+        return;
+      }
+      const newAllocation: AllocationItem = {
+        id: `${selectedAsset}-${Date.now()}`,
+        assetKey: token.symbol,
+        symbol: token.symbol,
+        tokenLogo: token.logo,
+        weight,
+        value: token.value,
+        isGeneral: true,
+      };
+      setAllocations([...allocations, newAllocation]);
+      setWeight(0);
+      setSelectedAsset('');
+      setShowTokenDialog(false);
+      return;
+    }
+
     // Get symbol from portfolio
     const portfolioItem = assetsInType.find((item) => {
       const key = `${item.protocol.id}-${item.protocol.chain}-${item.position.tokens?.[0]?.symbol || ''}`;
@@ -530,15 +711,16 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
     }
 
     try {
+      const isGeneralStrategy = assetType === RebalanceAssetType.General;
       const config: AllocationByWeightConfig = {
         allocations: allocations.map((a, index) => ({
           assetKey: a.symbol,
-          group: assetTypeLabel,
+          group: isGeneralStrategy ? 'General' : assetTypeLabel,
           weight: a.weight,
-          protocol: a.protocol, // Protocol ID (e.g., 'aave-v3', 'kamino')
-          protocolName: a.protocolName, // Protocol display name (e.g., 'Aave V3', 'Kamino')
-          chain: a.chain, // Chain name (e.g., 'base', 'solana')
-          displayOrder: index, // Preserve order
+          protocol: isGeneralStrategy ? undefined : a.protocol,
+          protocolName: isGeneralStrategy ? undefined : a.protocolName,
+          chain: isGeneralStrategy ? undefined : a.chain,
+          displayOrder: index,
         })),
         name: name.trim() || undefined,
         description: description.trim() || undefined,
@@ -550,109 +732,6 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
       console.error('Failed to save strategy:', err);
       alert(`Failed to save strategy: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
-  };
-
-  const SortableAllocationCard: React.FC<{
-    allocation: AllocationItem;
-    logo: string | undefined;
-    assetValue: number;
-    isLending: boolean;
-    onRemove: (id: string) => void;
-    onUpdateWeight: (id: string, weight: number) => void;
-  }> = ({ allocation, logo, assetValue, isLending, onRemove, onUpdateWeight }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-      id: allocation.id,
-    });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-      display: 'flex',
-      gap: '8px',
-    };
-
-    return (
-      <div ref={setNodeRef} style={style} className="allocation-card-wrapper">
-        {/* Drag Handle */}
-        <div
-          {...attributes}
-          {...listeners}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '24px',
-            cursor: 'grab',
-            background: theme.bgInteractive,
-            border: `1px solid ${theme.border}`,
-            borderRadius: '8px',
-            color: theme.textSecondary,
-            fontSize: '16px',
-            userSelect: 'none',
-            flexShrink: 0,
-          }}
-          title="Drag to reorder"
-        >
-          ⋮⋮
-        </div>
-
-        {/* Card Content */}
-        <div className="allocation-card" style={{ flex: 1, position: 'relative' }}>
-          <button
-            onClick={() => onRemove(allocation.id)}
-            className="card-remove-btn"
-            title="Remove token"
-          >
-            ×
-          </button>
-
-          <div className="card-header">
-            {logo && <img src={logo} alt={allocation.symbol} className="card-token-logo" />}
-            <div className="card-token-info">
-              <span className="card-token-symbol">{allocation.symbol}</span>
-              {(allocation.protocol || allocation.chain) && (
-                <div className="card-protocol-chain">
-                  {allocation.protocolLogo && (
-                    <img src={allocation.protocolLogo} alt="protocol" className="card-small-logo" />
-                  )}
-                  {allocation.protocolName && <span>{allocation.protocolName}</span>}
-                  {allocation.chainLogo && (
-                    <img src={allocation.chainLogo} alt="chain" className="card-small-logo" />
-                  )}
-                  {allocation.chain && <span>{capitalize(allocation.chain)}</span>}
-                </div>
-              )}
-              <span className="card-asset-value">${assetValue.toFixed(2)}</span>
-            </div>
-          </div>
-
-          <div className="card-weight">
-            <div className="card-weight-input-group">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                value={allocation.weight}
-                onChange={(e) => onUpdateWeight(allocation.id, Number(e.target.value))}
-                className="card-weight-input"
-              />
-              <span className="card-weight-percent">%</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={allocation.weight}
-              onChange={(e) => onUpdateWeight(allocation.id, Number(e.target.value))}
-              className="card-weight-slider"
-            />
-          </div>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -678,7 +757,10 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                 <div className="type-label">{type.label}</div>
                 <div className="type-description">{type.description}</div>
                 <div className="type-count">
-                  {portfolioByAssetType.get(type.value)?.length || 0} assets
+                  {type.value === RebalanceAssetType.General
+                    ? generalTokens.length
+                    : portfolioByAssetType.get(type.value)?.length || 0}{' '}
+                  assets
                 </div>
               </button>
             ))}
@@ -753,7 +835,11 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
               <button
                 onClick={handleOpenTokenDialog}
                 className="btn-add-token"
-                disabled={assetsInType.length === 0}
+                disabled={
+                  assetType === RebalanceAssetType.General
+                    ? generalTokens.length === 0
+                    : assetsInType.length === 0
+                }
               >
                 + Add Token
               </button>
@@ -787,9 +873,6 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                         })();
 
                       const assetValue = allocation.value || 0;
-                      const isLending =
-                        assetType === RebalanceAssetType.LendingSupply ||
-                        assetType === RebalanceAssetType.LendingBorrow;
 
                       return (
                         <SortableAllocationCard
@@ -797,7 +880,6 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                           allocation={allocation}
                           logo={logo}
                           assetValue={assetValue}
-                          isLending={isLending}
                           onRemove={handleRemoveToken}
                           onUpdateWeight={handleUpdateWeight}
                         />
@@ -856,7 +938,29 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                     onClick={() => setDropdownOpen(!dropdownOpen)}
                     style={{ position: 'relative' }}
                   >
-                    {selectedAsset ? (
+                    {selectedAsset && assetType === RebalanceAssetType.General ? (
+                      (() => {
+                        const token = generalTokens.find((t) => t.symbol === selectedAsset);
+                        if (!token) return null;
+                        return (
+                          <>
+                            <div className="dropdown-card-left">
+                              {token.logo && (
+                                <img src={token.logo} alt={token.symbol} className="dropdown-card-logo" />
+                              )}
+                              <div className="dropdown-card-info">
+                                <span className="dropdown-card-symbol">{token.symbol}</span>
+                                <div className="dropdown-card-meta">
+                                  <span>All positions (excl. borrow)</span>
+                                </div>
+                              </div>
+                            </div>
+                            <span className="dropdown-card-value">${token.value.toFixed(2)}</span>
+                            <span className="trigger-card-arrow">{dropdownOpen ? '▲' : '▼'}</span>
+                          </>
+                        );
+                      })()
+                    ) : selectedAsset ? (
                       (() => {
                         const asset = assetsInType.find(
                           (a) =>
@@ -919,7 +1023,36 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                     )}
                   </button>
 
-                  {dropdownOpen && (
+                  {dropdownOpen && assetType === RebalanceAssetType.General && (
+                    <div className="dropdown-menu-enhanced">
+                      {generalTokens.map((token) => (
+                        <button
+                          key={token.symbol}
+                          type="button"
+                          className={`dropdown-card ${selectedAsset === token.symbol ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSelectedAsset(token.symbol);
+                            setDropdownOpen(false);
+                          }}
+                        >
+                          <div className="dropdown-card-left">
+                            {token.logo && (
+                              <img src={token.logo} alt={token.symbol} className="dropdown-card-logo" />
+                            )}
+                            <div className="dropdown-card-info">
+                              <span className="dropdown-card-symbol">{token.symbol}</span>
+                              <div className="dropdown-card-meta">
+                                <span>All positions (excl. borrow)</span>
+                              </div>
+                            </div>
+                          </div>
+                          <span className="dropdown-card-value">${token.value.toFixed(2)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {dropdownOpen && assetType !== RebalanceAssetType.General && (
                     <div className="dropdown-menu-enhanced">
                       {assetsInType.map((asset) => {
                         const key = `${asset.protocol.id}-${asset.protocol.chain}-${asset.position.tokens?.[0]?.symbol || ''}`;
@@ -995,6 +1128,9 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
                       step="1"
                       value={weight}
                       onChange={(e) => setWeight(Number(e.target.value))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && selectedAsset && weight > 0) handleAddToken();
+                      }}
                       className="dialog-weight-input"
                     />
                     <span className="dialog-weight-percent">%</span>
@@ -1035,7 +1171,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
 
         .form-section {
           background: ${theme.bgPanel};
-          border: 2px solid ${theme.border};
+          border: 1px solid ${theme.border};
           border-radius: 12px;
           padding: 24px;
           margin-bottom: 20px;
@@ -1097,9 +1233,9 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
 
         .asset-type-card {
           padding: 20px;
-          background: ${theme.bgPanel};
-          border: 2px solid ${theme.border};
-          border-radius: 12px;
+          background: ${theme.bgSecondary};
+          border: 1px solid ${theme.border};
+          border-radius: 10px;
           cursor: pointer;
           transition: all 0.2s;
           text-align: left;
@@ -1107,7 +1243,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
 
         .asset-type-card:hover {
           border-color: ${theme.accent};
-          box-shadow: 0 4px 12px ${theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(0, 123, 255, 0.15)'};
+          box-shadow: 0 4px 12px ${theme.accent}33;
           transform: translateY(-2px);
         }
 
@@ -1138,13 +1274,15 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         }
 
         .total-badge.valid {
-          background: #d1fae5;
-          color: #065f46;
+          background: ${theme.accent}26;
+          color: ${theme.accent};
+          border: 1px solid ${theme.accent};
         }
 
         .total-badge.invalid {
-          background: #fef3c7;
-          color: #92400e;
+          background: ${theme.warning}1f;
+          color: ${theme.warning};
+          border: 1px solid ${theme.warning};
         }
 
         .empty-state {
@@ -1177,213 +1315,224 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         }
 
         .allocations-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 16px;
-          margin-top: 16px;
-        }
-
-        .allocation-card {
-          position: relative;
-          background: ${theme.bgSecondary};
-          border: 2px solid ${theme.border};
-          border-radius: 12px;
-          padding: 16px;
           display: flex;
           flex-direction: column;
+          gap: 0;
+          margin-top: 12px;
+          border: 1px solid ${theme.border};
+          border-radius: 10px;
+          overflow: hidden;
+        }
+
+        .alloc-row {
+          display: grid;
+          grid-template-columns: 20px 1fr auto 260px 28px;
+          align-items: center;
           gap: 12px;
-          transition: all 0.2s;
+          padding: 10px 14px;
+          background: ${theme.bgPanel};
+          border-bottom: 1px solid ${theme.border};
+          transition: background 0.15s;
         }
 
-        .allocation-card:hover {
-          border-color: ${theme.accent};
-          box-shadow: 0 2px 8px ${theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'};
+        .alloc-row:last-child {
+          border-bottom: none;
         }
 
-        .card-remove-btn {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          width: 24px;
-          height: 24px;
-          border: none;
-          background: ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'};
-          color: ${theme.textSecondary};
-          border-radius: 50%;
-          cursor: pointer;
-          font-size: 18px;
-          line-height: 1;
+        .alloc-row:hover {
+          background: ${theme.bgSecondary};
+        }
+
+        .alloc-drag {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 0;
-          transition: all 0.2s;
-          opacity: 0.7;
+          color: ${theme.textSecondary};
+          cursor: grab;
+          opacity: 0.4;
+          transition: opacity 0.15s;
+          user-select: none;
         }
 
-        .card-remove-btn:hover {
-          background: ${theme.mode === 'dark' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)'};
-          color: #ef4444;
+        .alloc-drag:hover {
           opacity: 1;
         }
 
-        .card-header {
+        .alloc-identity {
           display: flex;
-          flex-direction: column;
           align-items: center;
-          gap: 8px;
-          padding-bottom: 12px;
-          border-bottom: 1px solid ${theme.border};
+          gap: 10px;
+          min-width: 0;
         }
 
-        .card-token-logo {
-          width: 48px;
-          height: 48px;
+        .alloc-logo {
+          width: 32px;
+          height: 32px;
           border-radius: 50%;
           object-fit: cover;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          flex-shrink: 0;
         }
 
-        .card-token-info {
+        .alloc-logo-placeholder {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: ${theme.bgInteractive};
+          border: 1px solid ${theme.border};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+          font-weight: 700;
+          color: ${theme.textSecondary};
+          flex-shrink: 0;
+        }
+
+        .alloc-meta {
           display: flex;
           flex-direction: column;
-          align-items: center;
-          gap: 4px;
-          width: 100%;
+          gap: 3px;
+          min-width: 0;
         }
 
-        .card-token-symbol {
-          font-size: 16px;
-          font-weight: 700;
+        .alloc-symbol {
+          font-size: 14px;
+          font-weight: 600;
           color: ${theme.textPrimary};
         }
 
-        .card-asset-value {
-          font-size: 13px;
-          font-weight: 600;
-          color: ${theme.textSecondary};
-        }
-
-        .card-protocol-chain {
+        .alloc-badges {
           display: flex;
           align-items: center;
           gap: 4px;
-          font-size: 11px;
-          color: ${theme.textSecondary};
           flex-wrap: wrap;
-          justify-content: center;
         }
 
-        .card-small-logo {
-          width: 14px;
-          height: 14px;
+        .alloc-badge-icon {
+          width: 12px;
+          height: 12px;
           border-radius: 50%;
           object-fit: cover;
         }
 
-        .card-weight {
+        .alloc-badge {
+          font-size: 11px;
+          color: ${theme.textSecondary};
+          background: ${theme.bgInteractive};
+          border: 1px solid ${theme.border};
+          border-radius: 4px;
+          padding: 1px 5px;
+          white-space: nowrap;
+        }
+
+        .alloc-badge-chain {
+          color: ${theme.accent};
+          border-color: ${theme.accent}44;
+          background: ${theme.accent}0f;
+        }
+
+        .alloc-value {
+          font-size: 13px;
+          font-weight: 500;
+          color: ${theme.textSecondary};
+          white-space: nowrap;
+          text-align: right;
+        }
+
+        .alloc-weight-ctrl {
           display: flex;
-          flex-direction: column;
+          align-items: center;
           gap: 8px;
         }
 
-        .card-weight-input-group {
+        .alloc-slider {
+          flex: 1;
+          height: 4px;
+          border-radius: 2px;
+          background: ${theme.bgInteractive};
+          outline: none;
+          -webkit-appearance: none;
+          cursor: pointer;
+        }
+
+        .alloc-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: ${theme.accent};
+          cursor: pointer;
+          border: 2px solid ${theme.bgPanel};
+          box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        }
+
+        .alloc-slider::-moz-range-thumb {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: ${theme.accent};
+          cursor: pointer;
+          border: 2px solid ${theme.bgPanel};
+          box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        }
+
+        .alloc-weight-input-wrap {
           display: flex;
           align-items: center;
-          justify-content: center;
-          gap: 4px;
-          margin-left: -10px;
+          gap: 2px;
+          flex-shrink: 0;
         }
 
-        .card-weight-input {
-          width: 70px;
-          height: 40px;
-          font-size: 24px;
-          font-weight: 700;
+        .alloc-weight-input {
+          width: 44px;
+          height: 30px;
+          font-size: 14px;
+          font-weight: 600;
           color: ${theme.accent};
-          background: ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'};
-          border: 2px solid ${theme.border};
-          border-radius: 8px;
+          background: ${theme.bgInteractive};
+          border: 1px solid ${theme.border};
+          border-radius: 6px;
           text-align: center;
-          padding: 0 8px;
-          transition: all 0.2s;
+          padding: 0 4px;
+          transition: border-color 0.15s;
         }
 
-        .card-weight-input:focus {
+        .alloc-weight-input:focus {
           outline: none;
           border-color: ${theme.accent};
-          background: ${theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0, 123, 255, 0.05)'};
         }
 
-        .card-weight-input::-webkit-inner-spin-button,
-        .card-weight-input::-webkit-outer-spin-button {
+        .alloc-weight-input::-webkit-inner-spin-button,
+        .alloc-weight-input::-webkit-outer-spin-button {
           -webkit-appearance: none;
-          margin: 0;
         }
 
-        .card-weight-percent {
-          font-size: 20px;
+        .alloc-weight-pct {
+          font-size: 13px;
           font-weight: 600;
           color: ${theme.accent};
         }
 
-        .card-weight-slider {
-          width: 100%;
-          height: 6px;
-          border-radius: 3px;
-          background: ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
-          outline: none;
-          -webkit-appearance: none;
-        }
-
-        .card-weight-slider::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: ${theme.accent};
-          cursor: pointer;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-          transition: transform 0.2s;
-        }
-
-        .card-weight-slider::-webkit-slider-thumb:hover {
-          transform: scale(1.2);
-        }
-
-        .card-weight-slider::-moz-range-thumb {
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: ${theme.accent};
-          cursor: pointer;
+        .alloc-remove {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
           border: none;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-          transition: transform 0.2s;
+          background: transparent;
+          color: ${theme.textSecondary};
+          border-radius: 6px;
+          cursor: pointer;
+          opacity: 0.4;
+          transition: all 0.15s;
+          padding: 0;
         }
 
-        .card-weight-slider::-moz-range-thumb:hover {
-          transform: scale(1.2);
-        }
-
-        @media (max-width: 768px) {
-          .allocations-grid {
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 12px;
-          }
-          
-          .allocation-card {
-            padding: 12px;
-          }
-          
-          .card-token-logo {
-            width: 40px;
-            height: 40px;
-          }
-          
-          .card-weight-value {
-            font-size: 20px;
-          }
+        .alloc-remove:hover {
+          background: ${theme.danger}22;
+          color: ${theme.danger};
+          opacity: 1;
         }
 
         /* Legacy styles - keep for backward compatibility */
@@ -1504,9 +1653,9 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         }
 
         .btn-remove-token:hover {
-          background: #fee2e2;
-          border-color: #fecaca;
-          color: #ef4444;
+          background: ${theme.danger}1f;
+          border-color: ${theme.danger};
+          color: ${theme.danger};
         }
 
         .form-group {
@@ -1548,8 +1697,8 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         .dropdown-card {
           width: 100%;
           padding: 12px;
-          border: 2px solid ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
-          background: ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)'};
+          border: 1px solid ${theme.border};
+          background: ${theme.bgInteractive};
           color: ${theme.textPrimary};
           text-align: left;
           cursor: pointer;
@@ -1601,7 +1750,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         .dropdown-trigger:focus {
           outline: none;
           border-color: ${theme.accent};
-          box-shadow: 0 0 0 3px ${theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 123, 255, 0.1)'};
+          box-shadow: 0 0 0 3px ${theme.accent}33;
         }
 
         .selected-option {
@@ -1631,7 +1780,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           background: ${theme.bgPanel};
           border: 1px solid ${theme.border};
           border-radius: 8px;
-          box-shadow: 0 4px 12px ${theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)'};
+          box-shadow: 0 8px 24px ${theme.shadow};
           z-index: 1000;
         }
 
@@ -1643,18 +1792,18 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           max-height: 400px;
           overflow-y: auto;
           background: ${theme.bgPanel};
-          border: 2px solid ${theme.border};
-          border-radius: 12px;
-          box-shadow: 0 8px 24px ${theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.15)'};
+          border: 1px solid ${theme.border};
+          border-radius: 10px;
+          box-shadow: 0 8px 24px ${theme.shadow};
           z-index: 1000;
-          padding: 8px;
+          padding: 6px;
         }
 
         .dropdown-card {
           width: 100%;
           padding: 12px;
-          border: 2px solid ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
-          background: ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)'};
+          border: 1px solid ${theme.border};
+          background: ${theme.bgInteractive};
           color: ${theme.textPrimary};
           text-align: left;
           cursor: pointer;
@@ -1672,14 +1821,14 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         }
 
         .dropdown-card:hover {
-          background: ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)'};
+          background: ${theme.bgInteractiveHover};
           border-color: ${theme.accent};
           transform: translateY(-1px);
-          box-shadow: 0 2px 8px ${theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)'};
+          box-shadow: 0 2px 8px ${theme.shadow};
         }
 
         .dropdown-card.selected {
-          background: ${theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 123, 255, 0.1)'};
+          background: ${theme.accent}26;
           border-color: ${theme.accent};
         }
 
@@ -1766,7 +1915,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         }
 
         .dropdown-option.selected {
-          background: ${theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 123, 255, 0.1)'};
+          background: ${theme.accent}26;
           color: ${theme.accent};
         }
 
@@ -1800,7 +1949,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         .form-select:focus {
           outline: none;
           border-color: ${theme.accent};
-          box-shadow: 0 0 0 3px ${theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 123, 255, 0.1)'};
+          box-shadow: 0 0 0 3px ${theme.accent}33;
         }
 
         .validation-section {
@@ -1810,13 +1959,13 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         }
 
         .validation-section.valid {
-          background: #d1fae5;
-          border: 2px solid #10b981;
+          background: ${theme.accent}1f;
+          border: 1px solid ${theme.accent};
         }
 
         .validation-section.invalid {
-          background: #fef3c7;
-          border: 2px solid #f59e0b;
+          background: ${theme.warning}1f;
+          border: 1px solid ${theme.warning};
         }
 
         .validation-header {
@@ -1825,17 +1974,17 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         }
 
         .validation-section.valid .validation-header {
-          color: #065f46;
+          color: ${theme.accent};
         }
 
         .validation-section.invalid .validation-header {
-          color: #92400e;
+          color: ${theme.warning};
         }
 
         .validation-errors {
           margin: 0;
           padding-left: 20px;
-          color: #92400e;
+          color: ${theme.warning};
         }
 
         .form-actions {
@@ -1969,8 +2118,8 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           align-items: center;
           gap: 16px;
           padding: 20px;
-          background: ${theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0, 123, 255, 0.08)'};
-          border: 2px solid ${theme.accent};
+          background: ${theme.accent}26;
+          border: 1px solid ${theme.accent};
           border-radius: 12px;
           margin-bottom: 24px;
         }
@@ -2057,8 +2206,8 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           font-size: 32px;
           font-weight: 700;
           color: ${theme.accent};
-          background: ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'};
-          border: 2px solid ${theme.border};
+          background: ${theme.bgInteractive};
+          border: 1px solid ${theme.border};
           border-radius: 12px;
           text-align: center;
           padding: 0 12px;
@@ -2068,7 +2217,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
         .dialog-weight-input:focus {
           outline: none;
           border-color: ${theme.accent};
-          box-shadow: 0 0 0 3px ${theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 123, 255, 0.1)'};
+          box-shadow: 0 0 0 3px ${theme.accent}33;
         }
 
         .dialog-weight-input::-webkit-inner-spin-button,
@@ -2087,7 +2236,7 @@ export const AllocationStrategyForm: React.FC<AllocationStrategyFormProps> = ({
           width: 100%;
           height: 8px;
           border-radius: 4px;
-          background: ${theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)'};
+          background: ${theme.bgInteractiveHover};
           outline: none;
           -webkit-appearance: none;
         }

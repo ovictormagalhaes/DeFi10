@@ -22,6 +22,7 @@ interface AggregationSnapshot {
   isCompleted?: boolean;
   progress?: number;
   expected?: number;
+  expectedTotal?: number;
   succeeded?: number;
   failed?: number;
   timedOut?: number;
@@ -45,6 +46,7 @@ interface UseAggregationJobReturn {
   snapshot: AggregationSnapshot | null;
   error: Error | null;
   loading: boolean;
+  starting: boolean;
   isCompleted: boolean;
   progress: number;
   expected: number | null;
@@ -86,6 +88,7 @@ export function useAggregationJob(): UseAggregationJobReturn {
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
 
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,6 +117,7 @@ export function useAggregationJob(): UseAggregationJobReturn {
     setExpired(false);
     setError(null);
     setLoading(false);
+    setStarting(false);
     setIsCompleted(false);
     attemptRef.current = 0;
     cancelled.current = false;
@@ -195,16 +199,16 @@ export function useAggregationJob(): UseAggregationJobReturn {
       if (!force && now - lastEnsureTsRef.current < 500) return jobId;
       lastEnsureTsRef.current = now;
 
-      if (!force && jobId && !expired && !isGroup && lastAccountRef.current === accountOrGroupId) {
+      const sameIdentifier = isGroup
+        ? currentGroupIdRef.current === accountOrGroupId
+        : lastAccountRef.current === accountOrGroupId;
+      if (!force && jobId && !expired && sameIdentifier) {
         return jobId;
       }
       if (ensureInFlightRef.current) return jobId;
       ensureInFlightRef.current = true;
+      setStarting(true);
       try {
-        setLoading(true);
-        reset();
-        setLoading(true);
-
         const body = isGroup
           ? api.buildStartAggregationBodyV2({ walletGroupId: accountOrGroupId })
           : api.buildStartAggregationBody(accountOrGroupId);
@@ -237,6 +241,9 @@ export function useAggregationJob(): UseAggregationJobReturn {
           pickedJobId = api.pickAggregationJob(data.jobs);
         }
         if (!pickedJobId) throw new Error('Missing jobId in start response');
+
+        reset();
+        setLoading(true);
         setJobId(pickedJobId);
         lastAccountRef.current = isGroup ? null : accountOrGroupId;
         lastChainRef.current = null;
@@ -249,6 +256,7 @@ export function useAggregationJob(): UseAggregationJobReturn {
         setLoading(false);
         return null;
       } finally {
+        setStarting(false);
         ensureInFlightRef.current = false;
       }
     },
@@ -377,11 +385,12 @@ export function useAggregationJob(): UseAggregationJobReturn {
     };
   }, [jobId, isCompleted, fetchSnapshot, getProgressiveInterval]);
 
+  const expectedTotal = snapshot?.expectedTotal ?? snapshot?.expected ?? 0;
   const progress =
     snapshot?.progress ??
-    (snapshot && (snapshot.expected ?? 0) > 0
+    (snapshot && expectedTotal > 0
       ? ((snapshot.succeeded || 0) + (snapshot.failed || 0) + (snapshot.timedOut || 0)) /
-        (snapshot.expected as number)
+        expectedTotal
       : 0);
 
   return {
@@ -389,9 +398,10 @@ export function useAggregationJob(): UseAggregationJobReturn {
     snapshot,
     error,
     loading,
+    starting,
     isCompleted,
     progress,
-    expected: snapshot?.expected ?? null,
+    expected: expectedTotal || null,
     succeeded: snapshot?.succeeded ?? null,
     failed: snapshot?.failed ?? null,
     timedOut: snapshot?.timedOut ?? null,

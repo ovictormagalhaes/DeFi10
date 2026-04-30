@@ -1,0 +1,186 @@
+.toolbar {
+  background: var(--v2-bg-panel);
+  border-bottom: 1px solid var(--v2-border);
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.searchWrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 260px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--v2-muted);
+  pointer-events: none;
+  display: flex;
+}
+
+.searchInput {
+  width: 100%;
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-sm);
+  padding: 6px 10px 6px 30px;
+  font-size: 12.5px;
+  color: var(--v2-text);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.searchInput::placeholder {
+  color: var(--v2-dim);
+}
+
+.searchInput:focus {
+  border-color: var(--v2-accent);
+}
+
+.chainDropdownWrap {
+  position: relative;
+}
+
+.chainTrigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-sm);
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--v2-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: border-color 0.16s ease, color 0.16s ease, background 0.16s ease;
+}
+
+.chainTrigger:hover {
+  border-color: var(--v2-accent);
+  color: var(--v2-text);
+}
+
+.chainTriggerActive {
+  border-color: var(--v2-accent);
+  color: var(--v2-accent);
+  background: var(--v2-accent-s);
+}
+
+.chainTriggerLabel {
+  min-width: 72px;
+}
+
+.chainDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  background: var(--v2-bg-panel);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-sm);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  min-width: 200px;
+  overflow: hidden;
+}
+
+.chainList {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.chainList::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chainList::-webkit-scrollbar-thumb {
+  background: var(--v2-border);
+  border-radius: 2px;
+}
+
+.chainRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.chainRow:hover {
+  background: var(--v2-bg-hover);
+}
+
+.chainCheckbox {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--v2-accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chainIcon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.chainInitial {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--v2-bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.chainRowName {
+  font-size: 12.5px;
+  color: var(--v2-text);
+  font-weight: 500;
+}
+
+.chainFooter {
+  display: flex;
+  gap: 0;
+  border-top: 1px solid var(--v2-border);
+}
+
+.chainFooterBtn {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 8px 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--v2-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.chainFooterBtn:hover {
+  color: var(--v2-accent);
+  background: var(--v2-bg-hover);
+}
+
+.chainFooterBtn + .chainFooterBtn {
+  border-left: 1px solid var(--v2-border);
+}

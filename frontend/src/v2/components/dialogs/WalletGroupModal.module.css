@@ -1,0 +1,846 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal {
+  background: var(--v2-bg-panel);
+  border: 1px solid var(--v2-border);
+  border-radius: 20px;
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.header {
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--v2-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.headerTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--v2-text);
+  letter-spacing: 0.3px;
+}
+
+.headerSub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--v2-muted);
+}
+
+.closeBtn {
+  background: transparent;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--v2-muted);
+  transition: background var(--v2-t), color var(--v2-t);
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.closeBtn:hover {
+  background: var(--v2-bg-hover);
+  color: var(--v2-text);
+}
+
+.body {
+  padding: 24px 28px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+}
+
+.footer {
+  padding: 20px 28px;
+  border-top: 1px solid var(--v2-border);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* Top action buttons */
+.topActions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.btnPrimary {
+  flex: 1;
+  padding: 14px 20px;
+  background: var(--v2-accent);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform var(--v2-t), box-shadow var(--v2-t);
+  font-family: inherit;
+}
+
+.btnPrimary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.btnSecondary {
+  flex: 1;
+  padding: 14px 20px;
+  background: transparent;
+  border: 2px solid var(--v2-border);
+  border-radius: 12px;
+  color: var(--v2-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background var(--v2-t), border-color var(--v2-t);
+  font-family: inherit;
+}
+
+.btnSecondary:hover {
+  background: var(--v2-bg-hover);
+  border-color: var(--v2-accent);
+}
+
+/* Empty state */
+.emptyState {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--v2-muted);
+}
+
+.emptyTitle {
+  font-size: 14px;
+  margin: 0;
+  color: var(--v2-muted);
+}
+
+.emptyDesc {
+  font-size: 12px;
+  margin: 8px 0 0;
+  opacity: 0.7;
+}
+
+/* Groups list */
+.groupsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.groupCard {
+  background: var(--v2-bg);
+  border: 1px solid var(--v2-border);
+  border-radius: 14px;
+  padding: 18px;
+  transition: border-color var(--v2-t);
+}
+
+.groupCard:hover {
+  border-color: var(--v2-accent);
+}
+
+.groupCardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.groupInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.groupName {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--v2-text);
+}
+
+.groupMeta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--v2-muted);
+}
+
+.groupBtns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.btnSm {
+  padding: 6px 14px;
+  border: 1px solid var(--v2-border);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--v2-t), border-color var(--v2-t), color var(--v2-t);
+  font-family: inherit;
+  background: transparent;
+}
+
+.btnSm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnSmSelect {
+  background: var(--v2-accent-s);
+  color: var(--v2-text);
+}
+
+.btnSmSelect:not(:disabled):hover {
+  background: var(--v2-accent);
+  color: #fff;
+  border-color: var(--v2-accent);
+}
+
+.btnSmCopy {
+  color: var(--v2-accent);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btnSmCopy:not(:disabled):hover {
+  background: var(--v2-bg-hover);
+}
+
+.btnSmDisconnect {
+  color: var(--v2-yellow);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btnSmDisconnect:not(:disabled):hover {
+  background: var(--v2-yellow-s);
+  border-color: var(--v2-yellow);
+}
+
+.btnSmEdit {
+  color: var(--v2-text);
+}
+
+.btnSmEdit:not(:disabled):hover {
+  background: var(--v2-bg-hover);
+}
+
+.btnSmDelete {
+  padding: 6px 10px;
+  color: var(--v2-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btnSmDelete:not(:disabled):hover {
+  background: var(--v2-red-s);
+  border-color: var(--v2-red);
+}
+
+/* Wallet rows inside group card */
+.walletList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.walletRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--v2-bg-panel);
+  border: 1px solid var(--v2-border);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.walletTypeBadge {
+  padding: 3px 8px;
+  background: var(--v2-accent-s);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v2-text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.walletAddress {
+  flex: 1;
+  color: var(--v2-muted);
+  font-family: monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v2-text);
+}
+
+.labelHint {
+  opacity: 0.5;
+  font-weight: 400;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--v2-border);
+  background: var(--v2-bg-card);
+  color: var(--v2-text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color var(--v2-t);
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.input:focus {
+  border-color: var(--v2-accent);
+}
+
+.input::placeholder {
+  color: var(--v2-dim);
+}
+
+.inputMono {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.inputReadonly {
+  background: var(--v2-bg-hover);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.inputErr {
+  border-color: var(--v2-red);
+}
+
+.inputErr:focus {
+  border-color: var(--v2-red);
+}
+
+.inputConnected {
+  background: var(--v2-accent-s);
+  cursor: not-allowed;
+}
+
+.inputHasBadge {
+  padding-right: 70px;
+}
+
+.fieldReadonly {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--v2-bg-card);
+  color: var(--v2-text);
+  font-size: 14px;
+  border: 1px solid var(--v2-border);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--v2-muted);
+  opacity: 0.7;
+}
+
+.errorText {
+  font-size: 12px;
+  color: var(--v2-red);
+}
+
+/* Banners */
+.errorBanner {
+  padding: 12px 16px;
+  background: var(--v2-red-s);
+  border: 1px solid var(--v2-red);
+  border-radius: 10px;
+  color: var(--v2-red);
+  font-size: 13px;
+}
+
+.warningBannerRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  background: var(--v2-yellow-s);
+  border: 1px solid var(--v2-yellow);
+  border-radius: 10px;
+}
+
+.warningBannerTitle {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v2-yellow);
+}
+
+.warningBannerText {
+  margin: 0;
+  font-size: 12px;
+  color: var(--v2-muted);
+  line-height: 1.5;
+}
+
+.infoBanner {
+  padding: 16px;
+  background: var(--v2-bg-card);
+  border-radius: 10px;
+  border: 1px solid var(--v2-border);
+  font-size: 13px;
+  color: var(--v2-muted);
+  line-height: 1.6;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.reconnectBanner {
+  padding: 12px 16px;
+  background: var(--v2-yellow-s);
+  border: 1px solid var(--v2-yellow);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.reconnectTitle {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--v2-yellow);
+  font-size: 13px;
+}
+
+.reconnectDesc {
+  margin: 0;
+  color: var(--v2-muted);
+  font-size: 13px;
+}
+
+/* Group status check */
+.groupStatusBadge {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.groupStatusPublic {
+  background: var(--v2-green-s);
+  border: 1px solid var(--v2-green);
+  color: var(--v2-green);
+}
+
+.groupStatusLocked {
+  background: var(--v2-yellow-s);
+  border: 1px solid var(--v2-yellow);
+  color: var(--v2-yellow);
+}
+
+.checkingText {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--v2-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Checkbox */
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--v2-text);
+  user-select: none;
+}
+
+.checkRow input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--v2-accent);
+  flex-shrink: 0;
+}
+
+/* PoW status */
+.powBanner {
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.powSolving {
+  background: var(--v2-accent-s);
+  border: 1px solid var(--v2-border);
+  color: var(--v2-text);
+}
+
+.powSolved {
+  background: var(--v2-green-s);
+  border: 1px solid var(--v2-green);
+  color: var(--v2-green);
+}
+
+.powError {
+  background: var(--v2-red-s);
+  border: 1px solid var(--v2-red);
+  color: var(--v2-red);
+}
+
+.powNote {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-left: auto;
+}
+
+/* Spinner */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--v2-accent);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Footer buttons */
+.btnCancel {
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid var(--v2-border);
+  border-radius: 10px;
+  color: var(--v2-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--v2-t);
+  font-family: inherit;
+}
+
+.btnCancel:hover {
+  background: var(--v2-bg-hover);
+}
+
+.btnSubmit {
+  padding: 10px 24px;
+  background: var(--v2-accent);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--v2-t), box-shadow var(--v2-t);
+  font-family: inherit;
+}
+
+.btnSubmit:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btnSubmit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Wallet address input rows */
+.walletInputFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.walletInputRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.walletNum {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--v2-accent-s);
+  color: var(--v2-text);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+.walletInputMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.walletInputInner {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.walletInputContainer {
+  position: relative;
+  flex: 1;
+}
+
+.walletInputBadgeOverlay {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.addrTypeBadge {
+  padding: 4px 8px;
+  background: var(--v2-green-s);
+  color: var(--v2-green);
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.addrActionBtn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: none;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--v2-t), color var(--v2-t);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+}
+
+.addrDisconnectBtn {
+  background: var(--v2-red-s);
+  color: var(--v2-red);
+}
+
+.addrDisconnectBtn:hover {
+  background: var(--v2-red);
+  color: #fff;
+}
+
+.addrConnectBtn {
+  background: var(--v2-accent-s);
+  color: var(--v2-accent);
+  white-space: nowrap;
+}
+
+.addrConnectBtn:hover {
+  background: var(--v2-accent);
+  color: #fff;
+}
+
+.walletConnectBtn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--v2-border);
+  background: var(--v2-bg-card);
+  color: var(--v2-text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--v2-t), border-color var(--v2-t);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.walletConnectBtn:hover {
+  background: var(--v2-accent-s);
+  border-color: var(--v2-accent);
+}
+
+.walletMobileBadgeRow {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .overlay {
+    padding: 12px;
+  }
+
+  .modal {
+    border-radius: 16px;
+    max-height: 95vh;
+  }
+
+  .header {
+    padding: 16px 20px;
+  }
+
+  .headerTitle {
+    font-size: 18px;
+  }
+
+  .headerSub {
+    font-size: 12px;
+  }
+
+  .body {
+    padding: 16px 20px;
+  }
+
+  .footer {
+    padding: 16px 20px;
+    flex-direction: column;
+  }
+
+  .btnCancel,
+  .btnSubmit {
+    width: 100%;
+  }
+
+  .topActions {
+    flex-direction: column;
+  }
+
+  .groupCardTop {
+    flex-direction: column;
+  }
+
+  .walletInputRow {
+    flex-direction: column;
+  }
+
+  .walletNum {
+    display: none;
+  }
+
+  .walletInputInner {
+    flex-direction: column;
+  }
+
+  .walletConnectBtn {
+    width: 100%;
+  }
+
+  .walletInputBadgeOverlay {
+    display: none;
+  }
+
+  .walletMobileBadgeRow {
+    display: flex;
+  }
+
+  .inputHasBadge {
+    padding-right: 14px;
+  }
+
+  .walletRow {
+    padding: 8px 10px;
+  }
+
+  .walletAddress {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .walletNum {
+    display: none;
+  }
+}

@@ -13,6 +13,7 @@ export enum RebalanceAssetType {
   Group = 4,
   LendingSupply = 10,
   LendingBorrow = 11,
+  General = 50,
 }
 
 // Enum de tipos de referência (espelhado do backend)
@@ -222,6 +223,11 @@ export type ChainKey =
 
 // Constants tipados
 export const ASSET_TYPE_OPTIONS: AssetTypeOption[] = [
+  {
+    value: RebalanceAssetType.General,
+    label: 'General',
+    description: 'Token holdings aggregated across all positions (excludes borrow)',
+  },
   { value: RebalanceAssetType.Wallet, label: 'Wallet', description: 'Individual wallet tokens' },
   {
     value: RebalanceAssetType.LiquidityPool,

@@ -20,8 +20,7 @@ import type {
 
 import type { Challenge } from './proofOfWork';
 import { solveChallenge } from './proofOfWork';
-
-const TOKEN_STORAGE_KEY = 'defi10_wallet_group_tokens';
+import { WALLET_GROUP_TOKENS_KEY } from '../constants/storageKeys';
 
 interface StoredToken {
   walletGroupId: string;
@@ -31,7 +30,7 @@ interface StoredToken {
 
 function getStoredTokens(): StoredToken[] {
   try {
-    const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+    const stored = localStorage.getItem(WALLET_GROUP_TOKENS_KEY);
     return stored ? JSON.parse(stored) : [];
   } catch {
     return [];
@@ -57,13 +56,13 @@ function storeToken(walletGroupId: string, token: string, expiresAt: string): vo
   const tokens = getStoredTokens();
   const filtered = tokens.filter((t) => t.walletGroupId !== walletGroupId);
   filtered.push({ walletGroupId, token, expiresAt });
-  localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(filtered));
+  localStorage.setItem(WALLET_GROUP_TOKENS_KEY, JSON.stringify(filtered));
 }
 
 function removeToken(walletGroupId: string): void {
   const tokens = getStoredTokens();
   const filtered = tokens.filter((t) => t.walletGroupId !== walletGroupId);
-  localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(filtered));
+  localStorage.setItem(WALLET_GROUP_TOKENS_KEY, JSON.stringify(filtered));
 }
 
 type TokenExpiredListener = (walletGroupId: string) => void;
@@ -212,13 +211,6 @@ export async function createWalletGroup(data: CreateWalletGroupRequest): Promise
   return walletGroup;
 }
 
-// REMOVED: checkWalletGroup - endpoint /check does not exist in backend
-// export async function checkWalletGroup(
-//   id: string
-// ): Promise<{ requiresPassword: boolean }> {
-//   const res = await axios.get(api.checkWalletGroup(id));
-//   return res.data;
-// }
 
 export async function connectWalletGroup(
   id: string,

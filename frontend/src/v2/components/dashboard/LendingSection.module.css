@@ -1,0 +1,171 @@
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.14s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.card:hover {
+  border-color: var(--v2-accent);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.protoInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.protoName {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
+
+.protoChain {
+  font-size: 11px;
+  color: var(--v2-muted);
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.protoTotal {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
+
+.tokenGroup {
+  margin-bottom: 10px;
+}
+
+.tokenGroupLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--v2-dim);
+  margin-bottom: 6px;
+}
+
+.tokenRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--v2-border-sub);
+  transition: background 0.1s ease;
+}
+
+.tokenRow:last-child {
+  border-bottom: none;
+}
+
+.tokenLogo {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tokenLogoFallback {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--v2-bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--v2-muted);
+}
+
+.tokenSym {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v2-text);
+  min-width: 50px;
+}
+
+.tokenRate {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v2-muted);
+  flex-shrink: 0;
+}
+
+.tokenAmt {
+  font-size: 11.5px;
+  color: var(--v2-muted);
+  flex: 1;
+}
+
+.tokenPrice {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.projIcon {
+  font-size: 10px;
+  opacity: 0.5;
+}
+
+.metrics {
+  display: flex;
+  gap: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--v2-border-sub);
+}
+
+.metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.metric + .metric {
+  border-left: 1px solid var(--v2-border-sub);
+}
+
+.metricLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--v2-dim);
+}
+
+.metricValue {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
