@@ -1,25 +1,41 @@
-# DeFi10
+<div align="center">
 
-> **Multi-chain DeFi Portfolio Tracker**  
-> Aggregate and monitor DeFi positions across EVM chains and Solana in a unified dashboard.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="frontend/public/logo_extended.svg">
+  <source media="(prefers-color-scheme: light)" srcset="frontend/public/logo_extended_light.svg">
+  <img src="frontend/public/logo_extended.svg" alt="DeFi10" height="64">
+</picture>
 
-[![Rust](https://img.shields.io/badge/Rust-1.75+-orange?logo=rust)](https://www.rust-lang.org/)
-[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+**Multi-chain DeFi Portfolio Tracker**
+
+[![Rust](https://img.shields.io/badge/Rust-1.75+-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+
+</div>
 
 ---
 
-## Overview
+## Supported Chains
 
-DeFi10 aggregates DeFi positions from multiple protocols and blockchains into a unified portfolio view with real-time analytics, strategy management, and historical tracking.
+<div>
+  <img src="frontend/public/resources/chains/base.png" height="28" title="Base" alt="Base">&nbsp;&nbsp;
+  <img src="frontend/public/resources/chains/ethereum.png" height="28" title="Ethereum" alt="Ethereum">&nbsp;&nbsp;
+  <img src="frontend/public/resources/chains/arbitrum.png" height="28" title="Arbitrum" alt="Arbitrum">&nbsp;&nbsp;
+  <img src="frontend/public/resources/chains/bsc.png" height="28" title="BNB Smart Chain" alt="BNB">&nbsp;&nbsp;
+  <img src="frontend/public/resources/chains/solana.png" height="28" title="Solana" alt="Solana">
+</div>
 
-**Supported Chains:**
-- EVM: Base, Ethereum, Arbitrum, BNB Smart Chain
-- Solana
+## Integrated Protocols
 
-**Integrated Protocols:**
-- Uniswap V3, Aave V3, Pendle V2
-- Raydium (CLMM), Kamino
+<div>
+  <img src="frontend/public/resources/protocols/uniswap.svg" height="28" title="Uniswap V3" alt="Uniswap">&nbsp;&nbsp;
+  <img src="frontend/public/resources/protocols/aave.svg" height="28" title="Aave V3" alt="Aave">&nbsp;&nbsp;
+  <img src="frontend/public/resources/protocols/pendle.svg" height="28" title="Pendle V2" alt="Pendle">&nbsp;&nbsp;
+  <img src="frontend/public/resources/protocols/raydium.svg" height="28" title="Raydium CLMM" alt="Raydium">&nbsp;&nbsp;
+  <img src="frontend/public/resources/protocols/kamino.svg" height="28" title="Kamino" alt="Kamino">
+</div>
 
 ---
 
@@ -139,12 +155,11 @@ yarn test      # Unit tests
 Deployed on [Render](https://render.com/) via `render.yaml`.
 
 ```bash
-# Docker build
 docker build -t defi10-api:latest .
 ```
 
 Services defined in `render.yaml`:
-- `defi10-api` — Rust API (Docker, Starter plan)
+- `defi10-api` — Rust API (Docker)
 - `defi10-redis` — Managed Redis
 
 ---
