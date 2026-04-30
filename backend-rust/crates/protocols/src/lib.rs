@@ -10,7 +10,7 @@ pub use aave::{AaveAdapter, AaveGraphConfig, AaveV3Service};
 pub use kamino::KaminoAdapter;
 pub use kamino::KaminoService;
 pub use pendle::{PendleAdapter, PendleService};
-pub use raydium::{RaydiumAdapter, RaydiumService};
+pub use raydium::{RaydiumAdapter, RaydiumPositionState, RaydiumPositionStore, RaydiumService};
 pub use registry::ProtocolRegistry;
 pub use types::*;
 pub use uniswap::{UniswapAdapter, UniswapGraphConfig, UniswapV3Service};
