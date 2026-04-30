@@ -19,8 +19,8 @@ pub use pow::{Challenge, ChallengeData, ProofRequest, ProofResponse};
 pub use protocol::Protocol;
 pub use snapshot::{
     AnalyticsSummary, ChainDistributionEntry, DailySnapshot, DayPnl, HistoryPoint,
-    PortfolioAnalytics, PositionHistoryPoint, ProtocolDistributionEntry, SnapshotPosition,
-    SnapshotSummary,
+    PortfolioAnalytics, PositionHistoryPoint, ProtocolDistributionEntry, SnapshotSummary,
+    SyncSnapshot, SyncSnapshotSummary, SNAPSHOT_VERSION,
 };
 pub use strategy::{
     AllocationChain, AllocationProtocol, AllocationToken, HealthFactorTarget,

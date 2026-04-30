@@ -1,27 +1,34 @@
-use crate::{middleware::ApiResult, state::AppState};
+use crate::{middleware::ApiResult, middleware::auth::AuthUser, state::AppState};
 use axum::{
     extract::{Path, Query, State},
-    Json,
+    Extension, Json,
 };
+use chrono::Utc;
 use defi10_core::{
     AnalyticsSummary, DayPnl, DeFi10Error, HistoryPoint, PortfolioAnalytics, PositionHistoryPoint,
+    SyncSnapshotSummary,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize)]
-pub struct DateRangeQuery {
-    pub from: String,
-    pub to: String,
+use super::verify_user_access;
+
+const HISTORY_DAYS: i64 = 90;
+
+fn date_range_90d() -> (String, String) {
+    let to = Utc::now();
+    let from = to - chrono::Duration::days(HISTORY_DAYS);
+    (
+        from.format("%Y-%m-%d").to_string(),
+        to.format("%Y-%m-%d").to_string(),
+    )
 }
 
 #[derive(Debug, Deserialize)]
 pub struct PositionHistoryQuery {
     pub token: String,
-    pub from: String,
-    pub to: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -37,7 +44,7 @@ pub struct SnapshotDetailResponse {
     pub wallet_group_id: Uuid,
     pub date: String,
     pub total_value_usd: f64,
-    pub positions: Vec<defi10_core::SnapshotPosition>,
+    pub positions: Vec<defi10_core::aggregation::AggregationResult>,
     pub summary: defi10_core::SnapshotSummary,
     pub analytics: Option<PortfolioAnalytics>,
 }
@@ -67,12 +74,14 @@ pub struct ProtocolAllocationPoint {
 
 pub async fn get_history(
     State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<Uuid>,
-    Query(query): Query<DateRangeQuery>,
 ) -> ApiResult<Json<HistoryResponse>> {
+    verify_user_access(&user, &id.to_string()).map_err(crate::middleware::error::ApiError::from)?;
+    let (from, to) = date_range_90d();
     let points = state
         .snapshot_repo
-        .get_history(&id, &query.from, &query.to)
+        .get_history(&id, &from, &to)
         .await
         .map_err(|e| DeFi10Error::Internal(format!("Failed to fetch history: {}", e)))?;
 
@@ -84,8 +93,10 @@ pub async fn get_history(
 
 pub async fn get_snapshot_detail(
     State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
     Path((id, date)): Path<(Uuid, String)>,
 ) -> ApiResult<Json<SnapshotDetailResponse>> {
+    verify_user_access(&user, &id.to_string()).map_err(crate::middleware::error::ApiError::from)?;
     let snapshot = state
         .snapshot_repo
         .get_snapshot(&id, &date)
@@ -111,12 +122,15 @@ pub async fn get_snapshot_detail(
 
 pub async fn get_position_history(
     State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Query(query): Query<PositionHistoryQuery>,
 ) -> ApiResult<Json<PositionHistoryResponse>> {
+    verify_user_access(&user, &id.to_string()).map_err(crate::middleware::error::ApiError::from)?;
+    let (from, to) = date_range_90d();
     let points = state
         .snapshot_repo
-        .get_position_history(&id, &query.token, &query.from, &query.to)
+        .get_position_history(&id, &query.token, &from, &to)
         .await
         .map_err(|e| DeFi10Error::Internal(format!("Failed to fetch position history: {}", e)))?;
 
@@ -129,8 +143,10 @@ pub async fn get_position_history(
 
 pub async fn get_analytics_summary(
     State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<AnalyticsSummary>> {
+    verify_user_access(&user, &id.to_string()).map_err(crate::middleware::error::ApiError::from)?;
     let all_analytics = state
         .snapshot_repo
         .get_analytics_range(&id, "2000-01-01", "2099-12-31")
@@ -173,14 +189,80 @@ pub async fn get_analytics_summary(
     }))
 }
 
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncHistoryResponse {
+    pub wallet_group_id: Uuid,
+    pub syncs: Vec<SyncSnapshotSummary>,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncDetailResponse {
+    pub wallet_group_id: Uuid,
+    pub id: Uuid,
+    pub date: String,
+    pub synced_at: chrono::DateTime<chrono::Utc>,
+    pub total_value_usd: f64,
+    pub positions: Vec<defi10_core::aggregation::AggregationResult>,
+    pub summary: defi10_core::SnapshotSummary,
+}
+
+pub async fn get_sync_history(
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<SyncHistoryResponse>> {
+    verify_user_access(&user, &id.to_string()).map_err(crate::middleware::error::ApiError::from)?;
+    let (from, to) = date_range_90d();
+    let syncs = state
+        .snapshot_repo
+        .get_sync_snapshots(&id, &from, &to)
+        .await
+        .map_err(|e| DeFi10Error::Internal(format!("Failed to fetch sync history: {}", e)))?;
+
+    Ok(Json(SyncHistoryResponse {
+        wallet_group_id: id,
+        syncs,
+    }))
+}
+
+pub async fn get_sync_detail(
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
+    Path((id, sync_id)): Path<(Uuid, String)>,
+) -> ApiResult<Json<SyncDetailResponse>> {
+    verify_user_access(&user, &id.to_string()).map_err(crate::middleware::error::ApiError::from)?;
+    let snapshot = state
+        .snapshot_repo
+        .get_sync_snapshot_detail(&id, &sync_id)
+        .await
+        .map_err(|e| DeFi10Error::Internal(format!("Failed to fetch sync detail: {}", e)))?
+        .ok_or_else(|| {
+            DeFi10Error::NotFound(format!("No sync snapshot found for id {}", sync_id))
+        })?;
+
+    Ok(Json(SyncDetailResponse {
+        wallet_group_id: id,
+        id: snapshot.id,
+        date: snapshot.date,
+        synced_at: snapshot.synced_at,
+        total_value_usd: snapshot.total_value_usd,
+        positions: snapshot.positions,
+        summary: snapshot.summary,
+    }))
+}
+
 pub async fn get_protocol_allocation(
     State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AuthUser>,
     Path(id): Path<Uuid>,
-    Query(query): Query<DateRangeQuery>,
 ) -> ApiResult<Json<ProtocolAllocationSeries>> {
+    verify_user_access(&user, &id.to_string()).map_err(crate::middleware::error::ApiError::from)?;
+    let (from, to) = date_range_90d();
     let analytics = state
         .snapshot_repo
-        .get_analytics_range(&id, &query.from, &query.to)
+        .get_analytics_range(&id, &from, &to)
         .await
         .map_err(|e| DeFi10Error::Internal(format!("Failed to fetch analytics: {}", e)))?;
 

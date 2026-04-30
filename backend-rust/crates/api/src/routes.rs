@@ -85,6 +85,14 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
             "/wallet-groups/:id/analytics/protocol-allocation",
             get(handlers::history::get_protocol_allocation),
         )
+        .route(
+            "/wallet-groups/:id/syncs",
+            get(handlers::history::get_sync_history),
+        )
+        .route(
+            "/wallet-groups/:id/syncs/:sync_id",
+            get(handlers::history::get_sync_detail),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -123,6 +131,11 @@ pub fn create_router(state: AppState, config: &AppConfig) -> Router {
             "/tokens/logos/:address",
             get(handlers::tokens::get_token_logo),
         )
+        .route(
+            "/tokens/logos/:address/image",
+            get(handlers::tokens::proxy_token_logo),
+        )
+        .route("/proxy/image", get(handlers::proxy::proxy_image))
         .with_state(state.clone());
 
     Router::new()

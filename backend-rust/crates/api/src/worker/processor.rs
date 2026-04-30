@@ -13,6 +13,7 @@ use defi10_protocols::kamino::KaminoService;
 use defi10_protocols::pendle::PendleService;
 use defi10_protocols::raydium::RaydiumService;
 use defi10_protocols::uniswap::UniswapV3Service;
+use defi10_protocols::RaydiumPositionStore;
 use reqwest::Client;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -31,10 +32,14 @@ pub struct AggregationProcessor {
     aave_service: AaveV3Service,
     uniswap_service: UniswapV3Service,
     price_hydration: PriceHydrationService,
+    raydium_position_store: Option<Arc<dyn RaydiumPositionStore>>,
 }
 
 impl AggregationProcessor {
-    pub fn new(config: AppConfig) -> Self {
+    pub fn new(
+        config: AppConfig,
+        raydium_position_store: Option<Arc<dyn RaydiumPositionStore>>,
+    ) -> Self {
         let http_client = Arc::new(Client::new());
 
         let moralis_client = config
@@ -83,6 +88,7 @@ impl AggregationProcessor {
             aave_service,
             uniswap_service,
             price_hydration,
+            raydium_position_store,
         }
     }
 
@@ -1030,7 +1036,12 @@ impl AggregationProcessor {
             .blockchain
             .get_solana_rpc()
             .unwrap_or_else(|| "https://api.mainnet-beta.solana.com".to_string());
-        let raydium_service = RaydiumService::with_client(self.http_client.clone(), rpc_url);
+        let raydium_service = match &self.raydium_position_store {
+            Some(store) => {
+                RaydiumService::with_store(self.http_client.clone(), rpc_url, store.clone())
+            }
+            None => RaydiumService::with_client(self.http_client.clone(), rpc_url),
+        };
         let provider_arc = std::sync::Arc::new(provider.clone());
         let positions = raydium_service
             .get_user_positions(account, provider_arc)
@@ -1557,7 +1568,7 @@ mod tests {
             graph: None,
             newrelic: None,
         };
-        let processor = AggregationProcessor::new(config);
+        let processor = AggregationProcessor::new(config, None);
 
         let job_id = Uuid::new_v4();
         let output = processor

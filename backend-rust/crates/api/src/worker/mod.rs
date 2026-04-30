@@ -6,8 +6,10 @@ use defi10_infrastructure::{
     aggregation::{AggregationMessage, JobManager},
     cache::{CacheService, RedisCache, AGGREGATION_CACHE_PREFIX},
     config::AppConfig,
+    database::{MongoDatabase, RaydiumPositionRepository},
     messaging::RabbitMqConnection,
 };
+use defi10_protocols::RaydiumPositionStore;
 use futures_util::stream::StreamExt;
 use lapin::ExchangeKind;
 use std::sync::Arc;
@@ -45,7 +47,28 @@ pub async fn start_worker(config: AppConfig) -> Result<()> {
         job_manager.ok_or_else(|| anyhow::anyhow!("Failed to init JobManager after 5 attempts"))?;
     info!("Worker: Job manager initialized");
 
-    let processor = Arc::new(AggregationProcessor::new(config.clone()));
+    let mut raydium_store: Option<Arc<dyn RaydiumPositionStore>> = None;
+    for attempt in 1..=5 {
+        match MongoDatabase::new(&config.mongodb.uri, &config.mongodb.database).await {
+            Ok(db) => {
+                raydium_store = Some(Arc::new(RaydiumPositionRepository::new(db.database())));
+                info!("Worker: Raydium position store initialized (MongoDB)");
+                break;
+            }
+            Err(e) => {
+                warn!(
+                    "Worker: MongoDB init attempt {}/5 failed: {}",
+                    attempt, e
+                );
+                tokio::time::sleep(Duration::from_secs(3 * attempt)).await;
+            }
+        }
+    }
+    if raydium_store.is_none() {
+        warn!("Worker: Raydium position store unavailable; collected fees will not be tracked");
+    }
+
+    let processor = Arc::new(AggregationProcessor::new(config.clone(), raydium_store));
     info!("Worker: Processor initialized");
 
     let mut cache = None;
@@ -232,6 +255,26 @@ async fn process_message(
     cache: &RedisCache,
     account_cache_ttl: Duration,
 ) -> Result<()> {
+    match job_manager
+        .try_acquire_processing_lock(&message.job_id, &message.account, &message.chain)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            info!(
+                "Worker: Job {}: Skipping duplicate delivery for {}/{} (lock already held)",
+                message.job_id, message.account, message.chain
+            );
+            return Ok(());
+        }
+        Err(e) => {
+            warn!(
+                "Worker: Job {}: Failed to acquire processing lock for {}/{}: {} - proceeding anyway",
+                message.job_id, message.account, message.chain, e
+            );
+        }
+    }
+
     let cache_key = format!(
         "{}:{}",
         message.account.to_lowercase(),

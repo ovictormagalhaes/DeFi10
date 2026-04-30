@@ -23,6 +23,8 @@ pub struct WalletGroup {
     pub created_at: DateTime<Utc>,
     #[serde(deserialize_with = "deserialize_datetime")]
     pub updated_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_synced_at: Option<DateTime<Utc>>,
 }
 
 // Helper functions for UUID serialization with MongoDB
@@ -109,6 +111,7 @@ impl WalletGroup {
             is_deleted: Some(false),
             created_at: now,
             updated_at: now,
+            last_synced_at: None,
         }
     }
 
