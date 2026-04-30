@@ -5,8 +5,7 @@ DeFi portfolio tracker with multi-protocol support (AAVE, Kamino, Uniswap, Pendl
 
 ## Tech Stack
 - Frontend: React, Vite, TypeScript, TailwindCSS
-- Backend C#: .NET 8, Entity Framework
-- Backend Rust: Axum, SQLx, Tokio
+- Backend: Rust, Axum, SQLx, Tokio
 
 ## Critical Rules
 
@@ -22,15 +21,10 @@ DeFi portfolio tracker with multi-protocol support (AAVE, Kamino, Uniswap, Pendl
 - Services in `frontend/src/services/`
 - State with React hooks
 
-### Backend C#
-- API in `backend/DeFi10.API/`
-- Tests in `backend/DeFi10.API.Tests/`
-
 ### Backend Rust
 - Handlers in `backend-rust/src/handlers/`
 - Services in `backend-rust/src/services/`
 
 ## Testing
 - Run frontend tests: `npm test`
-- Run backend tests: `dotnet test`
 - Run rust tests: `cargo test`

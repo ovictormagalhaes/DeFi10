@@ -47,6 +47,24 @@
       "console": "integratedTerminal"
     },
     {
+      "name": "Backend Rust: Worker",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "cargo",
+      "runtimeArgs": ["run", "-p", "defi10-worker", "--bin", "defi10-worker"],
+      "cwd": "${workspaceFolder}/backend-rust",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Backend Rust: Snapshot Job (one-shot)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "cargo",
+      "runtimeArgs": ["run", "-p", "defi10-worker", "--bin", "defi10-snapshot-job"],
+      "cwd": "${workspaceFolder}/backend-rust",
+      "console": "integratedTerminal"
+    },
+    {
       "name": "E2E: Playwright Tests",
       "type": "node",
       "request": "launch",
@@ -67,8 +85,9 @@
   ],
   "compounds": [
     {
-      "name": "Full Stack (Frontend + Backend)",
-      "configurations": ["Frontend: Dev", "Backend Rust: Bacon Run"]
+      "name": "Run All",
+      "configurations": ["Frontend: Dev", "Backend Rust: Bacon Run", "Backend Rust: Worker"],
+      "stopAll": true
     }
   ]
 }
