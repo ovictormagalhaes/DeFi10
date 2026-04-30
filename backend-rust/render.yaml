@@ -34,9 +34,11 @@ services:
       - key: Jwt__Secret
         sync: false
       - key: Jwt__ExpirationHours
-        value: "24"
+        value: "168"
       - key: Cors__AllowedOrigins
         value: "https://defi10.onrender.com,http://localhost:10002"
+      - key: COINGECKO_API_KEY
+        sync: false
       - key: Blockchain__AlchemyApiKey
         sync: false
       - key: Graph__ApiKey
