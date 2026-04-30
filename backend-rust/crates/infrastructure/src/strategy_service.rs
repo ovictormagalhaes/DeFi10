@@ -44,6 +44,8 @@ impl StrategyService {
                 description: req.description,
                 allocations: req.allocations,
                 targets: req.targets,
+                purchase_window_entries: req.purchase_window_entries,
+                purchase_window_results: None,
                 created_at: req.created_at.unwrap_or(now),
                 updated_at: now,
             })
@@ -118,6 +120,8 @@ impl StrategyService {
                 description: req.description,
                 allocations: req.allocations,
                 targets: req.targets,
+                purchase_window_entries: req.purchase_window_entries,
+                purchase_window_results: None,
                 created_at: req.created_at.unwrap_or(now),
                 updated_at: now,
             })
@@ -169,6 +173,46 @@ impl StrategyService {
                             "TargetWeight must be between 0 and 100, got {}",
                             allocation.target_weight
                         ));
+                    }
+                }
+            }
+            StrategyType::BestPurchaseWindow => {
+                let entries = strategy.purchase_window_entries.as_ref().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "purchase_window_entries are required for BestPurchaseWindow strategy"
+                    )
+                })?;
+
+                if entries.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "purchase_window_entries cannot be empty for BestPurchaseWindow strategy"
+                    ));
+                }
+
+                for entry in entries {
+                    if entry.asset_key.trim().is_empty() {
+                        return Err(anyhow::anyhow!("assetKey is required for each entry"));
+                    }
+                    if entry.coingecko_id.trim().is_empty() {
+                        return Err(anyhow::anyhow!("coingeckoId is required for each entry"));
+                    }
+                    let triggers = entry.effective_triggers();
+                    if triggers.is_empty() {
+                        return Err(anyhow::anyhow!(
+                            "Each entry must have at least one trigger"
+                        ));
+                    }
+                    for trigger in &triggers {
+                        if let defi10_core::strategy::PurchaseTrigger::Price { target, .. } =
+                            trigger
+                        {
+                            if *target <= 0.0 {
+                                return Err(anyhow::anyhow!(
+                                    "Price target must be positive, got {}",
+                                    target
+                                ));
+                            }
+                        }
                     }
                 }
             }
@@ -248,6 +292,13 @@ mod tests {
                     ));
                 }
             }
+            StrategyType::BestPurchaseWindow => {
+                if strategy.purchase_window_entries.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "purchase_window_entries are required for BestPurchaseWindow strategy"
+                    ));
+                }
+            }
         }
         Ok(())
     }
@@ -287,6 +338,7 @@ mod tests {
             description: None,
             allocations: Some(vec![make_test_allocation("BTC", 50)]),
             targets: None,
+            purchase_window_entries: None,
             created_at: None,
         };
 
@@ -302,6 +354,7 @@ mod tests {
             description: None,
             allocations: Some(vec![]),
             targets: None,
+            purchase_window_entries: None,
             created_at: None,
         };
 
@@ -317,6 +370,7 @@ mod tests {
             description: None,
             allocations: Some(vec![make_test_allocation("BTC", 150)]),
             targets: None,
+            purchase_window_entries: None,
             created_at: None,
         };
 

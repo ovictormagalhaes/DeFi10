@@ -6,14 +6,17 @@ use std::sync::Arc;
 use std::time::Duration;
 
 const COINGECKO_API_URL: &str = "https://api.coingecko.com/api/v3";
+const COINGECKO_API_KEY_HEADER: &str = "x-cg-demo-api-key";
 
 pub struct CoingeckoClient {
     client: Arc<Client>,
     base_url: String,
+    api_key: Option<String>,
 }
 
 impl CoingeckoClient {
     pub fn new() -> Self {
+        let api_key = std::env::var("COINGECKO_API_KEY").ok();
         Self {
             client: Arc::new(
                 Client::builder()
@@ -22,13 +25,24 @@ impl CoingeckoClient {
                     .expect("Failed to create HTTP client"),
             ),
             base_url: COINGECKO_API_URL.to_string(),
+            api_key,
         }
     }
 
     pub fn with_client(client: Arc<Client>) -> Self {
+        let api_key = std::env::var("COINGECKO_API_KEY").ok();
         Self {
             client,
             base_url: COINGECKO_API_URL.to_string(),
+            api_key,
+        }
+    }
+
+    fn get(&self, url: &str) -> reqwest::RequestBuilder {
+        let req = self.client.get(url);
+        match &self.api_key {
+            Some(key) => req.header(COINGECKO_API_KEY_HEADER, key),
+            None => req,
         }
     }
 
@@ -48,7 +62,7 @@ impl CoingeckoClient {
 
         tracing::debug!("[Coingecko] Fetching prices for: {}", ids);
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.get(&url).send().await?;
 
         let data: HashMap<String, CoinPrice> = check_and_parse(response, "Coingecko API").await?;
 
@@ -80,7 +94,7 @@ impl CoingeckoClient {
             contract_address
         );
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.get(&url).send().await?;
 
         if !response.status().is_success() {
             return Ok(None);
@@ -91,6 +105,61 @@ impl CoingeckoClient {
         let price = data.values().next().and_then(|p| p.usd);
 
         Ok(price)
+    }
+
+    pub async fn get_markets(
+        &self,
+        coin_ids: &[&str],
+    ) -> Result<Vec<CoinMarket>, anyhow::Error> {
+        if coin_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let ids = coin_ids.join(",");
+        let url = format!(
+            "{}/coins/markets?vs_currency=usd&ids={}&price_change_percentage=1h,24h,7d,14d,30d,200d,1y&sparkline=false",
+            self.base_url, ids
+        );
+
+        tracing::debug!("[Coingecko] Fetching markets for: {}", ids);
+
+        let response = self.get(&url).send().await?;
+        let data: Vec<CoinMarket> = check_and_parse(response, "Coingecko markets").await?;
+
+        tracing::debug!("[Coingecko] Got {} markets entries", data.len());
+
+        Ok(data)
+    }
+
+    pub async fn get_market_chart_range(
+        &self,
+        coin_id: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<(i64, f64)>, anyhow::Error> {
+        let url = format!(
+            "{}/coins/{}/market_chart/range?vs_currency=usd&from={}&to={}",
+            self.base_url, coin_id, from, to
+        );
+
+        tracing::debug!(
+            "[Coingecko] Fetching market chart for {} ({} - {})",
+            coin_id,
+            from,
+            to
+        );
+
+        let response = self.get(&url).send().await?;
+        let data: MarketChartResponse =
+            check_and_parse(response, "Coingecko market_chart").await?;
+
+        tracing::debug!(
+            "[Coingecko] Got {} price points for {}",
+            data.prices.len(),
+            coin_id
+        );
+
+        Ok(data.prices)
     }
 }
 

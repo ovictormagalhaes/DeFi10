@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use defi10_core::{DeFi10Error, Result, WalletGroup};
 use mongodb::{
     bson::{doc, to_document, Document},
@@ -13,6 +14,8 @@ pub trait WalletGroupRepositoryTrait: Send + Sync {
     async fn list(&self, user_id: Option<&str>) -> Result<Vec<WalletGroup>>;
     async fn update(&self, group: &WalletGroup) -> Result<bool>;
     async fn delete(&self, id: &Uuid) -> Result<bool>;
+    async fn update_last_synced_at(&self, id: &Uuid, at: DateTime<Utc>) -> Result<()>;
+    async fn backfill_last_synced_at(&self) -> Result<u32>;
 }
 
 pub struct WalletGroupRepository {
@@ -122,6 +125,53 @@ impl WalletGroupRepositoryTrait for WalletGroupRepository {
             .map_err(|e| DeFi10Error::Database(format!("Failed to update wallet group: {}", e)))?;
 
         Ok(result.modified_count > 0)
+    }
+
+    async fn update_last_synced_at(&self, id: &Uuid, at: DateTime<Utc>) -> Result<()> {
+        let filter = doc! { "_id": id.to_string(), "isDeleted": false };
+        let update = doc! { "$set": { "lastSyncedAt": at.to_rfc3339() } };
+        self.collection
+            .update_one(filter, update)
+            .await
+            .map_err(|e| {
+                DeFi10Error::Database(format!("Failed to update lastSyncedAt: {}", e))
+            })?;
+        Ok(())
+    }
+
+    async fn backfill_last_synced_at(&self) -> Result<u32> {
+        use mongodb::bson::from_slice;
+
+        let filter = doc! {
+            "isDeleted": false,
+            "lastSyncedAt": { "$exists": false },
+        };
+
+        let mut cursor = self
+            .collection
+            .find(filter)
+            .await
+            .map_err(|e| DeFi10Error::Database(format!("Failed to list groups for backfill: {}", e)))?;
+
+        let mut count = 0u32;
+        while cursor
+            .advance()
+            .await
+            .map_err(|e| DeFi10Error::Database(format!("Failed to iterate backfill cursor: {}", e)))?
+        {
+            let raw = cursor.current();
+            if let Ok(group) = from_slice::<WalletGroup>(raw.as_bytes()) {
+                let update_filter = doc! { "_id": group.id.to_string() };
+                let update = doc! { "$set": { "lastSyncedAt": group.updated_at.to_rfc3339() } };
+                if let Err(e) = self.collection.update_one(update_filter, update).await {
+                    tracing::warn!("Backfill: failed to update group {}: {}", group.id, e);
+                } else {
+                    count += 1;
+                }
+            }
+        }
+
+        Ok(count)
     }
 
     /// Delete a wallet group (soft delete)

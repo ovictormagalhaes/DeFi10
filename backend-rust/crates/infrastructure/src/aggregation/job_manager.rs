@@ -134,7 +134,7 @@ impl JobManager {
     }
 
     fn results_key(&self, job_id: &Uuid) -> String {
-        format!("{}:results:{}", KEY_PREFIX, job_id)
+        format!("{}:results_h:{}", KEY_PREFIX, job_id)
     }
 
     fn operations_key(&self, job_id: &Uuid) -> String {
@@ -381,12 +381,14 @@ impl JobManager {
     pub async fn add_result(&self, job_id: &Uuid, result: &AggregationResult) -> Result<()> {
         let results_key = self.results_key(job_id);
         let result_json = serde_json::to_string(result)?;
+        let dedup_field = result_dedup_field(result);
 
         self.with_retry(|mut c| {
             let rk = results_key.clone();
             let rj = result_json.clone();
+            let df = dedup_field.clone();
             async move {
-                let _: () = c.rpush(&rk, &rj).await?;
+                let _: () = c.hset(&rk, &df, &rj).await?;
                 let _: () = c.expire(&rk, JOB_TTL_SECS).await?;
                 Ok(())
             }
@@ -400,8 +402,8 @@ impl JobManager {
         self.with_retry(|mut c| {
             let rk = results_key.clone();
             async move {
-                let results: Vec<String> = c.lrange(&rk, 0, -1).await?;
-                Ok(results
+                let values: Vec<String> = c.hvals(&rk).await?;
+                Ok(values
                     .into_iter()
                     .filter_map(|s| serde_json::from_str(&s).ok())
                     .collect())
@@ -409,6 +411,59 @@ impl JobManager {
         })
         .await
     }
+
+    pub async fn try_acquire_processing_lock(
+        &self,
+        job_id: &Uuid,
+        account: &str,
+        chain: &str,
+    ) -> Result<bool> {
+        let lock_key = format!(
+            "{}:lock:{}:{}:{}",
+            KEY_PREFIX,
+            job_id,
+            account.to_lowercase(),
+            chain.to_lowercase()
+        );
+
+        self.with_retry(|mut c| {
+            let lk = lock_key.clone();
+            async move {
+                let opts = redis::SetOptions::default()
+                    .conditional_set(redis::ExistenceCheck::NX)
+                    .with_expiration(redis::SetExpiry::EX(JOB_TTL_SECS as u64));
+                let acquired: Option<String> = c.set_options(&lk, "1", opts).await?;
+                Ok(acquired.is_some())
+            }
+        })
+        .await
+    }
+}
+
+fn result_dedup_field(r: &AggregationResult) -> String {
+    let position_id = r
+        .metadata
+        .as_ref()
+        .and_then(|m| {
+            m.get("positionId")
+                .or_else(|| m.get("nftMint"))
+                .or_else(|| m.get("tokenId"))
+        })
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    format!(
+        "{}|{}|{}|{}|{}|{}|{}",
+        r.account.to_lowercase(),
+        r.chain.to_lowercase(),
+        r.protocol.to_lowercase(),
+        r.position_type.to_lowercase(),
+        r.token_address.to_lowercase(),
+        r.token_type.as_deref().unwrap_or(""),
+        position_id
+    )
+}
+
+impl JobManager {
 
     pub async fn find_latest_job_for_wallet(&self, wallet: &str) -> Result<Option<Uuid>> {
         let wk = Self::wallet_index_key(wallet);
@@ -666,6 +721,6 @@ mod tests {
         assert!(meta_key.starts_with("defi10:agg:meta:"));
 
         let results_key = manager.results_key(&job_id);
-        assert!(results_key.starts_with("defi10:agg:results:"));
+        assert!(results_key.starts_with("defi10:agg:results_h:"));
     }
 }
