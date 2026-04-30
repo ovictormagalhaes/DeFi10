@@ -1,5 +1,4 @@
 use axum::{
-    body::Bytes,
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::IntoResponse,
 };
@@ -79,5 +78,5 @@ pub async fn fetch_and_proxy_image(
             .unwrap_or_else(|_| HeaderValue::from_static("public, max-age=86400, immutable")),
     );
 
-    Ok((StatusCode::OK, headers, Bytes::from(bytes)))
+    Ok((StatusCode::OK, headers, bytes))
 }
