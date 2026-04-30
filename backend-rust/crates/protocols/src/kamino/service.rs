@@ -12,6 +12,8 @@ use tokio::time::{sleep, Duration};
 
 const KAMINO_API_BASE: &str = "https://api.kamino.finance";
 const MARKET_DELAY_MS: u64 = 500;
+const HTTP_TIMEOUT_SECS: u64 = 20;
+const MAX_RETRIES: u32 = 3;
 
 pub struct MarketData {
     pub market_pubkey: String,
@@ -104,7 +106,16 @@ impl KaminoService {
                 }
             };
 
-            let reserves_map = self.fetch_reserves_map(market_pubkey).await;
+            let reserves_map = match self.fetch_reserves_map(market_pubkey).await {
+                Some(m) => m,
+                None => {
+                    tracing::error!(
+                        "Kamino {}: skipping market — reserves map unavailable. Positions would be invalid (Unknown symbols, zero prices). Will retry next cycle.",
+                        market_name
+                    );
+                    continue;
+                }
+            };
             tracing::info!(
                 "Kamino {}: {} obligations, {} reserves",
                 market_name,
@@ -352,58 +363,153 @@ impl KaminoService {
             self.api_base_url, market_pubkey, wallet_address
         );
 
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| DeFi10Error::ExternalApiError(e.to_string()))?;
+        let mut last_error = String::from("unknown error");
+        for attempt in 1..=MAX_RETRIES {
+            let response = match self
+                .client
+                .get(&url)
+                .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = format!("network error: {}", e);
+                    tracing::warn!(
+                        "Kamino obligations network error for market {} wallet {} (attempt {}/{}): {}",
+                        market_pubkey,
+                        wallet_address,
+                        attempt,
+                        MAX_RETRIES,
+                        e
+                    );
+                    sleep(Duration::from_millis(1000 * attempt as u64)).await;
+                    continue;
+                }
+            };
 
-        if response.status() == reqwest::StatusCode::NOT_FOUND
-            || response.status() == reqwest::StatusCode::BAD_REQUEST
-        {
-            return Ok(vec![]);
+            if response.status() == reqwest::StatusCode::NOT_FOUND
+                || response.status() == reqwest::StatusCode::BAD_REQUEST
+            {
+                return Ok(vec![]);
+            }
+
+            if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                let delay = 2000 * attempt as u64;
+                last_error = format!("429 rate limited (attempt {}/{})", attempt, MAX_RETRIES);
+                tracing::warn!(
+                    "Kamino obligations 429 for market {} wallet {}, retrying in {}ms (attempt {}/{})",
+                    market_pubkey,
+                    wallet_address,
+                    delay,
+                    attempt,
+                    MAX_RETRIES
+                );
+                sleep(Duration::from_millis(delay)).await;
+                continue;
+            }
+
+            return check_and_parse(response, "Kamino API").await;
         }
 
-        let obligations: Vec<KaminoObligationResponse> =
-            check_and_parse(response, "Kamino API").await?;
-
-        Ok(obligations)
+        tracing::error!(
+            "Kamino obligations failed after {} retries for market {} wallet {}: {}",
+            MAX_RETRIES,
+            market_pubkey,
+            wallet_address,
+            last_error
+        );
+        Err(DeFi10Error::ExternalApiError(last_error))
     }
 
     async fn fetch_reserves_map(
         &self,
         market_pubkey: &str,
-    ) -> HashMap<String, KaminoReserveMetric> {
+    ) -> Option<HashMap<String, KaminoReserveMetric>> {
         let url = format!(
             "{}/kamino-market/{}/reserves/metrics?env=mainnet-beta",
             self.api_base_url, market_pubkey
         );
 
-        let response = match self.client.get(&url).send().await {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::warn!("Failed to fetch Kamino reserves: {}", e);
-                return HashMap::new();
-            }
-        };
+        let mut last_error = String::from("unknown error");
+        for attempt in 1..=MAX_RETRIES {
+            let response = match self
+                .client
+                .get(&url)
+                .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = format!("network error: {}", e);
+                    tracing::warn!(
+                        "Kamino reserves network error for market {} (attempt {}/{}): {}",
+                        market_pubkey,
+                        attempt,
+                        MAX_RETRIES,
+                        e
+                    );
+                    sleep(Duration::from_millis(1000 * attempt as u64)).await;
+                    continue;
+                }
+            };
 
-        if !response.status().is_success() {
-            return HashMap::new();
+            if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                let delay = 2000 * attempt as u64;
+                last_error = format!("429 rate limited (attempt {}/{})", attempt, MAX_RETRIES);
+                tracing::warn!(
+                    "Kamino reserves 429 for market {}, retrying in {}ms (attempt {}/{})",
+                    market_pubkey,
+                    delay,
+                    attempt,
+                    MAX_RETRIES
+                );
+                sleep(Duration::from_millis(delay)).await;
+                continue;
+            }
+
+            if !response.status().is_success() {
+                let status = response.status();
+                last_error = format!("http {}", status);
+                tracing::warn!(
+                    "Kamino reserves non-success status {} for market {} (attempt {}/{})",
+                    status,
+                    market_pubkey,
+                    attempt,
+                    MAX_RETRIES
+                );
+                sleep(Duration::from_millis(1000 * attempt as u64)).await;
+                continue;
+            }
+
+            let reserves: Vec<KaminoReserveMetric> = match response.json().await {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::error!(
+                        "Kamino reserves JSON parse error for market {}: {}",
+                        market_pubkey,
+                        e
+                    );
+                    return None;
+                }
+            };
+
+            return Some(
+                reserves
+                    .into_iter()
+                    .map(|r| (r.reserve.clone(), r))
+                    .collect(),
+            );
         }
 
-        let reserves: Vec<KaminoReserveMetric> = match response.json().await {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::warn!("Failed to parse Kamino reserves: {}", e);
-                return HashMap::new();
-            }
-        };
-
-        reserves
-            .into_iter()
-            .map(|r| (r.reserve.clone(), r))
-            .collect()
+        tracing::error!(
+            "Kamino reserves failed after {} retries for market {}: {}. Skipping market to avoid corrupt positions.",
+            MAX_RETRIES,
+            market_pubkey,
+            last_error
+        );
+        None
     }
 
     fn calculate_proportional_value(
@@ -507,14 +613,54 @@ impl KaminoService {
             self.api_base_url, market_pubkey, obligation_address
         );
 
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| DeFi10Error::ExternalApiError(e.to_string()))?;
+        let mut last_error = String::from("unknown error");
+        for attempt in 1..=MAX_RETRIES {
+            let response = match self
+                .client
+                .get(&url)
+                .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = format!("network error: {}", e);
+                    tracing::warn!(
+                        "Kamino history network error for obligation {} (attempt {}/{}): {}",
+                        &obligation_address[..obligation_address.len().min(8)],
+                        attempt,
+                        MAX_RETRIES,
+                        e
+                    );
+                    sleep(Duration::from_millis(1000 * attempt as u64)).await;
+                    continue;
+                }
+            };
 
-        check_and_parse(response, "Kamino history API").await
+            if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                let delay = 2000 * attempt as u64;
+                last_error = format!("429 rate limited (attempt {}/{})", attempt, MAX_RETRIES);
+                tracing::warn!(
+                    "Kamino history 429 for obligation {}, retrying in {}ms (attempt {}/{})",
+                    &obligation_address[..obligation_address.len().min(8)],
+                    delay,
+                    attempt,
+                    MAX_RETRIES
+                );
+                sleep(Duration::from_millis(delay)).await;
+                continue;
+            }
+
+            return check_and_parse(response, "Kamino history API").await;
+        }
+
+        tracing::error!(
+            "Kamino history failed after {} retries for obligation {}: {}",
+            MAX_RETRIES,
+            &obligation_address[..obligation_address.len().min(8)],
+            last_error
+        );
+        Err(DeFi10Error::ExternalApiError(last_error))
     }
 
     fn infer_transaction_events(

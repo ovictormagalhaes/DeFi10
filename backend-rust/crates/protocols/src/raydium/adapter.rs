@@ -1,3 +1,4 @@
+use super::position_store::RaydiumPositionStore;
 use super::service::RaydiumService;
 use crate::types::{positions_to_results, FetchContext, ProtocolAdapter};
 use async_trait::async_trait;
@@ -9,11 +10,22 @@ use std::sync::Arc;
 
 pub struct RaydiumAdapter {
     client: Arc<Client>,
+    position_store: Option<Arc<dyn RaydiumPositionStore>>,
 }
 
 impl RaydiumAdapter {
     pub fn new(client: Arc<Client>) -> Self {
-        Self { client }
+        Self {
+            client,
+            position_store: None,
+        }
+    }
+
+    pub fn with_store(client: Arc<Client>, store: Arc<dyn RaydiumPositionStore>) -> Self {
+        Self {
+            client,
+            position_store: Some(store),
+        }
     }
 }
 
@@ -33,7 +45,13 @@ impl ProtocolAdapter for RaydiumAdapter {
         _chain: Chain,
         ctx: &FetchContext,
     ) -> anyhow::Result<Vec<AggregationResult>> {
-        let raydium_service = RaydiumService::with_client(self.client.clone(), ctx.rpc_url.clone());
+        let raydium_service = match &self.position_store {
+            Some(store) => {
+                RaydiumService::with_store(self.client.clone(), ctx.rpc_url.clone(), store.clone())
+            }
+            None => RaydiumService::with_client(self.client.clone(), ctx.rpc_url.clone()),
+        };
+
         let provider = SolanaProvider::new(&ctx.rpc_url)
             .map_err(|e| anyhow::anyhow!("Solana provider creation failed: {}", e))?;
 

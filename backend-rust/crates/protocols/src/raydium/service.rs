@@ -1,10 +1,11 @@
+use super::position_store::{RaydiumPositionState, RaydiumPositionStore};
 use crate::types::{PositionToken, PositionType, ProtocolPosition};
+use chrono::Utc;
 use defi10_core::{Chain, DeFi10Error, Protocol, Result};
 use reqwest::Client;
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 use std::sync::Arc;
-
 use tokio::time::{sleep, Duration};
 
 const RAYDIUM_API_V3: &str = "https://api-v3.raydium.io";
@@ -15,6 +16,7 @@ const MAX_RETRIES: u32 = 3;
 pub struct RaydiumService {
     client: Arc<Client>,
     rpc_url: String,
+    position_store: Option<Arc<dyn RaydiumPositionStore>>,
 }
 
 impl RaydiumService {
@@ -26,11 +28,28 @@ impl RaydiumService {
         Self {
             client: Arc::new(Client::new()),
             rpc_url,
+            position_store: None,
         }
     }
 
     pub fn with_client(client: Arc<Client>, rpc_url: String) -> Self {
-        Self { client, rpc_url }
+        Self {
+            client,
+            rpc_url,
+            position_store: None,
+        }
+    }
+
+    pub fn with_store(
+        client: Arc<Client>,
+        rpc_url: String,
+        store: Arc<dyn RaydiumPositionStore>,
+    ) -> Self {
+        Self {
+            client,
+            rpc_url,
+            position_store: Some(store),
+        }
     }
 
     pub async fn get_user_positions(
@@ -165,11 +184,25 @@ impl RaydiumService {
             .fetch_token_prices(&pool.token_mint_a, &pool.token_mint_b)
             .await;
 
+        let collected = self
+            .resolve_collected_fees(
+                &position,
+                position_pda,
+                wallet_address,
+                &pool.token_mint_a,
+                &pool.token_mint_b,
+                fees_a,
+                fees_b,
+                token_a_price,
+                token_b_price,
+            )
+            .await;
+
         let value_a = token_a_balance * token_a_price;
         let value_b = token_b_balance * token_b_price;
         let fees_value_a = fees_a_balance * token_a_price;
         let fees_value_b = fees_b_balance * token_b_price;
-        let total_value = value_a + value_b + fees_value_a + fees_value_b;
+        let total_value = value_a + value_b + fees_value_a + fees_value_b + collected.value_usd;
 
         let symbol_a = self.get_token_symbol(&pool.token_mint_a).await;
         let symbol_b = self.get_token_symbol(&pool.token_mint_b).await;
@@ -223,6 +256,32 @@ impl RaydiumService {
             });
         }
 
+        if collected.accumulated_a > 0.0 {
+            tokens.push(PositionToken {
+                token_address: pool.token_mint_a.clone(),
+                symbol: symbol_a.clone(),
+                name: symbol_a.clone(),
+                decimals: token_a_decimals,
+                balance: collected.accumulated_a.to_string(),
+                balance_usd: collected.accumulated_a * token_a_price,
+                price_usd: token_a_price,
+                token_type: Some("LiquidityCollectedFee".to_string()),
+            });
+        }
+
+        if collected.accumulated_b > 0.0 {
+            tokens.push(PositionToken {
+                token_address: pool.token_mint_b.clone(),
+                symbol: symbol_b.clone(),
+                name: symbol_b.clone(),
+                decimals: token_b_decimals,
+                balance: collected.accumulated_b.to_string(),
+                balance_usd: collected.accumulated_b * token_b_price,
+                price_usd: token_b_price,
+                token_type: Some("LiquidityCollectedFee".to_string()),
+            });
+        }
+
         let range_info =
             self.build_range_info(&position, &pool, token_a_decimals, token_b_decimals);
         let in_range =
@@ -232,7 +291,7 @@ impl RaydiumService {
 
         let created_at = self.fetch_nft_mint_timestamp(&position.nft_mint).await;
 
-        let total_fees = fees_value_a + fees_value_b;
+        let total_fees = fees_value_a + fees_value_b + collected.value_usd;
         let principal = total_value - total_fees;
         let days_active = if let Some(timestamp) = created_at {
             let now = std::time::SystemTime::now()
@@ -246,13 +305,21 @@ impl RaydiumService {
         };
         let apr_historical = self.calculate_historical_apr(total_fees, principal, days_active);
 
+        let (effective_apr, calculation_type) = if apr_historical > 0.0 {
+            (apr_historical, "historical")
+        } else if !in_range {
+            (0.0, "out_of_range")
+        } else {
+            (0.0, "historical")
+        };
+
         let projections = serde_json::json!([
             {
                 "type": "apr",
-                "calculationType": "historical",
-                "projection": self.calculate_projections(apr_historical, total_value),
+                "calculationType": calculation_type,
+                "projection": self.calculate_projections(effective_apr, total_value),
                 "metadata": {
-                    "apr": apr_historical,
+                    "value": effective_apr,
                     "totalFeesGenerated": total_fees,
                     "daysActive": days_active
                 }
@@ -261,6 +328,8 @@ impl RaydiumService {
 
         let mut metadata = serde_json::json!({
             "poolId": position.pool_id,
+            "positionId": position.nft_mint,
+            "nftMint": position.nft_mint,
             "tick_lower": position.tick_lower,
             "tick_upper": position.tick_upper,
             "tick_current": pool.tick_current,
@@ -272,7 +341,10 @@ impl RaydiumService {
             "totalValueUsd": total_value,
             "uncollected_fees_a": fees_a_balance,
             "uncollected_fees_b": fees_b_balance,
-            "apr": apr_historical,
+            "collected_fees_a": collected.accumulated_a,
+            "collected_fees_b": collected.accumulated_b,
+            "collected_fees_usd": collected.value_usd,
+            "apr": effective_apr,
             "projections": projections,
             "tierPercent": tier_percent,
         });
@@ -787,30 +859,558 @@ impl RaydiumService {
         }
     }
 
-    #[allow(dead_code)]
-    async fn fetch_pool_apr(&self, pool_id: &str) -> Option<f64> {
-        let url = format!("{}/pools/info/ids?ids={}", RAYDIUM_API_V3, pool_id);
-
-        match self.client.get(&url).send().await {
-            Ok(response) => {
-                if let Ok(json) = response.json::<serde_json::Value>().await {
-                    if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
-                        if let Some(pool) = data.first() {
-                            if let Some(day) = pool.get("day") {
-                                if let Some(apr) = day.get("apr").and_then(|v| v.as_f64()) {
-                                    return Some(apr * 100.0);
-                                }
-                            }
-                        }
-                    }
+    async fn resolve_collected_fees(
+        &self,
+        position: &ClmmPosition,
+        position_pda: &str,
+        wallet_address: &str,
+        token_mint_a: &str,
+        token_mint_b: &str,
+        current_fees_a: u128,
+        current_fees_b: u128,
+        price_a: f64,
+        price_b: f64,
+    ) -> CollectedFeesResult {
+        let store = match &self.position_store {
+            Some(s) => s,
+            None => {
+                return CollectedFeesResult {
+                    accumulated_a: 0.0,
+                    accumulated_b: 0.0,
+                    value_usd: 0.0,
                 }
             }
-            Err(e) => {
-                tracing::warn!("[Raydium] Failed to fetch pool APR for {}: {}", pool_id, e);
+        };
+
+        let state = store.get_by_nft_mint(&position.nft_mint).await;
+
+        let fees_a_u64 = current_fees_a.min(u64::MAX as u128) as u64;
+        let fees_b_u64 = current_fees_b.min(u64::MAX as u128) as u64;
+
+        let (prev_a, prev_b, mut acc_a, mut acc_b, last_sig) = match &state {
+            Some(s) => (
+                s.last_fees_owed_a,
+                s.last_fees_owed_b,
+                s.accumulated_collected_a,
+                s.accumulated_collected_b,
+                s.last_scanned_signature.clone(),
+            ),
+            None => (u64::MAX, u64::MAX, 0.0, 0.0, None),
+        };
+
+        let is_first_scan = state.is_none();
+        let suspected = is_first_scan
+            || (prev_a > 0 && fees_a_u64 == 0)
+            || (prev_b > 0 && fees_b_u64 == 0)
+            || (prev_a > 1000 && fees_a_u64 < prev_a / 2)
+            || (prev_b > 1000 && fees_b_u64 < prev_b / 2)
+            || (prev_a > 100 && fees_a_u64 < 100)
+            || (prev_b > 100 && fees_b_u64 < 100);
+
+        let mut new_last_sig = last_sig.clone();
+
+        if suspected {
+            tracing::info!(
+                "[Raydium] Fee collection scan triggered for {} (first={}, prev_a={}, cur_a={}, prev_b={}, cur_b={})",
+                position.nft_mint, is_first_scan, prev_a, fees_a_u64, prev_b, fees_b_u64
+            );
+            if let Some((delta_a, delta_b, sig)) = self
+                .scan_collection_transactions(
+                    position_pda,
+                    wallet_address,
+                    token_mint_a,
+                    token_mint_b,
+                    last_sig.as_deref(),
+                )
+                .await
+            {
+                tracing::info!(
+                    "[Raydium] Detected collected fees: delta_a={:.6} delta_b={:.6} sig={}",
+                    delta_a, delta_b, &sig[..20]
+                );
+                acc_a += delta_a;
+                acc_b += delta_b;
+                new_last_sig = Some(sig);
             }
         }
 
-        None
+        let new_state = RaydiumPositionState {
+            nft_mint: position.nft_mint.clone(),
+            wallet_address: wallet_address.to_string(),
+            token_mint_a: token_mint_a.to_string(),
+            token_mint_b: token_mint_b.to_string(),
+            last_fees_owed_a: fees_a_u64,
+            last_fees_owed_b: fees_b_u64,
+            accumulated_collected_a: acc_a,
+            accumulated_collected_b: acc_b,
+            last_scanned_signature: new_last_sig,
+            last_updated_at: Utc::now(),
+        };
+
+        if let Err(e) = store.upsert(&new_state).await {
+            tracing::warn!(
+                "[Raydium] Failed to persist position state for {}: {}",
+                position.nft_mint,
+                e
+            );
+        }
+
+        CollectedFeesResult {
+            accumulated_a: acc_a,
+            accumulated_b: acc_b,
+            value_usd: acc_a * price_a + acc_b * price_b,
+        }
+    }
+
+    async fn scan_collection_transactions(
+        &self,
+        nft_mint: &str,
+        wallet_address: &str,
+        token_mint_a: &str,
+        token_mint_b: &str,
+        since_signature: Option<&str>,
+    ) -> Option<(f64, f64, String)> {
+        let sigs = match self.fetch_signatures_since(nft_mint, since_signature).await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(
+                    "[Raydium] Skipping fee scan for PDA {} due to signatures fetch error: {}. last_scanned_signature kept; will retry next run.",
+                    &nft_mint[..nft_mint.len().min(8)],
+                    e
+                );
+                return None;
+            }
+        };
+
+        if sigs.is_empty() {
+            tracing::debug!("[Raydium] No new signatures for position PDA {}", nft_mint);
+            return None;
+        }
+
+        tracing::info!(
+            "[Raydium] Scanning {} transactions for fee collections (PDA {})",
+            sigs.len(),
+            &nft_mint[..nft_mint.len().min(8)]
+        );
+
+        let newest_sig = sigs[0].clone();
+        let mut delta_a = 0.0f64;
+        let mut delta_b = 0.0f64;
+        let mut had_failure = false;
+        let mut detected_count = 0usize;
+
+        for sig in &sigs {
+            match self
+                .parse_collection_from_tx(sig, wallet_address, token_mint_a, token_mint_b)
+                .await
+            {
+                TxParseResult::Detected(da, db) => {
+                    delta_a += da;
+                    delta_b += db;
+                    detected_count += 1;
+                }
+                TxParseResult::NotCollection => {}
+                TxParseResult::Failed(reason) => {
+                    had_failure = true;
+                    tracing::warn!(
+                        "[Raydium] Tx parse failed for {} (reason: {}); will retry on next run",
+                        &sig[..sig.len().min(20)],
+                        reason
+                    );
+                }
+            }
+        }
+
+        if had_failure {
+            tracing::warn!(
+                "[Raydium] At least one tx parse failed for PDA {} ({} detected, {} sigs total). Not advancing last_scanned_signature to allow retry; partial deltas discarded to avoid double counting.",
+                &nft_mint[..nft_mint.len().min(8)],
+                detected_count,
+                sigs.len()
+            );
+            return None;
+        }
+
+        tracing::info!(
+            "[Raydium] Scan complete for PDA {}: {} collections detected out of {} sigs (delta_a={:.6}, delta_b={:.6})",
+            &nft_mint[..nft_mint.len().min(8)],
+            detected_count,
+            sigs.len(),
+            delta_a,
+            delta_b
+        );
+
+        Some((delta_a, delta_b, newest_sig))
+    }
+
+    async fn fetch_signatures_since(
+        &self,
+        address: &str,
+        until: Option<&str>,
+    ) -> std::result::Result<Vec<String>, String> {
+        let mut options = serde_json::json!({
+            "limit": 20,
+            "commitment": "finalized"
+        });
+
+        if let Some(sig) = until {
+            options["until"] = serde_json::json!(sig);
+        }
+
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getSignaturesForAddress",
+            "params": [address, options]
+        });
+
+        let mut last_error = String::from("unknown error");
+
+        for attempt in 1..=MAX_RETRIES {
+            sleep(Duration::from_millis(RPC_DELAY_MS)).await;
+
+            let response = match self
+                .client
+                .post(&self.rpc_url)
+                .timeout(Duration::from_secs(15))
+                .json(&body)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = format!("network error: {}", e);
+                    tracing::warn!(
+                        "[Raydium] Signatures RPC network error for {} (attempt {}/{}): {}",
+                        address,
+                        attempt,
+                        MAX_RETRIES,
+                        e
+                    );
+                    sleep(Duration::from_millis(1000 * attempt as u64)).await;
+                    continue;
+                }
+            };
+
+            if response.status() == 429 {
+                let delay = 2000 * attempt as u64;
+                last_error = format!("429 rate limited (attempt {}/{})", attempt, MAX_RETRIES);
+                tracing::warn!(
+                    "[Raydium] Signatures RPC 429 for {}, retrying in {}ms (attempt {}/{})",
+                    address,
+                    delay,
+                    attempt,
+                    MAX_RETRIES
+                );
+                sleep(Duration::from_millis(delay)).await;
+                continue;
+            }
+
+            if !response.status().is_success() {
+                let status = response.status();
+                last_error = format!("http {}", status);
+                tracing::warn!(
+                    "[Raydium] Signatures RPC non-success status {} for {} (attempt {}/{})",
+                    status,
+                    address,
+                    attempt,
+                    MAX_RETRIES
+                );
+                sleep(Duration::from_millis(1000 * attempt as u64)).await;
+                continue;
+            }
+
+            let json: serde_json::Value = match response.json().await {
+                Ok(j) => j,
+                Err(e) => {
+                    tracing::warn!(
+                        "[Raydium] Signatures RPC JSON parse error for {}: {}",
+                        address,
+                        e
+                    );
+                    return Err(format!("json parse error: {}", e));
+                }
+            };
+
+            if let Some(rpc_err) = json.get("error") {
+                tracing::warn!(
+                    "[Raydium] Signatures RPC returned error for {}: {}",
+                    address,
+                    rpc_err
+                );
+                return Err(format!("rpc error: {}", rpc_err));
+            }
+
+            if let Some(result) = json.get("result").and_then(|r| r.as_array()) {
+                let sigs: Vec<String> = result
+                    .iter()
+                    .filter_map(|item| {
+                        item.get("signature")
+                            .and_then(|s| s.as_str())
+                            .map(|s| s.to_string())
+                    })
+                    .collect();
+                return Ok(sigs);
+            }
+
+            tracing::warn!(
+                "[Raydium] Signatures RPC missing result array for {}",
+                address
+            );
+            return Err("missing result array".to_string());
+        }
+
+        tracing::error!(
+            "[Raydium] Signatures RPC failed after {} retries for {}: {}",
+            MAX_RETRIES,
+            address,
+            last_error
+        );
+        Err(last_error)
+    }
+
+    async fn parse_collection_from_tx(
+        &self,
+        signature: &str,
+        wallet_address: &str,
+        token_mint_a: &str,
+        token_mint_b: &str,
+    ) -> TxParseResult {
+        const WSOL_MINT: &str = "So11111111111111111111111111111111111111112";
+
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getTransaction",
+            "params": [
+                signature,
+                {
+                    "encoding": "jsonParsed",
+                    "maxSupportedTransactionVersion": 0
+                }
+            ]
+        });
+
+        let json = match self.fetch_transaction_json(signature, &body).await {
+            Ok(j) => j,
+            Err(reason) => return TxParseResult::Failed(reason),
+        };
+
+        let result = match json.get("result") {
+            Some(r) if !r.is_null() => r,
+            _ => {
+                tracing::warn!(
+                    "[Raydium] Tx {} returned null/missing result (likely not finalized yet)",
+                    &signature[..signature.len().min(20)]
+                );
+                return TxParseResult::Failed("null result".to_string());
+            }
+        };
+
+        let meta = match result.get("meta") {
+            Some(m) => m,
+            None => {
+                tracing::warn!(
+                    "[Raydium] Tx {} missing meta field",
+                    &signature[..signature.len().min(20)]
+                );
+                return TxParseResult::Failed("missing meta".to_string());
+            }
+        };
+
+        if let Some(err) = meta.get("err").and_then(|e| {
+            if e.is_null() {
+                None
+            } else {
+                Some(e)
+            }
+        }) {
+            tracing::debug!(
+                "[Raydium] Tx {} failed on-chain (err={}); skipping",
+                &signature[..signature.len().min(20)],
+                err
+            );
+            return TxParseResult::NotCollection;
+        }
+
+        let pre_token = match meta.get("preTokenBalances").and_then(|v| v.as_array()) {
+            Some(a) => a,
+            None => {
+                tracing::warn!(
+                    "[Raydium] Tx {} missing preTokenBalances",
+                    &signature[..signature.len().min(20)]
+                );
+                return TxParseResult::Failed("missing preTokenBalances".to_string());
+            }
+        };
+        let post_token = match meta.get("postTokenBalances").and_then(|v| v.as_array()) {
+            Some(a) => a,
+            None => {
+                tracing::warn!(
+                    "[Raydium] Tx {} missing postTokenBalances",
+                    &signature[..signature.len().min(20)]
+                );
+                return TxParseResult::Failed("missing postTokenBalances".to_string());
+            }
+        };
+
+        let get_spl_amount = |balances: &[serde_json::Value], mint: &str| -> f64 {
+            balances
+                .iter()
+                .filter(|b| {
+                    b.get("owner").and_then(|o| o.as_str()) == Some(wallet_address)
+                        && b.get("mint").and_then(|m| m.as_str()) == Some(mint)
+                })
+                .filter_map(|b| {
+                    b.get("uiTokenAmount")
+                        .and_then(|u| u.get("uiAmount"))
+                        .and_then(|a| a.as_f64())
+                })
+                .sum()
+        };
+
+        let get_native_sol_delta = || -> Option<f64> {
+            let account_keys = result
+                .get("transaction")?
+                .get("message")?
+                .get("accountKeys")?
+                .as_array()?;
+            let pre_native = meta.get("preBalances")?.as_array()?;
+            let post_native = meta.get("postBalances")?.as_array()?;
+            let fee = meta.get("fee")?.as_u64().unwrap_or(0);
+
+            let wallet_idx = account_keys.iter().position(|k| {
+                let pubkey = if k.is_string() {
+                    k.as_str().unwrap_or("")
+                } else {
+                    k.get("pubkey").and_then(|p| p.as_str()).unwrap_or("")
+                };
+                pubkey == wallet_address
+            })?;
+
+            let pre = pre_native.get(wallet_idx)?.as_u64()?;
+            let post = post_native.get(wallet_idx)?.as_u64()?;
+            let gross = post.checked_add(fee)? as f64 - pre as f64;
+            Some(gross / 1e9)
+        };
+
+        let spl_delta_a = (get_spl_amount(post_token, token_mint_a)
+            - get_spl_amount(pre_token, token_mint_a))
+            .max(0.0);
+        let spl_delta_b = (get_spl_amount(post_token, token_mint_b)
+            - get_spl_amount(pre_token, token_mint_b))
+            .max(0.0);
+
+        let delta_a = if token_mint_a == WSOL_MINT && spl_delta_a == 0.0 {
+            get_native_sol_delta().unwrap_or(0.0).max(0.0)
+        } else {
+            spl_delta_a
+        };
+
+        let delta_b = if token_mint_b == WSOL_MINT && spl_delta_b == 0.0 {
+            get_native_sol_delta().unwrap_or(0.0).max(0.0)
+        } else {
+            spl_delta_b
+        };
+
+        if delta_a > 0.0 || delta_b > 0.0 {
+            TxParseResult::Detected(delta_a, delta_b)
+        } else {
+            TxParseResult::NotCollection
+        }
+    }
+
+    async fn fetch_transaction_json(
+        &self,
+        signature: &str,
+        body: &serde_json::Value,
+    ) -> std::result::Result<serde_json::Value, String> {
+        let mut last_error = String::from("unknown error");
+
+        for attempt in 1..=MAX_RETRIES {
+            sleep(Duration::from_millis(RPC_DELAY_MS)).await;
+
+            let response = match self
+                .client
+                .post(&self.rpc_url)
+                .timeout(Duration::from_secs(15))
+                .json(body)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = format!("network error: {}", e);
+                    tracing::warn!(
+                        "[Raydium] getTransaction network error for {} (attempt {}/{}): {}",
+                        &signature[..signature.len().min(20)],
+                        attempt,
+                        MAX_RETRIES,
+                        e
+                    );
+                    sleep(Duration::from_millis(1000 * attempt as u64)).await;
+                    continue;
+                }
+            };
+
+            if response.status() == 429 {
+                let delay = 2000 * attempt as u64;
+                last_error = format!("429 rate limited (attempt {}/{})", attempt, MAX_RETRIES);
+                tracing::warn!(
+                    "[Raydium] getTransaction RPC 429 for {}, retrying in {}ms (attempt {}/{})",
+                    &signature[..signature.len().min(20)],
+                    delay,
+                    attempt,
+                    MAX_RETRIES
+                );
+                sleep(Duration::from_millis(delay)).await;
+                continue;
+            }
+
+            if !response.status().is_success() {
+                let status = response.status();
+                last_error = format!("http {}", status);
+                tracing::warn!(
+                    "[Raydium] getTransaction non-success status {} for {} (attempt {}/{})",
+                    status,
+                    &signature[..signature.len().min(20)],
+                    attempt,
+                    MAX_RETRIES
+                );
+                sleep(Duration::from_millis(1000 * attempt as u64)).await;
+                continue;
+            }
+
+            match response.json::<serde_json::Value>().await {
+                Ok(j) => {
+                    if let Some(rpc_err) = j.get("error") {
+                        tracing::warn!(
+                            "[Raydium] getTransaction RPC returned error for {}: {}",
+                            &signature[..signature.len().min(20)],
+                            rpc_err
+                        );
+                        return Err(format!("rpc error: {}", rpc_err));
+                    }
+                    return Ok(j);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "[Raydium] getTransaction JSON parse error for {}: {}",
+                        &signature[..signature.len().min(20)],
+                        e
+                    );
+                    return Err(format!("json parse error: {}", e));
+                }
+            }
+        }
+
+        tracing::error!(
+            "[Raydium] getTransaction failed after {} retries for {}: {}",
+            MAX_RETRIES,
+            &signature[..signature.len().min(20)],
+            last_error
+        );
+        Err(last_error)
     }
 
     fn calculate_historical_apr(&self, fees_earned: f64, principal: f64, days: f64) -> f64 {
@@ -830,6 +1430,19 @@ impl RaydiumService {
             "oneYear": total_value * daily_rate * 365.0
         })
     }
+}
+
+struct CollectedFeesResult {
+    accumulated_a: f64,
+    accumulated_b: f64,
+    value_usd: f64,
+}
+
+#[derive(Debug)]
+enum TxParseResult {
+    Detected(f64, f64),
+    NotCollection,
+    Failed(String),
 }
 
 #[derive(Debug)]

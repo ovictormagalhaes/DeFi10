@@ -44,7 +44,8 @@ pub fn positions_to_results(
 
         for token in &pos.tokens {
             let balance = token.balance.parse::<f64>().unwrap_or(0.0);
-            if balance <= 0.0 {
+            let is_supplied = token.token_type.as_deref() == Some("Supplied");
+            if balance <= 0.0 && !is_supplied {
                 continue;
             }
             let raw_balance = (balance * 10f64.powi(token.decimals as i32)) as u128;

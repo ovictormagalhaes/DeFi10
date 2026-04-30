@@ -8,6 +8,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Debug, Clone, Default)]
 pub struct UniswapGraphConfig {
@@ -139,7 +140,16 @@ impl UniswapV3Service {
         pool_address: &str,
         tick: i32,
     ) -> Option<(BigUint, BigUint)> {
-        let rpc_url = self.rpc_urls.get(&chain)?;
+        let rpc_url = match self.rpc_urls.get(&chain) {
+            Some(u) => u,
+            None => {
+                tracing::debug!(
+                    "Uniswap: no RPC configured for {:?}, using subgraph fallback for tick fees",
+                    chain
+                );
+                return None;
+            }
+        };
 
         let tick_bytes = tick.to_be_bytes();
         let pad_byte = if tick < 0 { "ff" } else { "00" };
@@ -156,11 +166,83 @@ impl UniswapV3Service {
             "id": 1
         });
 
-        let response = self.client.post(rpc_url).json(&body).send().await.ok()?;
-        let json: serde_json::Value = response.json().await.ok()?;
+        let response = match self
+            .client
+            .post(rpc_url)
+            .timeout(Duration::from_secs(15))
+            .json(&body)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(
+                    "Uniswap tick fee growth network error on {:?} pool {} tick {}: {} (falling back to subgraph values)",
+                    chain,
+                    pool_address,
+                    tick,
+                    e
+                );
+                return None;
+            }
+        };
+
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            tracing::warn!(
+                "Uniswap tick fee growth RPC 429 on {:?} pool {} tick {} (falling back to subgraph values)",
+                chain,
+                pool_address,
+                tick
+            );
+            return None;
+        }
+
+        if !response.status().is_success() {
+            tracing::warn!(
+                "Uniswap tick fee growth RPC non-success status {} on {:?} pool {} tick {}",
+                response.status(),
+                chain,
+                pool_address,
+                tick
+            );
+            return None;
+        }
+
+        let json: serde_json::Value = match response.json().await {
+            Ok(j) => j,
+            Err(e) => {
+                tracing::warn!(
+                    "Uniswap tick fee growth JSON parse error on {:?} pool {} tick {}: {}",
+                    chain,
+                    pool_address,
+                    tick,
+                    e
+                );
+                return None;
+            }
+        };
+
+        if let Some(rpc_err) = json.get("error") {
+            tracing::warn!(
+                "Uniswap tick fee growth RPC error on {:?} pool {} tick {}: {}",
+                chain,
+                pool_address,
+                tick,
+                rpc_err
+            );
+            return None;
+        }
+
         let result = json.get("result")?.as_str()?;
 
         if result.len() < 2 + 256 {
+            tracing::warn!(
+                "Uniswap tick fee growth: short response on {:?} pool {} tick {} (len={})",
+                chain,
+                pool_address,
+                tick,
+                result.len()
+            );
             return None;
         }
 
@@ -270,18 +352,54 @@ impl UniswapV3Service {
             "query": query
         });
 
-        let response = self
-            .client
-            .post(subgraph_url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| DeFi10Error::ExternalApiError(e.to_string()))?;
+        let mut last_error = String::from("unknown error");
+        for attempt in 1..=3u32 {
+            let response = match self
+                .client
+                .post(subgraph_url)
+                .timeout(Duration::from_secs(20))
+                .json(&body)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = format!("network error: {}", e);
+                    tracing::warn!(
+                        "Uniswap subgraph network error for {} (attempt {}/3): {}",
+                        user_address,
+                        attempt,
+                        e
+                    );
+                    tokio::time::sleep(Duration::from_millis(1000 * attempt as u64)).await;
+                    continue;
+                }
+            };
 
-        let result: UniswapPositionsResponse =
-            check_and_parse(response, "Uniswap subgraph").await?;
+            if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                let delay = 2000 * attempt as u64;
+                last_error = format!("429 rate limited (attempt {}/3)", attempt);
+                tracing::warn!(
+                    "Uniswap subgraph 429 for {}, retrying in {}ms (attempt {}/3)",
+                    user_address,
+                    delay,
+                    attempt
+                );
+                tokio::time::sleep(Duration::from_millis(delay)).await;
+                continue;
+            }
 
-        Ok(result.data.map(|d| d.positions).unwrap_or_default())
+            let result: UniswapPositionsResponse =
+                check_and_parse(response, "Uniswap subgraph").await?;
+            return Ok(result.data.map(|d| d.positions).unwrap_or_default());
+        }
+
+        tracing::error!(
+            "Uniswap subgraph failed after 3 retries for {}: {}",
+            user_address,
+            last_error
+        );
+        Err(DeFi10Error::ExternalApiError(last_error))
     }
 
     async fn parse_position(
@@ -460,6 +578,8 @@ impl UniswapV3Service {
 
         let metadata = serde_json::json!({
             "poolId": pool.id,
+            "positionId": position.id,
+            "tokenId": position.id,
             "sqrtPriceX96": pool.sqrt_price,
             "feeTier": pool.fee_tier,
             "tierPercent": tier_percent,
