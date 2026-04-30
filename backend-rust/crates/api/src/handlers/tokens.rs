@@ -7,8 +7,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::state::AppState;
 use super::image_proxy;
+use crate::state::AppState;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,7 +45,10 @@ pub async fn proxy_token_logo(
     Path(address): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     if !is_valid_address(&address) {
-        return Err((StatusCode::BAD_REQUEST, "Invalid address format".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Invalid address format".to_string(),
+        ));
     }
 
     let logo_url = state
@@ -54,14 +57,20 @@ pub async fn proxy_token_logo(
         .await
         .map_err(|e| {
             tracing::error!("Failed to resolve logo URL for {}: {}", address, e);
-            (StatusCode::INTERNAL_SERVER_ERROR, "Lookup failed".to_string())
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Lookup failed".to_string(),
+            )
         })?
         .ok_or((StatusCode::NOT_FOUND, "Logo not found".to_string()))?;
 
     let parsed = reqwest::Url::parse(&logo_url)
         .map_err(|_| (StatusCode::BAD_GATEWAY, "Invalid upstream URL".to_string()))?;
     if parsed.scheme() != "https" && parsed.scheme() != "http" {
-        return Err((StatusCode::BAD_GATEWAY, "Unsupported URL scheme".to_string()));
+        return Err((
+            StatusCode::BAD_GATEWAY,
+            "Unsupported URL scheme".to_string(),
+        ));
     }
 
     image_proxy::fetch_and_proxy_image(parsed, 86400).await

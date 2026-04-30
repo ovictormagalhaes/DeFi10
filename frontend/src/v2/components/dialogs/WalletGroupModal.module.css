@@ -57,7 +57,9 @@
   justify-content: center;
   cursor: pointer;
   color: var(--v2-muted);
-  transition: background var(--v2-t), color var(--v2-t);
+  transition:
+    background var(--v2-t),
+    color var(--v2-t);
   flex-shrink: 0;
   font-family: inherit;
 }
@@ -104,7 +106,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: transform var(--v2-t), box-shadow var(--v2-t);
+  transition:
+    transform var(--v2-t),
+    box-shadow var(--v2-t);
   font-family: inherit;
 }
 
@@ -127,7 +131,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: background var(--v2-t), border-color var(--v2-t);
+  transition:
+    background var(--v2-t),
+    border-color var(--v2-t);
   font-family: inherit;
 }
 
@@ -214,7 +220,10 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--v2-t), border-color var(--v2-t), color var(--v2-t);
+  transition:
+    background var(--v2-t),
+    border-color var(--v2-t),
+    color var(--v2-t);
   font-family: inherit;
   background: transparent;
 }
@@ -580,7 +589,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Footer buttons */
@@ -610,7 +621,9 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform var(--v2-t), box-shadow var(--v2-t);
+  transition:
+    transform var(--v2-t),
+    box-shadow var(--v2-t);
   font-family: inherit;
 }
 
@@ -699,7 +712,9 @@
   font-size: 10px;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--v2-t), color var(--v2-t);
+  transition:
+    background var(--v2-t),
+    color var(--v2-t);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -736,7 +751,9 @@
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--v2-t), border-color var(--v2-t);
+  transition:
+    background var(--v2-t),
+    border-color var(--v2-t);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -211,7 +211,6 @@ export async function createWalletGroup(data: CreateWalletGroupRequest): Promise
   return walletGroup;
 }
 
-
 export async function connectWalletGroup(
   id: string,
   data: ConnectWalletGroupRequest

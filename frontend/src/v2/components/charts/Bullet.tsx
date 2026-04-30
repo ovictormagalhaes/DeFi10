@@ -14,7 +14,7 @@ interface Props {
 }
 
 export const Bullet: React.FC<Props> = ({ rows }) => {
-  const max = Math.max(1, ...rows.map(r => r.value));
+  const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <div className={s.bulletList}>
       {rows.map((r, i) => {

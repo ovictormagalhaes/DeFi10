@@ -107,10 +107,7 @@ impl CoingeckoClient {
         Ok(price)
     }
 
-    pub async fn get_markets(
-        &self,
-        coin_ids: &[&str],
-    ) -> Result<Vec<CoinMarket>, anyhow::Error> {
+    pub async fn get_markets(&self, coin_ids: &[&str]) -> Result<Vec<CoinMarket>, anyhow::Error> {
         if coin_ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -150,8 +147,7 @@ impl CoingeckoClient {
         );
 
         let response = self.get(&url).send().await?;
-        let data: MarketChartResponse =
-            check_and_parse(response, "Coingecko market_chart").await?;
+        let data: MarketChartResponse = check_and_parse(response, "Coingecko market_chart").await?;
 
         tracing::debug!(
             "[Coingecko] Got {} price points for {}",

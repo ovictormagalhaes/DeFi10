@@ -1,4 +1,4 @@
-use crate::{middleware::ApiResult, middleware::auth::AuthUser, state::AppState};
+use crate::{middleware::auth::AuthUser, middleware::ApiResult, state::AppState};
 use axum::{
     extract::{Path, Query, State},
     Extension, Json,

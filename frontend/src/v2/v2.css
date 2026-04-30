@@ -53,7 +53,9 @@ body.light .v2 {
   width: 5px;
   height: 5px;
 }
-.v2 ::-webkit-scrollbar-track { background: transparent; }
+.v2 ::-webkit-scrollbar-track {
+  background: transparent;
+}
 .v2 ::-webkit-scrollbar-thumb {
   background: var(--v2-border);
   border-radius: 3px;

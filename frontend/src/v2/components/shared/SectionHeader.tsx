@@ -20,8 +20,10 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
 }) => (
   <div
     onClick={onClick}
-    onMouseEnter={onClick ? e => (e.currentTarget.style.background = 'var(--v2-bg-hover)') : undefined}
-    onMouseLeave={onClick ? e => (e.currentTarget.style.background = 'transparent') : undefined}
+    onMouseEnter={
+      onClick ? (e) => (e.currentTarget.style.background = 'var(--v2-bg-hover)') : undefined
+    }
+    onMouseLeave={onClick ? (e) => (e.currentTarget.style.background = 'transparent') : undefined}
     style={{
       display: 'flex',
       alignItems: 'center',

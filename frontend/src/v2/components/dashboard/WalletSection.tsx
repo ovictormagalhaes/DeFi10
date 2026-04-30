@@ -7,7 +7,7 @@ import SafeImage from '../../../components/SafeImage';
 import { ChainIcon } from '../shared/ChainIcon';
 import s from './WalletSection.module.css';
 
-const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 function tokenVal(t: any): number {
   const v = parseFloat(t?.financials?.totalPrice ?? t?.totalPrice ?? 0);
@@ -19,18 +19,17 @@ function useFiltered(items: any[]) {
   return useMemo(() => {
     let result = items;
     if (selectedChains) {
-      result = result.filter(item => {
+      result = result.filter((item) => {
         const chain = item.token?.chain ?? item.protocol?.chain ?? '';
         return selectedChains.has(String(chain).trim().toLowerCase());
       });
     }
     if (positionSearch.trim()) {
       const q = positionSearch.toLowerCase();
-      result = result.filter(item => {
+      result = result.filter((item) => {
         const t = item.token ?? item;
         return (
-          (t.symbol ?? '').toLowerCase().includes(q) ||
-          (t.name ?? '').toLowerCase().includes(q)
+          (t.symbol ?? '').toLowerCase().includes(q) || (t.name ?? '').toLowerCase().includes(q)
         );
       });
     }
@@ -67,13 +66,15 @@ export const WalletSection: React.FC<Props> = ({ items }) => {
             <div
               key={i}
               className={s.card}
-              onClick={() => openProjection({
-                level: 'token',
-                name: symbol,
-                context: name,
-                baseUsd: val,
-                logoUrl: logo ?? undefined,
-              })}
+              onClick={() =>
+                openProjection({
+                  level: 'token',
+                  name: symbol,
+                  context: name,
+                  baseUsd: val,
+                  logoUrl: logo ?? undefined,
+                })
+              }
             >
               <div className={s.cardTop}>
                 <div className={s.tokenIcon}>
@@ -104,7 +105,7 @@ export const WalletSection: React.FC<Props> = ({ items }) => {
                 <span className={s.tokenAmt}>
                   <MaskedValue value={`${amt} ${symbol}`} />
                 </span>
-                </div>
+              </div>
             </div>
           );
         })}

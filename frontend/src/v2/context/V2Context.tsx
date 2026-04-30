@@ -80,7 +80,11 @@ export const V2Provider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [selectedWalletGroupId, setSelectedWalletGroupId] = useState<string | null>(null);
   const [walletData, setWalletData] = useState<Record<string, any> | null>(null);
   const [maskValues, setMaskValues] = useState(() => {
-    try { return localStorage.getItem('defi10_mask_values') === 'true'; } catch { return false; }
+    try {
+      return localStorage.getItem('defi10_mask_values') === 'true';
+    } catch {
+      return false;
+    }
   });
   const [selectedChains, setSelectedChains] = useState<Set<string> | null>(null);
   const [positionSearch, setPositionSearch] = useState('');
@@ -90,9 +94,11 @@ export const V2Provider: React.FC<{ children: React.ReactNode }> = ({ children }
   const agg = useAggregationJob();
 
   const toggleMaskValues = useCallback(() => {
-    setMaskValues(prev => {
+    setMaskValues((prev) => {
       const next = !prev;
-      try { localStorage.setItem('defi10_mask_values', String(next)); } catch {}
+      try {
+        localStorage.setItem('defi10_mask_values', String(next));
+      } catch {}
       return next;
     });
   }, []);
@@ -101,20 +107,29 @@ export const V2Provider: React.FC<{ children: React.ReactNode }> = ({ children }
   const closeProjection = useCallback(() => setProjectionTarget(null), []);
 
   return (
-    <V2Context.Provider value={{
-      account, setAccount,
-      selectedWalletGroupId, setSelectedWalletGroupId,
-      walletData, setWalletData,
-      maskValues, toggleMaskValues,
-      selectedChains, setSelectedChains,
-      positionSearch, setPositionSearch,
-      supportedChains, setSupportedChains,
-      projectionTarget, openProjection, closeProjection,
-      agg,
-    }}>
-      <ChainIconsProvider supportedChains={supportedChains}>
-        {children}
-      </ChainIconsProvider>
+    <V2Context.Provider
+      value={{
+        account,
+        setAccount,
+        selectedWalletGroupId,
+        setSelectedWalletGroupId,
+        walletData,
+        setWalletData,
+        maskValues,
+        toggleMaskValues,
+        selectedChains,
+        setSelectedChains,
+        positionSearch,
+        setPositionSearch,
+        supportedChains,
+        setSupportedChains,
+        projectionTarget,
+        openProjection,
+        closeProjection,
+        agg,
+      }}
+    >
+      <ChainIconsProvider supportedChains={supportedChains}>{children}</ChainIconsProvider>
     </V2Context.Provider>
   );
 };

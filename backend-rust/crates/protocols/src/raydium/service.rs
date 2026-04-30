@@ -926,7 +926,9 @@ impl RaydiumService {
             {
                 tracing::info!(
                     "[Raydium] Detected collected fees: delta_a={:.6} delta_b={:.6} sig={}",
-                    delta_a, delta_b, &sig[..20]
+                    delta_a,
+                    delta_b,
+                    &sig[..20]
                 );
                 acc_a += delta_a;
                 acc_b += delta_b;
@@ -1218,13 +1220,10 @@ impl RaydiumService {
             }
         };
 
-        if let Some(err) = meta.get("err").and_then(|e| {
-            if e.is_null() {
-                None
-            } else {
-                Some(e)
-            }
-        }) {
+        if let Some(err) = meta
+            .get("err")
+            .and_then(|e| if e.is_null() { None } else { Some(e) })
+        {
             tracing::debug!(
                 "[Raydium] Tx {} failed on-chain (err={}); skipping",
                 &signature[..signature.len().min(20)],
@@ -1296,10 +1295,10 @@ impl RaydiumService {
 
         let spl_delta_a = (get_spl_amount(post_token, token_mint_a)
             - get_spl_amount(pre_token, token_mint_a))
-            .max(0.0);
+        .max(0.0);
         let spl_delta_b = (get_spl_amount(post_token, token_mint_b)
             - get_spl_amount(pre_token, token_mint_b))
-            .max(0.0);
+        .max(0.0);
 
         let delta_a = if token_mint_a == WSOL_MINT && spl_delta_a == 0.0 {
             get_native_sol_delta().unwrap_or(0.0).max(0.0)

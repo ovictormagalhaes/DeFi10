@@ -78,16 +78,20 @@ const SortablePositionCard: React.FC<SortablePositionCardProps> = ({
     <div
       ref={setNodeRef}
       className="hf-pos-row"
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+      }}
     >
       <div {...attributes} {...listeners} className="hf-pos-drag" title="Drag to reorder">
         <svg width="12" height="16" viewBox="0 0 12 16" fill="none">
-          <circle cx="3" cy="3" r="1.5" fill="currentColor"/>
-          <circle cx="9" cy="3" r="1.5" fill="currentColor"/>
-          <circle cx="3" cy="8" r="1.5" fill="currentColor"/>
-          <circle cx="9" cy="8" r="1.5" fill="currentColor"/>
-          <circle cx="3" cy="13" r="1.5" fill="currentColor"/>
-          <circle cx="9" cy="13" r="1.5" fill="currentColor"/>
+          <circle cx="3" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="9" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="3" cy="8" r="1.5" fill="currentColor" />
+          <circle cx="9" cy="8" r="1.5" fill="currentColor" />
+          <circle cx="3" cy="13" r="1.5" fill="currentColor" />
+          <circle cx="9" cy="13" r="1.5" fill="currentColor" />
         </svg>
       </div>
 
@@ -101,7 +105,9 @@ const SortablePositionCard: React.FC<SortablePositionCardProps> = ({
             {position.chainLogo && (
               <img src={position.chainLogo} alt="" className="hf-pos-chain-logo" />
             )}
-            <span className="hf-pos-badge hf-pos-badge-chain">{position.chain.charAt(0).toUpperCase() + position.chain.slice(1)}</span>
+            <span className="hf-pos-badge hf-pos-badge-chain">
+              {position.chain.charAt(0).toUpperCase() + position.chain.slice(1)}
+            </span>
             <span className="hf-pos-hf-chip">HF {position.currentHF.toFixed(2)}</span>
           </div>
         </div>
@@ -154,7 +160,12 @@ const SortablePositionCard: React.FC<SortablePositionCardProps> = ({
 
       <button onClick={() => onRemove(position.id)} className="hf-pos-remove" title="Remove">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+          <path
+            d="M1 1l10 10M11 1L1 11"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
         </svg>
       </button>
     </div>
@@ -228,7 +239,10 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
           id: positionKey,
           protocolId,
           protocolName: item.protocol?.name || 'Unknown',
-          protocolLogo: getProtocolConfig(item.protocol?.id || item.protocol?.name || '').logo || item.protocol?.logo || '',
+          protocolLogo:
+            getProtocolConfig(item.protocol?.id || item.protocol?.name || '').logo ||
+            item.protocol?.logo ||
+            '',
           chain,
           chainLogo: getChainLogo(chain),
           currentHF: item.additionalData?.healthFactor || 0,
@@ -914,7 +928,9 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
             className="btn-primary"
             type="button"
             style={{ padding: '8px 16px', fontSize: '13px' }}
-            disabled={availableLendingPositions.every(p => lendingPositions.some(lp => lp.id === p.id))}
+            disabled={availableLendingPositions.every((p) =>
+              lendingPositions.some((lp) => lp.id === p.id)
+            )}
           >
             + Add Position
           </button>
@@ -1052,29 +1068,70 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
                       }}
                       onClick={() => setSelectedPosition(position.walletItem)}
                     >
-                      <div style={{
-                        width: '32px', height: '32px', borderRadius: '8px',
-                        background: theme.bgInteractive, border: `1px solid ${theme.border}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        flexShrink: 0, overflow: 'hidden',
-                      }}>
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: theme.bgInteractive,
+                          border: `1px solid ${theme.border}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          overflow: 'hidden',
+                        }}
+                      >
                         {position.protocolLogo && (
-                          <img src={position.protocolLogo} alt="" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+                          <img
+                            src={position.protocolLogo}
+                            alt=""
+                            style={{ width: '24px', height: '24px', objectFit: 'contain' }}
+                          />
                         )}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: '14px', color: theme.textPrimary }}>
+                        <div
+                          style={{ fontWeight: 600, fontSize: '14px', color: theme.textPrimary }}
+                        >
                           {position.protocolName}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            marginTop: '3px',
+                          }}
+                        >
                           {position.chainLogo && (
-                            <img src={position.chainLogo} alt="" style={{ width: '12px', height: '12px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                            <img
+                              src={position.chainLogo}
+                              alt=""
+                              style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '50%',
+                                objectFit: 'cover',
+                                flexShrink: 0,
+                              }}
+                            />
                           )}
                           <span style={{ fontSize: '11px', color: theme.textSecondary }}>
                             {position.chain.charAt(0).toUpperCase() + position.chain.slice(1)}
                           </span>
-                          <span style={{ fontSize: '11px', color: theme.textSecondary, opacity: 0.5 }}>·</span>
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: theme.textSecondary }}>
+                          <span
+                            style={{ fontSize: '11px', color: theme.textSecondary, opacity: 0.5 }}
+                          >
+                            ·
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: theme.textSecondary,
+                            }}
+                          >
                             HF {position.currentHF.toFixed(2)}
                           </span>
                         </div>
@@ -1120,7 +1177,9 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
-                  <label className="hf-form-label hf-label-critical">Critical Threshold (Alert Level)</label>
+                  <label className="hf-form-label hf-label-critical">
+                    Critical Threshold (Alert Level)
+                  </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <input
                       type="range"

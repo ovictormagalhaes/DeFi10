@@ -15,7 +15,9 @@
   border-radius: var(--v2-radius-sm);
   padding: 12px 14px;
   cursor: pointer;
-  transition: border-color 0.14s ease, background 0.14s ease;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
   display: flex;
   flex-direction: column;
   gap: 8px;

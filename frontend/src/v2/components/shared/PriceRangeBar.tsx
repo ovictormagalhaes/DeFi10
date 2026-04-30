@@ -25,10 +25,14 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({ lower, upper, curr
           marginBottom: 5,
         }}
       >
-        <span>Range: {fmt(lower)} — {fmt(upper)}</span>
+        <span>
+          Range: {fmt(lower)} — {fmt(upper)}
+        </span>
         <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {widthPct != null && (
-            <span style={{ color: 'var(--v2-dim)' }}>±{widthPct.toFixed(widthPct < 10 ? 1 : 0)}%</span>
+            <span style={{ color: 'var(--v2-dim)' }}>
+              ±{widthPct.toFixed(widthPct < 10 ? 1 : 0)}%
+            </span>
           )}
           <span style={{ color: 'var(--v2-text)', fontWeight: 600 }}>Now: {fmt(current)}</span>
         </span>

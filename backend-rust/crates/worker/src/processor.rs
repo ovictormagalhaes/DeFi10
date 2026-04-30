@@ -30,10 +30,7 @@ pub struct AggregationProcessor {
 }
 
 impl AggregationProcessor {
-    pub fn new(
-        config: AppConfig,
-        position_store: Option<Arc<dyn RaydiumPositionStore>>,
-    ) -> Self {
+    pub fn new(config: AppConfig, position_store: Option<Arc<dyn RaydiumPositionStore>>) -> Self {
         let http_client = Arc::new(Client::new());
 
         let aave_config = build_aave_config(&config);

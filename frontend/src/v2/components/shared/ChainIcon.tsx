@@ -3,7 +3,7 @@ import { SUPPORTED_CHAINS, CHAIN_MAPPINGS } from '../../../constants/chains';
 
 const CHAIN_ICON_MAP: Record<string, string> = (() => {
   const map: Record<string, string> = {};
-  SUPPORTED_CHAINS.forEach(c => {
+  SUPPORTED_CHAINS.forEach((c) => {
     map[c.id.toLowerCase()] = c.iconUrl;
     map[c.name.toLowerCase()] = c.iconUrl;
     map[c.displayName.toLowerCase()] = c.iconUrl;
@@ -35,7 +35,9 @@ export const ChainIcon: React.FC<ChainIconProps> = ({ name, size = 12 }) => {
       width={size}
       height={size}
       style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+      onError={(e) => {
+        (e.target as HTMLImageElement).style.display = 'none';
+      }}
     />
   );
 };

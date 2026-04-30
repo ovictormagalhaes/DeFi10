@@ -10,10 +10,10 @@ use defi10_core::{
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::verify_user_access;
 use crate::middleware::auth::AuthUser;
 use crate::middleware::error::ApiResult;
 use crate::state::AppState;
-use super::verify_user_access;
 
 pub async fn save_strategies(
     State(state): State<Arc<AppState>>,
@@ -72,9 +72,9 @@ pub async fn save_strategies(
         }
         Err(e) => {
             tracing::error!("Failed to save strategies: {}", e);
-            Err(crate::middleware::error::ApiError::from(
-                DeFi10Error::Api(format!("Failed to save strategies: {}", e)),
-            ))
+            Err(crate::middleware::error::ApiError::from(DeFi10Error::Api(
+                format!("Failed to save strategies: {}", e),
+            )))
         }
     }
 }
@@ -98,9 +98,9 @@ pub async fn get_strategies(
             Ok(None) => WalletGroupStrategies::new(group_id, wallet_group.wallets, vec![]),
             Err(e) => {
                 tracing::error!("Failed to get strategies: {}", e);
-                return Err(crate::middleware::error::ApiError::from(
-                    DeFi10Error::Api(format!("Failed to get strategies: {}", e)),
-                ));
+                return Err(crate::middleware::error::ApiError::from(DeFi10Error::Api(
+                    format!("Failed to get strategies: {}", e),
+                )));
             }
         }
     } else {
@@ -112,17 +112,19 @@ pub async fn get_strategies(
             Ok(Some(result)) => result,
             Ok(None) => {
                 let wallets = vec![identifier.clone()];
-                let mut response = WalletGroupStrategiesResponse::from(
-                    WalletGroupStrategies::new(Uuid::nil(), wallets, vec![]),
-                );
+                let mut response = WalletGroupStrategiesResponse::from(WalletGroupStrategies::new(
+                    Uuid::nil(),
+                    wallets,
+                    vec![],
+                ));
                 response.key = identifier;
                 return Ok(Json(response));
             }
             Err(e) => {
                 tracing::error!("Failed to get strategies: {}", e);
-                return Err(crate::middleware::error::ApiError::from(
-                    DeFi10Error::Api(format!("Failed to get strategies: {}", e)),
-                ));
+                return Err(crate::middleware::error::ApiError::from(DeFi10Error::Api(
+                    format!("Failed to get strategies: {}", e),
+                )));
             }
         }
     };

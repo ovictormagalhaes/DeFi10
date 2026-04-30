@@ -530,22 +530,17 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
             .find(filter)
             .with_options(options)
             .await
-            .map_err(|e| {
-                DeFi10Error::Database(format!("Failed to query sync snapshots: {}", e))
-            })?;
+            .map_err(|e| DeFi10Error::Database(format!("Failed to query sync snapshots: {}", e)))?;
 
         let mut results = Vec::new();
-        while cursor
-            .advance()
-            .await
-            .map_err(|e| DeFi10Error::Database(format!("Failed to iterate sync snapshots: {}", e)))?
-        {
+        while cursor.advance().await.map_err(|e| {
+            DeFi10Error::Database(format!("Failed to iterate sync snapshots: {}", e))
+        })? {
             let doc = cursor.current();
             if let Ok(p) = mongodb::bson::from_slice::<SyncSummaryPartial>(doc.as_bytes()) {
-                if let (Ok(id), Ok(wg_id)) = (
-                    Uuid::parse_str(&p.id),
-                    Uuid::parse_str(&p.wallet_group_id),
-                ) {
+                if let (Ok(id), Ok(wg_id)) =
+                    (Uuid::parse_str(&p.id), Uuid::parse_str(&p.wallet_group_id))
+                {
                     results.push(SyncSnapshotSummary {
                         id,
                         wallet_group_id: wg_id,
@@ -571,23 +566,16 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
             "walletGroupId": wallet_group_id.to_string(),
         };
 
-        let doc = self
-            .sync_snapshots
-            .find_one(filter)
-            .await
-            .map_err(|e| {
+        let doc =
+            self.sync_snapshots.find_one(filter).await.map_err(|e| {
                 DeFi10Error::Database(format!("Failed to find sync snapshot: {}", e))
             })?;
 
         match doc {
             Some(d) => {
-                let snapshot: SyncSnapshot =
-                    mongodb::bson::from_document(d).map_err(|e| {
-                        DeFi10Error::Database(format!(
-                            "Failed to deserialize sync snapshot: {}",
-                            e
-                        ))
-                    })?;
+                let snapshot: SyncSnapshot = mongodb::bson::from_document(d).map_err(|e| {
+                    DeFi10Error::Database(format!("Failed to deserialize sync snapshot: {}", e))
+                })?;
                 Ok(Some(snapshot))
             }
             None => Ok(None),
@@ -596,33 +584,27 @@ impl SnapshotRepositoryTrait for SnapshotRepository {
 
     async fn delete_old_snapshots(&self, before_date: &str) -> Result<u32> {
         let filter = doc! { "date": { "$lt": before_date } };
-        let result = self
-            .snapshots
-            .delete_many(filter)
-            .await
-            .map_err(|e| DeFi10Error::Database(format!("Failed to delete old snapshots: {}", e)))?;
+        let result =
+            self.snapshots.delete_many(filter).await.map_err(|e| {
+                DeFi10Error::Database(format!("Failed to delete old snapshots: {}", e))
+            })?;
         Ok(result.deleted_count as u32)
     }
 
     async fn delete_old_analytics(&self, before_date: &str) -> Result<u32> {
         let filter = doc! { "date": { "$lt": before_date } };
-        let result = self
-            .analytics
-            .delete_many(filter)
-            .await
-            .map_err(|e| DeFi10Error::Database(format!("Failed to delete old analytics: {}", e)))?;
+        let result =
+            self.analytics.delete_many(filter).await.map_err(|e| {
+                DeFi10Error::Database(format!("Failed to delete old analytics: {}", e))
+            })?;
         Ok(result.deleted_count as u32)
     }
 
     async fn delete_old_sync_snapshots(&self, before_date: &str) -> Result<u32> {
         let filter = doc! { "date": { "$lt": before_date } };
-        let result = self
-            .sync_snapshots
-            .delete_many(filter)
-            .await
-            .map_err(|e| {
-                DeFi10Error::Database(format!("Failed to delete old sync snapshots: {}", e))
-            })?;
+        let result = self.sync_snapshots.delete_many(filter).await.map_err(|e| {
+            DeFi10Error::Database(format!("Failed to delete old sync snapshots: {}", e))
+        })?;
         Ok(result.deleted_count as u32)
     }
 }

@@ -81,8 +81,8 @@ export const HFGauge: React.FC<HFGaugeProps> = ({
         {liquidationPrice && assetSymbol && assetCurrentPrice && (
           <div style={{ fontSize: 11, color: 'var(--v2-muted)', marginTop: 3 }}>
             Liq. price {assetSymbol}:{' '}
-            <span style={{ color: 'var(--v2-red)', fontWeight: 600 }}>{liquidationPrice}</span>
-            {' '}(now {assetCurrentPrice})
+            <span style={{ color: 'var(--v2-red)', fontWeight: 600 }}>{liquidationPrice}</span> (now{' '}
+            {assetCurrentPrice})
           </div>
         )}
       </div>

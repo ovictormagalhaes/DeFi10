@@ -15,19 +15,33 @@ interface Props {
   onDelete: () => void;
 }
 
-export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, onEdit, onDelete }) => {
+export const AllocationStrategyCard: React.FC<Props> = ({
+  strategy,
+  portfolio,
+  onEdit,
+  onDelete,
+}) => {
   const [collapsed, setCollapsed] = useState(false);
   const { maskValues } = useV2();
 
-  const fmt = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+  const fmt = (v: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(v);
 
   const chainLogos: Record<string, string> = Object.fromEntries(
-    SUPPORTED_CHAINS.map(c => [c.id.toLowerCase(), c.iconUrl])
+    SUPPORTED_CHAINS.map((c) => [c.id.toLowerCase(), c.iconUrl])
   );
 
   const { status, deltas } = useMemo(() => {
-    const rawAllocations = (strategy as any).allocations || (strategy as any).targetAllocations || [];
-    const allocations = [...rawAllocations].sort((a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999));
+    const rawAllocations =
+      (strategy as any).allocations || (strategy as any).targetAllocations || [];
+    const allocations = [...rawAllocations].sort(
+      (a, b) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999)
+    );
 
     let maxDeviation = 0;
     let needsRebalance = false;
@@ -44,7 +58,7 @@ export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, o
 
     const sumNonBorrowForSymbol = (symbol: string) => {
       let sum = 0;
-      portfolio.forEach(item => {
+      portfolio.forEach((item) => {
         const tokens = item.position?.tokens || [];
         tokens.forEach((t: any) => {
           if (t.symbol !== symbol) return;
@@ -58,11 +72,14 @@ export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, o
 
     const totalNonBorrowValue = portfolio.reduce((acc, item) => {
       const tokens = item.position?.tokens || [];
-      return acc + tokens.reduce((s: number, t: any) => {
-        const tt = (t.type || '').toString().toLowerCase();
-        if (tt === 'borrowed' || tt === 'borrow') return s;
-        return s + Math.abs(t.financials?.totalPrice || 0);
-      }, 0);
+      return (
+        acc +
+        tokens.reduce((s: number, t: any) => {
+          const tt = (t.type || '').toString().toLowerCase();
+          if (tt === 'borrowed' || tt === 'borrow') return s;
+          return s + Math.abs(t.financials?.totalPrice || 0);
+        }, 0)
+      );
     }, 0);
 
     if (allocations.length > 0) {
@@ -84,27 +101,42 @@ export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, o
         groupAllocs.forEach((alloc: any) => {
           const protocol = alloc.protocol?.id || alloc.protocol;
           const chain = alloc.chain?.id || alloc.chain;
-          const filtered = portfolio.filter(item =>
-            ng === 'Lending' ? item.type === 'LendingAndBorrowing' :
-            ng === 'Liquidity' ? item.type === 'LiquidityPool' :
-            ng === 'Staking' ? item.type === 'Staking' :
-            ng === 'Wallet' ? item.type === 'Wallet' : true
+          const filtered = portfolio.filter((item) =>
+            ng === 'Lending'
+              ? item.type === 'LendingAndBorrowing'
+              : ng === 'Liquidity'
+                ? item.type === 'LiquidityPool'
+                : ng === 'Staking'
+                  ? item.type === 'Staking'
+                  : ng === 'Wallet'
+                    ? item.type === 'Wallet'
+                    : true
           );
           const tokenSymbolForGroup = alloc.token?.symbol || alloc.symbol || alloc.assetKey;
-          const matchedAssets = filtered.filter(item => {
+          const matchedAssets = filtered.filter((item) => {
             const sym = item.position?.tokens?.[0]?.symbol;
             const match = sym === alloc.assetKey || sym === tokenSymbolForGroup;
             if (!match) return false;
-            if (protocol && chain) return item.protocol?.id === protocol && item.protocol?.chain === chain;
+            if (protocol && chain)
+              return item.protocol?.id === protocol && item.protocol?.chain === chain;
             return true;
           });
           const isSupply = alloc.group === 'Lending Supply' || alloc.positionType === 1;
           const isBorrow = alloc.group === 'Lending Borrow' || alloc.positionType === 2;
-          matchedAssets.forEach(asset => {
+          matchedAssets.forEach((asset) => {
             let tokens = asset.position?.tokens || [];
-            if (isSupply) tokens = tokens.filter((t: any) => ['supplied', 'supply'].includes(t.type?.toLowerCase() || ''));
-            else if (isBorrow) tokens = tokens.filter((t: any) => ['borrowed', 'borrow'].includes(t.type?.toLowerCase() || ''));
-            gt += tokens.reduce((sum: number, t: any) => sum + Math.abs(t.financials?.totalPrice || 0), 0);
+            if (isSupply)
+              tokens = tokens.filter((t: any) =>
+                ['supplied', 'supply'].includes(t.type?.toLowerCase() || '')
+              );
+            else if (isBorrow)
+              tokens = tokens.filter((t: any) =>
+                ['borrowed', 'borrow'].includes(t.type?.toLowerCase() || '')
+              );
+            gt += tokens.reduce(
+              (sum: number, t: any) => sum + Math.abs(t.financials?.totalPrice || 0),
+              0
+            );
           });
         });
         groupTotals.set(ng, gt);
@@ -127,11 +159,18 @@ export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, o
           if (deviation > 5) needsRebalance = true;
 
           calculatedDeltas.push({
-            symbol: tokenSymbol, logo: tokenLogo,
-            group: 'General', protocolName: 'All', protocolLogo: null,
-            chain: 'All', chainLogo: undefined,
-            targetWeight: alloc.targetWeight, currentWeight, deltaWeight,
-            targetValue: groupTotal * (alloc.targetWeight / 100), currentValue,
+            symbol: tokenSymbol,
+            logo: tokenLogo,
+            group: 'General',
+            protocolName: 'All',
+            protocolLogo: null,
+            chain: 'All',
+            chainLogo: undefined,
+            targetWeight: alloc.targetWeight,
+            currentWeight,
+            deltaWeight,
+            targetValue: groupTotal * (alloc.targetWeight / 100),
+            currentValue,
             deltaValue: groupTotal * (alloc.targetWeight / 100) - currentValue,
             needsRebalance: deviation > 5,
           });
@@ -141,21 +180,28 @@ export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, o
         const protocol = alloc.protocol?.id || alloc.protocol;
         const chain = alloc.chain?.id || alloc.chain;
         const protocolName = alloc.protocol?.name || 'Unknown';
-        const protocolLogo = getProtocolConfig(alloc.protocol?.id || alloc.protocol?.name || '').logo || null;
+        const protocolLogo =
+          getProtocolConfig(alloc.protocol?.id || alloc.protocol?.name || '').logo || null;
         const chainName = chain || 'Unknown';
         const chainLogo = chainLogos[chainName.toLowerCase()] || undefined;
 
-        const filtered = portfolio.filter(item =>
-          ng === 'Lending' ? item.type === 'LendingAndBorrowing' :
-          ng === 'Liquidity' ? item.type === 'LiquidityPool' :
-          ng === 'Staking' ? item.type === 'Staking' :
-          ng === 'Wallet' ? item.type === 'Wallet' : true
+        const filtered = portfolio.filter((item) =>
+          ng === 'Lending'
+            ? item.type === 'LendingAndBorrowing'
+            : ng === 'Liquidity'
+              ? item.type === 'LiquidityPool'
+              : ng === 'Staking'
+                ? item.type === 'Staking'
+                : ng === 'Wallet'
+                  ? item.type === 'Wallet'
+                  : true
         );
-        const matches = filtered.filter(item => {
+        const matches = filtered.filter((item) => {
           const sym = item.position?.tokens?.[0]?.symbol;
           const match = sym === alloc.assetKey || sym === tokenSymbol;
           if (!match) return false;
-          if (protocol && chain) return item.protocol?.id === protocol && item.protocol?.chain === chain;
+          if (protocol && chain)
+            return item.protocol?.id === protocol && item.protocol?.chain === chain;
           return true;
         });
 
@@ -163,9 +209,18 @@ export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, o
         const isBorrow = alloc.group === 'Lending Borrow' || alloc.positionType === 2;
         const currentValue = matches.reduce((total, asset) => {
           let tokens = asset.position?.tokens || [];
-          if (isSupply) tokens = tokens.filter((t: any) => ['supplied', 'supply'].includes(t.type?.toLowerCase() || ''));
-          else if (isBorrow) tokens = tokens.filter((t: any) => ['borrowed', 'borrow'].includes(t.type?.toLowerCase() || ''));
-          return total + tokens.reduce((sum: number, t: any) => sum + Math.abs(t.financials?.totalPrice || 0), 0);
+          if (isSupply)
+            tokens = tokens.filter((t: any) =>
+              ['supplied', 'supply'].includes(t.type?.toLowerCase() || '')
+            );
+          else if (isBorrow)
+            tokens = tokens.filter((t: any) =>
+              ['borrowed', 'borrow'].includes(t.type?.toLowerCase() || '')
+            );
+          return (
+            total +
+            tokens.reduce((sum: number, t: any) => sum + Math.abs(t.financials?.totalPrice || 0), 0)
+          );
         }, 0);
 
         const currentWeight = groupTotal > 0 ? (currentValue / groupTotal) * 100 : 0;
@@ -175,31 +230,55 @@ export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, o
         if (deviation > 5) needsRebalance = true;
 
         calculatedDeltas.push({
-          symbol: tokenSymbol, logo: tokenLogo,
-          group: alloc.group, protocolName, protocolLogo,
-          chain: chainName === 'Unknown' ? 'Unknown' : capitalize(chainName), chainLogo,
-          targetWeight: alloc.targetWeight, currentWeight, deltaWeight,
-          targetValue: groupTotal * (alloc.targetWeight / 100), currentValue,
+          symbol: tokenSymbol,
+          logo: tokenLogo,
+          group: alloc.group,
+          protocolName,
+          protocolLogo,
+          chain: chainName === 'Unknown' ? 'Unknown' : capitalize(chainName),
+          chainLogo,
+          targetWeight: alloc.targetWeight,
+          currentWeight,
+          deltaWeight,
+          targetValue: groupTotal * (alloc.targetWeight / 100),
+          currentValue,
           deltaValue: groupTotal * (alloc.targetWeight / 100) - currentValue,
           needsRebalance: deviation > 5,
         });
       });
     }
 
-    const actionCount = calculatedDeltas.filter(d => Math.abs(d.deltaWeight) > 0.5).length;
-    return { status: { needsRebalance, maxDeviation, assetsCount: allocations.length, totalValue, actionCount }, deltas: calculatedDeltas };
+    const actionCount = calculatedDeltas.filter((d) => Math.abs(d.deltaWeight) > 0.5).length;
+    return {
+      status: {
+        needsRebalance,
+        maxDeviation,
+        assetsCount: allocations.length,
+        totalValue,
+        actionCount,
+      },
+      deltas: calculatedDeltas,
+    };
   }, [strategy, portfolio]);
 
-  const dotColor = status.actionCount === 0 ? 'var(--v2-green)' : status.maxDeviation > 10 ? 'var(--v2-red)' : 'var(--v2-yellow)';
+  const dotColor =
+    status.actionCount === 0
+      ? 'var(--v2-green)'
+      : status.maxDeviation > 10
+        ? 'var(--v2-red)'
+        : 'var(--v2-yellow)';
   const statColor = status.actionCount === 0 ? 'var(--v2-green)' : 'var(--v2-yellow)';
 
   return (
     <div className={s.card}>
-      <div className={s.header} onClick={() => setCollapsed(v => !v)}>
+      <div className={s.header} onClick={() => setCollapsed((v) => !v)}>
         <div className={s.dot} style={{ background: dotColor }} />
         <div className={s.headerMeta}>
           <div className={s.name}>{strategy.name || 'Allocation Strategy'}</div>
-          <div className={s.sub}>{status.assetsCount} assets · max deviation {isFinite(status.maxDeviation) ? status.maxDeviation.toFixed(1) : '0.0'}%</div>
+          <div className={s.sub}>
+            {status.assetsCount} assets · max deviation{' '}
+            {isFinite(status.maxDeviation) ? status.maxDeviation.toFixed(1) : '0.0'}%
+          </div>
         </div>
         <div className={s.stat}>
           <div className={s.statVal} style={{ color: statColor }}>
@@ -207,18 +286,50 @@ export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, o
           </div>
           <div className={s.statLbl}>Status</div>
         </div>
-        <div className={s.actions} onClick={e => e.stopPropagation()}>
+        <div className={s.actions} onClick={(e) => e.stopPropagation()}>
           {onEdit && (
             <button className={s.iconBtn} onClick={onEdit} title="Edit">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M11 2.5l2.5 2.5L5 13.5H2.5V11L11 2.5z"/></svg>
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              >
+                <path d="M11 2.5l2.5 2.5L5 13.5H2.5V11L11 2.5z" />
+              </svg>
             </button>
           )}
           <button className={`${s.iconBtn} ${s.iconBtnDanger}`} onClick={onDelete} title="Delete">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M3 4h10M6 4V2h4v2M5 4l.5 9h5l.5-9"/></svg>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            >
+              <path d="M3 4h10M6 4V2h4v2M5 4l.5 9h5l.5-9" />
+            </svg>
           </button>
         </div>
-        <svg className={`${s.chevron} ${!collapsed ? s.chevronOpen : ''}`} width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        <svg
+          className={`${s.chevron} ${!collapsed ? s.chevronOpen : ''}`}
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+        >
+          <path
+            d="M3 5l4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </div>
 
@@ -250,43 +361,104 @@ export const AllocationStrategyCard: React.FC<Props> = ({ strategy, portfolio, o
               </thead>
               <tbody>
                 {deltas.map((d, i) => {
-                  const actionLabel = Math.abs(d.deltaWeight) <= 0.5 ? 'Hold' :
-                    d.group === 'Lending Borrow' ? (d.deltaValue > 0 ? 'Borrow' : 'Repay') :
-                    (d.deltaValue > 0 ? 'Buy' : 'Sell');
-                  const actionClass = actionLabel === 'Hold' ? s.chipHold :
-                    (actionLabel === 'Buy' || actionLabel === 'Borrow') ? s.chipBuy : s.chipSell;
-                  const deltaClass = d.deltaWeight > 0.5 ? s.deltaPos : d.deltaWeight < -0.5 ? s.deltaNeg : s.deltaNeu;
+                  const actionLabel =
+                    Math.abs(d.deltaWeight) <= 0.5
+                      ? 'Hold'
+                      : d.group === 'Lending Borrow'
+                        ? d.deltaValue > 0
+                          ? 'Borrow'
+                          : 'Repay'
+                        : d.deltaValue > 0
+                          ? 'Buy'
+                          : 'Sell';
+                  const actionClass =
+                    actionLabel === 'Hold'
+                      ? s.chipHold
+                      : actionLabel === 'Buy' || actionLabel === 'Borrow'
+                        ? s.chipBuy
+                        : s.chipSell;
+                  const deltaClass =
+                    d.deltaWeight > 0.5
+                      ? s.deltaPos
+                      : d.deltaWeight < -0.5
+                        ? s.deltaNeg
+                        : s.deltaNeu;
 
                   return (
                     <tr key={i}>
                       <td className={s.tl}>
                         <div className={s.cellWithLogo}>
-                          {d.logo ? <img src={d.logo} alt={d.symbol} className={s.tokenImg} onError={e => (e.target as HTMLImageElement).style.display = 'none'} /> : <div className={s.logoFallback}>{(d.symbol || '?')[0]}</div>}
+                          {d.logo ? (
+                            <img
+                              src={d.logo}
+                              alt={d.symbol}
+                              className={s.tokenImg}
+                              onError={(e) =>
+                                ((e.target as HTMLImageElement).style.display = 'none')
+                              }
+                            />
+                          ) : (
+                            <div className={s.logoFallback}>{(d.symbol || '?')[0]}</div>
+                          )}
                           <span className={s.bold}>{d.symbol}</span>
                         </div>
                       </td>
                       <td className={s.tl}>
                         <div className={s.cellWithLogo}>
-                          {d.protocolLogo && <img src={d.protocolLogo} alt={d.protocolName} className={s.tokenImg} onError={e => (e.target as HTMLImageElement).style.display = 'none'} />}
+                          {d.protocolLogo && (
+                            <img
+                              src={d.protocolLogo}
+                              alt={d.protocolName}
+                              className={s.tokenImg}
+                              onError={(e) =>
+                                ((e.target as HTMLImageElement).style.display = 'none')
+                              }
+                            />
+                          )}
                           <span>{d.protocolName}</span>
                         </div>
                       </td>
                       <td className={s.tl}>
                         <div className={s.cellWithLogo}>
-                          {d.chainLogo && <img src={d.chainLogo} alt={d.chain} className={s.tokenImg} onError={e => (e.target as HTMLImageElement).style.display = 'none'} />}
-                          <span>{d.chain ? d.chain.charAt(0).toUpperCase() + d.chain.slice(1) : ''}</span>
+                          {d.chainLogo && (
+                            <img
+                              src={d.chainLogo}
+                              alt={d.chain}
+                              className={s.tokenImg}
+                              onError={(e) =>
+                                ((e.target as HTMLImageElement).style.display = 'none')
+                              }
+                            />
+                          )}
+                          <span>
+                            {d.chain ? d.chain.charAt(0).toUpperCase() + d.chain.slice(1) : ''}
+                          </span>
                         </div>
                       </td>
                       <td className={s.tc}>
                         <div className={s.targetCell}>
-                          <div className={s.barWrap}><div className={s.barFill} style={{ width: `${Math.min(d.targetWeight, 100)}%` }} /></div>
+                          <div className={s.barWrap}>
+                            <div
+                              className={s.barFill}
+                              style={{ width: `${Math.min(d.targetWeight, 100)}%` }}
+                            />
+                          </div>
                           <span>{d.targetWeight.toFixed(1)}%</span>
                         </div>
                       </td>
                       <td className={s.tc}>{d.currentWeight.toFixed(1)}%</td>
-                      <td className={s.tc}><span className={deltaClass}>{d.deltaWeight > 0 ? '+' : ''}{d.deltaWeight.toFixed(1)}%</span></td>
-                      <td className={s.tc}><MaskedValue value={fmt(d.currentValue)} /></td>
-                      <td className={s.tc}><span className={`${s.chip} ${actionClass}`}>{actionLabel}</span></td>
+                      <td className={s.tc}>
+                        <span className={deltaClass}>
+                          {d.deltaWeight > 0 ? '+' : ''}
+                          {d.deltaWeight.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className={s.tc}>
+                        <MaskedValue value={fmt(d.currentValue)} />
+                      </td>
+                      <td className={s.tc}>
+                        <span className={`${s.chip} ${actionClass}`}>{actionLabel}</span>
+                      </td>
                     </tr>
                   );
                 })}

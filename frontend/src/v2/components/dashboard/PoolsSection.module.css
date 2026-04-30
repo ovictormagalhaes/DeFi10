@@ -180,7 +180,9 @@
   color: var(--v2-muted);
   cursor: pointer;
   padding: 0;
-  transition: border-color 0.14s ease, color 0.14s ease;
+  transition:
+    border-color 0.14s ease,
+    color 0.14s ease;
 }
 
 .flipBtn:hover {
@@ -219,4 +221,3 @@
   font-weight: 600;
   color: var(--v2-text);
 }
-

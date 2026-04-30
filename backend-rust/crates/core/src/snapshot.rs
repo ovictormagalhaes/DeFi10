@@ -106,9 +106,7 @@ fn build_summary(results: &[AggregationResult]) -> SnapshotSummary {
 
         *by_protocol.entry(r.protocol.clone()).or_default() += signed_value;
         *by_chain.entry(r.chain.clone()).or_default() += signed_value;
-        *by_position_type
-            .entry(r.position_type.clone())
-            .or_default() += r.value_usd;
+        *by_position_type.entry(r.position_type.clone()).or_default() += r.value_usd;
         *by_protocol_position_type
             .entry(r.protocol.clone())
             .or_default()
@@ -147,8 +145,9 @@ fn build_summary(results: &[AggregationResult]) -> SnapshotSummary {
         }
     }
 
-    let net_worth_usd =
-        wallet_value_usd + supplied_value_usd - borrowed_value_usd + pools_value_usd + staking_value_usd;
+    let net_worth_usd = wallet_value_usd + supplied_value_usd - borrowed_value_usd
+        + pools_value_usd
+        + staking_value_usd;
 
     let net_apy = if net_apy_weight > 0.0 {
         net_apy_weighted / net_apy_weight
@@ -269,7 +268,10 @@ pub struct DayPnl {
 #[serde(rename_all = "camelCase")]
 pub struct SyncSnapshot {
     #[serde(rename = "_id")]
-    #[serde(serialize_with = "serialize_uuid", deserialize_with = "deserialize_uuid")]
+    #[serde(
+        serialize_with = "serialize_uuid",
+        deserialize_with = "deserialize_uuid"
+    )]
     pub id: Uuid,
     pub version: u32,
     pub wallet_group_id: Uuid,

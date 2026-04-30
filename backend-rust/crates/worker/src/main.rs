@@ -90,7 +90,10 @@ async fn main() -> Result<()> {
         Arc::new(RaydiumPositionRepository::new(mongo_db.database()));
     info!("MongoDB connected, repositories initialized");
 
-    let processor = Arc::new(AggregationProcessor::new(config.clone(), Some(raydium_repo)));
+    let processor = Arc::new(AggregationProcessor::new(
+        config.clone(),
+        Some(raydium_repo),
+    ));
     info!("Processor initialized");
 
     let cache = RedisCache::new(&config.redis.url, config.redis.default_ttl_seconds)
@@ -480,13 +483,22 @@ async fn check_job_completion(
 
                     let sync = SyncSnapshot::from_results(wg_id, &snapshot.results);
                     if let Err(e) = snapshot_repo.insert_sync_snapshot(&sync).await {
-                        error!("Failed to insert sync snapshot for wallet group {}: {}", wg_id, e);
+                        error!(
+                            "Failed to insert sync snapshot for wallet group {}: {}",
+                            wg_id, e
+                        );
                     } else {
-                        info!("Inserted sync snapshot {} for wallet group {}", sync.id, wg_id);
+                        info!(
+                            "Inserted sync snapshot {} for wallet group {}",
+                            sync.id, wg_id
+                        );
                     }
 
                     if let Err(e) = wg_repo.update_last_synced_at(&wg_id, Utc::now()).await {
-                        error!("Failed to update lastSyncedAt for wallet group {}: {}", wg_id, e);
+                        error!(
+                            "Failed to update lastSyncedAt for wallet group {}: {}",
+                            wg_id, e
+                        );
                     }
                 }
             }
