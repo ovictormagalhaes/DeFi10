@@ -140,6 +140,7 @@ async fn main() -> Result<()> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_consumer(
     config: &defi10_infrastructure::config::AppConfig,
     job_manager: &Arc<JobManager>,
@@ -273,6 +274,7 @@ async fn run_consumer(
 const MAX_PROCESS_RETRIES: u32 = 3;
 const RETRY_BASE_DELAY_MS: u64 = 500;
 
+#[allow(clippy::too_many_arguments)]
 async fn process_message(
     message: AggregationMessage,
     job_manager: Arc<JobManager>,

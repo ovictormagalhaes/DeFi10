@@ -934,6 +934,7 @@ mod tests {
     use defi10_core::WalletGroup;
     use uuid::Uuid;
 
+    #[allow(clippy::too_many_arguments)]
     fn make_result(
         protocol: &str,
         chain: &str,
