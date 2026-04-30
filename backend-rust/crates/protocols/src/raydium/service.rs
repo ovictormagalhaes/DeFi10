@@ -859,6 +859,7 @@ impl RaydiumService {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn resolve_collected_fees(
         &self,
         position: &ClmmPosition,
