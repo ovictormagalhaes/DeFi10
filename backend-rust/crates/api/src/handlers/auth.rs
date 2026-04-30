@@ -1,9 +1,11 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{extract::State, Json};
 use chrono::{DateTime, Utc};
+use defi10_core::DeFi10Error;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::middleware::auth::generate_wallet_token;
+use crate::middleware::error::{ApiError, ApiResult};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -25,16 +27,17 @@ pub struct WalletAuthResponse {
 pub async fn authenticate_wallet(
     State(state): State<Arc<AppState>>,
     Json(request): Json<WalletAuthRequest>,
-) -> Result<Json<WalletAuthResponse>, (StatusCode, String)> {
+) -> ApiResult<Json<WalletAuthResponse>> {
     if request.address.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Address is required".to_string()));
+        return Err(ApiError::from(DeFi10Error::Validation(
+            "Address is required".to_string(),
+        )));
     }
 
     if request.challenge.is_empty() || request.nonce.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
+        return Err(ApiError::from(DeFi10Error::Validation(
             "Challenge and nonce are required".to_string(),
-        ));
+        )));
     }
 
     let valid = state
@@ -43,17 +46,13 @@ pub async fn authenticate_wallet(
         .await
         .map_err(|e| {
             tracing::error!("PoW validation error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to validate proof".to_string(),
-            )
+            ApiError::from(DeFi10Error::Api("Failed to validate proof".to_string()))
         })?;
 
     if !valid {
-        return Err((
-            StatusCode::UNAUTHORIZED,
+        return Err(ApiError::from(DeFi10Error::Unauthorized(
             "Invalid proof of work".to_string(),
-        ));
+        )));
     }
 
     if let Err(e) = state
@@ -71,10 +70,7 @@ pub async fn authenticate_wallet(
     )
     .map_err(|e| {
         tracing::error!("Failed to generate wallet token: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to generate token".to_string(),
-        )
+        ApiError::from(DeFi10Error::Api("Failed to generate token".to_string()))
     })?;
 
     tracing::info!(

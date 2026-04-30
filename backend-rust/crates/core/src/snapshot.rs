@@ -6,40 +6,21 @@ use uuid::Uuid;
 
 use crate::aggregation::AggregationResult;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SnapshotPosition {
-    pub account: String,
-    pub chain: String,
-    pub protocol: String,
-    pub position_type: String,
-    pub token_symbol: String,
-    pub token_address: String,
-    pub balance: f64,
-    pub value_usd: f64,
-    pub price_usd: f64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub apy: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub health_factor: Option<f64>,
+pub const SNAPSHOT_VERSION: u32 = 1;
+
+fn serialize_uuid<S>(uuid: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&uuid.to_string())
 }
 
-impl From<&AggregationResult> for SnapshotPosition {
-    fn from(r: &AggregationResult) -> Self {
-        Self {
-            account: r.account.clone(),
-            chain: r.chain.clone(),
-            protocol: r.protocol.clone(),
-            position_type: r.position_type.clone(),
-            token_symbol: r.token_symbol.clone(),
-            token_address: r.token_address.clone(),
-            balance: r.balance,
-            value_usd: r.value_usd,
-            price_usd: r.price_usd,
-            apy: r.apy,
-            health_factor: r.health_factor,
-        }
-    }
+fn deserialize_uuid<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    Uuid::parse_str(&s).map_err(serde::de::Error::custom)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,44 +29,160 @@ pub struct SnapshotSummary {
     pub position_count: u32,
     pub by_protocol: HashMap<String, f64>,
     pub by_chain: HashMap<String, f64>,
+    #[serde(default)]
+    pub by_position_type: HashMap<String, f64>,
+    #[serde(default)]
+    pub by_protocol_position_type: HashMap<String, HashMap<String, f64>>,
+    #[serde(default)]
+    pub wallet_value_usd: f64,
+    #[serde(default)]
+    pub supplied_value_usd: f64,
+    #[serde(default)]
+    pub borrowed_value_usd: f64,
+    #[serde(default)]
+    pub pools_value_usd: f64,
+    #[serde(default)]
+    pub staking_value_usd: f64,
+    #[serde(default)]
+    pub net_worth_usd: f64,
+    #[serde(default)]
+    pub net_apy: f64,
+    #[serde(default)]
+    pub apy_by_position_type: HashMap<String, f64>,
+    #[serde(default)]
+    pub apy_by_protocol: HashMap<String, f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DailySnapshot {
+    pub version: u32,
     pub wallet_group_id: Uuid,
     pub date: String,
     pub total_value_usd: f64,
-    pub positions: Vec<SnapshotPosition>,
+    pub positions: Vec<AggregationResult>,
     pub summary: SnapshotSummary,
     pub created_at: DateTime<Utc>,
 }
 
 impl DailySnapshot {
     pub fn from_results(wallet_group_id: Uuid, date: &str, results: &[AggregationResult]) -> Self {
-        let positions: Vec<SnapshotPosition> = results.iter().map(SnapshotPosition::from).collect();
-        let total_value_usd: f64 = results.iter().map(|r| r.value_usd).sum();
-
-        let mut by_protocol: HashMap<String, f64> = HashMap::new();
-        let mut by_chain: HashMap<String, f64> = HashMap::new();
-
-        for r in results {
-            *by_protocol.entry(r.protocol.clone()).or_default() += r.value_usd;
-            *by_chain.entry(r.chain.clone()).or_default() += r.value_usd;
-        }
+        let summary = build_summary(results);
 
         Self {
+            version: SNAPSHOT_VERSION,
             wallet_group_id,
             date: date.to_string(),
-            total_value_usd,
-            positions,
-            summary: SnapshotSummary {
-                position_count: results.len() as u32,
-                by_protocol,
-                by_chain,
-            },
+            total_value_usd: summary.net_worth_usd,
+            positions: results.to_vec(),
+            summary,
             created_at: Utc::now(),
         }
+    }
+}
+
+fn build_summary(results: &[AggregationResult]) -> SnapshotSummary {
+    let mut by_protocol: HashMap<String, f64> = HashMap::new();
+    let mut by_chain: HashMap<String, f64> = HashMap::new();
+    let mut by_position_type: HashMap<String, f64> = HashMap::new();
+    let mut by_protocol_position_type: HashMap<String, HashMap<String, f64>> = HashMap::new();
+
+    let mut wallet_value_usd = 0.0;
+    let mut supplied_value_usd = 0.0;
+    let mut borrowed_value_usd = 0.0;
+    let mut pools_value_usd = 0.0;
+    let mut staking_value_usd = 0.0;
+
+    // weighted APY accumulators: (weighted_sum, total_weight)
+    let mut net_apy_weighted = 0.0;
+    let mut net_apy_weight = 0.0;
+    let mut apy_by_position_type_weighted: HashMap<String, (f64, f64)> = HashMap::new();
+    let mut apy_by_protocol_weighted: HashMap<String, (f64, f64)> = HashMap::new();
+
+    for r in results {
+        let position_type_lower = r.position_type.to_lowercase();
+        let is_borrow = position_type_lower == "borrowing";
+        let signed_value = if is_borrow { -r.value_usd } else { r.value_usd };
+
+        *by_protocol.entry(r.protocol.clone()).or_default() += signed_value;
+        *by_chain.entry(r.chain.clone()).or_default() += signed_value;
+        *by_position_type
+            .entry(r.position_type.clone())
+            .or_default() += r.value_usd;
+        *by_protocol_position_type
+            .entry(r.protocol.clone())
+            .or_default()
+            .entry(r.position_type.clone())
+            .or_default() += r.value_usd;
+
+        match position_type_lower.as_str() {
+            "wallet" => wallet_value_usd += r.value_usd,
+            "lending" => supplied_value_usd += r.value_usd,
+            "borrowing" => borrowed_value_usd += r.value_usd,
+            "liquiditypool" | "liquidity_pool" | "pool" => pools_value_usd += r.value_usd,
+            "staking" | "locking" | "yield" => staking_value_usd += r.value_usd,
+            _ => {}
+        }
+
+        let yield_rate = r.apy.or(r.apr);
+        if let Some(rate) = yield_rate {
+            if r.value_usd > 0.0 {
+                let signed_rate = if is_borrow { -rate } else { rate };
+
+                net_apy_weighted += signed_rate * r.value_usd;
+                net_apy_weight += r.value_usd;
+
+                let pt_entry = apy_by_position_type_weighted
+                    .entry(r.position_type.clone())
+                    .or_default();
+                pt_entry.0 += rate * r.value_usd;
+                pt_entry.1 += r.value_usd;
+
+                let proto_entry = apy_by_protocol_weighted
+                    .entry(r.protocol.clone())
+                    .or_default();
+                proto_entry.0 += rate * r.value_usd;
+                proto_entry.1 += r.value_usd;
+            }
+        }
+    }
+
+    let net_worth_usd =
+        wallet_value_usd + supplied_value_usd - borrowed_value_usd + pools_value_usd + staking_value_usd;
+
+    let net_apy = if net_apy_weight > 0.0 {
+        net_apy_weighted / net_apy_weight
+    } else {
+        0.0
+    };
+
+    let apy_by_position_type = apy_by_position_type_weighted
+        .into_iter()
+        .filter(|(_, (_, w))| *w > 0.0)
+        .map(|(k, (sum, w))| (k, sum / w))
+        .collect();
+
+    let apy_by_protocol = apy_by_protocol_weighted
+        .into_iter()
+        .filter(|(_, (_, w))| *w > 0.0)
+        .map(|(k, (sum, w))| (k, sum / w))
+        .collect();
+
+    SnapshotSummary {
+        position_count: results.len() as u32,
+        by_protocol,
+        by_chain,
+        by_position_type,
+        by_protocol_position_type,
+        wallet_value_usd,
+        supplied_value_usd,
+        borrowed_value_usd,
+        pools_value_usd,
+        staking_value_usd,
+        net_worth_usd,
+        net_apy,
+        apy_by_position_type,
+        apy_by_protocol,
     }
 }
 
@@ -166,6 +263,51 @@ pub struct DayPnl {
     pub date: String,
     pub pnl: f64,
     pub pnl_percent: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncSnapshot {
+    #[serde(rename = "_id")]
+    #[serde(serialize_with = "serialize_uuid", deserialize_with = "deserialize_uuid")]
+    pub id: Uuid,
+    pub version: u32,
+    pub wallet_group_id: Uuid,
+    pub date: String,
+    pub synced_at: DateTime<Utc>,
+    pub total_value_usd: f64,
+    pub positions: Vec<AggregationResult>,
+    pub summary: SnapshotSummary,
+}
+
+impl SyncSnapshot {
+    pub fn from_results(wallet_group_id: Uuid, results: &[AggregationResult]) -> Self {
+        let now = Utc::now();
+        let date = now.format("%Y-%m-%d").to_string();
+        let summary = build_summary(results);
+
+        Self {
+            id: Uuid::new_v4(),
+            version: SNAPSHOT_VERSION,
+            wallet_group_id,
+            date,
+            synced_at: now,
+            total_value_usd: summary.net_worth_usd,
+            positions: results.to_vec(),
+            summary,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncSnapshotSummary {
+    pub id: Uuid,
+    pub wallet_group_id: Uuid,
+    pub date: String,
+    pub synced_at: DateTime<Utc>,
+    pub total_value_usd: f64,
+    pub summary: SnapshotSummary,
 }
 
 #[cfg(test)]

@@ -10,7 +10,7 @@ use defi10_infrastructure::{
     },
     messaging::RabbitMqConnection,
     retry::{retry_async, RetryConfig},
-    ProofOfWorkService, StrategyService, TokenLogoService,
+    CoingeckoClient, ProofOfWorkService, PurchaseWindowService, StrategyService, TokenLogoService,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,6 +26,7 @@ pub struct AppState {
     pub job_manager: Arc<JobManager>,
     pub pow_service: Arc<ProofOfWorkService>,
     pub strategy_service: Arc<StrategyService>,
+    pub purchase_window_service: Arc<PurchaseWindowService>,
     pub token_logo_service: Arc<TokenLogoService>,
     #[allow(dead_code)]
     pub price_aggregator: Arc<PriceAggregator>,
@@ -80,6 +81,10 @@ impl AppState {
         let strategy_service = StrategyService::new(db.database());
         tracing::info!("StrategyService initialized successfully");
 
+        let coingecko = Arc::new(CoingeckoClient::new());
+        let purchase_window_service = PurchaseWindowService::new(cache.clone(), coingecko);
+        tracing::info!("PurchaseWindowService initialized");
+
         let db = Arc::new(db);
 
         let token_logo_service = TokenLogoService::new(cache.clone()).with_mongo(db.clone());
@@ -101,6 +106,7 @@ impl AppState {
             job_manager: Arc::new(job_manager),
             pow_service: Arc::new(pow_service),
             strategy_service: Arc::new(strategy_service),
+            purchase_window_service: Arc::new(purchase_window_service),
             token_logo_service: Arc::new(token_logo_service),
             price_aggregator: Arc::new(price_aggregator),
         })

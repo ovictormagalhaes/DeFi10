@@ -368,9 +368,19 @@ fn transform_results_to_items(
                 .and_then(|m| m.get("poolId"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
+            let position_id = result
+                .metadata
+                .as_ref()
+                .and_then(|m| {
+                    m.get("positionId")
+                        .or_else(|| m.get("nftMint"))
+                        .or_else(|| m.get("tokenId"))
+                })
+                .and_then(|v| v.as_str())
+                .unwrap_or(pool_id);
             format!(
-                "{}:{}:{}:{}",
-                result.protocol, result.chain, result.position_type, pool_id
+                "{}:{}:{}:{}:{}",
+                result.protocol, result.chain, result.position_type, pool_id, position_id
             )
         } else {
             format!(
@@ -394,7 +404,12 @@ fn transform_results_to_items(
             continue;
         }
 
-        let first = group_results[0];
+        let deduped = dedupe_group_results(group_results);
+        if deduped.is_empty() {
+            continue;
+        }
+
+        let first = deduped[0];
         let chain = &first.chain;
         let protocol = &first.protocol;
         let position_type = &first.position_type;
@@ -404,7 +419,7 @@ fn transform_results_to_items(
         let label = determine_label(protocol, position_type);
 
         let mut tokens = Vec::new();
-        for result in group_results.iter() {
+        for result in deduped.iter() {
             update_summary(&mut summary, protocol, position_type);
 
             let token_type = result
@@ -439,7 +454,7 @@ fn transform_results_to_items(
 
         let position = Position::new(&label, tokens);
 
-        let additional_data = create_additional_data(protocol, position_type, group_results);
+        let additional_data = create_additional_data(protocol, position_type, &deduped);
 
         items.push(WalletItem {
             item_type,
@@ -450,6 +465,26 @@ fn transform_results_to_items(
     }
 
     (items, summary)
+}
+
+fn dedupe_group_results<'a>(group: &[&'a AggregationResult]) -> Vec<&'a AggregationResult> {
+    let mut seen: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    let mut out: Vec<&'a AggregationResult> = Vec::with_capacity(group.len());
+    for r in group.iter() {
+        let key = (
+            r.token_address.to_lowercase(),
+            r.token_type.clone().unwrap_or_default().to_lowercase(),
+        );
+        if seen.insert(key) {
+            out.push(r);
+        } else {
+            tracing::warn!(
+                "[Dedup] Dropping duplicate result account={} chain={} protocol={} position_type={} token={} type={:?} balance={}",
+                r.account, r.chain, r.protocol, r.position_type, r.token_address, r.token_type, r.balance
+            );
+        }
+    }
+    out
 }
 
 fn determine_item_type(protocol: &str, position_type: &str) -> WalletItemType {
@@ -697,7 +732,8 @@ fn create_liquidity_pool_additional_data(
         None
     };
 
-    let projections = compute_fee_projections(results, created_at, total_value_usd, apr);
+    let projections = compute_fee_projections(results, created_at, total_value_usd, apr)
+        .or_else(|| extract_projections(metadata));
 
     let mut data = AdditionalData {
         pool_id,
@@ -772,7 +808,7 @@ fn compute_fee_projections(
 
     if let Some(apr_val) = protocol_apr {
         if let Some(value_usd) = total_value_usd {
-            if value_usd > 0.0 {
+            if value_usd > 0.0 && apr_val > 0.0 {
                 let rate = apr_val / 100.0;
                 projections.push(ProjectionData {
                     projection_type: "apr".to_string(),
@@ -893,8 +929,210 @@ fn extract_transaction_history(result: &AggregationResult) -> Option<AdditionalD
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use defi10_core::aggregation::AggregationResult;
     use defi10_core::WalletGroup;
     use uuid::Uuid;
+
+    fn make_result(
+        protocol: &str,
+        chain: &str,
+        position_type: &str,
+        token_address: &str,
+        token_type: Option<&str>,
+        balance: f64,
+        balance_raw: &str,
+        decimals: u8,
+        metadata: Option<serde_json::Value>,
+    ) -> AggregationResult {
+        AggregationResult {
+            account: "wallet1".to_string(),
+            chain: chain.to_string(),
+            protocol: protocol.to_string(),
+            position_type: position_type.to_string(),
+            balance,
+            balance_raw: balance_raw.to_string(),
+            decimals,
+            value_usd: balance,
+            price_usd: 1.0,
+            token_symbol: "SYM".to_string(),
+            token_name: "Sym".to_string(),
+            token_address: token_address.to_string(),
+            timestamp: chrono::Utc::now(),
+            apy: None,
+            apr: None,
+            apr_historical: None,
+            health_factor: None,
+            is_collateral: None,
+            can_be_collateral: None,
+            logo: None,
+            token_type: token_type.map(|s| s.to_string()),
+            metadata,
+        }
+    }
+
+    #[test]
+    fn test_dedup_drops_identical_lp_supplied_token() {
+        let metadata = Some(serde_json::json!({"poolId": "pool1", "positionId": "pos1"}));
+        let supplied_a = make_result(
+            "raydium",
+            "solana",
+            "liquiditypool",
+            "tokenA",
+            Some("Supplied"),
+            10.0,
+            "10000000000",
+            9,
+            metadata.clone(),
+        );
+        let supplied_a_dup = supplied_a.clone();
+        let supplied_b = make_result(
+            "raydium",
+            "solana",
+            "liquiditypool",
+            "tokenB",
+            Some("Supplied"),
+            0.0,
+            "0",
+            6,
+            metadata,
+        );
+
+        let results = vec![supplied_a, supplied_a_dup, supplied_b];
+        let (items, _summary) = transform_results_to_items(&results);
+
+        assert_eq!(items.len(), 1, "expected single LP item");
+        let tokens = &items[0].position.tokens;
+        assert_eq!(tokens.len(), 2, "duplicate Supplied A must be dropped");
+        let supplied_count_a = tokens
+            .iter()
+            .filter(|t| t.contract_address == "tokenA")
+            .count();
+        assert_eq!(supplied_count_a, 1);
+    }
+
+    #[test]
+    fn test_dedup_keeps_distinct_token_types() {
+        let metadata = Some(serde_json::json!({"poolId": "pool1", "positionId": "pos1"}));
+        let supplied = make_result(
+            "uniswap-v3",
+            "base",
+            "liquiditypool",
+            "tokenA",
+            Some("Supplied"),
+            5.0,
+            "5000000000",
+            18,
+            metadata.clone(),
+        );
+        let uncollected = make_result(
+            "uniswap-v3",
+            "base",
+            "liquiditypool",
+            "tokenA",
+            Some("LiquidityUncollectedFee"),
+            0.5,
+            "500000000",
+            18,
+            metadata.clone(),
+        );
+        let collected = make_result(
+            "uniswap-v3",
+            "base",
+            "liquiditypool",
+            "tokenA",
+            Some("LiquidityCollectedFee"),
+            1.0,
+            "1000000000",
+            18,
+            metadata,
+        );
+
+        let results = vec![supplied, uncollected, collected];
+        let (items, _summary) = transform_results_to_items(&results);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items[0].position.tokens.len(),
+            3,
+            "different token_types must coexist"
+        );
+    }
+
+    #[test]
+    fn test_dedup_drops_full_duplicate_payload() {
+        let metadata = Some(serde_json::json!({"poolId": "pool1", "positionId": "pos1"}));
+        let r1 = make_result(
+            "uniswap-v3",
+            "base",
+            "liquiditypool",
+            "tokenA",
+            Some("Supplied"),
+            5.0,
+            "5000000000",
+            18,
+            metadata.clone(),
+        );
+        let r2 = make_result(
+            "uniswap-v3",
+            "base",
+            "liquiditypool",
+            "tokenB",
+            Some("Supplied"),
+            7.0,
+            "7000000000",
+            18,
+            metadata,
+        );
+
+        let mut results = vec![r1.clone(), r2.clone()];
+        results.extend(vec![r1, r2]);
+        let (items, _summary) = transform_results_to_items(&results);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items[0].position.tokens.len(),
+            2,
+            "redelivery duplicates must be dropped"
+        );
+    }
+
+    #[test]
+    fn test_dedup_does_not_merge_distinct_lp_positions() {
+        let m1 = Some(serde_json::json!({"poolId": "pool1", "positionId": "pos1"}));
+        let m2 = Some(serde_json::json!({"poolId": "pool1", "positionId": "pos2"}));
+        let r1 = make_result(
+            "raydium",
+            "solana",
+            "liquiditypool",
+            "tokenA",
+            Some("Supplied"),
+            5.0,
+            "5",
+            9,
+            m1,
+        );
+        let r2 = make_result(
+            "raydium",
+            "solana",
+            "liquiditypool",
+            "tokenA",
+            Some("Supplied"),
+            7.0,
+            "7",
+            9,
+            m2,
+        );
+
+        let results = vec![r1, r2];
+        let (items, _summary) = transform_results_to_items(&results);
+
+        assert_eq!(
+            items.len(),
+            2,
+            "distinct positionIds must produce separate items"
+        );
+    }
 
     #[test]
     fn test_wallet_group_for_aggregation() {
