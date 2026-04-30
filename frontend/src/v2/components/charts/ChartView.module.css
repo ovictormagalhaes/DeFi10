@@ -1,0 +1,467 @@
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.row3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 1100px) {
+  .row3 { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  padding: 18px;
+}
+
+.panelTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--v2-dim);
+  margin-bottom: 14px;
+}
+
+/* ---------- Allocation Toggle ---------- */
+
+.allocToggle {
+  display: flex;
+  gap: 3px;
+  background: var(--v2-bg-hover);
+  padding: 3px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.allocBtn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v2-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.allocBtn:hover {
+  color: var(--v2-text);
+}
+
+.allocBtnOn {
+  background: var(--v2-bg-card);
+  color: var(--v2-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* ---------- Donut (shared) ---------- */
+
+.donutWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.donutLegend {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legendName {
+  flex: 1;
+  color: var(--v2-muted);
+}
+
+.legendVal {
+  font-weight: 600;
+  color: var(--v2-text);
+}
+
+.legendPct {
+  color: var(--v2-dim);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* ---------- Gauge (A6) ---------- */
+
+.gaugeWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.gaugeBands {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.bandSafe { color: var(--v2-green); }
+.bandWarn { color: #f59e0b; }
+.bandDanger { color: var(--v2-red); }
+
+/* ---------- Bullet (A7) ---------- */
+
+.bulletList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bulletRow {
+  display: grid;
+  grid-template-columns: 90px 1fr 90px;
+  align-items: center;
+  gap: 10px;
+}
+
+.bulletLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v2-muted);
+}
+
+.bulletTrack {
+  height: 12px;
+  background: var(--v2-bg-hover);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.bulletFill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.4s ease;
+}
+
+.bulletVal {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Stacked Area (B4) ---------- */
+
+.canvasWrap {
+  position: relative;
+}
+
+.lineCanvas {
+  width: 100%;
+  height: 220px;
+  display: block;
+  cursor: crosshair;
+}
+
+.chartTooltip {
+  position: absolute;
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  min-width: 140px;
+  font-size: 12px;
+}
+
+.ttDate {
+  color: var(--v2-muted);
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.ttValue {
+  color: var(--v2-text);
+  font-weight: 800;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ttPnl {
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ttPnl.ttPos { color: var(--v2-green); }
+.ttPnl.ttNeg { color: var(--v2-red); }
+
+.ttNoData {
+  font-size: 11px;
+  color: var(--v2-muted);
+  opacity: 0.7;
+}
+
+.ttPct {
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.ttSeries {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.ttSeriesRow {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.ttSeriesDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.ttSeriesLabel {
+  color: var(--v2-muted);
+}
+
+.ttSeriesVal {
+  color: var(--v2-text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ttTotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px solid var(--v2-border);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.lineEmpty {
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--v2-muted);
+  background: var(--v2-bg-hover);
+  border-radius: 8px;
+}
+
+.stackLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  padding-left: 60px;
+  font-size: 12px;
+  color: var(--v2-muted);
+}
+
+.stackLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stackLegendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* ---------- PnL Heatmap ---------- */
+
+.heatmapWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.heatmapScroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.heatmapCanvas {
+  display: block;
+  cursor: crosshair;
+}
+
+.heatFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.heatStats {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.heatStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heatStatLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--v2-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.heatStatVal {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--v2-text);
+}
+
+.heatLegend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.heatLegendLabel {
+  font-size: 10px;
+  color: var(--v2-muted);
+  margin: 0 3px;
+}
+
+.heatLegendCell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ---------- Top Tokens (legacy bars) ---------- */
+
+.apyBars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.barLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v2-muted);
+  min-width: 48px;
+}
+
+.barTrack {
+  flex: 1;
+  height: 6px;
+  background: var(--v2-bg-hover);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.barVal {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--v2-text);
+  min-width: 70px;
+  text-align: right;
+}
+
+/* ---------- Net Breakdown (legacy panel) ---------- */
+
+.netPanel {
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  padding: 18px;
+}
+
+.netTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--v2-dim);
+  margin-bottom: 12px;
+}
+
+.netGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.netItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.netLabel {
+  font-size: 13px;
+  color: var(--v2-muted);
+}
+
+.netVal {
+  font-size: 13px;
+  font-weight: 700;
+}

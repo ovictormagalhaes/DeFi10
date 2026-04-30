@@ -1,0 +1,116 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: var(--v2-bg-panel);
+  border-bottom: 1px solid var(--v2-border);
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 24px;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.logo {
+  margin-right: 32px;
+  display: flex;
+  align-items: center;
+  user-select: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.logoImg {
+  height: 22px;
+  width: auto;
+  display: block;
+}
+
+.nav {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 15px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--v2-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition: color 0.16s ease, border-color 0.16s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.navLink:hover {
+  color: var(--v2-text);
+}
+
+.navLinkActive {
+  color: var(--v2-text);
+  border-bottom-color: var(--v2-accent);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--v2-radius-sm);
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--v2-muted);
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.iconBtn:hover {
+  color: var(--v2-text);
+  border-color: var(--v2-accent);
+}
+
+.iconBtnOn {
+  color: var(--v2-accent);
+  border-color: var(--v2-accent);
+  background: var(--v2-accent-s);
+}
+
+.walletChip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: 20px;
+  padding: 5px 13px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--v2-text);
+  transition: border-color 0.16s ease;
+}
+
+.walletChip:hover {
+  border-color: var(--v2-accent);
+}
+
+.walletDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--v2-green);
+  box-shadow: 0 0 6px var(--v2-green);
+}

@@ -33,6 +33,12 @@ export const api = {
   getTokenLogo: (address: string, chain: string = 'Base') =>
     `${config.API_BASE_URL}${config.API_ENDPOINTS.TOKENS}/${address}/logo?chain=${chain}`,
 
+  getTokenLogoProxyImage: (address: string) =>
+    `${config.API_BASE_URL}/api/v1/tokens/logos/${encodeURIComponent(address)}/image`,
+
+  getProxyImage: (url: string) =>
+    `${config.API_BASE_URL}/api/v1/proxy/image?url=${encodeURIComponent(url)}`,
+
   getTokenStats: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.TOKENS}/stats`,
 
   getSupportedChains: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.SUPPORTED_CHAINS}`,
@@ -92,6 +98,9 @@ export const api = {
     `${config.API_BASE_URL}${config.API_ENDPOINTS.AGGREGATIONS}/${encodeURIComponent(jobId)}`,
 
   getProtocolsStatus: () => `${config.API_BASE_URL}${config.API_ENDPOINTS.PROTOCOLS_STATUS}`,
+
+  getWalletGroupHistory: (id: string) =>
+    `${config.API_BASE_URL}${config.API_ENDPOINTS.WALLET_GROUPS}/${encodeURIComponent(id)}/history`,
 };
 
 export default config;

@@ -35,8 +35,8 @@ export const WalletItemTypeLabels: Record<WalletItemType, string> = {
  * Chart colors for each type
  */
 export const WalletItemTypeColors: Record<WalletItemType, string> = {
-  [WalletItemType.WALLET]: '#3b82f6', // Blue
-  [WalletItemType.LIQUIDITY_POOL]: '#10b981', // Green
+  [WalletItemType.WALLET]: '#14b8a6',
+  [WalletItemType.LIQUIDITY_POOL]: '#f59e0b',
   [WalletItemType.LENDING_AND_BORROWING]: '#8b5cf6', // Purple
   [WalletItemType.LOCKING]: '#ec4899', // Pink
   [WalletItemType.STAKING]: '#f59e0b', // Orange

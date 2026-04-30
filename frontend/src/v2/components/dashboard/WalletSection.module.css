@@ -1,0 +1,102 @@
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.card {
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-sm);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card:hover {
+  border-color: var(--v2-accent);
+  background: var(--v2-bg-hover);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tokenIcon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tokenInitial {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--v2-bg-hover);
+  border: 1px solid var(--v2-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--v2-muted);
+}
+
+.tokenInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.tokenSymbol {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
+
+.chainBadge {
+  font-size: 10px;
+  color: var(--v2-dim);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tokenValue {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--v2-text);
+  white-space: nowrap;
+}
+
+.cardBot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tokenAmt {
+  font-size: 11.5px;
+  color: var(--v2-muted);
+}
+
+.projIcon {
+  font-size: 11px;
+  opacity: 0.5;
+}

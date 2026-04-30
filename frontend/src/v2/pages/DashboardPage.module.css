@@ -1,0 +1,165 @@
+.page {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.viewToggleRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.viewToggle {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-sm);
+  padding: 3px;
+}
+
+.viewBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--v2-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.viewBtn:hover {
+  color: var(--v2-text);
+}
+
+.viewBtnOn {
+  background: var(--v2-bg-hover);
+  color: var(--v2-text);
+}
+
+.skeletonPage {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.skeletonHero {
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.skeletonBar {
+  height: 5px;
+  background: var(--v2-bg-hover);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.skeletonBarFill {
+  height: 100%;
+  background: var(--v2-accent);
+  border-radius: 3px;
+}
+
+.skeletonPct {
+  font-size: 11px;
+  color: var(--v2-muted);
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.skeletonSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.skeletonCard {
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius-sm);
+  padding: 14px;
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.skeletonCircle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--v2-bg-hover);
+  flex-shrink: 0;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonBlock {
+  border-radius: 4px;
+  background: var(--v2-bg-hover);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.loadingWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 14px;
+  color: var(--v2-muted);
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--v2-border);
+  border-top-color: var(--v2-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loadingText {
+  font-size: 14px;
+  color: var(--v2-muted);
+}
+
+.loadingPct {
+  font-weight: 700;
+  color: var(--v2-accent);
+}

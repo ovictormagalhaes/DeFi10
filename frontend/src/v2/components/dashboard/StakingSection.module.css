@@ -1,0 +1,136 @@
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--v2-bg-card);
+  border: 1px solid var(--v2-border);
+  border-radius: var(--v2-radius);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.14s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card:hover {
+  border-color: var(--v2-accent);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.protoInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.protoName {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
+
+.protoChain {
+  font-size: 11px;
+  color: var(--v2-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.apyBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--v2-green-s);
+  color: var(--v2-green);
+}
+
+.cardTotal {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--v2-text);
+}
+
+.tokenList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tokenRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.tokenSym {
+  font-weight: 700;
+  color: var(--v2-text);
+  min-width: 50px;
+}
+
+.tokenAmt {
+  color: var(--v2-muted);
+  flex: 1;
+}
+
+.tokenVal {
+  font-weight: 600;
+  color: var(--v2-text);
+}
+
+.rewards {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--v2-border-sub);
+  flex-wrap: wrap;
+}
+
+.rewardLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--v2-dim);
+}
+
+.rewardRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rewardSym {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--v2-muted);
+}
+
+.rewardVal {
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.rewardTotal {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--v2-accent);
+}

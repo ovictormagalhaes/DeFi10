@@ -41,14 +41,15 @@ export function validateAllocationConfig(
     if (!alloc.assetKey) {
       errors.push('Asset key is required');
     }
-    if (!alloc.protocol) {
-      errors.push(`Protocol is required for ${alloc.assetKey}`);
-    }
-    if (!alloc.chain) {
-      errors.push(`Chain is required for ${alloc.assetKey}`);
-    }
     if (!alloc.group) {
       errors.push(`Group is required for ${alloc.assetKey}`);
+    }
+    const isGeneral = alloc.group === 'General';
+    if (!isGeneral && !alloc.protocol) {
+      errors.push(`Protocol is required for ${alloc.assetKey}`);
+    }
+    if (!isGeneral && !alloc.chain) {
+      errors.push(`Chain is required for ${alloc.assetKey}`);
     }
     if (alloc.weight <= 0 || alloc.weight > 100) {
       errors.push(`Invalid weight for ${alloc.assetKey}: ${alloc.weight}%`);
@@ -79,13 +80,24 @@ export function buildAllocationRequest(
 ): SaveAllocationStrategyRequest {
   // Build allocations array with protocol/chain nested objects
   const allocations = config.allocations.map((allocation) => {
-    // Find matching portfolio item to extract metadata
-    const matchingItem = portfolio.find((item) => {
-      const hasMatchingToken = item.position.tokens.some((t) => t.symbol === allocation.assetKey);
-      const matchingProtocol = item.protocol.id === allocation.protocol;
-      const matchingChain = item.protocol.chain === allocation.chain;
-      return hasMatchingToken && matchingProtocol && matchingChain;
-    });
+    const isGeneral = allocation.group === 'General';
+
+    // For General allocations, locate any non-borrow token with the same symbol to enrich metadata
+    const matchingItem = isGeneral
+      ? portfolio.find((item) =>
+          item.position.tokens.some((t: any) => {
+            const tt = (t.type || '').toString().toLowerCase();
+            return t.symbol === allocation.assetKey && tt !== 'borrowed' && tt !== 'borrow';
+          })
+        )
+      : portfolio.find((item) => {
+          const hasMatchingToken = item.position.tokens.some(
+            (t) => t.symbol === allocation.assetKey
+          );
+          const matchingProtocol = item.protocol.id === allocation.protocol;
+          const matchingChain = item.protocol.chain === allocation.chain;
+          return hasMatchingToken && matchingProtocol && matchingChain;
+        });
 
     // Extract token info from matching item
     const matchingToken = matchingItem?.position.tokens.find(
@@ -94,7 +106,9 @@ export function buildAllocationRequest(
 
     // Determine groupType based on WalletItemType
     let groupType = 0;
-    if (matchingItem) {
+    if (isGeneral) {
+      groupType = 50; // General
+    } else if (matchingItem) {
       switch (matchingItem.type) {
         case 'LendingAndBorrowing':
           groupType = 10; // Lending Supply
@@ -113,36 +127,42 @@ export function buildAllocationRequest(
 
     // Determine positionType (Supplied, Borrowed, etc.)
     let positionType = 0;
-    if (matchingItem?.position.label === 'Supplied') {
-      positionType = 1; // Supplied
-    } else if (matchingItem?.position.label === 'Borrowed') {
-      positionType = 2; // Borrowed
+    if (!isGeneral) {
+      if (matchingItem?.position.label === 'Supplied') {
+        positionType = 1; // Supplied
+      } else if (matchingItem?.position.label === 'Borrowed') {
+        positionType = 2; // Borrowed
+      }
     }
 
     return {
       assetKey: allocation.assetKey,
-      protocol: matchingItem
-        ? {
-            id: matchingItem.protocol.id,
-            name: matchingItem.protocol.name,
-            logo: matchingItem.protocol.logo,
-          }
-        : {
-            id: allocation.protocol || '',
-            name: allocation.protocol || '',
-            logo: '',
-          },
-      chain: matchingItem
-        ? {
-            id: matchingItem.protocol.chain,
-            name: matchingItem.protocol.chain,
-            logo: '',
-          }
-        : {
-            id: allocation.chain || '',
-            name: allocation.chain || '',
-            logo: '',
-          },
+      protocol: isGeneral
+        ? { id: '', name: '', logo: '' }
+        : matchingItem
+          ? {
+              id: matchingItem.protocol.id,
+              name: matchingItem.protocol.name,
+              logo: matchingItem.protocol.logo,
+            }
+          : {
+              id: allocation.protocol || '',
+              name: allocation.protocol || '',
+              logo: '',
+            },
+      chain: isGeneral
+        ? { id: '', name: '', logo: '' }
+        : matchingItem
+          ? {
+              id: matchingItem.protocol.chain,
+              name: matchingItem.protocol.chain,
+              logo: '',
+            }
+          : {
+              id: allocation.chain || '',
+              name: allocation.chain || '',
+              logo: '',
+            },
       token: matchingToken
         ? {
             symbol: matchingToken.symbol,

@@ -33,26 +33,19 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ initialMode = 'dark', children }) => {
-  const [mode, setMode] = useState<ThemeMode>(initialMode);
+  const [mode, setMode] = useState<ThemeMode>(() => {
+    try {
+      const stored = localStorage.getItem('defi10_theme_mode') as ThemeMode | null;
+      if (stored === 'dark' || stored === 'light') return stored;
+    } catch {}
+    return initialMode;
+  });
 
-  // Persist choice (localStorage)
   useEffect(() => {
     try {
       localStorage.setItem('defi10_theme_mode', mode);
-    } catch (err) {
-      // Persist silently ignored (storage disabled or unavailable)
-    }
+    } catch {}
   }, [mode]);
-
-  // Load persisted
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('defi10_theme_mode') as ThemeMode | null;
-      if (stored && (stored === 'dark' || stored === 'light')) setMode(stored);
-    } catch (err) {
-      // Read silently ignored
-    }
-  }, []);
 
   const toggleTheme = useCallback(() => {
     setMode((m) => (m === 'dark' ? 'light' : 'dark'));

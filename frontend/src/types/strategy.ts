@@ -19,6 +19,82 @@ export enum StrategyType {
   ProtocolDiversification = 5, // 🔜 Future
   ChainAllocation = 6, // 🔜 Future
   AssetTypeAllocation = 7, // 🔜 Future
+  BestPurchaseWindow = 8, // ✅ Implemented
+}
+
+export type WindowPeriod = 'h1' | 'h24' | 'd7' | 'd14' | 'd30' | 'd90' | 'd200' | 'y1' | 'ytd';
+export type WindowDirection = 'min' | 'max';
+export type PriceDirection = 'above' | 'below';
+
+export type PurchaseTrigger =
+  | { type: 'window'; window: WindowPeriod; direction: WindowDirection }
+  | { type: 'price'; target: number; direction: PriceDirection };
+
+export interface BestPurchaseWindowEntry {
+  assetKey: string;
+  symbol: string;
+  coingeckoId: string;
+  protocol: ProtocolInfo;
+  chain: ChainInfo;
+  token: TokenInfo;
+  /** @deprecated use `triggers` */
+  trigger?: PurchaseTrigger;
+  triggers?: PurchaseTrigger[];
+}
+
+export interface TriggerEvaluation {
+  trigger: PurchaseTrigger;
+  referencePrice: number;
+  referenceLabel: string;
+  signal: boolean;
+}
+
+export interface TokenMarketData {
+  image?: string;
+  currentPrice?: number;
+  lastUpdated?: string;
+  marketCap?: number;
+  marketCapRank?: number;
+  fullyDilutedValuation?: number;
+  totalVolume?: number;
+  high24h?: number;
+  low24h?: number;
+  priceChange24h?: number;
+  priceChangePercentage1h?: number;
+  priceChangePercentage24h?: number;
+  priceChangePercentage7d?: number;
+  priceChangePercentage14d?: number;
+  priceChangePercentage30d?: number;
+  priceChangePercentage200d?: number;
+  priceChangePercentage1y?: number;
+  priceChangePercentageYtd?: number;
+  marketCapChange24h?: number;
+  marketCapChangePercentage24h?: number;
+  circulatingSupply?: number;
+  totalSupply?: number;
+  maxSupply?: number;
+  ath?: number;
+  athChangePercentage?: number;
+  athDate?: string;
+  atl?: number;
+  atlChangePercentage?: number;
+  atlDate?: string;
+}
+
+export interface PurchaseWindowEvalResult {
+  assetKey: string;
+  symbol: string;
+  currentPriceUsd: number;
+  /** @deprecated use `evaluations` */
+  trigger?: PurchaseTrigger;
+  signal: boolean;
+  referencePrice: number;
+  referenceLabel: string;
+  evaluations?: TriggerEvaluation[];
+  fetchedAt: string;
+  marketData?: TokenMarketData;
+  dataUnavailable?: boolean;
+  errorMessage?: string;
 }
 
 /**
@@ -105,9 +181,18 @@ export interface HealthFactorStrategy extends BaseStrategy {
 }
 
 /**
+ * Type 8: Best Purchase Window Strategy
+ */
+export interface BestPurchaseWindowStrategy extends BaseStrategy {
+  strategyType: 8;
+  purchaseWindowEntries: BestPurchaseWindowEntry[];
+  purchaseWindowResults?: PurchaseWindowEvalResult[];
+}
+
+/**
  * Union type for all strategy types
  */
-export type Strategy = AllocationStrategy | HealthFactorStrategy;
+export type Strategy = AllocationStrategy | HealthFactorStrategy | BestPurchaseWindowStrategy;
 
 /**
  * Response from GET /api/strategies/:walletGroupId
@@ -270,10 +355,21 @@ export interface SaveHealthFactorStrategyRequest {
   }>;
 }
 
+export interface SaveBestPurchaseWindowStrategyRequest {
+  id?: string;
+  strategyType: 8;
+  name: string;
+  description?: string | null;
+  purchaseWindowEntries: BestPurchaseWindowEntry[];
+}
+
 /**
  * Union type for save requests
  */
-export type SaveStrategyRequest = SaveAllocationStrategyRequest | SaveHealthFactorStrategyRequest;
+export type SaveStrategyRequest =
+  | SaveAllocationStrategyRequest
+  | SaveHealthFactorStrategyRequest
+  | SaveBestPurchaseWindowStrategyRequest;
 
 /**
  * Legacy type alias for target allocation
@@ -344,6 +440,8 @@ export interface StrategyData {
   description?: string | null;
   allocations?: AllocationItem[];
   targets?: HealthFactorTarget[];
+  purchaseWindowEntries?: BestPurchaseWindowEntry[];
+  purchaseWindowResults?: PurchaseWindowEvalResult[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -360,6 +458,7 @@ export interface SaveStrategiesRequest {
     description?: string | null;
     allocations?: unknown[];
     targets?: unknown[];
+    purchaseWindowEntries?: BestPurchaseWindowEntry[];
   }>;
 }
 

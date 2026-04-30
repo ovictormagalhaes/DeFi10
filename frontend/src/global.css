@@ -820,8 +820,8 @@ body.light, .theme-light {
 .chain-pill-bar::-webkit-scrollbar-thumb { background: var(--mw-scrollbar-thumb, #3a3f4a); border-radius: 4px; }
 .chain-pill { flex:0 0 auto; padding:6px 14px; font-size:12px; font-weight:500; border:1px solid var(--mw-border,var(--app-border)); border-radius:999px; background: var(--mw-surface-2, var(--app-bg-alt)); color: var(--mw-text-muted,var(--app-text-secondary)); cursor:pointer; line-height:1; transition: background .18s, color .18s, border-color .18s; user-select:none; }
 .chain-pill:hover { background: var(--mw-bg-interactive-hover, rgba(255,255,255,0.05)); color: var(--mw-text-primary,var(--app-text-primary)); }
-.chain-pill.is-active { background: var(--mw-accent-bg, #2563eb); color: #fff; border-color: var(--mw-accent-border,#2563eb); box-shadow:0 0 0 1px rgba(255,255,255,0.15) inset; }
-.chain-pill.is-active:hover { background: var(--mw-accent-bg-hover,#1e4fb8); }
+.chain-pill.is-active { background: var(--mw-accent-bg, #2d9873); color: #fff; border-color: var(--mw-accent-border,#2d9873); box-shadow:0 0 0 1px rgba(255,255,255,0.15) inset; }
+.chain-pill.is-active:hover { background: var(--mw-accent-bg-hover,#236f57); }
 
 /* Copy button */
 .btn-copy { padding:8px 12px; border:1px solid var(--mw-border,var(--app-border)); background: var(--mw-surface-2,var(--app-bg-alt)); border-radius:8px; cursor:pointer; font-size:12px; line-height:1; display:inline-flex; align-items:center; gap:6px; color: var(--mw-text-secondary,var(--app-text-secondary)); transition: background .18s, color .18s, border-color .18s; }
@@ -1254,7 +1254,7 @@ pre {
 .quick-stat { display:flex; align-items:center; gap:8px; }
 .quick-dot { width:8px; height:8px; border-radius:50%; }
 .quick-dot.liquidity { background:#10b981; }
-.quick-dot.lending { background:#3b82f6; }
+.quick-dot.lending { background:#14b8a6; }
 .quick-dot.staking { background:#f59e0b; }
 
 /* DeFi menu / protocol utilities */
@@ -1305,7 +1305,8 @@ pre {
 
 /* --- Added: Skeleton loading styles --- */
 .skeleton { position:relative; background:linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 37%, rgba(255,255,255,0.06) 63%); background-size:400% 100%; animation:skeleton-shimmer 1.2s ease-in-out infinite; border-radius:6px; }
-@media (prefers-reduced-motion: reduce) { .skeleton { animation:none; background:rgba(255,255,255,0.08); } }
+body.light .skeleton { background:linear-gradient(90deg, rgba(0,0,0,0.06) 25%, rgba(0,0,0,0.12) 37%, rgba(0,0,0,0.06) 63%); background-size:400% 100%; }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation:none; background:rgba(255,255,255,0.08); } body.light .skeleton { background:rgba(0,0,0,0.08); } }
 @keyframes skeleton-shimmer { 0% { background-position:100% 50%; } 100% { background-position:0 50%; } }
 .skeleton.inline { display:inline-block; }
 .skeleton.text { height:13px; width:100%; }

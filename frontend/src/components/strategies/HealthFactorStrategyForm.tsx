@@ -24,6 +24,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 
 import { useChainIcons } from '../../context/ChainIconsProvider';
 import { useTheme } from '../../context/ThemeProvider';
+import { getProtocolConfig } from '../../constants/protocols';
 import type { HealthFactorTargetConfig, Strategy } from '../../types/strategy';
 import type { WalletItem } from '../../types/wallet';
 
@@ -55,6 +56,110 @@ interface HealthFactorStrategyFormProps {
   ) => Promise<void>;
   onCancel: () => void;
 }
+
+interface SortablePositionCardProps {
+  position: LendingPosition;
+  onRemove: (id: string) => void;
+  onUpdateTargetHF: (id: string, value: number) => void;
+  onUpdateCriticalThreshold: (id: string, value: number) => void;
+}
+
+const SortablePositionCard: React.FC<SortablePositionCardProps> = ({
+  position,
+  onRemove,
+  onUpdateTargetHF,
+  onUpdateCriticalThreshold,
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: position.id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="hf-pos-row"
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+    >
+      <div {...attributes} {...listeners} className="hf-pos-drag" title="Drag to reorder">
+        <svg width="12" height="16" viewBox="0 0 12 16" fill="none">
+          <circle cx="3" cy="3" r="1.5" fill="currentColor"/>
+          <circle cx="9" cy="3" r="1.5" fill="currentColor"/>
+          <circle cx="3" cy="8" r="1.5" fill="currentColor"/>
+          <circle cx="9" cy="8" r="1.5" fill="currentColor"/>
+          <circle cx="3" cy="13" r="1.5" fill="currentColor"/>
+          <circle cx="9" cy="13" r="1.5" fill="currentColor"/>
+        </svg>
+      </div>
+
+      <div className="hf-pos-identity">
+        {position.protocolLogo && (
+          <img src={position.protocolLogo} alt="" className="hf-pos-logo" />
+        )}
+        <div className="hf-pos-meta">
+          <span className="hf-pos-name">{position.protocolName}</span>
+          <div className="hf-pos-badges">
+            {position.chainLogo && (
+              <img src={position.chainLogo} alt="" className="hf-pos-chain-logo" />
+            )}
+            <span className="hf-pos-badge hf-pos-badge-chain">{position.chain.charAt(0).toUpperCase() + position.chain.slice(1)}</span>
+            <span className="hf-pos-hf-chip">HF {position.currentHF.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="hf-pos-controls">
+        <div className="hf-pos-ctrl-row">
+          <span className="hf-pos-ctrl-label">Target</span>
+          <input
+            type="range"
+            className="hf-pos-slider"
+            min="1.5"
+            max="5.0"
+            step="0.1"
+            value={position.targetHF}
+            onChange={(e) => onUpdateTargetHF(position.id, Number(e.target.value))}
+          />
+          <input
+            type="number"
+            className="hf-pos-num"
+            min="1.5"
+            max="5.0"
+            step="0.1"
+            value={position.targetHF}
+            onChange={(e) => onUpdateTargetHF(position.id, Number(e.target.value))}
+          />
+        </div>
+        <div className="hf-pos-ctrl-row">
+          <span className="hf-pos-ctrl-label hf-pos-ctrl-label-critical">Critical</span>
+          <input
+            type="range"
+            className="hf-pos-slider hf-pos-slider-critical"
+            min="1.1"
+            max={position.targetHF - 0.1}
+            step="0.1"
+            value={position.criticalThreshold}
+            onChange={(e) => onUpdateCriticalThreshold(position.id, Number(e.target.value))}
+          />
+          <input
+            type="number"
+            className="hf-pos-num hf-pos-num-critical"
+            min="1.1"
+            max={position.targetHF - 0.1}
+            step="0.1"
+            value={position.criticalThreshold}
+            onChange={(e) => onUpdateCriticalThreshold(position.id, Number(e.target.value))}
+          />
+        </div>
+      </div>
+
+      <button onClick={() => onRemove(position.id)} className="hf-pos-remove" title="Remove">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      </button>
+    </div>
+  );
+};
 
 export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> = ({
   portfolio,
@@ -123,7 +228,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
           id: positionKey,
           protocolId,
           protocolName: item.protocol?.name || 'Unknown',
-          protocolLogo: item.protocol?.logo || '',
+          protocolLogo: getProtocolConfig(item.protocol?.id || item.protocol?.name || '').logo || item.protocol?.logo || '',
           chain,
           chainLogo: getChainLogo(chain),
           currentHF: item.additionalData?.healthFactor || 0,
@@ -346,162 +451,9 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
     setLendingPositions((prev) => prev.map((p) => (p.id === id ? { ...p, criticalThreshold } : p)));
   };
 
-  const SortablePositionCard: React.FC<{
-    position: LendingPosition;
-    index: number;
-  }> = ({ position, index }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-      id: position.id,
-    });
-
-    const style: React.CSSProperties = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-      display: 'flex',
-      gap: 8,
-      alignItems: 'stretch',
-    };
-
-    return (
-      <div ref={setNodeRef} style={style}>
-        {/* Drag handle on the left */}
-        <div
-          {...attributes}
-          {...listeners}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            cursor: 'grab',
-            background: theme.bgInteractive,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 8,
-            color: theme.textSecondary,
-            fontSize: 18,
-            userSelect: 'none',
-            flexShrink: 0,
-          }}
-          title="Drag to reorder"
-        >
-          ⋮⋮
-        </div>
-
-        {/* Card content */}
-        <div
-          style={{
-            padding: 16,
-            background: theme.bgInteractive,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 8,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-            position: 'relative',
-            flex: 1,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {position.protocolLogo && (
-                <img
-                  src={position.protocolLogo}
-                  alt=""
-                  style={{ width: 32, height: 32, borderRadius: '50%' }}
-                />
-              )}
-              {position.chainLogo && (
-                <img
-                  src={position.chainLogo}
-                  alt=""
-                  style={{ width: 20, height: 20, borderRadius: '50%' }}
-                />
-              )}
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{position.protocolName}</div>
-                <div style={{ fontSize: 12, color: theme.textSecondary }}>
-                  {position.chain} • Current HF: {position.currentHF.toFixed(2)}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <button
-                onClick={() => handleRemovePosition(position.id)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: theme.textSecondary,
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                  fontSize: 18,
-                }}
-                title="Remove position"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="hf-form-label">Target Health Factor</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <input
-                type="range"
-                className="hf-slider"
-                min="1.5"
-                max="5.0"
-                step="0.1"
-                value={position.targetHF}
-                onChange={(e) => handleUpdateTargetHF(position.id, Number(e.target.value))}
-              />
-              <input
-                type="number"
-                className="hf-form-input"
-                min="1.5"
-                max="5.0"
-                step="0.1"
-                value={position.targetHF}
-                onChange={(e) => handleUpdateTargetHF(position.id, Number(e.target.value))}
-                style={{ width: 80, textAlign: 'center' }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="hf-form-label">Critical Threshold (must be &lt; Target)</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <input
-                type="range"
-                className="hf-slider"
-                min="1.1"
-                max={position.targetHF - 0.1}
-                step="0.1"
-                value={position.criticalThreshold}
-                onChange={(e) => handleUpdateCriticalThreshold(position.id, Number(e.target.value))}
-              />
-              <input
-                type="number"
-                className="hf-form-input"
-                min="1.1"
-                max={position.targetHF - 0.1}
-                step="0.1"
-                value={position.criticalThreshold}
-                onChange={(e) => handleUpdateCriticalThreshold(position.id, Number(e.target.value))}
-                style={{ width: 80, textAlign: 'center' }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div
       style={{
-        maxWidth: '700px',
-        margin: '0 auto',
         color: theme.textPrimary,
       }}
     >
@@ -592,6 +544,30 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
           border-radius: 3px;
         }
 
+        .hf-slider-critical::-webkit-slider-thumb {
+          background: ${theme.danger};
+        }
+
+        .hf-slider-critical::-moz-range-thumb {
+          background: ${theme.danger};
+        }
+
+        .hf-slider-critical::-moz-range-progress {
+          background: ${theme.danger};
+        }
+
+        .hf-input-critical {
+          color: ${theme.danger};
+        }
+
+        .hf-input-critical:focus {
+          border-color: ${theme.danger};
+        }
+
+        .hf-label-critical {
+          color: ${theme.danger};
+        }
+
         .hf-checkbox-item {
           display: flex;
           align-items: center;
@@ -665,6 +641,233 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
           border-color: ${theme.accent};
           color: ${theme.accent};
         }
+
+        .hf-pos-list {
+          display: flex;
+          flex-direction: column;
+          border: 1px solid ${theme.border};
+          border-radius: 10px;
+          overflow: hidden;
+          margin-top: 4px;
+        }
+
+        .hf-pos-row {
+          display: grid;
+          grid-template-columns: 20px 1fr 300px 28px;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 14px;
+          background: ${theme.bgPanel};
+          border-bottom: 1px solid ${theme.border};
+          transition: background 0.15s;
+        }
+
+        .hf-pos-row:last-child {
+          border-bottom: none;
+        }
+
+        .hf-pos-row:hover {
+          background: ${theme.bgSecondary};
+        }
+
+        .hf-pos-drag {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: ${theme.textSecondary};
+          cursor: grab;
+          opacity: 0.4;
+          transition: opacity 0.15s;
+          user-select: none;
+        }
+
+        .hf-pos-drag:hover { opacity: 1; }
+
+        .hf-pos-identity {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+        }
+
+        .hf-pos-logo {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          object-fit: cover;
+          flex-shrink: 0;
+        }
+
+        .hf-pos-meta {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .hf-pos-name {
+          font-size: 14px;
+          font-weight: 600;
+          color: ${theme.textPrimary};
+        }
+
+        .hf-pos-badges {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          flex-wrap: wrap;
+        }
+
+        .hf-pos-chain-logo {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          object-fit: cover;
+        }
+
+        .hf-pos-badge {
+          font-size: 11px;
+          color: ${theme.textSecondary};
+          background: ${theme.bgInteractive};
+          border: 1px solid ${theme.border};
+          border-radius: 4px;
+          padding: 1px 5px;
+          white-space: nowrap;
+        }
+
+        .hf-pos-badge-chain {
+          color: ${theme.textSecondary};
+          border-color: ${theme.border};
+          background: ${theme.bgInteractive};
+        }
+
+        .hf-pos-hf-chip {
+          font-size: 11px;
+          font-weight: 600;
+          color: ${theme.textSecondary};
+          background: ${theme.bgInteractive};
+          border: 1px solid ${theme.border};
+          border-radius: 4px;
+          padding: 1px 5px;
+          white-space: nowrap;
+        }
+
+        .hf-pos-controls {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .hf-pos-ctrl-row {
+          display: grid;
+          grid-template-columns: 52px 1fr 52px;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .hf-pos-ctrl-label {
+          font-size: 11px;
+          font-weight: 600;
+          color: ${theme.accent};
+          white-space: nowrap;
+        }
+
+        .hf-pos-ctrl-label-critical {
+          color: ${theme.danger};
+        }
+
+        .hf-pos-slider {
+          height: 4px;
+          border-radius: 2px;
+          background: ${theme.bgInteractive};
+          outline: none;
+          -webkit-appearance: none;
+          cursor: pointer;
+          width: 100%;
+        }
+
+        .hf-pos-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: ${theme.accent};
+          cursor: pointer;
+          border: 2px solid ${theme.bgPanel};
+          box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        }
+
+        .hf-pos-slider::-moz-range-thumb {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: ${theme.accent};
+          cursor: pointer;
+          border: 2px solid ${theme.bgPanel};
+          box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        }
+
+        .hf-pos-slider-critical::-webkit-slider-thumb {
+          background: ${theme.danger};
+        }
+
+        .hf-pos-slider-critical::-moz-range-thumb {
+          background: ${theme.danger};
+        }
+
+        .hf-pos-num {
+          width: 100%;
+          height: 28px;
+          font-size: 13px;
+          font-weight: 600;
+          color: ${theme.accent};
+          background: ${theme.bgInteractive};
+          border: 1px solid ${theme.border};
+          border-radius: 6px;
+          text-align: center;
+          padding: 0 4px;
+          transition: border-color 0.15s;
+        }
+
+        .hf-pos-num:focus {
+          outline: none;
+          border-color: ${theme.accent};
+        }
+
+        .hf-pos-num::-webkit-inner-spin-button,
+        .hf-pos-num::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+        }
+
+        .hf-pos-num-critical {
+          color: ${theme.danger};
+        }
+
+        .hf-pos-num-critical:focus {
+          border-color: ${theme.danger};
+        }
+
+        .hf-pos-remove {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          border: none;
+          background: transparent;
+          color: ${theme.textSecondary};
+          border-radius: 6px;
+          cursor: pointer;
+          opacity: 0.4;
+          transition: all 0.15s;
+          padding: 0;
+        }
+
+        .hf-pos-remove:hover {
+          background: ${theme.danger}22;
+          color: ${theme.danger};
+          opacity: 1;
+        }
       `}</style>
 
       {/* Strategy Details */}
@@ -711,7 +914,7 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
             className="btn-primary"
             type="button"
             style={{ padding: '8px 16px', fontSize: '13px' }}
-            disabled={availableLendingPositions.length === 0}
+            disabled={availableLendingPositions.every(p => lendingPositions.some(lp => lp.id === p.id))}
           >
             + Add Position
           </button>
@@ -721,8 +924,8 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
           <div
             style={{
               padding: '16px',
-              background: '#fbbf2410',
-              border: '1px solid #fbbf24',
+              background: `${theme.warning}1f`,
+              border: `1px solid ${theme.warning}`,
               borderRadius: '8px',
               fontSize: '13px',
               color: theme.textSecondary,
@@ -756,9 +959,15 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
               items={lendingPositions.map((p) => p.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {lendingPositions.map((position, index) => (
-                  <SortablePositionCard key={position.id} position={position} index={index} />
+              <div className="hf-pos-list">
+                {lendingPositions.map((position) => (
+                  <SortablePositionCard
+                    key={position.id}
+                    position={position}
+                    onRemove={handleRemovePosition}
+                    onUpdateTargetHF={handleUpdateTargetHF}
+                    onUpdateCriticalThreshold={handleUpdateCriticalThreshold}
+                  />
                 ))}
               </div>
             </SortableContext>
@@ -829,40 +1038,45 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
                     <div
                       key={position.id}
                       style={{
-                        padding: '12px',
+                        padding: '10px 14px',
                         background:
                           selectedPosition === position.walletItem
-                            ? theme.bgInteractiveHover
-                            : theme.bgInteractive,
+                            ? `${theme.accent}15`
+                            : theme.bgPanel,
                         border: `1px solid ${selectedPosition === position.walletItem ? theme.accent : theme.border}`,
                         borderRadius: '8px',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '12px',
+                        gap: '10px',
                       }}
                       onClick={() => setSelectedPosition(position.walletItem)}
                     >
-                      {position.protocolLogo && (
-                        <img
-                          src={position.protocolLogo}
-                          alt=""
-                          style={{ width: '32px', height: '32px', borderRadius: '50%' }}
-                        />
-                      )}
-                      {position.chainLogo && (
-                        <img
-                          src={position.chainLogo}
-                          alt=""
-                          style={{ width: '20px', height: '20px', borderRadius: '50%' }}
-                        />
-                      )}
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                      <div style={{
+                        width: '32px', height: '32px', borderRadius: '8px',
+                        background: theme.bgInteractive, border: `1px solid ${theme.border}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0, overflow: 'hidden',
+                      }}>
+                        {position.protocolLogo && (
+                          <img src={position.protocolLogo} alt="" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: '14px', color: theme.textPrimary }}>
                           {position.protocolName}
                         </div>
-                        <div style={{ fontSize: '12px', color: theme.textSecondary }}>
-                          {position.chain} • HF: {position.currentHF.toFixed(2)}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                          {position.chainLogo && (
+                            <img src={position.chainLogo} alt="" style={{ width: '12px', height: '12px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          )}
+                          <span style={{ fontSize: '11px', color: theme.textSecondary }}>
+                            {position.chain.charAt(0).toUpperCase() + position.chain.slice(1)}
+                          </span>
+                          <span style={{ fontSize: '11px', color: theme.textSecondary, opacity: 0.5 }}>·</span>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: theme.textSecondary }}>
+                            HF {position.currentHF.toFixed(2)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -892,17 +1106,25 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
                       step="0.1"
                       value={dialogTargetHF}
                       onChange={(e) => setDialogTargetHF(Number(e.target.value))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && selectedPosition) {
+                          const position = availableLendingPositions.find(
+                            (p) => p.walletItem === selectedPosition
+                          );
+                          if (position) handleAddPosition(position);
+                        }
+                      }}
                       style={{ width: '80px', textAlign: 'center' }}
                     />
                   </div>
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
-                  <label className="hf-form-label">Critical Threshold (Alert Level)</label>
+                  <label className="hf-form-label hf-label-critical">Critical Threshold (Alert Level)</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <input
                       type="range"
-                      className="hf-slider"
+                      className="hf-slider hf-slider-critical"
                       min="1.1"
                       max={dialogTargetHF - 0.1}
                       step="0.1"
@@ -911,12 +1133,20 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
                     />
                     <input
                       type="number"
-                      className="hf-form-input"
+                      className="hf-form-input hf-input-critical"
                       min="1.1"
                       max={dialogTargetHF - 0.1}
                       step="0.1"
                       value={dialogCriticalThreshold}
                       onChange={(e) => setDialogCriticalThreshold(Number(e.target.value))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && selectedPosition) {
+                          const position = availableLendingPositions.find(
+                            (p) => p.walletItem === selectedPosition
+                          );
+                          if (position) handleAddPosition(position);
+                        }
+                      }}
                       style={{ width: '80px', textAlign: 'center' }}
                     />
                   </div>
@@ -957,15 +1187,15 @@ export const HealthFactorStrategyForm: React.FC<HealthFactorStrategyFormProps> =
         <div
           className="hf-form-section"
           style={{
-            background: '#dc262610',
-            borderColor: '#dc2626',
+            background: `${theme.danger}1f`,
+            borderColor: theme.danger,
           }}
         >
           <div
             style={{
               fontSize: '14px',
               fontWeight: 600,
-              color: '#dc2626',
+              color: theme.danger,
               marginBottom: '8px',
             }}
           >
